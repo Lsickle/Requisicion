@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('estatusxrequisicion', function (Blueprint $table) {
+        Schema::create('estatus_requisicion', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_estatus')->constrained('estatus')->onDelete('cascade'); #id del estatus
-            $table->foreignId('id_requisicion')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
+            $table->foreignId('estatus_id')->constrained('estatus')->onDelete('cascade'); #id del estatus
+            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('estatusxrequisicion');
+        Schema::dropIfExists('estatus_requisicion');
     }
 };

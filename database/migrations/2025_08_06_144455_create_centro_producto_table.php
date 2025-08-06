@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('productoxcentro', function (Blueprint $table) {
+        Schema::create('centro_producto', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_producto')->constrained('productos')->onDelete('cascade'); #id del producto
-            $table->foreignId('id_centro')->constrained('centro')->onDelete('cascade'); #id del centro de costos
+            $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
+            $table->foreignId('centro_id')->constrained('centro')->onDelete('cascade'); #id del centro de costos
             $table->decimal('amount'); #cantidad de productos x centro de costos
             $table->timestamps();
         });
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('productoxcentro');
+        Schema::dropIfExists('centro_producto');
     }
 };

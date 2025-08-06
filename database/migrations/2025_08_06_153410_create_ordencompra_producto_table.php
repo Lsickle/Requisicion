@@ -11,11 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('requisicionxcentro', function (Blueprint $table) {
+        Schema::create('ordencompra_producto', function (Blueprint $table) {
             $table->id();
             $table->foreignId('productoxrequisicion_id')->constrained('productoxrequisicion')->onDelete('cascade'); #id del producto de requisicion
-            $table->foreignId('id_centro')->constrained('centro')->onDelete('cascade'); #centro de costos
-            $table->decimal('rc_amount'); #cantidad de productos por centro de costos
+            $table->foreignId('orden_compra_id')->constrained('orden_compra')->onDelete('cascade'); #id de la orden de compra
+            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade'); #id del proveedor
+            $table->decimal('po_amount'); #cantidad de productos por orden de compra
             $table->timestamps();
         });
     }
@@ -25,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('requisicionxcentro');
+        Schema::dropIfExists('ordencompra_producto');
     }
 };

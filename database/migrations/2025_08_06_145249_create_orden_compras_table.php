@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('orden_compra', function (Blueprint $table) {
+        Schema::create('orden_compras', function (Blueprint $table) {
             $table->id();
             $table->date ('date_oc'); #fecha de la orden de compra
             $table->string('methods_oc', 255); #metodo de pago
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('orden_compra');
+        Schema::dropIfExists('orden_compras');
     }
 };
