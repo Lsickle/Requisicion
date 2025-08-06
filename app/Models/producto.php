@@ -22,18 +22,18 @@ class Producto extends Model
 
     public function proveedor()
     {
-        return $this->belongsTo(Proveedor::class, 'id_proveedores');
+        return $this->belongsTo(Proveedor::class);
     }
 
     public function centros()
     {
-        return $this->belongsToMany(Centro::class, 'productoxcentro')
+        return $this->belongsToMany(Centro::class)
                    ->withPivot('amount');
     }
 
     public function requisiciones()
     {
-        return $this->belongsToMany(Requisicion::class, 'productoxrequisicion')
+        return $this->belongsToMany(Requisicion::class)
                    ->withPivot('pr_amount');
     }
     public function ordenCompras()

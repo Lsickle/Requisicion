@@ -22,18 +22,18 @@ class Requisicion extends Model
 
     public function productos()
     {
-        return $this->belongsToMany(Producto::class, 'productoxrequisicion')
+        return $this->belongsToMany(Producto::class)
                    ->withPivot('pr_amount');
     }
 
     public function centros()
     {
-        return $this->belongsToMany(Centro::class, 'requisicionxcentro')
+        return $this->belongsToMany(Centro::class)
                    ->withPivot('rc_amount');
     }
 
     public function estatus()
     {
-        return $this->belongsToMany(Estatus::class, 'estatusxrequisicion');
+        return $this->belongsToMany(Estatus::class);
     }
 }

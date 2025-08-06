@@ -19,6 +19,6 @@ class Estatus extends Model
 
     public function requisiciones()
     {
-        return $this->belongsToMany(Requisicion::class, 'estatusxrequisicion');
+        return $this->belongsToMany(Requisicion::class);
     }
 }

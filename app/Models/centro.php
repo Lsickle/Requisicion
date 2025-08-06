@@ -17,13 +17,13 @@ class Centro extends Model
 
     public function productos()
     {
-        return $this->belongsToMany(Producto::class, 'productoxcentro')
+        return $this->belongsToMany(Producto::class)
                    ->withPivot('amount');
     }
 
     public function requisiciones()
     {
-        return $this->belongsToMany(Requisicion::class, 'requisicionxcentro') 
+        return $this->belongsToMany(Requisicion::class) 
                    ->withPivot('rc_amount');
     }
 }

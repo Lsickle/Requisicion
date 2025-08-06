@@ -20,12 +20,12 @@ class OrdenCompra extends Model
 
     public function productos()
     {
-        return $this->belongsToMany(Producto::class, 'ordencompra_producto', 'orden_compra_id', 'requisicion_producto_id')
+        return $this->belongsToMany(Producto::class)
                    ->withPivot(['po_amount', 'proveedor_id']);
     }
 
     public function proveedores()
     {
-        return $this->belongsToMany(Proveedor::class, 'ordencompra_producto', 'orden_compra_id', 'proveedor_id');
+        return $this->belongsToMany(Proveedor::class);
     }
 }
