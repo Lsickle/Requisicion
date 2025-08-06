@@ -15,8 +15,10 @@ class DatabaseSeeder extends Seeder
         ClienteSeeder::class,
         EstatusSeeder::class,
         ProductoSeeder::class,
+        NuevoProductoSeeder::class, 
         RequisicionSeeder::class,
-        OrdenCompraSeeder::class, // Añadir esta línea
+        OrdenCompraSeeder::class,
+        OrdenCompraProductoSeeder::class, 
     ]);
 }
 }
