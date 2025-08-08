@@ -11,7 +11,7 @@ class NuevoProductoSeeder extends Seeder
     public function run()
     {
         $productos = [
-            ['nombre' => 'Laptop Elite', 'descripcion' => 'Laptop de última generación con 16GB RAM'],
+            ['nombre' => 'Laptop', 'descripcion' => 'Laptop de última generación con 16GB RAM'],
             ['nombre' => 'Teclado Mecánico', 'descripcion' => 'Teclado mecánico RGB switches azules'],
             ['nombre' => 'Monitor 24"', 'descripcion' => 'Monitor Full HD 144Hz'],
             ['nombre' => 'Mouse Inalámbrico', 'descripcion' => 'Mouse ergonómico 1600DPI'],

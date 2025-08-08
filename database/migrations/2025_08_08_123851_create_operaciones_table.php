@@ -11,12 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('orden_compras', function (Blueprint $table) {
+        Schema::create('operaciones', function (Blueprint $table) {
             $table->id();
-            $table->date ('date_oc'); #fecha de la orden de compra
-            $table->string('methods_oc', 255); #metodo de pago
-            $table->string('plazo_oc', 255); #plazo de pago
-            $table->integer('order_oc'); #numero de orden de compra
+            $table->string('op_name');  #nombre de la operacion
             $table->timestamps();
         });
     }
@@ -26,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('orden_compras');
+        Schema::dropIfExists('operaciones');
     }
 };

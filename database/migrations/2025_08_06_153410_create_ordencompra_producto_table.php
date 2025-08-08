@@ -15,7 +15,7 @@ return new class extends Migration
         $table->id();
         $table->foreignId('producto_requisicion_id')->constrained('producto_requisicion')->onDelete('cascade');  #id de la requisicion
         $table->foreignId('orden_compra_id')->constrained('orden_compras')->onDelete('cascade');  #id de la orden de compra
-        $table->decimal('po_amount');  #cantidad de productos por proveedor
+        $table->integer('po_amount');  #cantidad de productos por proveedor
         $table->timestamps();
     });
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Estatus_Requisicion;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -18,7 +19,11 @@ class DatabaseSeeder extends Seeder
         NuevoProductoSeeder::class, 
         RequisicionSeeder::class,
         OrdenCompraSeeder::class,
-        OrdenCompraProductoSeeder::class, 
+        OrdenCompraProductoSeeder::class,
+        Estatus_RequisicionSeeder::class,
+        CentroProductoSeeder::class,
+        CentroRequisicionSeeder::class,
+        OperacionSeeder::class,
     ]);
 }
 }

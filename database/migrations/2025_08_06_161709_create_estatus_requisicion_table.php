@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('estatus_requisicion', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('estatus_id')->constrained('estatus')->onDelete('cascade'); #id del estatus
-            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
+            $table->foreignId('estatus_id')->constrained('estatus')->onDelete('cascade');  #id del estatus
+            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade');  #id de la requisicion
+            $table->string('estatus')->default(0);
+            $table->date('date_update')->nullable;
             $table->timestamps();
         });
     }

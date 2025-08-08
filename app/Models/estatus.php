@@ -13,8 +13,6 @@ class Estatus extends Model
 
     protected $fillable = [
         'status_name',
-        'status_date',
-        'status_curso'
     ];
 
     public function requisiciones()

@@ -19,7 +19,7 @@ class OrdenCompraSeeder extends Seeder
                 'date_oc' => Carbon::now()->subDays(rand(1, 60)),
                 'methods_oc' => $metodosPago[array_rand($metodosPago)],
                 'plazo_oc' => $plazos[array_rand($plazos)],
-                'order_oc' => 1000 + $i, // Números secuenciales empezando en 1000
+                'order_oc' => 1 + $i, #secuencia de números que empieza desde 1
                 'created_at' => now(),
                 'updated_at' => now()
             ]);

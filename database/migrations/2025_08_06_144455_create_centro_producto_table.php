@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
             $table->foreignId('centro_id')->constrained('centro')->onDelete('cascade'); #id del centro de costos
-            $table->decimal('amount'); #cantidad de productos x centro de costos
+            $table->integer('amount'); #cantidad de productos x centro de costos
             $table->timestamps();
         });
     }
