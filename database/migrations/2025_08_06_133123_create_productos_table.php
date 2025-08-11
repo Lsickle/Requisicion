@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('productos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_proveedores')->constrained('proveedores')->onDelete('cascade'); #id de proveedores
+            $table->text('categoria_produc'); #categoria del producto
             $table->string('name_produc', 255); #nombre del producto
             $table->integer('stock_produc'); #stock del producto
             $table->text('description_produc'); #descripcion 

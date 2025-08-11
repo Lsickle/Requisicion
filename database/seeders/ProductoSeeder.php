@@ -10,7 +10,7 @@ class ProductoSeeder extends Seeder
 {
     public function run()
     {
-        // Verificar si ya hay proveedores
+        // Verificar si hay proveedores
         if (Proveedor::count() == 0) {
             // Crear 5 proveedores de prueba
             Proveedor::factory()->count(5)->create();
