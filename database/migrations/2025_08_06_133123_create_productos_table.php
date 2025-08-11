@@ -21,6 +21,7 @@ return new class extends Migration
             $table->decimal('price_produc'); #precio del producto
             $table->text('unit_produc'); #unidad de medida del producto
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

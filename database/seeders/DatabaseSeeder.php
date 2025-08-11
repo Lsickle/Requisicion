@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
         OrdenCompraProductoSeeder::class,
         Estatus_RequisicionSeeder::class,
         CentroProductoSeeder::class,
-        CentroRequisicionSeeder::class,
+        CentroOrdenCompraSeeder::class,
         OperacionSeeder::class,
     ]);
 }

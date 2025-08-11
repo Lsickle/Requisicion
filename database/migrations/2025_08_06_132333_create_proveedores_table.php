@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('prov_adress', 255); #direccion del proveedor
             $table->string('prov_city', 255); #ciudad del proveedor
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -17,6 +17,7 @@ return new class extends Migration
         $table->foreignId('orden_compra_id')->constrained('orden_compras')->onDelete('cascade');  #id de la orden de compra
         $table->integer('po_amount');  #cantidad de productos por proveedor
         $table->timestamps();
+        $table->softDeletes();
     });
 }
 

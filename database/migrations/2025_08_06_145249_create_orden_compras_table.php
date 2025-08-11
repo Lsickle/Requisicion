@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('plazo_oc', 255); #plazo de pago
             $table->integer('order_oc'); #numero de orden de compra
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -11,13 +11,49 @@ class RequisicionFactory extends Factory
 
     public function definition(): array
     {
-        return [
-            'date_requisicion' => $this->faker->dateTimeBetween('-1 year', 'now'),
-            'justify_requisicion' => $this->faker->paragraph,
-            'detail_requisicion' => $this->faker->text,
-            'prioridad_requisicion' => $this->faker->randomElement(['Alta', 'Media', 'Baja']),
-            'amount_requisicion' => $this->faker->numberBetween(1, 100),
-            'Recobreble' => $this->faker->randomElement(['Sí', 'No']),
+        $requisiciones = [
+            [
+                'date_requisicion' => '2025-01-10',
+                'justify_requisicion' => 'se nescesita adquisición de equipos para la nueva sede.',
+                'detail_requisicion' => 'no',
+                'prioridad_requisicion' => 'Alta',
+                'amount_requisicion' => 15,
+                'Recobreble' => 'Sí'
+            ],
+            [
+                'date_requisicion' => '2025-02-05',
+                'justify_requisicion' => 'Reposición de herramientas dañadas.',
+                'detail_requisicion' => 'que sean dorados.',
+                'prioridad_requisicion' => 'Media',
+                'amount_requisicion' => 25,
+                'Recobreble' => 'No'
+            ],
+            [
+                'date_requisicion' => '2025-03-12',
+                'justify_requisicion' => 'Abastecimiento de insumos de oficina.',
+                'detail_requisicion' => 'marca x',
+                'prioridad_requisicion' => 'Baja',
+                'amount_requisicion' => 200,
+                'Recobreble' => 'Sí'
+            ],
+            [
+                'date_requisicion' => '2025-04-18',
+                'justify_requisicion' => 'Materiales de construcción para remodelación.',
+                'detail_requisicion' => 'no',
+                'prioridad_requisicion' => 'Alta',
+                'amount_requisicion' => 50,
+                'Recobreble' => 'No'
+            ],
+            [
+                'date_requisicion' => '2025-05-25',
+                'justify_requisicion' => 'Equipos de seguridad industrial.',
+                'detail_requisicion' => 'con calidad certificada x',
+                'prioridad_requisicion' => 'Alta',
+                'amount_requisicion' => 100,
+                'Recobreble' => 'Sí'
+            ]
         ];
+
+        return $this->faker->randomElement($requisiciones);
     }
 }

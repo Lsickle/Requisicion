@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('nombre');  #nombre del producto
             $table->string('descripcion');  #descripción del producto
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

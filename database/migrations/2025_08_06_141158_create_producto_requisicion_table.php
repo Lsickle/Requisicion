@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('id_requisicion')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
             $table->integer('pr_amount'); #cantidad de productos por requisicion
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

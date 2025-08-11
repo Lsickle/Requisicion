@@ -11,11 +11,43 @@ class OrdenCompraFactory extends Factory
 
     public function definition(): array
     {
+        static $orderNumber = 1000; // autoincremento manual
+
+        $ordenes = [
+            [
+                'date_oc' => '2025-01-15',
+                'methods_oc' => 'Contado',
+                'plazo_oc' => '15 días',
+            ],
+            [
+                'date_oc' => '2025-02-01',
+                'methods_oc' => 'Crédito 30 días',
+                'plazo_oc' => '30 días',
+            ],
+            [
+                'date_oc' => '2025-03-10',
+                'methods_oc' => 'Crédito 60 días',
+                'plazo_oc' => '45 días',
+            ],
+            [
+                'date_oc' => '2025-04-05',
+                'methods_oc' => 'Contado',
+                'plazo_oc' => '15 días',
+            ],
+            [
+                'date_oc' => '2025-05-20',
+                'methods_oc' => 'Crédito 30 días',
+                'plazo_oc' => '30 días',
+            ]
+        ];
+
+        $orden = $this->faker->randomElement($ordenes);
+
         return [
-            'date_oc' => $this->faker->dateTimeBetween('-6 months', 'now'),
-            'methods_oc' => $this->faker->randomElement(['Contado', 'Crédito 30 días', 'Crédito 60 días']),
-            'plazo_oc' => $this->faker->randomElement(['15 días', '30 días', '45 días']),
-            'order_oc' => $this->faker->unique()->numberBetween(1000, 9999),
+            'date_oc' => $orden['date_oc'],
+            'methods_oc' => $orden['methods_oc'],
+            'plazo_oc' => $orden['plazo_oc'],
+            'order_oc' => $orderNumber++, // autoincrementa en el numero en cada registro
         ];
     }
 }

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('op_name');  #nombre de la operacion
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

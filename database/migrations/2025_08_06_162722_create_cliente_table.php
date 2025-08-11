@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('cli_telefono', 20);        # Teléfono de contacto
             $table->string('cli_mail', 255)->nullable(); # Correo electrónico
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

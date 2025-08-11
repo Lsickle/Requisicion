@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use App\Models\Centro;
 use Illuminate\Support\Facades\DB;
 
-class CentroRequisicionSeeder extends Seeder
+class CentroOrdenCompraSeeder extends Seeder
 {
     public function run()
     {
@@ -18,7 +18,7 @@ class CentroRequisicionSeeder extends Seeder
         foreach ($productoRequisiciones as $pr) {
             $centrosAleatorios = $centros->random(rand(1, 2));
             foreach ($centrosAleatorios as $centro) {
-                DB::table('centro_requisicion')->insert([
+                DB::table('centro_ordencompra')->insert([
                     'producto_requisicion_id' => $pr->id,
                     'centro_id' => $centro->id,
                     'rc_amount' => rand(1, $pr->pr_amount),
@@ -28,6 +28,6 @@ class CentroRequisicionSeeder extends Seeder
             }
         }
 
-        $this->command->info('¡Relaciones centro-requisición creadas exitosamente!');
+        $this->command->info('¡Relaciones centro-ordencompra creadas exitosamente!');
     }
 }

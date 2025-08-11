@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('estatus')->default(0);  #estatus de la requisicion activa que trae por defecto 0
             $table->date('date_update')->nullable;  #fecha en la que se realizo el cambio de estatus
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -6,7 +6,7 @@ use App\Models\Centro;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-class CentroRequisicionFactory extends Factory
+class CentroOrdenCompraFactory extends Factory
 {
     public function definition(): array
     {

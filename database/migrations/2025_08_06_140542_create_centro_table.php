@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name_centro', 255); #nombre del centro
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

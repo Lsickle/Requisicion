@@ -20,6 +20,7 @@ return new class extends Migration
             $table->text('amount_requisicion'); #cantidad de productos
             $table->string('Recobreble', 255); #opcion recobrable no recobrable
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

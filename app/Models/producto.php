@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 
 class Producto extends Model
 {
@@ -21,6 +22,13 @@ class Producto extends Model
         'unit_produc'
     ];
 
+    protected static function booted()
+    {
+        static::addGlobalScope('orderById', function (Builder $builder) {
+            $builder->orderBy('id', 'asc');
+        });
+    }
+
     public function proveedor()
     {
         return $this->belongsTo(Proveedor::class);
@@ -29,16 +37,17 @@ class Producto extends Model
     public function centros()
     {
         return $this->belongsToMany(Centro::class)
-                   ->withPivot('amount');
+                    ->withPivot('amount');
     }
 
     public function requisiciones()
     {
         return $this->belongsToMany(Requisicion::class)
-                   ->withPivot('pr_amount');
+                    ->withPivot('pr_amount');
     }
+
     public function ordenCompras()
     {
-        return $this->belongsToMany(ordenCompra::class );
+        return $this->belongsToMany(ordenCompra::class);
     }
 }
