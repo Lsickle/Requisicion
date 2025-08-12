@@ -40,4 +40,12 @@ class Requisicion extends Model
         return $this->belongsToMany(Centro::class)
             ->withPivot('rc_amount');
     }
+
+    // 🔹 Relación para obtener el estatus actual
+    public function estatus()
+    {
+        return $this->belongsToMany(Estatus::class, 'estatus_requisicion')
+            ->withPivot('created_at')
+            ->withTimestamps();
+    }
 }

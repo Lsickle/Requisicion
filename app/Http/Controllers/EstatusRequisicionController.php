@@ -8,6 +8,9 @@ use App\Models\Estatus_Requisicion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class EstatusRequisicionController extends Controller
 {
@@ -108,5 +111,31 @@ class EstatusRequisicionController extends Controller
             ->first();
 
         return response()->json($siguienteEstatus);
+    }
+
+
+    /**
+     * Genera PDF con el estado actual de la requisición
+     */
+    public function descargarPDF($id)
+    {
+        // Cargamos requisición con sus estatus
+        $requisicion = Requisicion::with('estatus')->findOrFail($id);
+
+        // Estado actual (último)
+        $estadoActual = $requisicion->estatus->sortByDesc('pivot.created_at')->first();
+
+        // Historial ordenado por fecha descendente
+        $historial = $requisicion->estatus->sortByDesc('pivot.created_at');
+
+        // Generar PDF
+        $pdf = Pdf::loadView('estatus.pdf', [
+            'requisicion'  => $requisicion,  // ← aquí la enviamos
+            'estadoActual' => $estadoActual,
+            'historial'    => $historial
+        ]);
+
+
+        return $pdf->download("requisicion_{$id}.pdf");
     }
 }

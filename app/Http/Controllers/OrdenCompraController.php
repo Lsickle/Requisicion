@@ -54,8 +54,8 @@ class OrdenCompraController extends Controller
             'productos.*.cantidad' => 'required|integer|min:1',
             'productos.*.precio' => 'required|numeric|min:0',
             'productos.*.centros' => 'required|array',
-            'productos.*.centros.*.id' => 'required|exists:centro,id',
-            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+            'productos.*.centros.*.id' => 'exists:centro,id',
+            'productos.*.centros.*.cantidad' => 'integer|min:1',
         ]);
 
         DB::transaction(function () use ($request) {
