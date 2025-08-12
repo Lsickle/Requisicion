@@ -84,7 +84,7 @@
             padding: 8px;
             text-align: left;
             font-size: 11px;
-            /* Reducir un poco el tamaño de fuente */
+            /*tamaño de fuente */
         }
 
         .product-table td {
@@ -92,7 +92,7 @@
             /* Reducir padding para más espacio */
             border-bottom: 1px solid #ddd;
             font-size: 10px;
-            /* Reducir tamaño de fuente */
+            /*tamaño de fuente */
         }
 
         .product-table tr:nth-child(even) {
@@ -204,7 +204,6 @@
     </div>
 
     <!-- Tabla de productos -->
-    <!-- Tabla de productos -->
     <table class="product-table">
         <thead>
             <tr>
@@ -214,7 +213,7 @@
                 <th width="10%">Unidad</th>
                 <th width="10%">Cantidad</th>
                 <th width="15%">Centros de Costo</th>
-                <th width="10%">P. Unitario</th>
+                <th width="10%">Valor Unitario</th>
                 <th width="10%">Total</th>
             </tr>
         </thead>
@@ -225,7 +224,7 @@
                 <td>{{ $item['nombre'] }}</td>
                 <td>{{ $item['descripcion'] }}</td>
                 <td>{{ $item['unidad'] }}</td>
-                <td>{{ number_format($item['cantidad'], 2) }}</td>
+                <td>{{ number_format($item['cantidad'], 0) }}</td>
                 <td>{{ $item['centros'] }}</td>
                 <td class="text-right">${{ number_format($item['precio'], 2) }}</td>
                 <td class="text-right">${{ number_format($item['total'], 2) }}</td>
@@ -272,7 +271,6 @@
         <div class="clear"></div>
     </div>
 
-    <!-- Footer -->
     <div class="footer">
         Documento generado el {{ $fecha_actual }} | Software de Requisicion de Compras
     </div>

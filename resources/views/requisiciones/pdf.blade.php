@@ -1,38 +1,173 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Requisición #{{ $requisicion->id }}</title>
     <style>
-        body { font-family: Arial, sans-serif; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .title { font-size: 18px; font-weight: bold; }
-        .details { margin-bottom: 20px; }
-        .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .table th { background-color: #f2f2f2; }
-        .signature { margin-top: 50px; }
-        .footer { margin-top: 30px; font-size: 12px; text-align: center; }
-        .centros-lista { margin-top: 20px; }
-        .centros-lista ul { list-style-type: none; padding-left: 0; }
-        .centros-lista li { margin-bottom: 5px; }
+        /* Reset y estilos base */
+        body {
+            font-family: 'DejaVu Sans', sans-serif;
+            margin: 0;
+            padding: 0;
+            font-size: 12px;
+            color: #333;
+        }
+
+        /* Encabezado */
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .document-info {
+            display: inline-block;
+            text-align: center;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
+
+        /* Información de requisición */
+        .info-section {
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .info-box {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .info-box h4 {
+            background-color: #f5f5f5;
+            padding: 5px 10px;
+            margin: 0 0 10px 0;
+            border-left: 4px solid #2c3e50;
+            font-size: 14px;
+        }
+
+        .info-item {
+            margin-bottom: 5px;
+        }
+
+        /* Tabla de productos */
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .product-table th {
+            background-color: #2c3e50;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-size: 11px;
+        }
+
+        .product-table td {
+            padding: 6px;
+            border-bottom: 1px solid #ddd;
+            font-size: 10px;
+        }
+
+        .product-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Centros de costo */
+        .centros-lista {
+            margin: 0;
+            padding: 0;
+        }
+
+        .centros-lista ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .centros-lista li {
+            margin-bottom: 3px;
+            padding: 3px 0;
+        }
+
+        /* Firmas */
+        .signatures {
+            margin-top: 60px;
+            overflow: hidden;
+        }
+
+        .signature-box {
+            width: 45%;
+            float: left;
+            text-align: center;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000;
+            margin: 0 auto;
+            width: 80%;
+            padding-top: 5px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 30px;
+            font-size: 10px;
+            text-align: center;
+            color: #777;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+        }
+
+        /* Utilidades */
+        .text-right {
+            text-align: right;
+        }
+
+        .clear {
+            clear: both;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #2c3e50;
+            min-width: 120px;
+            display: inline-block;
+        }
     </style>
 </head>
+
 <body>
+    <!-- Encabezado -->
     <div class="header">
-        <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
-        <div><strong>Fecha:</strong> {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
+        <div class="document-info">
+            <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
+            <div><strong>Fecha:</strong> {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
+        </div>
     </div>
 
-    <div class="details">
-        <p><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion) }}</p>
-        <p><strong>Recobrable:</strong> {{ $requisicion->Recobreble }}</p>
-        <p><strong>Detalles:</strong> {{ $requisicion->detail_requisicion }}</p>
-        <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
+    <!-- Información de la requisición -->
+    <div class="info-section">
+        <div class="info-box">
+            <h4>Detalles de la Requisición</h4>
+            <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion) }}</div>
+            <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobreble }}</div>
+            <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
+            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}</div>
+        </div>
     </div>
 
-    <h3>Productos solicitados</h3>
-    <table class="table">
+    <!-- Tabla de productos -->
+    <table class="product-table">
         <thead>
             <tr>
                 <th>Producto</th>
@@ -45,7 +180,7 @@
             <tr>
                 <td>{{ $producto->name_produc }}</td>
                 <td>{{ $producto->pivot->pr_amount }}</td>
-                <td>
+                <td class="centros-lista">
                     <ul>
                         @foreach($producto->centrosInventario as $centro)
                         <li>{{ $centro->name_centro }} ({{ $centro->pivot->amount }})</li>
@@ -57,13 +192,19 @@
         </tbody>
     </table>
 
-    <div class="signature">
-        <p>_________________________</p>
-        <p>Solicitante</p>  
+    <!-- Firmas -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <p>Solicitante</p>
+        </div>
+        <div class="clear"></div>
     </div>
 
+    <!-- Footer -->
     <div class="footer">
-        Generado el {{ now()->format('d/m/Y H:i') }}
+        Documento generado el {{ now()->format('d/m/Y H:i') }} | Software de Requisicion de Compras
     </div>
 </body>
+
 </html>

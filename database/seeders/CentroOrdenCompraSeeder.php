@@ -22,10 +22,10 @@ class CentroOrdenCompraSeeder extends Seeder
         $centros = Centro::all();
 
         foreach ($productos as $producto) {
-            $centrosAleatorios = $centros->random(rand(1, min(3, $centros->count())));
+            $centrosOrdenCompra = $centros->random(rand(1, min(3, $centros->count())));
 
-            foreach ($centrosAleatorios as $centro) {
-                $producto->centros()->attach($centro->id, [
+            foreach ($centrosOrdenCompra as $centro) {
+                $producto->centrosOrdenCompra()->attach($centro->id, [
                     'rc_amount' => rand(1, 100),
                     'created_at' => now(),
                     'updated_at' => now()

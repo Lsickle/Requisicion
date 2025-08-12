@@ -18,7 +18,7 @@ class EstatusSeeder extends Seeder
             ['status_name' => 'Entrega aproximada'],
             ['status_name' => 'Recibido en bodega'],
             ['status_name' => 'Recogido por coordinador'],
-            ['status_name' => 'Cancelado'],
+            ['status_name' => 'Rechazado'],
             ['status_name' => 'Completado'],
         ];
 
