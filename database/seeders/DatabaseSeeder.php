@@ -19,7 +19,6 @@ class DatabaseSeeder extends Seeder
         NuevoProductoSeeder::class, 
         RequisicionSeeder::class,
         OrdenCompraSeeder::class,
-        OrdenCompraProductoSeeder::class,
         Estatus_RequisicionSeeder::class,
         CentroProductoSeeder::class,
         CentroOrdenCompraSeeder::class,

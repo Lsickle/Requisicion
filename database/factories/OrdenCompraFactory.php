@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\OrdenCompra;
+use App\Models\Proveedor;
 
 class OrdenCompraFactory extends Factory
 {
@@ -11,43 +12,37 @@ class OrdenCompraFactory extends Factory
 
     public function definition(): array
     {
-        static $orderNumber = 1000; // autoincremento manual
+        static $orderNumber = 1;
 
-        $ordenes = [
-            [
-                'date_oc' => '2025-01-15',
-                'methods_oc' => 'Contado',
-                'plazo_oc' => '15 días',
-            ],
-            [
-                'date_oc' => '2025-02-01',
-                'methods_oc' => 'Crédito 30 días',
-                'plazo_oc' => '30 días',
-            ],
-            [
-                'date_oc' => '2025-03-10',
-                'methods_oc' => 'Crédito 60 días',
-                'plazo_oc' => '45 días',
-            ],
-            [
-                'date_oc' => '2025-04-05',
-                'methods_oc' => 'Contado',
-                'plazo_oc' => '15 días',
-            ],
-            [
-                'date_oc' => '2025-05-20',
-                'methods_oc' => 'Crédito 30 días',
-                'plazo_oc' => '30 días',
-            ]
-        ];
-
-        $orden = $this->faker->randomElement($ordenes);
+        $metodosPago = ['Contado', 'Crédito 30 días', 'Crédito 60 días', 'Transferencia'];
+        $plazos = ['Inmediato', '15 días', '30 días', '45 días', '60 días'];
+        $estados = ['pendiente', 'aprobada', 'rechazada', 'completada'];
 
         return [
-            'date_oc' => $orden['date_oc'],
-            'methods_oc' => $orden['methods_oc'],
-            'plazo_oc' => $orden['plazo_oc'],
-            'order_oc' => $orderNumber++, // autoincrementa en el numero en cada registro
+            'proveedor_id' => Proveedor::factory(),
+            'date_oc' => $this->faker->dateTimeBetween('-1 year', 'now'),
+            'methods_oc' => $this->faker->randomElement($metodosPago),
+            'plazo_oc' => $this->faker->randomElement($plazos),
+            'order_oc' => 'OC-' . str_pad($orderNumber++, 5, '0', STR_PAD_LEFT),
+            'estado' => $this->faker->randomElement($estados),
+            'observaciones' => $this->faker->sentence(),
         ];
+    }
+
+    public function configure()
+    {
+        return $this->afterCreating(function (OrdenCompra $orden) {
+            // Asignar 1-5 productos aleatorios
+            $productos = \App\Models\Producto::factory()
+                ->count(rand(1, 5))
+                ->create();
+
+            foreach ($productos as $producto) {
+                $orden->productos()->attach($producto->id, [
+                    'po_amount' => rand(1, 100),
+                    'precio_unitario' => $producto->price_produc,
+                ]);
+            }
+        });
     }
 }

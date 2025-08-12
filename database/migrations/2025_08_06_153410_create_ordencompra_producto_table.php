@@ -12,13 +12,14 @@ return new class extends Migration
     public function up(): void
 {
     Schema::create('ordencompra_producto', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('producto_requisicion_id')->constrained('producto_requisicion')->onDelete('cascade');  #id de la requisicion
-        $table->foreignId('orden_compra_id')->constrained('orden_compras')->onDelete('cascade');  #id de la orden de compra
-        $table->integer('po_amount');  #cantidad de productos por proveedor
-        $table->timestamps();
-        $table->softDeletes();
-    });
+    $table->id();
+    $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
+    $table->foreignId('orden_compra_id')->constrained('orden_compras')->onDelete('cascade');
+    $table->integer('po_amount');  # Cantidad de productos en la orden
+    $table->decimal('precio_unitario');  # Precio de la orden
+    $table->timestamps();
+    $table->softDeletes();
+});
 }
 
     /**

@@ -6,25 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('orden_compras', function (Blueprint $table) {
             $table->id();
-            $table->date ('date_oc'); #fecha de la orden de compra
-            $table->string('methods_oc', 255); #metodo de pago
-            $table->string('plazo_oc', 255); #plazo de pago
-            $table->integer('order_oc'); #numero de orden de compra
+            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade');
+            $table->date('date_oc');
+            $table->string('methods_oc', 255);
+            $table->string('plazo_oc', 255);
+            $table->integer('order_oc');
+            $table->text('observaciones')->nullable();
+            $table->string('estado', 50)->default('pendiente');
             $table->timestamps();
             $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('orden_compras');

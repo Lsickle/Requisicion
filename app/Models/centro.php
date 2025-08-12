@@ -17,8 +17,9 @@ class Centro extends Model
 
     public function productos()
     {
-        return $this->belongsToMany(Producto::class)
-                   ->withPivot('amount');
+        return $this->belongsToMany(Producto::class, 'centro_ordencompra')
+                   ->withPivot('rc_amount')
+                   ->withTimestamps();
     }
 
     public function requisiciones()

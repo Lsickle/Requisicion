@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
+
 
 class RequisicionController extends Controller
 {
@@ -26,13 +28,35 @@ class RequisicionController extends Controller
 
     public function pdf(Requisicion $requisicion)
     {
-        // Cargar la relación con los productos y sus centros con las cantidades
-        $requisicion->load(['productos.centros' => function ($query) {
-            $query->withPivot('amount');
-        }]);
+        // Cargar todas las relaciones necesarias
+        $requisicion->load([
+            'productos' => function ($query) {
+                $query->with(['centrosInventario' => function ($q) {
+                    $q->select('centro.id', 'centro.name_centro')
+                        ->withPivot('amount');
+                }]);
+            }
+        ]);
 
-        // Asegurar que la fecha sea un objeto Carbon
+        // Verificar y parsear la fecha
         $requisicion->date_requisicion = \Carbon\Carbon::parse($requisicion->date_requisicion);
+
+        // Debug: Verificar datos antes de pasarlos a la vista
+        Log::debug('Datos de requisicion:', [
+            'productos' => $requisicion->productos->map(function ($producto) {
+                return [
+                    'id' => $producto->id,
+                    'nombre' => $producto->name_produc,
+                    'centros' => $producto->centrosInventario->map(function ($centro) {
+                        return [
+                            'id' => $centro->id,
+                            'nombre' => $centro->name_centro,
+                            'amount' => $centro->pivot->amount ?? null
+                        ];
+                    })->toArray()
+                ];
+            })->toArray()
+        ]);
 
         $pdf = PDF::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion

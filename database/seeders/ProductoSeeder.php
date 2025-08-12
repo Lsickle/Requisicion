@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Producto;
+use App\Models\Proveedor;
 
 class ProductoSeeder extends Seeder
 {
@@ -12,15 +13,23 @@ class ProductoSeeder extends Seeder
      */
     public function run(): void
     {
-        // Generar 50 productos con datos de prueba usando la Factory
+        // Verificar si hay proveedores, si no, crear algunos
+        if (Proveedor::count() == 0) {
+            Proveedor::factory()->count(10)->create();
+        }
+
+        // Crear 50 productos
         Producto::factory()->count(50)->create();
 
-        // Obtener productos en orden ascendente por id
-        $productos = Producto::orderBy('id', 'asc')->get();
-
-        // Mostrar en consola para verificar el orden
-        foreach ($productos as $producto) {
-            echo $producto->id . ' - ' . $producto->name_produc . PHP_EOL;
-        }
+        // Mostrar información en consola
+        $this->command->info('Productos creados:');
+        $this->command->table(
+            ['ID', 'Nombre', 'Categoría', 'Proveedor ID', 'Precio'],
+            Producto::query()
+                ->orderBy('id')
+                ->limit(10)
+                ->get(['id', 'name_produc', 'categoria_produc', 'proveedor_id', 'price_produc'])
+                ->toArray()
+        );
     }
 }

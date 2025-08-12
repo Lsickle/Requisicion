@@ -21,7 +21,6 @@ class Requisicion extends Model
         'Recobreble'
     ];
 
-    // Añade estos métodos para convertir los campos de fecha
     protected $dates = ['date_requisicion'];
 
     public function getDateRequisicionAttribute($value)

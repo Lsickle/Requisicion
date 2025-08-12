@@ -21,8 +21,15 @@ class Proveedor extends Model
         'prov_city'
     ];
 
+    // Relación con productos (1 a muchos)
     public function productos()
     {
         return $this->hasMany(Producto::class);
+    }
+
+    // Relación con órdenes de compra (1 a muchos)
+    public function ordenesCompra()
+    {
+        return $this->hasMany(OrdenCompra::class);
     }
 }

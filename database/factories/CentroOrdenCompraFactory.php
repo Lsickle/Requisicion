@@ -3,22 +3,19 @@
 namespace Database\Factories;
 
 use App\Models\Centro;
-use Illuminate\Support\Facades\DB;
+use App\Models\Producto;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class CentroOrdenCompraFactory extends Factory
 {
     public function definition(): array
     {
-        // Obtener un registro aleatorio de producto_requisicion
-        $productoRequisicion = DB::table('producto_requisicion')
-            ->inRandomOrder()
-            ->first();
-
         return [
-            'producto_requisicion_id' => $productoRequisicion->id,
+            'producto_id' => Producto::factory(),
             'centro_id' => Centro::factory(),
-            'rc_amount' => $this->faker->randomFloat(2, 1, $productoRequisicion->pr_amount),
+            'rc_amount' => $this->faker->numberBetween(1, 100),
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 }

@@ -13,7 +13,7 @@ class Producto extends Model
     protected $table = 'productos';
 
     protected $fillable = [
-        'id_proveedores',
+        'proveedor_id',
         'categoria_produc',
         'name_produc',
         'stock_produc',
@@ -29,25 +29,33 @@ class Producto extends Model
         });
     }
 
+    // Relación con proveedor
     public function proveedor()
     {
         return $this->belongsTo(Proveedor::class);
     }
 
-    public function centros()
+    // Relación con órdenes de compra
+    public function ordenesCompra()
     {
-        return $this->belongsToMany(Centro::class)
-                    ->withPivot('amount');
+        return $this->belongsToMany(OrdenCompra::class, 'ordencompra_producto')
+            ->withPivot('po_amount')
+            ->withTimestamps();
     }
 
-    public function requisiciones()
+    // Relación con centros a través de centro_producto (tabla pivot)   
+    #para requisicion de compras
+    public function centrosInventario()
     {
-        return $this->belongsToMany(Requisicion::class)
-                    ->withPivot('pr_amount');
+        return $this->belongsToMany(Centro::class, 'centro_producto')
+            ->withPivot('amount')
+            ->withTimestamps();
     }
-
-    public function ordenCompras()
+    #para orden de compra
+    public function centrosOrdenCompra()
     {
-        return $this->belongsToMany(ordenCompra::class);
+        return $this->belongsToMany(Centro::class, 'centro_ordencompra', 'producto_id', 'centro_id')
+            ->withPivot('rc_amount')
+            ->withTimestamps();
     }
 }

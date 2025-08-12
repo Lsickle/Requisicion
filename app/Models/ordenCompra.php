@@ -4,28 +4,35 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OrdenCompra extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'orden_compras';
 
     protected $fillable = [
+        'proveedor_id',
         'date_oc',
         'methods_oc',
         'plazo_oc',
-        'order_oc'
+        'order_oc',
+        'observaciones',
+        'estado'
     ];
 
-    public function productos()
+    // Relación con proveedor
+    public function proveedor()
     {
-        return $this->belongsToMany(Producto::class)
-                   ->withPivot(['po_amount', 'proveedor_id']);
+        return $this->belongsTo(Proveedor::class);
     }
 
-    public function proveedores()
+    // Relación con productos (a través de la tabla pivot)
+    public function productos()
     {
-        return $this->belongsToMany(Proveedor::class);
+        return $this->belongsToMany(Producto::class, 'ordencompra_producto')
+                   ->withPivot('po_amount')
+                   ->withTimestamps();
     }
 }

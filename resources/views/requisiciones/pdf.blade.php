@@ -21,7 +21,7 @@
 <body>
     <div class="header">
         <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
-        <div>Fecha: {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
+        <div><strong>Fecha:</strong> {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
     </div>
 
     <div class="details">
@@ -30,7 +30,6 @@
         <p><strong>Detalles:</strong> {{ $requisicion->detail_requisicion }}</p>
         <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
     </div>
-
 
     <h3>Productos solicitados</h3>
     <table class="table">
@@ -48,7 +47,7 @@
                 <td>{{ $producto->pivot->pr_amount }}</td>
                 <td>
                     <ul>
-                        @foreach($producto->centros as $centro)
+                        @foreach($producto->centrosInventario as $centro)
                         <li>{{ $centro->name_centro }} ({{ $centro->pivot->amount }})</li>
                         @endforeach
                     </ul>
