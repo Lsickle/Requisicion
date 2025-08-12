@@ -13,6 +13,9 @@
         .table th { background-color: #f2f2f2; }
         .signature { margin-top: 50px; }
         .footer { margin-top: 30px; font-size: 12px; text-align: center; }
+        .centros-lista { margin-top: 20px; }
+        .centros-lista ul { list-style-type: none; padding-left: 0; }
+        .centros-lista li { margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -24,10 +27,10 @@
     <div class="details">
         <p><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion) }}</p>
         <p><strong>Recobrable:</strong> {{ $requisicion->Recobreble }}</p>
-        <p><strong>Estado actual:</strong> {{ $estadoActual->estatus->status_name ?? 'Desconocido' }}</p>
         <p><strong>Detalles:</strong> {{ $requisicion->detail_requisicion }}</p>
         <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
     </div>
+
 
     <h3>Productos solicitados</h3>
     <table class="table">
@@ -35,7 +38,7 @@
             <tr>
                 <th>Producto</th>
                 <th>Cantidad</th>
-                <th>Centros de costo</th>
+                <th>Asignación a centros</th>
             </tr>
         </thead>
         <tbody>
@@ -46,7 +49,7 @@
                 <td>
                     <ul>
                         @foreach($producto->centros as $centro)
-                        <li>{{ $centro->name_centro }} ({{ $centro->pivot->rc_amount }})</li>
+                        <li>{{ $centro->name_centro }} ({{ $centro->pivot->amount }})</li>
                         @endforeach
                     </ul>
                 </td>
@@ -57,7 +60,7 @@
 
     <div class="signature">
         <p>_________________________</p>
-        <p>Solicitante</p>
+        <p>Solicitante</p>  
     </div>
 
     <div class="footer">
