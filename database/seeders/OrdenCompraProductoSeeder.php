@@ -39,8 +39,8 @@ class OrdenCompraProductoSeeder extends Seeder
                     'precio_unitario' => $producto->price_produc ?? rand(1000, 5000),
                     'observaciones'   => 'Observación para producto ' . $producto->id,
                     'date_oc'         => now()->subDays(rand(0, 30))->toDateString(),
-                    'methods_oc'      => fake()->randomElement(['Transferencia', 'Efectivo', 'Cheque']),
-                    'plazo_oc'        => fake()->randomElement(['Contado', '15 días', '30 días']),
+                    'methods_oc'      => fake()->randomElement(['Transferencia', 'Caja menor']),
+                    'plazo_oc'        => fake()->randomElement(['Pago de contado', 'Credito 30 dias', 'Credito 45 dias']),
                     'order_oc'        => rand(1, 99999),
                     'created_at'      => now(),
                     'updated_at'      => now()

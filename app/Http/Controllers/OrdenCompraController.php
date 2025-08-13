@@ -215,14 +215,19 @@ class OrdenCompraController extends Controller
             }
         ]);
 
+        // Preparar logo en base64
+        $logoPath = public_path('images/logo.jpg');
+        $logoData = null;
+        if (file_exists($logoPath)) {
+            $logoData = 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath));
+        }
+
         $proveedores = [];
 
         foreach ($orden->productos as $producto) {
             $proveedorId = $producto->proveedor->id ?? 'sin_proveedor';
 
-            $dateOC    = $producto->pivot->date_oc
-                ? Carbon::parse($producto->pivot->date_oc)
-                : Carbon::now();
+            $dateOC    = $producto->pivot->date_oc ? Carbon::parse($producto->pivot->date_oc) : Carbon::now();
             $methodsOC = $producto->pivot->methods_oc ?? '';
             $plazoOC   = $producto->pivot->plazo_oc ?? '';
 
@@ -231,14 +236,14 @@ class OrdenCompraController extends Controller
 
             if (!isset($proveedores[$proveedorId])) {
                 $proveedores[$proveedorId] = [
-                    'proveedor'      => $producto->proveedor,
-                    'items'          => [],
-                    'subtotal'       => 0,
-                    'observaciones'  => [],
-                    'date_oc'        => $dateOC,
-                    'methods_oc'     => $methodsOC,
-                    'plazo_oc'       => $plazoOC,
-                    'order_oc'       => $orderNumber,
+                    'proveedor'     => $producto->proveedor,
+                    'items'         => [],
+                    'subtotal'      => 0,
+                    'observaciones' => [],
+                    'date_oc'       => $dateOC,
+                    'methods_oc'    => $methodsOC,
+                    'plazo_oc'      => $plazoOC,
+                    'order_oc'      => $orderNumber,
                 ];
             }
 
@@ -295,11 +300,11 @@ class OrdenCompraController extends Controller
                 'subtotal'      => $prov['subtotal'],
                 'observaciones' => implode("\n", $prov['observaciones']),
                 'fecha_actual'  => Carbon::now()->format('d/m/Y H:i'),
-                'logo'          => 'images/logo.png',
+                'logo'          => $logoData, // ahora usa logoData
                 'date_oc'       => $prov['date_oc']->format('d/m/Y'),
                 'methods_oc'    => $prov['methods_oc'],
                 'plazo_oc'      => $prov['plazo_oc'],
-                'order_oc'      => $prov['order_oc'], // ID pivot
+                'order_oc'      => $prov['order_oc'], // pivot ID como número de orden
             ];
 
             $pdf = Pdf::loadView('ordenes_compra.pdf', $data)

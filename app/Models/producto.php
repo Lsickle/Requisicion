@@ -40,7 +40,7 @@ class Producto extends Model
     public function ordenesCompra()
     {
         return $this->belongsToMany(OrdenCompra::class, 'ordencompra_producto')
-            ->withPivot('po_amount', 'precio_unitario', 'observaciones') 
+            ->withPivot('id', 'po_amount', 'precio_unitario', 'observaciones') 
             ->withTimestamps();
     }
 

@@ -12,9 +12,19 @@ class ProductosController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $productos = Producto::withTrashed()->with('proveedor')->orderBy('name_produc')->get();
+        // Agregamos búsqueda por nombre de producto opcional
+        $query = Producto::withTrashed()->with('proveedor')->orderBy('name_produc');
+
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where('name_produc', 'like', "%{$search}%")
+                  ->orWhere('categoria_produc', 'like', "%{$search}%");
+        }
+
+        $productos = $query->get();
+
         return view('productos.index', compact('productos'));
     }
 
@@ -34,24 +44,29 @@ class ProductosController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'id_proveedores' => 'required|exists:proveedores,id',
-            'categoria_produc' => 'required|string',
+            'categoria_produc' => 'required|string|max:255',
             'name_produc' => 'required|string|max:255',
             'stock_produc' => 'required|integer|min:0',
-            'description_produc' => 'required|string',
+            'description_produc' => 'nullable|string',
             'price_produc' => 'required|numeric|min:0',
-            'unit_produc' => 'required|string',
+            'unit_produc' => 'required|string|max:50',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        Producto::create($request->all());
+        Producto::create([
+            'id_proveedores' => $request->id_proveedores,
+            'categoria_produc' => $request->categoria_produc,
+            'name_produc' => $request->name_produc,
+            'stock_produc' => $request->stock_produc,
+            'description_produc' => $request->description_produc,
+            'price_produc' => $request->price_produc,
+            'unit_produc' => $request->unit_produc,
+        ]);
 
-        return redirect()->route('productos.index')
-            ->with('success', 'Producto creado exitosamente.');
+        return redirect()->route('productos.index')->with('success', 'Producto creado exitosamente.');
     }
 
     /**
@@ -78,34 +93,38 @@ class ProductosController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'id_proveedores' => 'required|exists:proveedores,id',
-            'categoria_produc' => 'required|string',
+            'categoria_produc' => 'required|string|max:255',
             'name_produc' => 'required|string|max:255',
             'stock_produc' => 'required|integer|min:0',
-            'description_produc' => 'required|string',
+            'description_produc' => 'nullable|string',
             'price_produc' => 'required|numeric|min:0',
-            'unit_produc' => 'required|string',
+            'unit_produc' => 'required|string|max:50',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $producto->update($request->all());
+        $producto->update([
+            'id_proveedores' => $request->id_proveedores,
+            'categoria_produc' => $request->categoria_produc,
+            'name_produc' => $request->name_produc,
+            'stock_produc' => $request->stock_produc,
+            'description_produc' => $request->description_produc,
+            'price_produc' => $request->price_produc,
+            'unit_produc' => $request->unit_produc,
+        ]);
 
-        return redirect()->route('productos.index')
-            ->with('success', 'Producto actualizado exitosamente.');
+        return redirect()->route('productos.index')->with('success', 'Producto actualizado exitosamente.');
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified resource from storage (soft delete).
      */
     public function destroy(Producto $producto)
     {
         $producto->delete();
-        return redirect()->route('productos.index')
-            ->with('success', 'Producto eliminado exitosamente.');
+        return redirect()->route('productos.index')->with('success', 'Producto eliminado exitosamente.');
     }
 
     /**
@@ -116,8 +135,7 @@ class ProductosController extends Controller
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->restore();
         
-        return redirect()->route('productos.index')
-            ->with('success', 'Producto restaurado exitosamente.');
+        return redirect()->route('productos.index')->with('success', 'Producto restaurado exitosamente.');
     }
 
     /**
@@ -128,7 +146,6 @@ class ProductosController extends Controller
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
         
-        return redirect()->route('productos.index')
-            ->with('success', 'Producto eliminado permanentemente.');
+        return redirect()->route('productos.index')->with('success', 'Producto eliminado permanentemente.');
     }
-}   
+}

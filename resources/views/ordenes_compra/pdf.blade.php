@@ -13,41 +13,51 @@
             font-size: 12px;
             color: #333;
         }
+
         .header {
             margin-bottom: 20px;
             border-bottom: 2px solid #2c3e50;
             padding-bottom: 10px;
         }
+
         .company-info {
             float: left;
             width: 60%;
         }
+
         .document-info {
             float: right;
             width: 35%;
             text-align: right;
         }
+
         .logo {
             max-height: 80px;
-            margin-bottom: 10px;
-        }
+            width: 150px;
+            margin-top: 10px;
+        }   
+
         .title {
             font-size: 18px;
             font-weight: bold;
             color: #2c3e50;
             margin-top: 10px;
         }
+
         .info-section {
             margin-bottom: 20px;
             overflow: hidden;
         }
+
         .info-box {
             width: 48%;
             float: left;
         }
+
         .info-box.right {
             float: right;
         }
+
         .info-box h4 {
             background-color: #f5f5f5;
             padding: 5px 10px;
@@ -55,14 +65,17 @@
             border-left: 4px solid #2c3e50;
             font-size: 14px;
         }
+
         .info-item {
             margin-bottom: 5px;
         }
+
         .product-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
+
         .product-table th {
             background-color: #2c3e50;
             color: white;
@@ -70,23 +83,28 @@
             text-align: left;
             font-size: 11px;
         }
+
         .product-table td {
             padding: 6px;
             border-bottom: 1px solid #ddd;
             font-size: 10px;
         }
+
         .product-table tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+
         .totals {
             float: right;
             width: 300px;
             margin-top: 10px;
         }
+
         .total-row {
             overflow: hidden;
             margin-bottom: 5px;
         }
+
         .total-label {
             float: left;
             width: 70%;
@@ -94,27 +112,32 @@
             padding-right: 10px;
             font-weight: bold;
         }
+
         .total-value {
             float: right;
             width: 30%;
             text-align: right;
             font-weight: bold;
         }
+
         .signatures {
             margin-top: 60px;
             overflow: hidden;
         }
+
         .signature-box {
             width: 45%;
             float: left;
             text-align: center;
         }
+
         .signature-line {
             border-top: 1px solid #000;
             margin: 0 auto;
             width: 80%;
             padding-top: 5px;
         }
+
         .footer {
             margin-top: 30px;
             font-size: 10px;
@@ -123,9 +146,11 @@
             border-top: 1px solid #eee;
             padding-top: 5px;
         }
+
         .text-right {
             text-align: right;
         }
+
         .clear {
             clear: both;
         }
@@ -134,11 +159,11 @@
 
 <body>
     <div class="header">
-        @if($logo && file_exists(public_path($logo)))
-            <div class="company-info">
-                <img src="{{ public_path($logo) }}" class="logo" alt="Logo">
-            </div>
-        @endif
+        <div class="company-info">
+            @if($logo)
+            <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+            @endif
+        </div>
 
         <div class="document-info">
             <div class="title">ORDEN DE COMPRA #{{ $orden->id }}</div>
@@ -154,13 +179,14 @@
             <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit }}</div>
             <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c }}</div>
             <div class="info-item"><strong>Teléfono:</strong> {{ $proveedor->prov_phone }}</div>
-            <div class="info-item"><strong>Dirección:</strong> {{ $proveedor->prov_adress }}, {{ $proveedor->prov_city }}</div>
+            <div class="info-item"><strong>Dirección:</strong> {{ $proveedor->prov_adress }}, {{ $proveedor->prov_city
+                }}</div>
         </div>
 
         <div class="info-box right">
             <h4>Detalles de la Orden</h4>
             <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
-            <div class="info-item"><strong>Plazo de entrega:</strong> {{ $plazo_oc }}</div>
+            <div class="info-item"><strong>Plazo de pago:</strong> {{ $plazo_oc }}</div>
         </div>
         <div class="clear"></div>
     </div>
@@ -188,7 +214,7 @@
                 <td>{{ number_format($item['po_amount'], 0) }}</td>
                 <td>
                     @foreach($item['centros'] as $centro)
-                        {{ $centro['name_centro'] }} ({{ $centro['rc_amount'] }})<br>
+                    {{ $centro['name_centro'] }} ({{ $centro['rc_amount'] }})<br>
                     @endforeach
                 </td>
                 <td class="text-right">${{ number_format($item['precio_unitario'], 2) }}</td>
@@ -215,10 +241,10 @@
     <div class="clear"></div>
 
     @if(!empty($observaciones))
-        <div style="margin-top: 20px; padding: 10px; background-color: #f9f9f9; border-left: 4px solid #2c3e50;">
-            <h4 style="margin-top: 0;">Observaciones:</h4>
-            <p>{{ $observaciones }}</p>
-        </div>
+    <div style="margin-top: 20px; padding: 10px; background-color: #f9f9f9; border-left: 4px solid #2c3e50;">
+        <h4 style="margin-top: 0;">Observaciones:</h4>
+        <p>{{ $observaciones }}</p>
+    </div>
     @endif
 
     <div class="signatures">
@@ -237,4 +263,5 @@
         Documento generado el {{ $fecha_actual }} | Software de Requisición de Compras
     </div>
 </body>
+
 </html>
