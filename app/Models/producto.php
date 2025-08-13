@@ -13,7 +13,7 @@ class Producto extends Model
     protected $table = 'productos';
 
     protected $fillable = [
-        'proveedor_id',
+        'proveedor_id', // este es el campo real
         'categoria_produc',
         'name_produc',
         'stock_produc',
@@ -32,26 +32,28 @@ class Producto extends Model
     // Relación con proveedor
     public function proveedor()
     {
-        return $this->belongsTo(Proveedor::class);
+        // Usamos la clave correcta
+        return $this->belongsTo(Proveedor::class, 'proveedor_id');
     }
 
     // Relación con órdenes de compra
     public function ordenesCompra()
     {
         return $this->belongsToMany(OrdenCompra::class, 'ordencompra_producto')
-            ->withPivot('po_amount')
+            ->withPivot('po_amount', 'precio_unitario', 'observaciones') 
             ->withTimestamps();
     }
 
     // Relación con centros a través de centro_producto (tabla pivot)   
-    #para requisicion de compras
+    # para requisición de compras
     public function centrosInventario()
     {
         return $this->belongsToMany(Centro::class, 'centro_producto')
             ->withPivot('amount')
             ->withTimestamps();
     }
-    #para orden de compra
+
+    # para orden de compra
     public function centrosOrdenCompra()
     {
         return $this->belongsToMany(Centro::class, 'centro_ordencompra', 'producto_id', 'centro_id')

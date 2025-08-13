@@ -130,12 +130,12 @@ class EstatusRequisicionController extends Controller
 
         // Generar PDF
         $pdf = Pdf::loadView('estatus.pdf', [
-            'requisicion'  => $requisicion,  // ← aquí la enviamos
+            'requisicion'  => $requisicion,  //  aquí se envia
             'estadoActual' => $estadoActual,
             'historial'    => $historial
         ]);
 
 
-        return $pdf->download("requisicion_{$id}.pdf");
+        return $pdf->download("Estatus requisición_{$id}.pdf");
     }
 }

@@ -11,7 +11,6 @@ use Illuminate\Validation\ValidationException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 
-
 class RequisicionController extends Controller
 {
     public function index()
@@ -28,20 +27,17 @@ class RequisicionController extends Controller
 
     public function pdf(Requisicion $requisicion)
     {
-        // Cargar todas las relaciones necesarias
         $requisicion->load([
             'productos' => function ($query) {
                 $query->with(['centrosInventario' => function ($q) {
-                    $q->select('centro.id', 'centro.name_centro')
+                    $q->select('centros.id', 'centros.name_centro')
                         ->withPivot('amount');
                 }]);
             }
         ]);
 
-        // Verificar y parsear la fecha
         $requisicion->date_requisicion = \Carbon\Carbon::parse($requisicion->date_requisicion);
 
-        // Debug: Verificar datos antes de pasarlos a la vista
         Log::debug('Datos de requisicion:', [
             'productos' => $requisicion->productos->map(function ($producto) {
                 return [
@@ -77,43 +73,52 @@ class RequisicionController extends Controller
             'centros'
         ));
     }
-
-    public function update(Request $request, Requisicion $requisicion)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'prioridad_requisicion' => 'required|in:alta,media,baja',
             'Recobreble' => 'required|in:Recobrable,No recobrable',
             'detail_requisicion' => 'required|string|max:500',
             'justify_requisicion' => 'required|string|max:500',
+
             'productos' => 'required|array|min:1',
-            'productos.*.id' => 'required|exists:productos,id',
-            'productos.*.cantidad' => 'required|integer|min:1',
-            'productos.*.centros' => 'required|array|min:1',
-            'productos.*.centros.*.id' => 'required|exists:centro,id',
-            'productos.*.centros.*.cantidad' => 'required|integer|min:1'
+            'productos.*.id' => 'exists:productos,id',
+            'productos.*.cantidad' => 'integer|min:1',
+
+            'productos.*.centros' => 'array|min:1',
+            'productos.*.centros.*.id' => 'exists:centros,id',
+            'productos.*.centros.*.cantidad' => 'integer|min:1',
+        ], [
+            'prioridad_requisicion.required' => 'La prioridad es obligatoria.',
+            'Recobreble.required' => 'Debe indicar si es recobrable o no.',
+            'productos.required' => 'Debe agregar al menos un producto.',
+            'productos.*.id.exists' => 'Uno de los productos seleccionados no existe.',
+            'productos.*.cantidad.min' => 'La cantidad del producto debe ser al menos 1.',
+            'productos.*.centros' => 'Debe asignar al menos un centro de costo.',
+            'productos.*.centros.*.id.exists' => 'Uno de los centros seleccionados no existe.',
         ]);
 
-        return DB::transaction(function () use ($validated, $requisicion) {
-            $requisicion->update($validated);
+        return DB::transaction(function () use ($validated) {
+            // Crear requisición
+            $requisicion = Requisicion::create([
+                'prioridad_requisicion' => $validated['prioridad_requisicion'],
+                'Recobreble' => $validated['Recobreble'],
+                'detail_requisicion' => $validated['detail_requisicion'],
+                'justify_requisicion' => $validated['justify_requisicion'],
+                'date_requisicion' => now(),
+            ]);
 
-            // Eliminar relaciones existentes
-            DB::table('producto_requisicion')
-                ->where('id_requisicion', $requisicion->id)
-                ->delete();
-
-            // Volver a crear relaciones
+            // Guardar productos y centros
             foreach ($validated['productos'] as $productoData) {
                 $producto = Producto::find($productoData['id']);
 
-                // Validar stock
                 if ($productoData['cantidad'] > $producto->stock_produc) {
                     throw ValidationException::withMessages([
-                        'productos.' . $productoData['id'] . '.cantidad' =>
-                        "La cantidad supera el stock disponible para {$producto->name_produc}"
+                        "productos.{$productoData['id']}.cantidad" =>
+                            "La cantidad supera el stock disponible para {$producto->name_produc}"
                     ]);
                 }
 
-                // Adjuntar producto con cantidad
                 $productoRequisicionId = DB::table('producto_requisicion')->insertGetId([
                     'id_producto' => $producto->id,
                     'id_requisicion' => $requisicion->id,
@@ -122,7 +127,77 @@ class RequisicionController extends Controller
                     'updated_at' => now()
                 ]);
 
-                // Adjuntar centros de costos
+                foreach ($productoData['centros'] as $centroData) {
+                    DB::table('centro_producto')->insert([
+                        'producto_requisicion_id' => $productoRequisicionId,
+                        'centro_id' => $centroData['id'],
+                        'amount' => $centroData['cantidad'],
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                }
+            }
+
+            return redirect()->route('requisiciones.show', $requisicion)
+                ->with('success', 'Requisición creada exitosamente');
+        });
+    }
+
+    public function update(Request $request, Requisicion $requisicion)
+    {
+        $validated = $request->validate([
+            'prioridad_requisicion' => 'required|in:alta,media,baja',
+            'Recobreble' => 'required|in:Recobrable,No recobrable',
+            'detail_requisicion' => 'required|string|max:500',
+            'justify_requisicion' => 'required|string|max:500',
+
+            'productos' => 'required|array|min:1',
+            'productos.*.id' => 'exists:productos,id',
+            'productos.*.cantidad' => 'integer|min:1',
+
+            'productos.*.centros' => 'array|min:1',
+            'productos.*.centros.*.id' => 'exists:centros,id',
+            'productos.*.centros.*.cantidad' => 'integer|min:1',
+        ], [
+            'prioridad_requisicion.required' => 'La prioridad es obligatoria.',
+            'Recobreble.required' => 'Debe indicar si es recobrable o no.',
+            'productos.required' => 'Debe agregar al menos un producto.',
+            'productos.*.id.exists' => 'Uno de los productos seleccionados no existe.',
+            'productos.*.cantidad.min' => 'La cantidad del producto debe ser al menos 1.',
+            'productos.*.centros' => 'Debe asignar al menos un centro de costo.',
+            'productos.*.centros.*.id.exists' => 'Uno de los centros seleccionados no existe.',
+        ]);
+
+        return DB::transaction(function () use ($validated, $requisicion) {
+            $requisicion->update([
+                'prioridad_requisicion' => $validated['prioridad_requisicion'],
+                'Recobreble' => $validated['Recobreble'],
+                'detail_requisicion' => $validated['detail_requisicion'],
+                'justify_requisicion' => $validated['justify_requisicion'],
+            ]);
+
+            DB::table('producto_requisicion')
+                ->where('id_requisicion', $requisicion->id)
+                ->delete();
+
+            foreach ($validated['productos'] as $productoData) {
+                $producto = Producto::find($productoData['id']);
+
+                if ($productoData['cantidad'] > $producto->stock_produc) {
+                    throw ValidationException::withMessages([
+                        "productos.{$productoData['id']}.cantidad" =>
+                            "La cantidad supera el stock disponible para {$producto->name_produc}"
+                    ]);
+                }
+
+                $productoRequisicionId = DB::table('producto_requisicion')->insertGetId([
+                    'id_producto' => $producto->id,
+                    'id_requisicion' => $requisicion->id,
+                    'pr_amount' => $productoData['cantidad'],
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
                 foreach ($productoData['centros'] as $centroData) {
                     DB::table('centro_producto')->insert([
                         'producto_requisicion_id' => $productoRequisicionId,

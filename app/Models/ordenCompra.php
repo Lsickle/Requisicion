@@ -12,27 +12,24 @@ class OrdenCompra extends Model
 
     protected $table = 'orden_compras';
 
-    protected $fillable = [
-        'proveedor_id',
-        'date_oc',
-        'methods_oc',
-        'plazo_oc',
-        'order_oc',
-        'observaciones',
-        'estado'
+    protected $dates = [
+        'created_at',
+        'updated_at',
+        'deleted_at'
     ];
 
-    // Relación con proveedor
-    public function proveedor()
-    {
-        return $this->belongsTo(Proveedor::class);
-    }
-
-    // Relación con productos (a través de la tabla pivot)
     public function productos()
     {
         return $this->belongsToMany(Producto::class, 'ordencompra_producto')
-                   ->withPivot('po_amount')
-                   ->withTimestamps();
+            ->withPivot([
+                'po_amount',
+                'precio_unitario',
+                'observaciones',
+                'date_oc',
+                'methods_oc',
+                'plazo_oc',
+                'order_oc'
+            ])
+            ->withTimestamps();
     }
 }

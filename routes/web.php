@@ -12,8 +12,9 @@ Route::get('/', function () {
 Route::get('requisiciones/{requisicion}/pdf', [RequisicionController::class, 'pdf'])
     ->name('requisiciones.pdf');
 
-Route::get('/orden-compras/{orden}/pdf', [OrdenCompraController::class, 'pdf'])
-    ->name('orden-compras.pdf');
+
+Route::get('/ordenes-compra/{orden}/pdf', [OrdenCompraController::class, 'pdf'])
+    ->name('ordenes-compra.pdf');
 
 Route::get('/estatus-requisicion/pdf/{id}', [EstatusRequisicionController::class, 'descargarPDF'])
-    ->name('estatus-requisicion.pdf');
+    ->name('estatus-estatus.pdf');

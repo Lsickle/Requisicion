@@ -3,39 +3,51 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use App\Models\Producto;
 use App\Models\OrdenCompra;
-use App\Models\ProductoRequisicion;
 use Illuminate\Support\Facades\DB;
 
 class OrdenCompraProductoSeeder extends Seeder
 {
     public function run()
     {
-        // Verificar que existan órdenes de compra y productos en requisición
+        // Crear productos si no existen
+        if (Producto::count() == 0) {
+            $this->call(ProductoSeeder::class);
+        }
+
+        // Crear órdenes de compra si no existen
         if (OrdenCompra::count() == 0) {
-            $this->call(OrdenCompraSeeder::class);
+            for ($i = 0; $i < rand(5, 10); $i++) {
+                OrdenCompra::create([
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
         }
 
-        if (DB::table('producto_requisicion')->count() == 0) {
-            $this->call(RequisicionSeeder::class);
+        // Obtener IDs existentes de órdenes de compra
+        $ordenesIds = OrdenCompra::pluck('id')->toArray();
+
+        // Insertar registros en la tabla pivote
+        foreach (Producto::all() as $producto) {
+            for ($i = 0; $i < rand(1, 3); $i++) {
+                DB::table('ordencompra_producto')->insert([
+                    'producto_id'     => $producto->id,
+                    'orden_compra_id' => fake()->randomElement($ordenesIds),
+                    'po_amount'       => rand(1, 100),
+                    'precio_unitario' => $producto->price_produc ?? rand(1000, 5000),
+                    'observaciones'   => 'Observación para producto ' . $producto->id,
+                    'date_oc'         => now()->subDays(rand(0, 30))->toDateString(),
+                    'methods_oc'      => fake()->randomElement(['Transferencia', 'Efectivo', 'Cheque']),
+                    'plazo_oc'        => fake()->randomElement(['Contado', '15 días', '30 días']),
+                    'order_oc'        => rand(1, 99999),
+                    'created_at'      => now(),
+                    'updated_at'      => now()
+                ]);
+            }
         }
 
-        // Obtener todas las relaciones producto_requisicion
-        $productosRequisicion = DB::table('producto_requisicion')->get();
-
-        foreach ($productosRequisicion as $pr) {
-            // Asignar a una orden de compra aleatoria
-            $ordenCompra = OrdenCompra::inRandomOrder()->first();
-
-            DB::table('ordencompra_producto')->insert([
-                'producto_requisicion_id' => $pr->id,
-                'orden_compra_id' => $ordenCompra->id,
-                'po_amount' => $pr->pr_amount, // Usar la misma cantidad que en la requisición
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-        }
-
-        $this->command->info('¡Relaciones orden-compra-producto creadas exitosamente!');
+        $this->command->info('¡Registros en ordencompra_producto creados exitosamente!');
     }
 }
