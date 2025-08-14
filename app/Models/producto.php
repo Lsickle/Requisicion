@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Producto extends Model
 {
@@ -44,7 +46,6 @@ class Producto extends Model
             ->withTimestamps();
     }
 
-    // Relación con centros a través de centro_producto (tabla pivot)   
     # para requisición de compras
     public function centrosInventario()
     {
@@ -59,5 +60,12 @@ class Producto extends Model
         return $this->belongsToMany(Centro::class, 'centro_ordencompra', 'producto_id', 'centro_id')
             ->withPivot('rc_amount')
             ->withTimestamps();
+    }
+
+    public function centros(): BelongsToMany
+    {
+        return $this->belongsToMany(Centro::class, 'centro_producto')
+                    ->withPivot('amount')
+                    ->withTimestamps();
     }
 }

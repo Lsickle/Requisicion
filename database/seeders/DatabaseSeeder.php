@@ -16,12 +16,13 @@ class DatabaseSeeder extends Seeder
         ClienteSeeder::class,
         EstatusSeeder::class,
         ProductoSeeder::class,
-        OrdenCompraProductoSeeder::class,
         NuevoProductoSeeder::class, 
         RequisicionSeeder::class,
         Estatus_RequisicionSeeder::class,
-        CentroProductoSeeder::class,
         CentroOrdenCompraSeeder::class,
+        CentroProductoSeeder::class,
+        OrdenCompraSeeder::class,
+        OrdenCompraProductoSeeder::class,
     ]);
 }
 }

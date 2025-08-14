@@ -14,7 +14,8 @@ class Centro extends Model
     protected $fillable = [
         'name_centro'
     ];
-
+    
+    # para requisición de compras
     public function productos()
     {
         return $this->belongsToMany(Producto::class, 'centro_ordencompra')

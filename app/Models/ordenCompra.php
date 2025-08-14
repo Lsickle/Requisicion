@@ -32,4 +32,15 @@ class OrdenCompra extends Model
             ])
             ->withTimestamps();
     }
+
+    public function requisicion()
+    {
+        return $this->belongsTo(Requisicion::class);
+    }
+
+    public function proveedor()
+    {
+        return $this->belongsTo(Proveedor::class);
+    }
+
 }

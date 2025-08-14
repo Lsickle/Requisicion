@@ -45,7 +45,24 @@ class Requisicion extends Model
     public function estatus()
     {
         return $this->belongsToMany(Estatus::class, 'estatus_requisicion')
-            ->withPivot('created_at')
+            ->withPivot('created_at', 'date_update')
             ->withTimestamps();
+    }
+
+    public function ordenCompra()
+    {
+        return $this->hasOne(OrdenCompra::class);
+    }
+    
+    public function estatusHistorial()
+    {
+        return $this->hasMany(Estatus_Requisicion::class, 'requisicion_id')
+            ->orderBy('created_at', 'desc');
+    }
+
+    public function ultimoEstatus()
+    {
+        return $this->hasOne(Estatus_Requisicion::class, 'requisicion_id')
+            ->latestOfMany();
     }
 }

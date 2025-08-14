@@ -5,49 +5,44 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Producto;
 use App\Models\OrdenCompra;
+use App\Models\Requisicion;
 use Illuminate\Support\Facades\DB;
 
 class OrdenCompraProductoSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        // Crear productos si no existen
         if (Producto::count() == 0) {
             $this->call(ProductoSeeder::class);
         }
 
-        // Crear órdenes de compra si no existen
         if (OrdenCompra::count() == 0) {
-            for ($i = 0; $i < rand(5, 10); $i++) {
-                OrdenCompra::create([
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-            }
+            $this->call(OrdenCompraSeeder::class);
         }
 
-        // Obtener IDs existentes de órdenes de compra
-        $ordenesIds = OrdenCompra::pluck('id')->toArray();
+        $ordenes = OrdenCompra::with(['requisicion.productos'])->get();
 
-        // Insertar registros en la tabla pivote
-        foreach (Producto::all() as $producto) {
-            for ($i = 0; $i < rand(1, 3); $i++) {
+        foreach ($ordenes as $orden) {
+            // Usar los productos de la requisición asociada
+            $productos = $orden->requisicion->productos ?? Producto::inRandomOrder()->limit(rand(1, 5))->get();
+            
+            foreach ($productos as $producto) {
                 DB::table('ordencompra_producto')->insert([
-                    'producto_id'     => $producto->id,
-                    'orden_compra_id' => fake()->randomElement($ordenesIds),
-                    'po_amount'       => rand(1, 100),
-                    'precio_unitario' => $producto->price_produc ?? rand(1000, 5000),
-                    'observaciones'   => 'Observación para producto ' . $producto->id,
-                    'date_oc'         => now()->subDays(rand(0, 30))->toDateString(),
-                    'methods_oc'      => fake()->randomElement(['Transferencia', 'Caja menor']),
-                    'plazo_oc'        => fake()->randomElement(['Pago de contado', 'Credito 30 dias', 'Credito 45 dias']),
-                    'order_oc'        => rand(1, 99999),
-                    'created_at'      => now(),
-                    'updated_at'      => now()
+                    'producto_id' => $producto->id,
+                    'orden_compra_id' => $orden->id,
+                    'po_amount' => rand(1, 20),
+                    'precio_unitario' => $producto->price_produc,
+                    'observaciones' => 'Generado desde requisición #' . $orden->requisicion->id,
+                    'date_oc' => $orden->requisicion->date_requisicion,
+                    'methods_oc' => fake()->randomElement(['Transferencia', 'Efectivo', 'Crédito 30 días']),
+                    'plazo_oc' => fake()->randomElement(['Contado', '30 días', '60 días']),
+                    'order_oc' => 'OC-' . str_pad($orden->id, 5, '0', STR_PAD_LEFT),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
         }
 
-        $this->command->info('¡Registros en ordencompra_producto creados exitosamente!');
+        $this->command->info('¡Productos de requisición asignados a órdenes de compra exitosamente!');
     }
 }

@@ -15,9 +15,13 @@ class Estatus_Requisicion extends Model
         'estatus_id',
         'requisicion_id',
         'estatus',
+        'date_update'
+    ];
+
+    protected $dates = [
         'date_update',
         'created_at',
-        'updated_at',
+        'updated_at'
     ];
 
     public function estatus()

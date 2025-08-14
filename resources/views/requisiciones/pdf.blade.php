@@ -19,12 +19,24 @@
             margin-bottom: 20px;
             border-bottom: 2px solid #2c3e50;
             padding-bottom: 10px;
-            text-align: center;
+            overflow: hidden;
+        }
+
+        .company-info {
+            float: left;
+            width: 60%;
         }
 
         .document-info {
-            display: inline-block;
-            text-align: center;
+            float: right;
+            width: 35%;
+            text-align: right;
+        }
+
+        .logo {
+            max-height: 50px;
+            width: auto;
+            margin-top: 10px;
         }
 
         .title {
@@ -149,20 +161,30 @@
 <body>
     <!-- Encabezado -->
     <div class="header">
+        <div class="company-info">
+            @if($logo)
+            <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+            @endif
+        </div>
+
         <div class="document-info">
             <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
             <div><strong>Fecha:</strong> {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
         </div>
+        <div class="clear"></div>
     </div>
+
 
     <!-- Información de la requisición -->
     <div class="info-section">
         <div class="info-box">
             <h4>Detalles de la Requisición</h4>
-            <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion) }}</div>
+            <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion)
+                }}</div>
             <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobreble }}</div>
             <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
-            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}</div>
+            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}
+            </div>
         </div>
     </div>
 

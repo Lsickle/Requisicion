@@ -21,7 +21,7 @@ return new class extends Migration
             $table->date('date_oc')->nullable(); #fecha de orden de compra
             $table->string('methods_oc', 255)->nullable(); #metodos de pago
             $table->string('plazo_oc', 255); #plazos de pago
-            $table->integer('order_oc'); #numero de orden
+            $table->string('order_oc'); #numero de orden
             $table->timestamps();
             $table->softDeletes();
         });

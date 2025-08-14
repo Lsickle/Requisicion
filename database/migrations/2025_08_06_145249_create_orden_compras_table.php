@@ -10,6 +10,8 @@ return new class extends Migration
     {
         Schema::create('orden_compras', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade');
+            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade');
             $table->timestamps();
             $table->softDeletes();
         });
