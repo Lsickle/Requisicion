@@ -48,6 +48,10 @@
         margin-top: 10px;
         margin-bottom: 10px;
     }
+    img{
+        margin-top: 10px;
+        margin-bottom: 30px;
+    }
 </style>
 @section('title', 'Login')
 
