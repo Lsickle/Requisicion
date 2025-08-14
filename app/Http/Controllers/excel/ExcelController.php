@@ -192,6 +192,6 @@ class ExcelController extends Controller
             ];
         });
 
-        return Excel::download(new EstatusRequisicionExport($data, 'Reporte de Estatus de Requisiciones'), 'reporte_estatus_requisiciones.xlsx');
+        return Excel::download(new EstatusRequisicionExport($data, 'Reporte de Estatus de Requisiciones'), 'reporte estatus requisiciones.xlsx');
     }
 }

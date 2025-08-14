@@ -26,7 +26,7 @@ class EstatusRequisicionExport extends BaseStyledExport
 
         // Historial ancho
         if ($col = $this->col('Historial')) {
-            $sheet->getColumnDimension($col)->setWidth(90);
+            $sheet->getColumnDimension($col)->setWidth(40);
         }
     }
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\proveedores;
+namespace App\Http\Controllers\Proveedores;
 
 use App\Http\Controllers\Controller;
 use App\Models\Proveedor;
@@ -10,123 +10,114 @@ use Illuminate\Support\Facades\Validator;
 class ProveedoresController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Listar todos los proveedores (incluye eliminados).
      */
     public function index()
     {
         $proveedores = Proveedor::withTrashed()->orderBy('prov_name')->get();
-        return view('proveedores.index', compact('proveedores'));
+        return response()->json($proveedores);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Mostrar formulario de creación (opcional).
      */
     public function create()
     {
-        return view('proveedores.create');
+        return response()->json(['message' => 'Formulario de creación de proveedor']);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Guardar un nuevo proveedor.
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'prov_name' => 'required|string|max:255',
+            'prov_name'    => 'required|string|max:255',
             'prov_descrip' => 'required|string',
-            'prov_nit' => 'required|string|max:255|unique:proveedores,prov_nit',
-            'prov_name_c' => 'required|string|max:255',
-            'prov_phone' => 'required|string|max:255',
-            'prov_adress' => 'required|string|max:255',
-            'prov_city' => 'required|string|max:255',
+            'prov_nit'     => 'required|string|max:255|unique:proveedores,prov_nit',
+            'prov_name_c'  => 'required|string|max:255',
+            'prov_phone'   => 'required|string|max:255',
+            'prov_adress'  => 'required|string|max:255',
+            'prov_city'    => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        Proveedor::create($request->all());
+        $proveedor = Proveedor::create($request->all());
 
-        return redirect()->route('proveedores.index')
-            ->with('success', 'Proveedor creado exitosamente.');
+        return response()->json(['message' => 'Proveedor creado exitosamente', 'proveedor' => $proveedor], 201);
     }
 
     /**
-     * Display the specified resource.
+     * Mostrar un proveedor específico.
      */
-    public function show(Proveedor $proveedore)
+    public function show(Proveedor $proveedor)
     {
-        return view('proveedores.show', compact('proveedore'));
+        return response()->json($proveedor);
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Mostrar formulario de edición (opcional).
      */
-    public function edit(Proveedor $proveedore)
+    public function edit(Proveedor $proveedor)
     {
-        return view('proveedores.edit', compact('proveedore'));
+        return response()->json(['proveedor' => $proveedor, 'message' => 'Formulario de edición']);
     }
 
     /**
-     * Update the specified resource in storage.
+     * Actualizar un proveedor existente.
      */
-    public function update(Request $request, Proveedor $proveedore)
+    public function update(Request $request, Proveedor $proveedor)
     {
         $validator = Validator::make($request->all(), [
-            'prov_name' => 'required|string|max:255',
+            'prov_name'    => 'required|string|max:255',
             'prov_descrip' => 'required|string',
-            'prov_nit' => 'required|string|max:255|unique:proveedores,prov_nit,' . $proveedore->id,
-            'prov_name_c' => 'required|string|max:255',
-            'prov_phone' => 'required|string|max:255',
-            'prov_adress' => 'required|string|max:255',
-            'prov_city' => 'required|string|max:255',
+            'prov_nit'     => 'required|string|max:255|unique:proveedores,prov_nit,' . $proveedor->id,
+            'prov_name_c'  => 'required|string|max:255',
+            'prov_phone'   => 'required|string|max:255',
+            'prov_adress'  => 'required|string|max:255',
+            'prov_city'    => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $proveedore->update($request->all());
+        $proveedor->update($request->all());
 
-        return redirect()->route('proveedores.index')
-            ->with('success', 'Proveedor actualizado exitosamente.');
+        return response()->json(['message' => 'Proveedor actualizado exitosamente', 'proveedor' => $proveedor]);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Eliminar un proveedor (soft delete).
      */
-    public function destroy(Proveedor $proveedore)
+    public function destroy(Proveedor $proveedor)
     {
-        $proveedore->delete();
-        return redirect()->route('proveedores.index')
-            ->with('success', 'Proveedor eliminado exitosamente.');
+        $proveedor->delete();
+        return response()->json(['message' => 'Proveedor eliminado correctamente']);
     }
 
     /**
-     * Restore the specified soft deleted resource.
+     * Restaurar un proveedor eliminado.
      */
     public function restore($id)
     {
         $proveedor = Proveedor::withTrashed()->findOrFail($id);
         $proveedor->restore();
-        
-        return redirect()->route('proveedores.index')
-            ->with('success', 'Proveedor restaurado exitosamente.');
+
+        return response()->json(['message' => 'Proveedor restaurado correctamente', 'proveedor' => $proveedor]);
     }
 
     /**
-     * Permanently delete the specified resource.
+     * Eliminar permanentemente un proveedor.
      */
     public function forceDelete($id)
     {
         $proveedor = Proveedor::withTrashed()->findOrFail($id);
         $proveedor->forceDelete();
-        
-        return redirect()->route('proveedores.index')
-            ->with('success', 'Proveedor eliminado permanentemente.');
+
+        return response()->json(['message' => 'Proveedor eliminado permanentemente']);
     }
 }

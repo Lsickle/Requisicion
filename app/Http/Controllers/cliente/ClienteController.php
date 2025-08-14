@@ -1,16 +1,17 @@
 <?php
 
-namespace App\Http\Controllers\cliente;
+namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class ClienteController extends Controller
 {
     /**
-     * Listar todos los clientes
+     * Listar todos los clientes (incluyendo eliminados)
      */
     public function index()
     {
@@ -19,7 +20,7 @@ class ClienteController extends Controller
     }
 
     /**
-     * Mostrar formulario de creación (opcional, puede devolver JSON)
+     * Mostrar formulario de creación (opcional)
      */
     public function create()
     {
@@ -33,7 +34,7 @@ class ClienteController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'cli_name'     => 'required|string|max:255',
-            'cli_nit'      => 'required|string|max:20|unique:cliente,cli_nit',
+            'cli_nit'      => 'required|string|max:20|unique:clientes,cli_nit',
             'cli_descrip'  => 'nullable|string',
             'cli_contacto' => 'required|string|max:255',
             'cli_telefono' => 'required|string|max:20',
@@ -72,7 +73,12 @@ class ClienteController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'cli_name'     => 'required|string|max:255',
-            'cli_nit'      => 'required|string|max:20|unique:cliente,cli_nit,' . $cliente->id,
+            'cli_nit'      => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('clientes', 'cli_nit')->ignore($cliente->id),
+            ],
             'cli_descrip'  => 'nullable|string',
             'cli_contacto' => 'required|string|max:255',
             'cli_telefono' => 'required|string|max:20',

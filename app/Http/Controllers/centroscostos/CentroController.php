@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Centro;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CentroController extends Controller
 {
     /**
-     * Listar todos los centros
+     * Listar todos los centros (incluye eliminados)
      */
     public function index()
     {
@@ -19,7 +20,7 @@ class CentroController extends Controller
     }
 
     /**
-     * Mostrar formulario de creación (opcional)
+     * Mostrar formulario de creación (solo para vistas, opcional en API)
      */
     public function create()
     {
@@ -32,7 +33,7 @@ class CentroController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name_centro' => 'required|string|max:255|unique:centro,name_centro',
+            'name_centro' => 'required|string|max:255|unique:centros,name_centro',
         ]);
 
         if ($validator->fails()) {
@@ -53,7 +54,7 @@ class CentroController extends Controller
     }
 
     /**
-     * Mostrar formulario de edición (opcional)
+     * Mostrar formulario de edición (solo para vistas, opcional en API)
      */
     public function edit(Centro $centro)
     {
@@ -66,7 +67,12 @@ class CentroController extends Controller
     public function update(Request $request, Centro $centro)
     {
         $validator = Validator::make($request->all(), [
-            'name_centro' => 'required|string|max:255|unique:centro,name_centro,' . $centro->id,
+            'name_centro' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('centros', 'name_centro')->ignore($centro->id),
+            ],
         ]);
 
         if ($validator->fails()) {
@@ -96,16 +102,5 @@ class CentroController extends Controller
         $centro->restore();
 
         return response()->json(['message' => 'Centro restaurado correctamente', 'centro' => $centro]);
-    }
-
-    /**
-     * Eliminar permanentemente un centro
-     */
-    public function forceDelete($id)
-    {
-        $centro = Centro::withTrashed()->findOrFail($id);
-        $centro->forceDelete();
-
-        return response()->json(['message' => 'Centro eliminado permanentemente']);
     }
 }
