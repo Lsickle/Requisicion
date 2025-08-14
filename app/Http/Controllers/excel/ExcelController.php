@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers\excel;
 
+use App\Exports\ProductosExport;
+use App\Exports\OrdenesCompraExport;
+use App\Exports\RequisicionesExport;
+use App\Exports\EstatusRequisicionExport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -81,7 +85,7 @@ class ExcelController extends Controller
             ];
         });
 
-        return Excel::download(new ReporteGeneralExport($data, 'Reporte de Productos'), 'reporte_productos.xlsx');
+        return Excel::download(new ProductosExport($data, 'Reporte de Productos'), 'reporte_productos.xlsx');
     }
 
     private function reporteOrdenesCompra($fechaInicio = null, $fechaFin = null)
@@ -118,7 +122,7 @@ class ExcelController extends Controller
             ];
         });
 
-        return Excel::download(new ReporteGeneralExport($data, 'Reporte de Órdenes de Compra'), 'reporte_ordenes_compra.xlsx');
+        return Excel::download(new OrdenesCompraExport($data, 'Reporte de Órdenes de Compra'), 'reporte_ordenes_compra.xlsx');
     }
 
     private function reporteRequisiciones($fechaInicio = null, $fechaFin = null)
@@ -157,7 +161,7 @@ class ExcelController extends Controller
             ];
         });
 
-        return Excel::download(new ReporteGeneralExport($data, 'Reporte de Requisiciones'), 'reporte_requisiciones.xlsx');
+        return Excel::download(new RequisicionesExport($data, 'Reporte de Requisiciones'), 'reporte_requisiciones.xlsx');
     }
 
     private function reporteEstatusRequisicion($fechaInicio = null, $fechaFin = null)
@@ -188,6 +192,6 @@ class ExcelController extends Controller
             ];
         });
 
-        return Excel::download(new ReporteGeneralExport($data, 'Reporte de Estatus de Requisiciones'), 'reporte_estatus_requisiciones.xlsx');
+        return Excel::download(new EstatusRequisicionExport($data, 'Reporte de Estatus de Requisiciones'), 'reporte_estatus_requisiciones.xlsx');
     }
 }
