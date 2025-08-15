@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Requisicion;
 use App\Models\Producto;
 use App\Models\Centro;
+use App\Models\Estatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -14,43 +15,44 @@ use Illuminate\Support\Facades\Mail;
 
 class RequisicionController extends Controller
 {
-    /**
-     * Redirigir al formulario de creación
-     */
     public function index()
     {
         return redirect()->route('requisiciones.create');
     }
 
-    /**
-     * Mostrar el formulario para crear una nueva requisición
-     */
     public function create()
     {
-        $productos = Producto::with('proveedor')->get();
-        $centros = Centro::all();
-
-        return view('requisiciones.crear', compact('productos', 'centros'));
+        $productos = Producto::with('proveedor')->orderBy('name_produc')->get();
+        $centros = Centro::orderBy('name_centro')->get();
+        
+        return view('requisiciones.create', compact('productos', 'centros'));
     }
 
-    /**
-     * Guardar una nueva requisición en la base de datos
-     */
     public function store(Request $request)
     {
         $validated = $this->validateRequest($request);
 
         return DB::transaction(function () use ($validated) {
+            // Crear la requisición
             $requisicion = Requisicion::create([
                 'prioridad_requisicion' => $validated['prioridad_requisicion'],
-                'recobrable' => $validated['recobrable'],
+                'Recobreble' => $validated['recobrable'],
                 'detail_requisicion' => $validated['detail_requisicion'],
                 'justify_requisicion' => $validated['justify_requisicion'],
                 'date_requisicion' => $validated['date_requisicion'],
                 'amount_requisicion' => $validated['amount_requisicion'] ?? 0,
             ]);
 
+            // Asociar productos y centros
             $this->attachProductosCentros($requisicion, $validated['productos']);
+
+            // Establecer estatus inicial
+            $estatusInicial = Estatus::where('status_name', 'Pendiente')->first();
+            $requisicion->estatus()->attach($estatusInicial->id, [
+                'date_update' => now(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
             // Enviar correo electrónico
             $destinatarios = ['compras@empresa.com', 'finanzas@empresa.com'];
@@ -61,9 +63,6 @@ class RequisicionController extends Controller
         });
     }
 
-    /**
-     * Validar los datos de la requisición
-     */
     private function validateRequest(Request $request)
     {
         return $request->validate([
@@ -93,35 +92,30 @@ class RequisicionController extends Controller
         ]);
     }
 
-    /**
-     * Guardar productos y sus centros de costo asociados a la requisición
-     */
     private function attachProductosCentros(Requisicion $requisicion, array $productos)
     {
         foreach ($productos as $productoData) {
-            $producto = Producto::find($productoData['id']);
+            $producto = Producto::findOrFail($productoData['id']);
 
+            // Verificar stock
             if ($productoData['cantidad'] > $producto->stock_produc) {
                 throw ValidationException::withMessages([
-                    "productos.{$productoData['id']}.cantidad" =>
+                    "productos.{$productoData['id']}.cantidad" => 
                         "La cantidad supera el stock disponible para {$producto->name_produc}"
                 ]);
             }
 
-            $productoRequisicionId = DB::table('producto_requisicion')->insertGetId([
-                'id_producto' => $producto->id,
-                'id_requisicion' => $requisicion->id,
+            // Asociar producto a la requisición
+            $requisicion->productos()->attach($producto->id, [
                 'pr_amount' => $productoData['cantidad'],
-                'proveedor_id' => $productoData['proveedor_id'],
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
 
+            // Asociar centros de costo
             foreach ($productoData['centros'] as $centroData) {
-                DB::table('centro_producto')->insert([
-                    'producto_requisicion_id' => $productoRequisicionId,
-                    'centro_id' => $centroData['id'],
-                    'amount' => $centroData['cantidad'],
+                $requisicion->centros()->attach($centroData['id'], [
+                    'rc_amount' => $centroData['cantidad'],
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);

@@ -12,7 +12,7 @@
         eget, vehicula mauris. Ut sit amet pharetra mi, ut malesuada eros. Pellentesque habitant morbi tristique
         senectus et netus et malesuada fames ac turpis egestas. Aenean fermentum pharetra orci. Etiam non erat id lectus
         facilisis blandit quis auctor tortor.</p>
-    <a href="{{route('exportar/requisiciones/{id}')}}">Descargar</a>
+    <a href="{{ route('exportar.requisiciones', ['id' => $requisicion->id]) }}">Descargar</a>
 </body>
 
 </html>
