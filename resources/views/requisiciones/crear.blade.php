@@ -1,548 +1,349 @@
-<link href="{{ asset('css/requisiciones.css') }}" rel="stylesheet">
-<!-- resources/views/requisiciones/create.blade.php -->
 @extends('layouts.app')
 
-@section('title', 'Requisición')
+@section('title', 'Crear Requisición')
 
 @section('content')
-<x-navbar />
-<div class="container requisicion-container">
-    <h1>Nueva Requisición</h1>
-    <form id="requisicionForm" method="POST" action="{{ route('requisiciones.store') }}">
-        @csrf
-
-        <div class="card mb-4 requisicion-card">
+    <div class="wrap">
+        <div class="card">
             <div class="card-header">
-                <h5>Información Principal</h5>
+                <h1>Crear Requisición</h1>
             </div>
-            <div class="card-body requisicion-form">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="date_requisicion">Fecha de Requisición</label>
-                            <input type="date" class="form-control" id="date_requisicion" name="date_requisicion" 
-                                   value="{{ now()->format('Y-m-d') }}" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="recobrable">Tipo de Requisición</label>
-                            <select class="form-control" id="recobrable" name="recobrable" required>
-                                <option value="Recobrable">Recobrable</option>
-                                <option value="No recobrable">No Recobrable</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="prioridad_requisicion">Prioridad</label>
-                            <select class="form-control" id="prioridad_requisicion" name="prioridad_requisicion" required>
-                                <option value="baja">Baja</option>
-                                <option value="media">Media</option>
-                                <option value="alta">Alta</option>
-                            </select>
-                        </div>
-                        
-                    </div>
-                </div>
-                
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <label for="justify_requisicion">Justificación</label>
-                            <textarea class="form-control" id="justify_requisicion" name="justify_requisicion" 
-                                      rows="3" required></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="detail_requisicion">Detalles Adicionales</label>
-                            <textarea class="form-control" id="detail_requisicion" name="detail_requisicion" 
-                                      rows="3"></textarea>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="card mb-4 requisicion-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5>Productos</h5>
-                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalAgregarProducto">
-                    <i class="fas fa-plus"></i> Añadir Productos
-                </button>
-            </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="tablaProductos">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>Cantidad Total</th>
-                                <th>Centros de Costo</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Los productos se agregarán aquí dinámicamente -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+                {{-- Alertas con SweetAlert2 --}}
+                @if (session('success'))
+                    <script>
+                        window.addEventListener('DOMContentLoaded', () => {
+                            Swal.fire({
+                                icon: 'success',
+                                title: '¡Listo!',
+                                text: {!! json_encode(session('success')) !!},
+                                confirmButtonText: 'OK'
+                            });
+                        });
+                    </script>
+                @endif
 
-        <div class="requisicion-footer d-flex justify-content-between">
-            <button type="button" class="btn btn-secondary" id="btnPrevisualizar" disabled>
-                <i class="fas fa-eye"></i> Previsualizar
-            </button>
-            <div>
-                <button type="submit" class="btn btn-success mr-2">
-                    <i class="fas fa-paper-plane"></i> Enviar Requisición
-                </button>
-            </div>
-        </div>
-    </form>
-</div>
+                @if ($errors->any())
+                    <script>
+                        window.addEventListener('DOMContentLoaded', () => {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Hay errores',
+                                html: {!! json_encode(implode('<br>', $errors->all())) !!},
+                                confirmButtonText: 'Revisar'
+                            });
+                        });
+                    </script>
+                @endif
 
-<!-- Modal para agregar productos -->
-<div class="modal fade modal-requisicion" id="modalAgregarProducto" tabindex="-1" role="dialog" aria-labelledby="modalAgregarProductoLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalAgregarProductoLabel">Añadir Producto</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body requisicion-form">
-                <div class="row">
-                    <div class="col-md-6">
+                <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="form">
+                    @csrf
+
+                    <div class="grid-2">
                         <div class="form-group">
-                            <label for="producto_id">Producto</label>
-                            <select class="form-control" id="producto_id" name="producto_id" required>
-                                <option value="">Seleccione un producto</option>
-                                @foreach($productos as $producto)
-                                    <option value="{{ $producto->id }}" 
-                                            data-stock="{{ $producto->stock_produc }}"
-                                            data-nombre="{{ $producto->name_produc }}">
-                                        {{ $producto->name_produc }} ({{ $producto->categoria_produc }})
+                            <label class="label">Recobrable</label>
+                            <select name="recobrable" class="input" required>
+                                <option value="">-- Selecciona --</option>
+                                <option value="Recobrable" {{ old('recobrable') === 'Recobrable' ? 'selected' : '' }}>Recobrable</option>
+                                <option value="No recobrable" {{ old('recobrable') === 'No recobrable' ? 'selected' : '' }}>No Recobrable</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="label">Prioridad</label>
+                            <select name="prioridad_requisicion" class="input" required>
+                                <option value="">-- Selecciona --</option>
+                                <option value="baja" {{ old('prioridad_requisicion') === 'baja' ? 'selected' : '' }}>Baja</option>
+                                <option value="media" {{ old('prioridad_requisicion') === 'media' ? 'selected' : '' }}>Media</option>
+                                <option value="alta" {{ old('prioridad_requisicion') === 'alta' ? 'selected' : '' }}>Alta</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="label">Justificación</label>
+                        <textarea name="justify_requisicion" class="input" rows="3" required>{{ old('justify_requisicion') }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="label">Detalles adicionales</label>
+                        <textarea name="justify_requisicion" class="input" rows="3" required>{{ old('justify_requisicion') }}</textarea>
+                    </div>
+
+                    <hr class="divider">
+
+                    <h3 class="section-title">Agregar Producto</h3>
+                    <div class="grid-3 align-end">
+                        <div class="form-group">
+                            <label class="label">Producto</label>
+                            <select id="productoSelect" class="input">
+                                <option value="">-- Selecciona producto --</option>
+                                @foreach ($productos as $p)
+                                    <option value="{{ $p->id }}"
+                                        data-nombre="{{ $p->name_produc }}"
+                                        data-proveedor="{{ $p->proveedor_id ?? '' }}">
+                                        {{ $p->name_produc }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
-                    </div>
-                    <div class="col-md-6">
                         <div class="form-group">
-                            <label for="pr_amount">Cantidad Total</label>
-                            <input type="number" class="form-control" id="pr_amount" name="pr_amount" min="1" required>
-                            <small id="stockDisponible" class="form-text text-muted"></small>
+                            <label class="label">Cantidad Total</label>
+                            <input type="number" id="cantidadTotalInput" class="input" min="1" placeholder="Ej: 10">
+                        </div>
+                        <div class="form-group">
+                            <button type="button" id="iniciarProductoBtn" class="btn primary w-100">
+                                Iniciar Centros de Costo
+                            </button>
                         </div>
                     </div>
-                </div>
 
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <h5>Distribución por Centros de Costo</h5>
-                        <div id="centrosContainer">
-                            <div class="row centro-row mb-2">
-                                <div class="col-md-6">
-                                    <select class="form-control centro-select" name="centros[0][id]" required>
-                                        <option value="">Seleccione un centro</option>
-                                        @foreach($centros as $centro)
-                                            <option value="{{ $centro->id }}">{{ $centro->name_centro }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="number" class="form-control centro-cantidad" name="centros[0][cantidad]" min="1" required>
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="button" class="btn btn-danger btn-sm btn-remove-centro" disabled>
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
+                    <div id="centrosSection" class="card soft d-none">
+                        <h4 class="section-subtitle">Centros de Costo</h4>
+                        <div class="grid-3 align-end">
+                            <div class="form-group">
+                                <label class="label">Centro</label>
+                                <select id="centroSelect" class="input">
+                                    <option value="">-- Selecciona centro --</option>
+                                    @foreach ($centros as $c)
+                                        <option value="{{ $c->id }}" data-nombre="{{ $c->name_centro }}">
+                                            {{ $c->name_centro }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="label">Cantidad</label>
+                                <input type="number" id="cantidadCentroInput" class="input" min="1" placeholder="Ej: 3">
+                            </div>
+
+                            <div class="form-group">
+                                <button type="button" id="agregarCentroBtn" class="btn success w-100">Agregar centro</button>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-primary btn-sm mt-2" id="btnAddCentro">
-                            <i class="fas fa-plus"></i> Añadir otro centro
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="btnAgregarProducto">Agregar a Requisición</button>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Modal para previsualizar -->
-<div class="modal fade modal-requisicion" id="modalPrevisualizar" tabindex="-1" role="dialog" aria-labelledby="modalPrevisualizarLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalPrevisualizarLabel">Previsualización de Requisición</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body" id="previsualizacionContenido">
-                <!-- Contenido dinámico -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                        <ul id="centrosList" class="list"></ul>
+
+                        <div class="actions">
+                            <button type="button" id="guardarProductoBtn" class="btn success">
+                                Guardar producto en la requisición
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <h3 class="section-title">Productos agregados</h3>
+                    <div class="table-wrap">
+                        <table id="productosTable" class="table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cantidad Total</th>
+                                    <th>Centros</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    {{-- Total de la requisición (oculto) --}}
+                    <input type="hidden" name="amount_requisicion" id="amount_requisicion" value="0">
+
+                    <div class="actions end">
+                        <button type="submit" class="btn primary lg">Guardar Requisición</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-</div>
 @endsection
 
 @section('scripts')
-<script>
-$(document).ready(function() {
-    let productos = [];
-    let totalProductos = 0;
-    let centroCounter = 1;
+    {{-- SweetAlert2 --}}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    // Mostrar stock disponible al seleccionar producto
-    $('#producto_id').change(function() {
-        const selectedOption = $(this).find('option:selected');
-        const stock = selectedOption.data('stock');
-        const nombreProducto = selectedOption.data('nombre');
-        
-        $('#stockDisponible').text(`Stock disponible: ${stock}`);
-        $('#pr_amount').attr('max', stock).val(1);
-        
-        // Actualizar la cantidad máxima en todos los inputs de centros
-        $('.centro-cantidad').attr('max', stock);
-    });
+    <script>
+        let productos = [];
+        let productoActual = null;
+        let cantidadTotalTemp = 0;
 
-    // Añadir otro centro de costo
-    $('#btnAddCentro').click(function() {
-        const newRow = `
-            <div class="row centro-row mb-2" data-index="${centroCounter}">
-                <div class="col-md-6">
-                    <select class="form-control centro-select" name="centros[${centroCounter}][id]" required>
-                        <option value="">Seleccione un centro</option>
-                        @foreach($centros as $centro)
-                            <option value="{{ $centro->id }}">{{ $centro->name_centro }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <input type="number" class="form-control centro-cantidad" name="centros[${centroCounter}][cantidad]" min="1" required>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-danger btn-sm btn-remove-centro">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-        $('#centrosContainer').append(newRow);
-        centroCounter++;
-        
-        // Habilitar botones de eliminar si hay más de una fila
-        if ($('.centro-row').length > 1) {
-            $('.btn-remove-centro').prop('disabled', false);
-        }
-    });
+        const $ = (sel) => document.querySelector(sel);
 
-    // Eliminar fila de centro de costo
-    $(document).on('click', '.btn-remove-centro', function() {
-        if ($('.centro-row').length > 1) {
-            $(this).closest('.centro-row').remove();
-            
-            // Deshabilitar botones de eliminar si solo queda una fila
-            if ($('.centro-row').length === 1) {
-                $('.btn-remove-centro').prop('disabled', true);
-            }
-        }
-    });
+        function actualizarTabla() {
+            const tbody = $("#productosTable tbody");
+            tbody.innerHTML = "";
+            let totalCantidad = 0;
 
-    // Actualizar máximo en centros cuando cambia cantidad total
-    $('#pr_amount').on('input', function() {
-        const max = parseInt($(this).val()) || 0;
-        $('.centro-cantidad').attr('max', max);
-    });
-
-    // Validar suma de cantidades por centro
-    $(document).on('input', '.centro-cantidad', function() {
-        const total = parseInt($('#pr_amount').val()) || 0;
-        let sum = 0;
-        
-        $('.centro-cantidad').each(function() {
-            sum += parseInt($(this).val()) || 0;
-        });
-        
-        if (sum > total) {
-            alert('La suma de las cantidades por centro no puede superar la cantidad total');
-            $(this).val('');
-        }
-    });
-
-    // Agregar producto a la tabla
-    $('#btnAgregarProducto').click(function() {
-        const productoId = $('#producto_id').val();
-        const productoText = $('#producto_id option:selected').text();
-        const cantidadTotal = parseInt($('#pr_amount').val());
-        const stockDisponible = parseInt($('#producto_id option:selected').data('stock'));
-
-        if (!productoId) {
-            alert('Seleccione un producto');
-            return;
-        }
-
-        if (!cantidadTotal || cantidadTotal < 1) {
-            alert('Ingrese una cantidad válida');
-            return;
-        }
-
-        if (cantidadTotal > stockDisponible) {
-            alert(`La cantidad supera el stock disponible (${stockDisponible})`);
-            return;
-        }
-
-        // Validar centros de costo
-        const centros = [];
-        let centrosValid = true;
-        let sumCentros = 0;
-
-        $('.centro-row').each(function(index) {
-            const centroId = $(this).find('.centro-select').val();
-            const centroText = $(this).find('.centro-select option:selected').text();
-            const cantidad = parseInt($(this).find('.centro-cantidad').val()) || 0;
-
-            if (!centroId) {
-                alert('Seleccione un centro de costo para todas las filas');
-                centrosValid = false;
-                return false;
-            }
-
-            if (cantidad < 1) {
-                alert('Ingrese una cantidad válida para todos los centros');
-                centrosValid = false;
-                return false;
-            }
-
-            sumCentros += cantidad;
-            centros.push({
-                id: centroId,
-                cantidad: cantidad,
-                centro_text: centroText
-            });
-        });
-
-        if (!centrosValid) return;
-
-        if (sumCentros !== cantidadTotal) {
-            alert('La suma de las cantidades por centro debe ser igual a la cantidad total');
-            return;
-        }
-
-        // Verificar si el producto ya existe en la lista
-        const productoExistenteIndex = productos.findIndex(p => p.id === productoId);
-
-        if (productoExistenteIndex !== -1) {
-            // Actualizar producto existente
-            productos[productoExistenteIndex].cantidad = cantidadTotal;
-            productos[productoExistenteIndex].centros = centros;
-        } else {
-            // Agregar nuevo producto
-            productos.push({
-                id: productoId,
-                producto_text: productoText,
-                cantidad: cantidadTotal,
-                centros: centros
-            });
-        }
-
-        // Actualizar total de productos
-        totalProductos = productos.reduce((sum, p) => sum + p.cantidad, 0);
-        $('#amount_requisicion').val(totalProductos);
-
-        // Actualizar la tabla
-        actualizarTablaProductos();
-
-        // Cerrar el modal y limpiar el formulario
-        $('#modalAgregarProducto').modal('hide');
-        $('#producto_id').val('');
-        $('#pr_amount').val('');
-        $('#stockDisponible').text('');
-        $('#centrosContainer').html(`
-            <div class="row centro-row mb-2">
-                <div class="col-md-6">
-                    <select class="form-control centro-select" name="centros[0][id]" required>
-                        <option value="">Seleccione un centro</option>
-                        @foreach($centros as $centro)
-                            <option value="{{ $centro->id }}">{{ $centro->name_centro }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <input type="number" class="form-control centro-cantidad" name="centros[0][cantidad]" min="1" required>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-danger btn-sm btn-remove-centro" disabled>
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `);
-        centroCounter = 1;
-
-        // Habilitar el botón de previsualizar
-        $('#btnPrevisualizar').prop('disabled', false);
-    });
-
-    // Actualizar la tabla de productos
-    function actualizarTablaProductos() {
-        const tbody = $('#tablaProductos tbody');
-        tbody.empty();
-
-        productos.forEach((prod, index) => {
-            // Mostrar resumen de centros
-            const centrosText = prod.centros.map(c => `${c.centro_text} (${c.cantidad})`).join(', ');
-            
-            tbody.append(`
-                <tr>
-                    <td>${prod.producto_text}</td>
-                    <td>${prod.cantidad}</td>
-                    <td>${centrosText}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info btn-action btnPrevisualizar" data-index="${index}">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger btn-action btnEliminar" data-index="${index}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `);
-        });
-    }
-
-    // Previsualizar producto específico
-    $(document).on('click', '.btnPrevisualizar', function() {
-        const index = $(this).data('index');
-        const producto = productos[index];
-
-        let centrosHtml = '<ul>';
-        producto.centros.forEach(c => {
-            centrosHtml += `<li>${c.centro_text}: ${c.cantidad}</li>`;
-        });
-        centrosHtml += '</ul>';
-
-        $('#previsualizacionContenido').html(`
-            <div class="card">
-                <div class="card-body">
-                    <h5>${producto.producto_text}</h5>
-                    <p><strong>Cantidad Total:</strong> ${producto.cantidad}</p>
-                    <p><strong>Distribución por Centros:</strong></p>
-                    ${centrosHtml}
-                </div>
-            </div>
-        `);
-
-        $('#modalPrevisualizar').modal('show');
-    });
-
-    // Eliminar producto
-    $(document).on('click', '.btnEliminar', function() {
-        const index = $(this).data('index');
-        const cantidadEliminar = productos[index].cantidad;
-        
-        productos.splice(index, 1);
-        totalProductos -= cantidadEliminar;
-        $('#amount_requisicion').val(totalProductos);
-        
-        actualizarTablaProductos();
-
-        if (productos.length === 0) {
-            $('#btnPrevisualizar').prop('disabled', true);
-        }
-    });
-
-    // Previsualizar toda la requisición
-    $('#btnPrevisualizar').click(function() {
-        let contenido = '<h4>Resumen de Requisición</h4>';
-        contenido += `<p><strong>Fecha:</strong> ${$('#date_requisicion').val()}</p>`;
-        contenido += `<p><strong>Tipo:</strong> ${$('#recobrable option:selected').text()}</p>`;
-        contenido += `<p><strong>Prioridad:</strong> ${$('#prioridad_requisicion option:selected').text()}</p>`;
-        contenido += `<p><strong>Total Productos:</strong> ${totalProductos}</p>`;
-        contenido += `<p><strong>Justificación:</strong> ${$('#justify_requisicion').val()}</p>`;
-
-        productos.forEach(prod => {
-            let centrosHtml = '<ul>';
-            prod.centros.forEach(c => {
-                centrosHtml += `<li>${c.centro_text}: ${c.cantidad}</li>`;
-            });
-            centrosHtml += '</ul>';
-
-            contenido += `
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5>${prod.producto_text}</h5>
-                        <p><strong>Cantidad Total:</strong> ${prod.cantidad}</p>
-                        <p><strong>Distribución por Centros:</strong></p>
-                        ${centrosHtml}
-                    </div>
-                </div>
-            `;
-        });
-
-        $('#previsualizacionContenido').html(contenido);
-        $('#modalPrevisualizar').modal('show');
-    });
-
-    // Enviar formulario
-    $('#requisicionForm').submit(function(e) {
-        e.preventDefault();
-        
-        if (productos.length === 0) {
-            alert('Debe agregar al menos un producto');
-            return;
-        }
-
-        // Preparar los datos en el formato que espera el controlador
-        const formData = {
-            prioridad_requisicion: $('#prioridad_requisicion').val(),
-            recobrable: $('#recobrable').val(),
-            detail_requisicion: $('#detail_requisicion').val(),
-            justify_requisicion: $('#justify_requisicion').val(),
-            date_requisicion: $('#date_requisicion').val(),
-            amount_requisicion: totalProductos,
-            productos: productos.map(prod => ({
-                id: prod.id,
-                cantidad: prod.cantidad,
-                proveedor_id: $('#producto_id option[value="' + prod.id + '"]').data('proveedor'),
-                centros: prod.centros.map(c => ({
-                    id: c.id,
-                    cantidad: c.cantidad
-                }))
-            }))
-        };
-
-        // Crear inputs ocultos con los datos
-        $.each(formData, function(key, value) {
-            if (key === 'productos') {
-                $.each(value, function(index, producto) {
-                    $(`<input type="hidden" name="productos[${index}][id]" value="${producto.id}">`).appendTo('#requisicionForm');
-                    $(`<input type="hidden" name="productos[${index}][cantidad]" value="${producto.cantidad}">`).appendTo('#requisicionForm');
-                    $(`<input type="hidden" name="productos[${index}][proveedor_id]" value="${producto.proveedor_id}">`).appendTo('#requisicionForm');
-                    
-                    $.each(producto.centros, function(centroIndex, centro) {
-                        $(`<input type="hidden" name="productos[${index}][centros][${centroIndex}][id]" value="${centro.id}">`).appendTo('#requisicionForm');
-                        $(`<input type="hidden" name="productos[${index}][centros][${centroIndex}][cantidad]" value="${centro.cantidad}">`).appendTo('#requisicionForm');
-                    });
+            productos.forEach((prod, i) => {
+                let centrosHTML = "";
+                prod.centros.forEach((centro, j) => {
+                    centrosHTML += `
+                        <span class="chip">${centro.nombre} <b>(${centro.cantidad})</b></span>
+                        <input type="hidden" name="productos[${i}][centros][${j}][id]" value="${centro.id}">
+                        <input type="hidden" name="productos[${i}][centros][${j}][cantidad]" value="${centro.cantidad}">
+                    `;
                 });
-            } else {
-                $(`<input type="hidden" name="${key}" value="${value}">`).appendTo('#requisicionForm');
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        ${prod.nombre}
+                        <input type="hidden" name="productos[${i}][id]" value="${prod.id}">
+                        <input type="hidden" name="productos[${i}][proveedor_id]" value="${prod.proveedor_id ?? ''}">
+                    </td>
+                    <td>${prod.cantidad}</td>
+                    <td>${centrosHTML}</td>
+                    <td class="text-right">
+                        <button type="button" onclick="eliminarProducto(${i})" class="btn danger sm">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                totalCantidad += prod.cantidad;
+            });
+
+            $("#amount_requisicion").value = totalCantidad;
+        }
+
+        function eliminarProducto(index) {
+            productos.splice(index, 1);
+            actualizarTabla();
+        }
+
+        $("#iniciarProductoBtn").addEventListener("click", () => {
+            const prodSelect = $("#productoSelect");
+            const cantidadTotal = parseInt($("#cantidadTotalInput").value);
+
+            if (!prodSelect.value || !cantidadTotal || cantidadTotal < 1) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Falta información',
+                    text: 'Selecciona un producto y una cantidad total válida.'
+                });
+                return;
             }
+
+            productoActual = {
+                id: prodSelect.value,
+                nombre: prodSelect.selectedOptions[0].dataset.nombre,
+                proveedor_id: prodSelect.selectedOptions[0].dataset.proveedor || '',
+                cantidad: 0,
+                centros: []
+            };
+
+            cantidadTotalTemp = cantidadTotal;
+            $("#centrosSection").classList.remove("d-none");
+            $("#centrosList").innerHTML = "";
         });
 
-        this.submit();
-    });
-});
-</script>
+        $("#agregarCentroBtn").addEventListener("click", () => {
+            if (!productoActual) return;
+
+            const centroSelect = $("#centroSelect");
+            const cantidadCentro = parseInt($("#cantidadCentroInput").value);
+
+            if (!centroSelect.value || !cantidadCentro || cantidadCentro < 1) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Datos incompletos',
+                    text: 'Selecciona un centro y una cantidad válida.'
+                });
+                return;
+            }
+
+            const sumaActual = productoActual.centros.reduce((sum, c) => sum + c.cantidad, 0);
+            if (sumaActual + cantidadCentro > cantidadTotalTemp) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Cantidad excedida',
+                    text: `No puedes superar la cantidad total de ${cantidadTotalTemp}.`
+                });
+                return;
+            }
+
+            const idx = productoActual.centros.findIndex(c => c.id === centroSelect.value);
+            if (idx >= 0) {
+                const nueva = productoActual.centros[idx].cantidad + cantidadCentro;
+                if (nueva > cantidadTotalTemp) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Cantidad excedida',
+                        text: `No puedes superar la cantidad total de ${cantidadTotalTemp}.`
+                    });
+                    return;
+                }
+                productoActual.centros[idx].cantidad = nueva;
+            } else {
+                productoActual.centros.push({
+                    id: centroSelect.value,
+                    nombre: centroSelect.selectedOptions[0].dataset.nombre,
+                    cantidad: cantidadCentro
+                });
+            }
+
+            const list = $("#centrosList");
+            list.innerHTML = "";
+            productoActual.centros.forEach(c => {
+                const li = document.createElement("li");
+                li.className = "list-item";
+                li.textContent = `${c.nombre} - ${c.cantidad}`;
+                list.appendChild(li);
+            });
+
+            $("#cantidadCentroInput").value = "";
+            centroSelect.value = "";
+        });
+
+        $("#guardarProductoBtn").addEventListener("click", () => {
+            if (!productoActual || productoActual.centros.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Centros requeridos',
+                    text: 'Debes añadir al menos un centro de costo.'
+                });
+                return;
+            }
+
+            productoActual.cantidad = productoActual.centros.reduce((sum, c) => sum + c.cantidad, 0);
+
+            if (productoActual.cantidad !== cantidadTotalTemp) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Cantidades no coinciden',
+                    text: `La suma por centros (${productoActual.cantidad}) debe ser igual a la cantidad total (${cantidadTotalTemp}).`
+                });
+                return;
+            }
+
+            productos.push(productoActual);
+            productoActual = null;
+            cantidadTotalTemp = 0;
+
+            $("#centrosSection").classList.add("d-none");
+            $("#productoSelect").value = "";
+            $("#cantidadTotalInput").value = "";
+
+            actualizarTabla();
+        });
+
+        $("#requisicionForm").addEventListener("submit", (e) => {
+            if (productos.length === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Sin productos',
+                    text: 'Agrega al menos un producto antes de guardar.'
+                });
+                return;
+            }
+        });
+    </script>
+@endsection
+
+@section('styles')
+    <link rel="stylesheet" href="{{ asset('css/requisiciones.css') }}">
 @endsection

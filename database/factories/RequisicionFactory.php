@@ -18,7 +18,7 @@ class RequisicionFactory extends Factory
                 'detail_requisicion' => 'no',
                 'prioridad_requisicion' => 'Alta',
                 'amount_requisicion' => 15,
-                'Recobreble' => 'Sí'
+                'Recobrable' => 'Sí'
             ],
             [
                 'date_requisicion' => '2025-02-05',
@@ -26,7 +26,7 @@ class RequisicionFactory extends Factory
                 'detail_requisicion' => 'que sean dorados.',
                 'prioridad_requisicion' => 'Media',
                 'amount_requisicion' => 25,
-                'Recobreble' => 'No'
+                'Recobrable' => 'No'
             ],
             [
                 'date_requisicion' => '2025-03-12',
@@ -34,7 +34,7 @@ class RequisicionFactory extends Factory
                 'detail_requisicion' => 'marca x',
                 'prioridad_requisicion' => 'Baja',
                 'amount_requisicion' => 200,
-                'Recobreble' => 'Sí'
+                'Recobrable' => 'Sí'
             ],
             [
                 'date_requisicion' => '2025-04-18',
@@ -42,7 +42,7 @@ class RequisicionFactory extends Factory
                 'detail_requisicion' => 'no',
                 'prioridad_requisicion' => 'Alta',
                 'amount_requisicion' => 50,
-                'Recobreble' => 'No'
+                'Recobrable' => 'No'
             ],
             [
                 'date_requisicion' => '2025-05-25',
@@ -50,7 +50,7 @@ class RequisicionFactory extends Factory
                 'detail_requisicion' => 'con calidad certificada x',
                 'prioridad_requisicion' => 'Alta',
                 'amount_requisicion' => 100,
-                'Recobreble' => 'Sí'
+                'Recobrable' => 'Sí'
             ]
         ];
 

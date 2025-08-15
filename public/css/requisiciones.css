@@ -1,134 +1,56 @@
-/* public/css/requisiciones.css */
-
-/* Estilos generales para el formulario de requisiciones */
-.requisicion-container {
-    max-width: 1200px;
-    margin: 2rem auto;
-    padding: 0 15px;
-}
-
-.requisicion-container h1 {
-    color: #2c3e50;
-    margin-bottom: 2rem;
-    font-weight: 600;
-}
-
-/* Estilos para las tarjetas */
-.requisicion-card {
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 2rem;
-    border: none;
-}
-
-.requisicion-card .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #eaeaea;
-    padding: 1rem 1.5rem;
-    border-radius: 8px 8px 0 0 !important;
-}
-
-.requisicion-card .card-header h5 {
-    margin: 0;
-    color: #34495e;
-    font-weight: 500;
-}
-
-.requisicion-card .card-body {
-    padding: 1.5rem;
-}
-
-/* Estilos para los formularios */
-.requisicion-form .form-group {
-    margin-bottom: 1.5rem;
-}
-
-.requisicion-form label {
-    font-weight: 500;
-    color: #495057;
-    margin-bottom: 0.5rem;
-}
-
-.requisicion-form .form-control {
-    border-radius: 4px;
-    border: 1px solid #ced4da;
-    padding: 0.5rem 0.75rem;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-.requisicion-form .form-control:focus {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-/* Estilos para la tabla de productos */
-#tablaProductos {
-    margin-top: 1rem;
-}
-
-#tablaProductos th {
-    background-color: #f8f9fa;
-    color: #495057;
-    font-weight: 500;
-}
-
-#tablaProductos td, #tablaProductos th {
-    vertical-align: middle;
-}
-
-/* Estilos para los botones de acción */
-.btn-action {
-    margin: 0 0.25rem;
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-}
-
-/* Estilos para los botones en el footer */
-.requisicion-footer {
-    margin-top: 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Estilos para los modales */
-.modal-requisicion .modal-header {
-    border-bottom: 1px solid #eaeaea;
-}
-
-.modal-requisicion .modal-footer {
-    border-top: 1px solid #eaeaea;
-}
-
-/* Estilos para la previsualización */
-#previsualizacionContenido {
-    padding: 1.5rem;
-}
-
-#previsualizacionContenido .card {
-    margin-bottom: 1rem;
-    border: 1px solid #eaeaea;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .requisicion-footer {
-        flex-direction: column;
-        gap: 1rem;
+:root{
+        --bg:#F5F7FB;
+        --card:#FFFFFF;
+        --text:#1F2937;
+        --muted:#6B7280;
+        --brand:#2563EB;
+        --brand-600:#1D4ED8;
+        --ok:#16A34A;
+        --danger:#DC2626;
+        --border:#E5E7EB;
+        --chip:#EEF2FF;
     }
-    
-    .requisicion-footer > div {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .requisicion-footer button {
-        width: 100%;
-    }
-}
+    *{box-sizing:border-box}
+    body{background:var(--bg); color:var(--text); margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    .wrap{max-width:1100px; margin:24px auto; padding:12px}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:0 10px 20px rgba(0,0,0,.04)}
+    .card-header{padding:18px 22px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,#fff, #fafafa)}
+    .card-header h1{margin:0; font-size:22px}
+    .card-body{padding:20px}
+    .form .form-group{margin-bottom:14px}
+    .label{display:block; font-weight:600; margin-bottom:6px}
+    .input{width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; color:var(--text)}
+    .input:focus{outline:none; border-color:var(--brand)}
+    .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+    .grid-3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
+    .align-end{align-items:end}
+    @media (max-width: 900px){ .grid-2, .grid-3{grid-template-columns:1fr} }
+
+    .divider{border:none; border-top:1px solid var(--border); margin:18px 0}
+    .section-title{margin:6px 0 12px; font-size:18px}
+    .section-subtitle{margin:0 0 10px; font-size:16px; color:var(--muted)}
+    .chip{display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:var(--chip); margin:2px 6px 2px 0}
+    .table-wrap{overflow:auto; border:1px solid var(--border); border-radius:12px}
+    .table{width:100%; border-collapse:separate; border-spacing:0}
+    .table th, .table td{padding:12px; border-bottom:1px solid var(--border); vertical-align:top}
+    .table th{background:#FAFAFB; text-align:left}
+    .table tr:last-child td{border-bottom:none}
+    .text-right{text-align:right}
+
+    .btn{border:none; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600}
+    .btn.w-100{width:100%}
+    .btn.lg{padding:12px 18px; font-size:16px}
+    .btn.primary{background:var(--brand); color:#fff}
+    .btn.primary:hover{background:var(--brand-600)}
+    .btn.success{background:var(--ok); color:#fff}
+    .btn.success:hover{filter:brightness(0.95)}
+    .btn.danger{background:var(--danger); color:#fff}
+    .btn.danger:hover{filter:brightness(0.95)}
+    .btn.sm{padding:6px 10px; font-size:12px}
+
+    .card.soft{border:1px dashed var(--border); background:#FCFDFF}
+    .list{list-style:none; padding:0; margin:10px 0}
+    .list-item{padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px; background:#fff}
+
+    .actions{display:flex; gap:8px; margin-top:12px}
+    .actions.end{justify-content:flex-end}

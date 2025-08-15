@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('detail_requisicion'); #detalles adicionales de la requisicion
             $table->string('prioridad_requisicion', 255); #prioridad de la reuquisicion
             $table->text('amount_requisicion'); #cantidad de productos
-            $table->string('Recobreble', 255); #opcion recobrable no recobrable
+            $table->string('Recobrable', 255); #opcion recobrable no recobrable
             $table->timestamps();
             $table->softDeletes();
         });

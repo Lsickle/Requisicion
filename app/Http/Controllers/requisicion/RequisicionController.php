@@ -3,123 +3,113 @@
 namespace App\Http\Controllers\requisicion;
 
 use App\Http\Controllers\Controller;
-use App\Models\Requisicion;
-use App\Models\Producto;
-use App\Models\Centro;
-use App\Models\Estatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use App\Mail\RequisicionCreada;
-use Illuminate\Support\Facades\Mail;
+use App\Models\Centro;
 
 class RequisicionController extends Controller
 {
     public function index()
     {
+        // Redirige directamente al formulario de creación
         return redirect()->route('requisiciones.create');
     }
 
     public function create()
     {
-        $productos = Producto::with('proveedor')->orderBy('name_produc')->get();
-        $centros = Centro::orderBy('name_centro')->get();
-        
-        return view('requisiciones.create', compact('productos', 'centros'));
+        // Productos con su proveedor
+        $productos = DB::table('productos')
+            ->leftJoin('proveedores', 'productos.proveedor_id', '=', 'proveedores.id')
+            ->select('productos.id', 'productos.name_produc', 'productos.proveedor_id')
+            ->orderBy('productos.name_produc')
+            ->get();
+
+        // Centros usando el método del modelo
+        $centros = Centro::obtenerCentros();
+
+        return view('requisiciones.crear', compact('productos', 'centros'));
+    }
+
+    public function show($id)
+    {
+        #
     }
 
     public function store(Request $request)
     {
-        $validated = $this->validateRequest($request);
-
-        return DB::transaction(function () use ($validated) {
-            // Crear la requisición
-            $requisicion = Requisicion::create([
-                'prioridad_requisicion' => $validated['prioridad_requisicion'],
-                'Recobreble' => $validated['recobrable'],
-                'detail_requisicion' => $validated['detail_requisicion'],
-                'justify_requisicion' => $validated['justify_requisicion'],
-                'date_requisicion' => $validated['date_requisicion'],
-                'amount_requisicion' => $validated['amount_requisicion'] ?? 0,
-            ]);
-
-            // Asociar productos y centros
-            $this->attachProductosCentros($requisicion, $validated['productos']);
-
-            // Establecer estatus inicial
-            $estatusInicial = Estatus::where('status_name', 'Pendiente')->first();
-            $requisicion->estatus()->attach($estatusInicial->id, [
-                'date_update' => now(),
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            // Enviar correo electrónico
-            $destinatarios = ['compras@empresa.com', 'finanzas@empresa.com'];
-            Mail::to($destinatarios)->send(new RequisicionCreada($requisicion));
-
-            return redirect()->route('requisiciones.create')
-                ->with('success', 'Requisición creada exitosamente');
-        });
-    }
-
-    private function validateRequest(Request $request)
-    {
-        return $request->validate([
-            'prioridad_requisicion' => 'required|in:alta,media,baja',
+        // Validación
+        $validated = $request->validate([
             'recobrable' => 'required|in:Recobrable,No recobrable',
-            'detail_requisicion' => 'nullable|string|max:500',
-            'justify_requisicion' => 'required|string|max:500',
-            'date_requisicion' => 'required|date',
-            'amount_requisicion' => 'nullable|integer|min:0',
+            'prioridad_requisicion' => 'required|in:baja,media,alta',
+            'justify_requisicion' => 'required|string|min:3',
+            'amount_requisicion' => 'required|numeric|min:1',
 
             'productos' => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
-            'productos.*.cantidad' => 'required|integer|min:1',
-            'productos.*.proveedor_id' => 'required|exists:proveedores,id',
+            'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
 
+            // Mantener el CAMPO en plural (coincide con tu Blade)
             'productos.*.centros' => 'required|array|min:1',
-            'productos.*.centros.*.id' => 'required|exists:centros,id',
+
+            // Usar el nombre real de la TABLA en la regla exists (singular: centro)
+            'productos.*.centros.*.id' => 'required|exists:centro,id',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
-        ], [
-            'prioridad_requisicion.required' => 'La prioridad es obligatoria.',
-            'recobrable.required' => 'Debe indicar si es recobrable o no.',
-            'productos.required' => 'Debe agregar al menos un producto.',
-            'productos.*.id.exists' => 'Uno de los productos seleccionados no existe.',
-            'productos.*.cantidad.min' => 'La cantidad del producto debe ser al menos 1.',
-            'productos.*.centros' => 'Debe asignar al menos un centro de costo.',
-            'productos.*.centros.*.id.exists' => 'Uno de los centros seleccionados no existe.',
         ]);
-    }
 
-    private function attachProductosCentros(Requisicion $requisicion, array $productos)
-    {
-        foreach ($productos as $productoData) {
-            $producto = Producto::findOrFail($productoData['id']);
+        DB::beginTransaction();
 
-            // Verificar stock
-            if ($productoData['cantidad'] > $producto->stock_produc) {
-                throw ValidationException::withMessages([
-                    "productos.{$productoData['id']}.cantidad" => 
-                        "La cantidad supera el stock disponible para {$producto->name_produc}"
-                ]);
-            }
-
-            // Asociar producto a la requisición
-            $requisicion->productos()->attach($producto->id, [
-                'pr_amount' => $productoData['cantidad'],
+        try {
+            // Crear requisición (SIN 'fecha': se usa created_at/updated_at)
+            $requisicionId = DB::table('requisicion')->insertGetId([
+                'recobrable' => $validated['recobrable'],
+                'prioridad_requisicion' => $validated['prioridad_requisicion'],
+                'justify_requisicion' => $validated['justify_requisicion'],
+                'amount_requisicion' => $validated['amount_requisicion'],
                 'created_at' => now(),
-                'updated_at' => now()
+                'updated_at' => now(),
             ]);
 
-            // Asociar centros de costo
-            foreach ($productoData['centros'] as $centroData) {
-                $requisicion->centros()->attach($centroData['id'], [
-                    'rc_amount' => $centroData['cantidad'],
+            // Guardar productos y sus centros
+            foreach ($validated['productos'] as $producto) {
+                // Sumar cantidades por centros
+                $cantidadTotal = array_sum(array_column($producto['centros'], 'cantidad'));
+                if ($cantidadTotal < 1) {
+                    throw ValidationException::withMessages([
+                        'productos' => "La cantidad total para el producto {$producto['id']} debe ser mayor a 0.",
+                    ]);
+                }
+
+                DB::table('producto_requisicion')->insert([
+                    'id_producto' => $producto['id'],
+                    'id_requisicion' => $requisicionId,
+                    'pr_amount' => $cantidadTotal,
                     'created_at' => now(),
-                    'updated_at' => now()
+                    'updated_at' => now(),
                 ]);
+
+                foreach ($producto['centros'] as $centro) {
+                    DB::table('centro_producto')->insert([
+                        'producto_id' => $producto['id'],
+                        'centro_id' => $centro['id'],
+                        'amount' => $centro['cantidad'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
+
+            DB::commit();
+
+            return redirect()
+                ->route('requisiciones.create')
+                ->with('success', 'Requisición creada correctamente.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()
+                ->withInput()
+                ->withErrors(['error' => $e->getMessage()]);
         }
     }
 }
