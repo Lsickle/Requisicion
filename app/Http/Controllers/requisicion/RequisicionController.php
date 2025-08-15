@@ -15,12 +15,11 @@ use Illuminate\Support\Facades\Mail;
 class RequisicionController extends Controller
 {
     /**
-     * Mostrar todas las requisiciones
+     * Redirigir al formulario de creación
      */
     public function index()
     {
-        $requisiciones = Requisicion::with(['productos'])->latest()->get();
-        return view('requisiciones.index', compact('requisiciones'));
+        return redirect()->route('requisiciones.create');
     }
 
     /**
@@ -28,10 +27,10 @@ class RequisicionController extends Controller
      */
     public function create()
     {
-        $categorias = Producto::distinct()->pluck('categoria_produc');
+        $productos = Producto::with('proveedor')->get();
         $centros = Centro::all();
 
-        return view('requisiciones.create', compact('categorias', 'centros'));
+        return view('requisiciones.crear', compact('productos', 'centros'));
     }
 
     /**
@@ -44,77 +43,22 @@ class RequisicionController extends Controller
         return DB::transaction(function () use ($validated) {
             $requisicion = Requisicion::create([
                 'prioridad_requisicion' => $validated['prioridad_requisicion'],
-                'Recobreble' => $validated['Recobreble'],
+                'recobrable' => $validated['recobrable'],
                 'detail_requisicion' => $validated['detail_requisicion'],
                 'justify_requisicion' => $validated['justify_requisicion'],
-                'date_requisicion' => now(),
+                'date_requisicion' => $validated['date_requisicion'],
+                'amount_requisicion' => $validated['amount_requisicion'] ?? 0,
             ]);
 
             $this->attachProductosCentros($requisicion, $validated['productos']);
 
             // Enviar correo electrónico
-            $destinatarios = ['compras@empresa.com', 'finanzas@empresa.com']; // Reemplaza con tus destinatarios reales
+            $destinatarios = ['compras@empresa.com', 'finanzas@empresa.com'];
             Mail::to($destinatarios)->send(new RequisicionCreada($requisicion));
 
-            return redirect()->route('requisiciones.show', $requisicion)
+            return redirect()->route('requisiciones.create')
                 ->with('success', 'Requisición creada exitosamente');
         });
-    }
-
-    /**
-     * Mostrar una requisición específica
-     */
-    public function show(Requisicion $requisicion)
-    {
-        $requisicion->load(['productos.centros']);
-        return view('requisiciones.show', compact('requisicion'));
-    }
-
-    /**
-     * Mostrar el formulario de edición de una requisición
-     */
-    public function edit(Requisicion $requisicion)
-    {
-        $requisicion->load(['productos.centros']);
-        $categorias = Producto::distinct()->pluck('categoria_produc');
-        $centros = Centro::all();
-
-        return view('requisiciones.edit', compact('requisicion', 'categorias', 'centros'));
-    }
-
-    /**
-     * Actualizar una requisición existente
-     */
-    public function update(Request $request, Requisicion $requisicion)
-    {
-        $validated = $this->validateRequest($request);
-
-        return DB::transaction(function () use ($validated, $requisicion) {
-            $requisicion->update([
-                'prioridad_requisicion' => $validated['prioridad_requisicion'],
-                'Recobreble' => $validated['Recobreble'],
-                'detail_requisicion' => $validated['detail_requisicion'],
-                'justify_requisicion' => $validated['justify_requisicion'],
-            ]);
-
-            // Eliminar productos y centros antiguos
-            DB::table('producto_requisicion')->where('id_requisicion', $requisicion->id)->delete();
-
-            $this->attachProductosCentros($requisicion, $validated['productos']);
-
-            return redirect()->route('requisiciones.show', $requisicion)
-                ->with('success', 'Requisición actualizada exitosamente');
-        });
-    }
-
-    /**
-     * Eliminar una requisición
-     */
-    public function destroy(Requisicion $requisicion)
-    {
-        $requisicion->delete();
-        return redirect()->route('requisiciones.index')
-            ->with('success', 'Requisición eliminada');
     }
 
     /**
@@ -124,20 +68,23 @@ class RequisicionController extends Controller
     {
         return $request->validate([
             'prioridad_requisicion' => 'required|in:alta,media,baja',
-            'Recobreble' => 'required|in:Recobrable,No recobrable',
-            'detail_requisicion' => 'required|string|max:500',
+            'recobrable' => 'required|in:Recobrable,No recobrable',
+            'detail_requisicion' => 'nullable|string|max:500',
             'justify_requisicion' => 'required|string|max:500',
+            'date_requisicion' => 'required|date',
+            'amount_requisicion' => 'nullable|integer|min:0',
 
             'productos' => 'required|array|min:1',
-            'productos.*.id' => 'exists:productos,id',
-            'productos.*.cantidad' => 'integer|min:1',
+            'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.cantidad' => 'required|integer|min:1',
+            'productos.*.proveedor_id' => 'required|exists:proveedores,id',
 
-            'productos.*.centros' => 'array|min:1',
-            'productos.*.centros.*.id' => 'exists:centros,id',
-            'productos.*.centros.*.cantidad' => 'integer|min:1',
+            'productos.*.centros' => 'required|array|min:1',
+            'productos.*.centros.*.id' => 'required|exists:centros,id',
+            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
             'prioridad_requisicion.required' => 'La prioridad es obligatoria.',
-            'Recobreble.required' => 'Debe indicar si es recobrable o no.',
+            'recobrable.required' => 'Debe indicar si es recobrable o no.',
             'productos.required' => 'Debe agregar al menos un producto.',
             'productos.*.id.exists' => 'Uno de los productos seleccionados no existe.',
             'productos.*.cantidad.min' => 'La cantidad del producto debe ser al menos 1.',
@@ -165,6 +112,7 @@ class RequisicionController extends Controller
                 'id_producto' => $producto->id,
                 'id_requisicion' => $requisicion->id,
                 'pr_amount' => $productoData['cantidad'],
+                'proveedor_id' => $productoData['proveedor_id'],
                 'created_at' => now(),
                 'updated_at' => now()
             ]);

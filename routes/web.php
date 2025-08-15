@@ -1,12 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\RequisicionController;  // Import requisiciones
 use App\Http\Controllers\OrdenCompraController;  // Import orden de compra
 use App\Http\Controllers\EstatusRequisicionController;  // Import orden estatus de requisiciones
 use App\Http\Controllers\Api\UserController;  // Import usuarios
 use App\Http\Controllers\excel\ExcelController;  // exportar excel
 use App\Http\Controllers\PDF\PdfController;  // exportar pdf
+use App\Http\Controllers\Requisicion\RequisicionController;
 
 
 
@@ -28,5 +28,13 @@ Route::prefix('exportar')->group(function () {
 });
 
 Route::view('/index', 'index')->name('index');
-Route::view('/requisicion', 'requisiciones.crear')->name('requisiciones.crear');
+Route::view('/requisicion', 'requisiciones.index')->name('requisiciones.index');
 
+Route::resource('requisicion', RequisicionController::class);
+// routes/web.php
+
+Route::prefix('requisiciones')->group(function() {
+    Route::get('/', [RequisicionController::class, 'index'])->name('requisiciones.index');
+    Route::get('/crear', [RequisicionController::class, 'create'])->name('requisiciones.create');
+    Route::post('/', [RequisicionController::class, 'store'])->name('requisiciones.store');
+});

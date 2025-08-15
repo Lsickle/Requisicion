@@ -9,7 +9,7 @@
     <div class="sidebar" id="sidebar">
         <ul>
             <li><a href="{{route('index')}}">index</a></li>
-            <li><a href="{{route('requisiciones.crear')}}">requisicion</a></li>
+            <li><a href="#">requisicion</a></li>
             <li><a href="#">Opción 3</a></li>
             <li><a href="#">Opción 3</a></li>
         </ul>
