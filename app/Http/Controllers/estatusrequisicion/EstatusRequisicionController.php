@@ -8,6 +8,8 @@ use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Mail\EstatusRequisicionActualizado;
+use Illuminate\Support\Facades\Mail;
 
 class EstatusRequisicionController extends Controller
 {
@@ -45,6 +47,11 @@ class EstatusRequisicionController extends Controller
         ]);
 
         $nuevo = Estatus_Requisicion::create(array_merge($validated, ['date_update' => now()]));
+
+        // Enviar correo electrónico
+        $requisicion = Requisicion::find($validated['requisicion_id']);
+        $destinatarios = ['solicitante@empresa.com', 'compras@empresa.com']; // Reemplaza con tus destinatarios reales
+        Mail::to($destinatarios)->send(new EstatusRequisicionActualizado($requisicion, $nuevo));
 
         return response()->json([
             'message' => 'Estado creado exitosamente',
@@ -94,6 +101,13 @@ class EstatusRequisicionController extends Controller
 
         $estatusRequisicion->update(array_merge($validated, ['date_update' => now()]));
 
+        // Enviar correo electrónico si el estatus está activo
+        if ($validated['estatus']) {
+            $requisicion = Requisicion::find($estatusRequisicion->requisicion_id);
+            $destinatarios = ['solicitante@empresa.com', 'compras@empresa.com']; // Reemplaza con tus destinatarios reales
+            Mail::to($destinatarios)->send(new EstatusRequisicionActualizado($requisicion, $estatusRequisicion));
+        }
+
         return response()->json([
             'message' => 'Estado actualizado correctamente',
             'estado' => $estatusRequisicion
@@ -137,6 +151,10 @@ class EstatusRequisicionController extends Controller
                 'comentario' => $request->comentario
             ]);
 
+            // Enviar correo electrónico
+            $destinatarios = ['solicitante@empresa.com', 'compras@empresa.com']; // Reemplaza con tus destinatarios reales
+            Mail::to($destinatarios)->send(new EstatusRequisicionActualizado($requisicion, $nuevo));
+
             return response()->json(['message' => "Estado cambiado a {$siguiente->status_name}", 'nuevo_estado' => $nuevo]);
         });
     }
@@ -158,6 +176,10 @@ class EstatusRequisicionController extends Controller
                 'date_update' => now(),
                 'comentario' => $request->motivo
             ]);
+
+            // Enviar correo electrónico
+            $destinatarios = ['solicitante@empresa.com', 'compras@empresa.com']; // Reemplaza con tus destinatarios reales
+            Mail::to($destinatarios)->send(new EstatusRequisicionActualizado($requisicion, $cancelado));
 
             return response()->json(['message' => 'Requisición cancelada', 'estado_cancelado' => $cancelado]);
         });

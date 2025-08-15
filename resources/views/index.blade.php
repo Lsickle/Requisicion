@@ -35,6 +35,7 @@
         padding: 10px;
         margin-top: 10px;
         margin-bottom: 10px;
+        text-decoration: none;
     }
 
     .btn-login {

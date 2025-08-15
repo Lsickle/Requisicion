@@ -9,6 +9,8 @@ use App\Models\Centro;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Mail\RequisicionCreada;
+use Illuminate\Support\Facades\Mail;
 
 class RequisicionController extends Controller
 {
@@ -49,6 +51,10 @@ class RequisicionController extends Controller
             ]);
 
             $this->attachProductosCentros($requisicion, $validated['productos']);
+
+            // Enviar correo electrónico
+            $destinatarios = ['compras@empresa.com', 'finanzas@empresa.com']; // Reemplaza con tus destinatarios reales
+            Mail::to($destinatarios)->send(new RequisicionCreada($requisicion));
 
             return redirect()->route('requisiciones.show', $requisicion)
                 ->with('success', 'Requisición creada exitosamente');

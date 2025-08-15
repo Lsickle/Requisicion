@@ -9,6 +9,8 @@ use App\Models\OrdenCompra;
 use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
+use App\Mail\OrdenCompraCreada;
+use Illuminate\Support\Facades\Mail;
 
 class OrdenCompraController extends Controller
 {
@@ -36,7 +38,7 @@ class OrdenCompraController extends Controller
             'proveedor_id'                => 'required|exists:proveedores,id',
             'date_oc'                     => 'required|date',
             'methods_oc'                  => 'required|string|max:255',
-            'plazo_oc'                     => 'required|string|max:255',
+            'plazo_oc'                    => 'required|string|max:255',
             'order_oc'                    => 'required|integer|unique:orden_compras,order_oc',
             'observaciones'               => 'nullable|string',
             'productos'                   => 'required|array|min:1',
@@ -48,7 +50,7 @@ class OrdenCompraController extends Controller
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ]);
 
-        DB::transaction(function () use ($request) {
+        return DB::transaction(function () use ($request) {
             $orden = OrdenCompra::create([
                 'proveedor_id'  => $request->proveedor_id,
                 'date_oc'       => $request->date_oc,
@@ -77,9 +79,13 @@ class OrdenCompraController extends Controller
                     ]);
                 }
             }
-        });
 
-        return redirect()->route('ordenes-compra.index')->with('success', 'Orden de compra creada exitosamente');
+            // Enviar correo electrónico
+            $destinatarios = ['compras@empresa.com', 'proveedor@empresa.com']; // Reemplaza con tus destinatarios reales
+            Mail::to($destinatarios)->send(new OrdenCompraCreada($orden));
+
+            return redirect()->route('ordenes-compra.index')->with('success', 'Orden de compra creada exitosamente');
+        });
     }
 
     public function show(string $id)
@@ -97,7 +103,7 @@ class OrdenCompraController extends Controller
 
     public function edit(string $id)
     {
-        $orden       = OrdenCompra::with([
+        $orden = OrdenCompra::with([
             'productos.proveedor',
             'productos.centrosOrdenCompra' => function ($q) use ($id) {
                 $q->where('centro_ordencompra.orden_compra_id', $id);
@@ -118,7 +124,6 @@ class OrdenCompraController extends Controller
 
     public function update(Request $request, string $id)
     {
-        // Validación con mensajes personalizados
         $validated = $request->validate([
             'proveedor_id'                    => ['required', 'exists:proveedores,id'],
             'date_oc'                         => ['required', 'date'],
@@ -142,10 +147,9 @@ class OrdenCompraController extends Controller
             'productos.*.centros.min' => 'Cada producto debe estar asignado a al menos un centro.',
         ]);
 
-        DB::transaction(function () use ($validated, $id) {
+        return DB::transaction(function () use ($validated, $id) {
             $orden = OrdenCompra::findOrFail($id);
 
-            // Actualizar datos básicos
             $orden->update([
                 'proveedor_id'  => $validated['proveedor_id'],
                 'date_oc'       => $validated['date_oc'],
@@ -155,7 +159,6 @@ class OrdenCompraController extends Controller
                 'observaciones' => $validated['observaciones'] ?? null,
             ]);
 
-            // Preparar productos para sincronizar
             $productosSync = [];
             foreach ($validated['productos'] as $productoData) {
                 $productosSync[$productoData['id']] = [
@@ -166,7 +169,6 @@ class OrdenCompraController extends Controller
             }
             $orden->productos()->sync($productosSync);
 
-            // Actualizar centros de costo
             DB::table('centro_ordencompra')->where('orden_compra_id', $orden->id)->delete();
             foreach ($validated['productos'] as $productoData) {
                 foreach ($productoData['centros'] as $centroData) {
@@ -180,13 +182,12 @@ class OrdenCompraController extends Controller
                     ]);
                 }
             }
+
+            return redirect()
+                ->route('ordenes-compra.show', $id)
+                ->with('success', 'Orden de compra actualizada exitosamente.');
         });
-
-        return redirect()
-            ->route('ordenes-compra.show', $id)
-            ->with('success', 'Orden de compra actualizada exitosamente.');
     }
-
 
     public function destroy(string $id)
     {
