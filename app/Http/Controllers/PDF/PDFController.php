@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\PDF;
 
-
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -15,6 +14,7 @@ use App\Models\Centro;
 use App\Models\Requisicion;
 use App\Models\Estatus;
 use App\Models\Estatus_Requisicion;
+use Illuminate\Support\Facades\DB;
 
 class PdfController extends Controller
 {
@@ -149,8 +149,18 @@ class PdfController extends Controller
 
     private function pdfRequisicion($id)
     {
-        $requisicion = Requisicion::with(['productos.centrosInventario'])->findOrFail($id);
+        $requisicion = Requisicion::with(['productos'])->findOrFail($id);
         $requisicion->date_requisicion = Carbon::parse($requisicion->date_requisicion);
+
+        // Obtener la distribución de centros específica para ESTA requisición
+        foreach ($requisicion->productos as $producto) {
+            $producto->distribucion_centros = DB::table('centro_producto')
+                ->where('producto_id', $producto->id)
+                ->where('requisicion_id', $id) // ← FILTRAR por requisicion_id
+                ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                ->select('centro.name_centro', 'centro_producto.amount')
+                ->get();
+        }
 
         $pdf = PDF::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion,

@@ -85,11 +85,12 @@ class RequisicionController extends Controller
                     'pr_amount' => $cantidadTotalCentros
                 ]);
 
-                // Tabla centro_producto (sin requisicion_id)
+                // Tabla centro_producto (con requisicion_id)
                 foreach ($prod['centros'] as $centro) {
                     DB::table('centro_producto')->insert([
                         'producto_id' => $prod['id'],
                         'centro_id'   => $centro['id'],
+                        'requisicion_id' => $requisicion->id, // Añadir requisicion_id
                         'amount'      => $centro['cantidad'],
                         'created_at'  => now(),
                         'updated_at'  => now(),
@@ -114,7 +115,7 @@ class RequisicionController extends Controller
     {
         $requisicion = Requisicion::with([
             'productos',
-            'productos.centrosOrdenCompra',
+            'productos.centros',
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
@@ -125,7 +126,7 @@ class RequisicionController extends Controller
     {
         $requisicion = Requisicion::with([
             'productos',
-            'productos.centrosOrdenCompra',
+            'productos.centros',
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 

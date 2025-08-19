@@ -1,56 +1,55 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>Nueva Requisición Creada #{{ $requisicion->id }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #f8f9fa; padding: 15px; text-align: center; border-bottom: 1px solid #e9ecef; }
-        .content { padding: 20px 0; }
-        .details { margin-bottom: 20px; }
-        .detail-item { margin-bottom: 10px; }
-        .detail-label { font-weight: bold; }
-        .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e9ecef; text-align: center; font-size: 0.9em; color: #6c757d; }
-        .btn { display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Nueva Requisición Creada</h1>
-            <p>Número de Requisición: #{{ $requisicion->id }}</p>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+    <div class="container mx-auto max-w-2xl p-4">
+        <div class="header bg-gray-50 p-4 text-center rounded-t-lg border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800">Nueva Requisición Creada</h1>
+            <p class="text-gray-600 mt-2">Número de Requisición: #{{ $requisicion->id }}</p>
         </div>
 
-        <div class="content">
-            <div class="details">
-                <div class="detail-item">
-                    <span class="detail-label">Prioridad:</span>
-                    <span>{{ ucfirst($requisicion->prioridad_requisicion) }}</span>
+        <div class="content bg-white p-6">
+            <div class="details mb-6">
+                <div class="detail-item mb-3">
+                    <span class="detail-label font-semibold">Prioridad:</span>
+                    <span class="ml-2">{{ ucfirst($requisicion->prioridad_requisicion) }}</span>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Tipo:</span>
-                    <span>{{ $requisicion->Recobrable }}</span>
+                <div class="detail-item mb-3">
+                    <span class="detail-label font-semibold">Tipo:</span>
+                    <span class="ml-2">{{ $requisicion->Recobrable }}</span>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Justificación:</span>
-                    <span>{{ $requisicion->justify_requisicion }}</span>
+                <div class="detail-item mb-3">
+                    <span class="detail-label font-semibold">Justificación:</span>
+                    <span class="ml-2">{{ $requisicion->justify_requisicion }}</span>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">Cantidad Total:</span>
-                    <span>{{ $requisicion->amount_requisicion }}</span>
+                <div class="detail-item mb-3">
+                    <span class="detail-label font-semibold">Cantidad Total:</span>
+                    <span class="ml-2">{{ $requisicion->amount_requisicion }}</span>
                 </div>
             </div>
 
-            <p>Se ha creado una nueva requisición en el sistema. Puedes ver los detalles completos accediendo al sistema o descargando el PDF adjunto.</p>
+            <p class="mb-6 text-gray-700">Se ha creado una nueva requisición en el sistema. Puedes ver los detalles completos accediendo al sistema o descargando el PDF adjunto.</p>
+            
+            <!-- Botón para descargar PDF -->
+            <div class="text-center mt-8">
+                <a href="{{ route('pdf.generar', ['tipo' => 'requisicion', 'id' => $requisicion->id]) }}" 
+                   class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg inline-flex items-center transition-colors duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Descargar PDF
+                </a>
+            </div>
         </div>
 
-        <div class="footer">
+        <div class="footer mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
             <p>Este es un mensaje automático, por favor no responda a este correo.</p>
-            <p>&copy; {{ date('Y') }} Sistema de Requisiciones</p>
+            <p class="mt-2">&copy; {{ date('Y') }} Sistema de Requisiciones</p>
         </div>
     </div>
 </body>
-
 </html>

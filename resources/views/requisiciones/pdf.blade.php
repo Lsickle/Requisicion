@@ -169,11 +169,10 @@
 
         <div class="document-info">
             <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
-            <div><strong>Fecha:</strong> {{ $requisicion->date_requisicion->format('d/m/Y') }}</div>
+            <div><strong>Fecha:</strong> {{ $requisicion->created_at->format('d/m/Y') }}</div>
         </div>
         <div class="clear"></div>
     </div>
-
 
     <!-- Información de la requisición -->
     <div class="info-section">
@@ -181,7 +180,7 @@
             <h4>Detalles de la Requisición</h4>
             <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion)
                 }}</div>
-            <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobreble }}</div>
+            <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>
             <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
             <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}
             </div>
@@ -204,9 +203,13 @@
                 <td>{{ $producto->pivot->pr_amount }}</td>
                 <td class="centros-lista">
                     <ul>
-                        @foreach($producto->centrosInventario as $centro)
-                        <li>{{ $centro->name_centro }} ({{ $centro->pivot->amount }})</li>
+                        @if(isset($producto->distribucion_centros) && $producto->distribucion_centros->count() > 0)
+                        @foreach($producto->distribucion_centros as $centro)
+                        <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
                         @endforeach
+                        @else
+                        <li>No hay centros asignados</li>
+                        @endif
                     </ul>
                 </td>
             </tr>
