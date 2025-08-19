@@ -44,11 +44,6 @@
             </div>
 
             <p>Se ha creado una nueva requisición en el sistema. Puedes ver los detalles completos accediendo al sistema o descargando el PDF adjunto.</p>
-
-            <div style="text-align: center; margin: 20px 0;">
-                <a href="{{ route('requisiciones.show', $requisicion->id) }}" class="btn">Ver Requisición</a>
-                <a href="{{ route('requisiciones.pdf', $requisicion->id) }}" class="btn" style="margin-left: 10px;">Descargar PDF</a>
-            </div>
         </div>
 
         <div class="footer">

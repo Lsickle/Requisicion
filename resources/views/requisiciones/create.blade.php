@@ -12,14 +12,17 @@
         <div class="card-body">
             @if (session('success'))
             <script>
-                window.addEventListener('DOMContentLoaded', () => {
+                document.addEventListener('DOMContentLoaded', function() {
         Swal.fire({
             icon: 'success',
             title: '¡Listo!',
-            text: {!! json_encode(session('success')) !!},
+            text: '{{ session('success') }}',
             confirmButtonText: 'OK'
+        }).then(() => {
+            // Redirigir al index después de mostrar el mensaje
+            window.location.href = "{{ route('index') }}";
         });
-    });
+        });
             </script>
             @endif
 

@@ -1,26 +1,14 @@
-<link rel="stylesheet" href="{{ asset('css/navbar.css') }}">
+<div class="relative">
+    <!-- Navbar -->
+    <nav class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-4 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-lg">
+         
+        <!-- Título -->
+        <h1 class="text-lg md:text-xl font-semibold uppercase tracking-widest text-center flex-1">
+            Requisición App
+        </h1>
 
-<div class="mi-navbar">
-    <nav class="navbar">
-        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-        <h1 class="title">Requisición</h1>
     </nav>
-
-    <div class="sidebar" id="sidebar">
-        <ul>
-            <li><a href="{{route('index')}}">index</a></li>
-            <li><a href="{{route('requisiciones.create')}}">requisicion</a></li>
-            <li><a href="#">Opción 3</a></li>
-            <li><a href="#">Opción 3</a></li>
-        </ul>
-    </div>
-
-    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 </div>
 
-<script>
-    function toggleSidebar() {
-        document.getElementById("sidebar").classList.toggle("open");
-        document.getElementById("overlay").classList.toggle("show");
-    }
-</script>
+<!-- FontAwesome (si no lo tienes ya cargado) -->
+<script src="https://kit.fontawesome.com/a2e0e6ad5a.js" crossorigin="anonymous"></script>

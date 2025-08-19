@@ -11,6 +11,7 @@ use App\Models\Producto;
 use App\Models\Centro;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Http\Controllers\Mailto\MailtoController;
+use App\Jobs\RequisicionCreadaJob;
 
 class RequisicionController extends Controller
 {
@@ -98,9 +99,9 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            // Enviar notificación por correo
-            $mailController = new MailtoController();
-            $mailController->sendRequisicionCreada($requisicion);
+            // Enviar notificación por correo - FORMA CORRECTA
+            // Despachar el job para enviar el correo
+            RequisicionCreadaJob::dispatch($requisicion);
 
             return redirect()->route('index')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
