@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('requisicion', function (Blueprint $table) {
             $table->id();
-            $table->date('date_requisicion'); #fecha de la requisicion
             $table->text('justify_requisicion'); #justificacion de la requisicion
             $table->text('detail_requisicion'); #detalles adicionales de la requisicion
             $table->string('prioridad_requisicion', 255); #prioridad de la reuquisicion

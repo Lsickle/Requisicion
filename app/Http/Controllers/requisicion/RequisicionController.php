@@ -6,110 +6,131 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Models\Requisicion;
+use App\Models\Producto;
 use App\Models\Centro;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Http\Controllers\Mailto\MailtoController;
 
 class RequisicionController extends Controller
 {
     public function index()
     {
-        // Redirige directamente al formulario de creación
-        return redirect()->route('requisiciones.create');
+        $requisiciones = Requisicion::with('productos', 'estatusHistorial.estatus')->get();
+        return view('index', compact('requisiciones'));
     }
 
     public function create()
     {
-        // Productos con su proveedor
-        $productos = DB::table('productos')
-            ->leftJoin('proveedores', 'productos.proveedor_id', '=', 'proveedores.id')
-            ->select('productos.id', 'productos.name_produc', 'productos.proveedor_id')
-            ->orderBy('productos.name_produc')
-            ->get();
+        $centros = Centro::all();
+        $productos = Producto::all();
 
-        // Centros usando el método del modelo
-        $centros = Centro::obtenerCentros();
-
-        return view('requisiciones.crear', compact('productos', 'centros'));
-    }
-
-    public function show($id)
-    {
-        #
+        return view('requisiciones.create', compact('centros', 'productos'));
     }
 
     public function store(Request $request)
     {
-        // Validación
         $validated = $request->validate([
-            'recobrable' => 'required|in:Recobrable,No recobrable',
+            'Recobrable' => 'required|in:Recobrable,No recobrable',
             'prioridad_requisicion' => 'required|in:baja,media,alta',
-            'justify_requisicion' => 'required|string|min:3',
-            'amount_requisicion' => 'required|numeric|min:1',
+            'justify_requisicion' => 'required|string|min:3|max:500',
+            'detail_requisicion' => 'required|string|min:3|max:1000',
 
             'productos' => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
+            'productos.*.requisicion_amount' => 'required|integer|min:1',
 
-            // Mantener el CAMPO en plural (coincide con tu Blade)
             'productos.*.centros' => 'required|array|min:1',
-
-            // Usar el nombre real de la TABLA en la regla exists (singular: centro)
             'productos.*.centros.*.id' => 'required|exists:centro,id',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+        ], [
+            'productos.required' => 'Agrega al menos un producto.',
+            'productos.*.requisicion_amount.required' => 'La cantidad total por producto es obligatoria.',
         ]);
 
         DB::beginTransaction();
 
         try {
-            // Crear requisición (SIN 'fecha': se usa created_at/updated_at)
-            $requisicionId = DB::table('requisicion')->insertGetId([
-                'recobrable' => $validated['recobrable'],
-                'prioridad_requisicion' => $validated['prioridad_requisicion'],
-                'justify_requisicion' => $validated['justify_requisicion'],
-                'amount_requisicion' => $validated['amount_requisicion'],
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            // Calcular total de la requisición
+            $totalRequisicion = 0;
+            foreach ($validated['productos'] as $prod) {
+                $totalRequisicion += (int)$prod['requisicion_amount'];
 
-            // Guardar productos y sus centros
-            foreach ($validated['productos'] as $producto) {
-                // Sumar cantidades por centros
-                $cantidadTotal = array_sum(array_column($producto['centros'], 'cantidad'));
-                if ($cantidadTotal < 1) {
+                // Validación: suma de centros debe coincidir
+                $sumaCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+                if ($sumaCentros !== (int)$prod['requisicion_amount']) {
                     throw ValidationException::withMessages([
-                        'productos' => "La cantidad total para el producto {$producto['id']} debe ser mayor a 0.",
+                        'productos' => "Para el producto {$prod['id']}, la suma de cantidades por centros ({$sumaCentros}) no coincide con la cantidad total indicada ({$prod['requisicion_amount']})."
                     ]);
                 }
+            }
 
-                DB::table('producto_requisicion')->insert([
-                    'id_producto' => $producto['id'],
-                    'id_requisicion' => $requisicionId,
-                    'pr_amount' => $cantidadTotal,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+            // Crear requisición
+            $requisicion = new Requisicion();
+            $requisicion->Recobrable = $validated['Recobrable'];
+            $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
+            $requisicion->justify_requisicion = $validated['justify_requisicion'];
+            $requisicion->detail_requisicion = $validated['detail_requisicion'];
+            $requisicion->amount_requisicion = $totalRequisicion;
+            $requisicion->save();
+
+            // Adjuntar productos y centros
+            foreach ($validated['productos'] as $prod) {
+                $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+
+                // Pivot producto_requisicion
+                $requisicion->productos()->attach($prod['id'], [
+                    'pr_amount' => $cantidadTotalCentros
                 ]);
 
-                foreach ($producto['centros'] as $centro) {
+                // Tabla centro_producto (sin requisicion_id)
+                foreach ($prod['centros'] as $centro) {
                     DB::table('centro_producto')->insert([
-                        'producto_id' => $producto['id'],
-                        'centro_id' => $centro['id'],
-                        'amount' => $centro['cantidad'],
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'producto_id' => $prod['id'],
+                        'centro_id'   => $centro['id'],
+                        'amount'      => $centro['cantidad'],
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
                     ]);
                 }
             }
 
             DB::commit();
 
-            return redirect()
-                ->route('requisiciones.create')
-                ->with('success', 'Requisición creada correctamente.');
+            // Enviar notificación por correo
+            $mailController = new MailtoController();
+            $mailController->sendRequisicionCreada($requisicion);
+
+            return redirect()->route('index')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
-
-            return back()
-                ->withInput()
-                ->withErrors(['error' => $e->getMessage()]);
+            return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
+    }
+
+    public function show($id)
+    {
+        $requisicion = Requisicion::with([
+            'productos',
+            'productos.centrosOrdenCompra',
+            'estatusHistorial.estatus'
+        ])->findOrFail($id);
+
+        return view('requisiciones.show', compact('requisicion'));
+    }
+
+    public function pdf($id)
+    {
+        $requisicion = Requisicion::with([
+            'productos',
+            'productos.centrosOrdenCompra',
+            'estatusHistorial.estatus'
+        ])->findOrFail($id);
+
+        $pdf = Pdf::loadView('requisiciones.pdf', compact('requisicion'))
+            ->setPaper('A4', 'portrait');
+
+        return $pdf->download("requisicion_{$requisicion->id}.pdf");
     }
 }

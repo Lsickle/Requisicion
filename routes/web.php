@@ -6,7 +6,7 @@ use App\Http\Controllers\EstatusRequisicionController;  // Import orden estatus 
 use App\Http\Controllers\Api\UserController;  // Import usuarios
 use App\Http\Controllers\excel\ExcelController;  // exportar excel
 use App\Http\Controllers\PDF\PdfController;  // exportar pdf
-use App\Http\Controllers\Requisicion\RequisicionController;
+use App\Http\Controllers\requisicion\RequisicionController;
 use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use App\Models\OrdenCompra;
@@ -34,10 +34,6 @@ Route::prefix('exportar')->group(function () {
 Route::view('/index', 'index')->name('index');
 
 Route::resource('requisiciones', RequisicionController::class)->except(['show']);
-Route::get('requisiciones/crear', [RequisicionController::class, 'create'])->name('requisiciones.create');
-Route::post('requisiciones', [RequisicionController::class, 'store'])->name('requisiciones.store');
-
-
 Route::get('/test-requisicion-creada', function() {
     $requisicion = Requisicion::first(); // O usa factory/faker para crear una
     (new MailtoController())->sendRequisicionCreada($requisicion);

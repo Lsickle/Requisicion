@@ -22,8 +22,6 @@ class RequisicionCreada extends Mailable
     {
         return $this->subject('Nueva Requisición Creada - #' . $this->requisicion->id)
                     ->view('emails.requisicion_creada')
-                    ->with([
-                        'requisicion' => $this->requisicion,
-                    ]);
+                    ->to('pardomoyasegio@gmail.com'); // Correo principal
     }
 }
