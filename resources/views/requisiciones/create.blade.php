@@ -1,13 +1,14 @@
 @extends('layouts.app')
 
 @section('title', 'Crear Requisición')
-<script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome para iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-@section('content')
-<div class="max-w-5xl mx-auto p-6">
+@section(section: 'content')
+<x-sidebar/>
+<div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white shadow-xl rounded-2xl p-6">
         <h1 class="text-2xl font-bold text-gray-700 mb-6">Crear Requisición</h1>
 

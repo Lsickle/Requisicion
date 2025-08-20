@@ -7,18 +7,40 @@
             <img src="{{ asset('images/logo_fondo_blanco.png') }}" alt="Vigía Plus Logistics"
                 class="mx-auto h-10 w-35 rounded-md object-cover">
         </div>
-
     </nav>
 
     <!-- Sidebar -->
     <div id="sidebar"
-        class="fixed top-0 left-0 w-64 md:w-64 h-full bg-blue-900 text-white pt-16 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl">
-        <ul class="list-none p-0 m-0 text-center">
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{route('index')}}" class="block w-full">Index</a></li>
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{route('requisiciones.create')}}" class="block w-full">Requisición</a></li>
+        class="fixed top-0 left-0 w-64 md:w-64 h-full bg-blue-900 text-white pt-16 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col justify-between">
+
+        <!-- Información del usuario -->
+        <div class="px-4 py-4 border-b border-blue-700">
+            @if(Session::has('user'))
+            <div class="text-sm">
+                <p class="font-bold">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
+                <p class="text-blue-300">{{ Session::get('user')['email'] ?? '' }}</p>
+            </div>
+            @endif
+        </div>
+
+        <!-- Opciones -->
+        <ul class="list-none p-0 m-0 text-center flex-grow">
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.menu') }}" class="block w-full">Menu</a></li>
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.create') }}" class="block w-full">Crear Requisición</a></li>
             <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 3</a></li>
             <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 4</a></li>
         </ul>
+
+        <!-- Botón de Cerrar Sesión -->
+        <div class="m-4">
+            <form id="logoutForm" action="{{ route('logout') }}" method="POST">
+                @csrf
+                <button type="button" id="logoutBtn"
+                    class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 rounded-md text-white font-bold">
+                    Cerrar sesión
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- Overlay -->
@@ -31,11 +53,31 @@
         const sidebar = document.getElementById("sidebar");
         const overlay = document.getElementById("overlay");
 
-        // Toggle sidebar usando transform
-        sidebar.classList.toggle('-translate-x-full'); // Oculta
-        sidebar.classList.toggle('translate-x-0');     // Muestra
+        sidebar.classList.toggle('-translate-x-full'); 
+        sidebar.classList.toggle('translate-x-0');     
 
-        // Toggle overlay
         overlay.classList.toggle('hidden');
     }
+</script>
+
+<script>
+    document.getElementById('logoutBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+
+        Swal.fire({
+            title: '¿Cerrar sesión?',
+            text: "¿Estás seguro de que quieres salir?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#1e40af',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, cerrar sesión',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Ahora sí enviamos el formulario
+                document.getElementById('logoutForm').submit();
+            }
+        });
+    });
 </script>

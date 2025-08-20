@@ -14,9 +14,6 @@
 
 <body class="bg-gray-100 font-sans text-gray-800">
 
-    <header class="bg-orange-500 text-white p-4 shadow-md">
-        <h1 class="text-xl font-bold">@yield('title', 'Requisición')</h1>
-    </header>
 
     <main class="p-6">
         @yield('content')

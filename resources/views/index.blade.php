@@ -36,14 +36,16 @@
             <div class="bg-white rounded-2xl shadow-xl p-8 w-full">
                 <!-- Logo -->
                 <div class="mb-8">
-                    <img src="{{ asset('images/logo.jpg') }}" alt="Vigía Plus Logistics" class="mx-auto h-14 rounded-2xl">
+                    <img src="{{ asset('images/logo.jpg') }}" alt="Vigía Plus Logistics"
+                        class="mx-auto h-14 rounded-2xl">
                 </div>
 
                 <!-- Formulario de login -->
-                <form id="loginForm" method="POST" action="#">
+                <form id="loginForm" method="POST" action="{{ route('api.login') }}">
                     @csrf
                     <div class="mb-5">
-                        <label for="email" class="block text-gray-700 text-sm font-medium mb-2">Correo electrónico</label>
+                        <label for="email" class="block text-gray-700 text-sm font-medium mb-2">Correo
+                            electrónico</label>
                         <div class="relative">
                             <input id="email" type="email" name="email" placeholder="tu.correo@ejemplo.com"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
@@ -99,7 +101,8 @@
 
             <form id="forgotPasswordForm">
                 <div class="mb-5">
-                    <label for="recoveryEmail" class="block text-gray-700 text-sm font-medium mb-2">Correo electrónico</label>
+                    <label for="recoveryEmail" class="block text-gray-700 text-sm font-medium mb-2">Correo
+                        electrónico</label>
                     <div class="relative">
                         <input id="recoveryEmail" type="email" name="email" placeholder="tu.correo@ejemplo.com"
                             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
@@ -126,82 +129,109 @@
     <script>
         // Mostrar/ocultar contraseña
         document.querySelector('.toggle-password').addEventListener('click', function () {
-            const passwordInput = document.getElementById('password');
-            const icon = this.querySelector('i');
+        const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
 
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                passwordInput.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+
+    // Login con fetch
+    const form = document.getElementById('loginForm');
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const loginData = {
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        };
+
+        Swal.fire({
+            title: 'Iniciando sesión',
+            text: 'Por favor espere...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading()
             }
         });
 
-        // Login con fetch
-        const form = document.getElementById('loginForm');
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-
-            const loginData = {
-                email: document.getElementById('email').value,
-                password: document.getElementById('password').value
-            };
-
-            Swal.fire({
-                title: 'Iniciando sesión',
-                text: 'Por favor espere...',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading()
-                }
-            });
-
-            fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/auth/login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify(loginData)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => { throw err; });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Login exitoso:", data);
-
-                    Swal.close();
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: '¡Éxito!',
-                        text: 'Login exitoso',
-                        confirmButtonColor: '#1e40af',
-                        confirmButtonText: 'Continuar'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            // Aquí rediriges después del login
-                            // window.location.href = "{{ route('requisiciones.create') }}";
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error("Error:", error);
-                    Swal.close();
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error de autenticación',
-                        text: error.message || 'Credenciales incorrectas. Por favor, intente nuevamente.',
-                        confirmButtonColor: '#1e40af'
-                    });
-                });
+        fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
+            },
+            body: JSON.stringify(loginData)
         });
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Login exitoso:", data);
+
+                // GUARDAR USUARIO EN SESIÓN
+                if (data.user) {
+                    sessionStorage.setItem('user', JSON.stringify(data.user));
+                }
+
+                // Guardar token
+                let token = data.token || data.access_token;
+                if (token) {
+                    sessionStorage.setItem('auth_token', token);
+                }
+
+                // Validar token con /ping
+                return fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/ping", {
+                    method: "GET",
+                    headers: {
+                        "Accept": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Token inválido o expirado.");
+                }
+                return response.json();
+            })
+            .then(pingData => {
+                console.log("Token válido:", pingData);
+                Swal.close();
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Éxito!',   
+                    text: 'Login exitoso',
+                    confirmButtonColor: '#1e40af',
+                    confirmButtonText: 'Continuar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = "/requisiciones/create";
+                    }
+                });
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                sessionStorage.removeItem('auth_token');
+                Swal.close();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de autenticación',
+                    text: error.message || 'Credenciales incorrectas o token inválido.',
+                    confirmButtonColor: '#1e40af'
+                });
+            });
+    });
 
         // Recuperación de contraseña
         const forgotPasswordLink = document.getElementById('forgotPasswordLink');
