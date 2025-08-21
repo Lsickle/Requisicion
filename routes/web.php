@@ -23,23 +23,25 @@ Route::get('/', function () {
 // Generar PDF genérico según tipo y id
 Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
     ->where('tipo', 'orden|requisicion|estatus')
-    ->name('pdf.generar');  
+    ->name('pdf.generar');
 
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
 // Rutas protegidas
 Route::middleware(['auth.session'])->group(function () {
-    // Ruta para crear requisiciones (requiere permiso)
-    Route::get('/requisiciones/create', function () {
-        return view('requisiciones.create');
-    })->name('requisiciones.create')->middleware(CheckPermission::class . ':crear requisicion');
+    // Crear requisiciones con permiso
+    Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
+        ->name('requisiciones.create')
+        ->middleware(CheckPermission::class . ':crear requisicion');
     
-    // Ruta para ver requisiciones (requiere permiso)
+    // Vista de menú protegida (sin controlador)
     Route::get('/requisiciones/menu', function () {
         return view('requisiciones.menu');
-    })->name('requisiciones.menu')->middleware(CheckPermission::class . ':ver requisicion');
+    })->name('requisiciones.menu');
 });
+
+
 
 // Logout
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');

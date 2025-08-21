@@ -110,7 +110,7 @@ class RequisicionController extends Controller
             // Despachar el job para enviar el correo
             RequisicionCreadaJob::dispatch($requisicion);
 
-            return redirect()->route('index')->with('success', 'Requisición creada correctamente.');
+            return redirect()->route('requisiciones.menu')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
             return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);

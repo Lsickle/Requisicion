@@ -1,67 +1,124 @@
 @extends('layouts.app')
 
 @section('title', 'Menu')
+
+<!-- Tailwind CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome para iconos -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-@section(section: 'content')
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+@section('content')
     <x-sidebar/>
-<div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center mt-11">Sistema de Requisiciones</h1>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        <!-- Tarjeta Crear Requisiciones -->
-        <div class="bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-blue-500">
-            <div class="text-center">
+
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center mt-11">Sistema de Requisiciones</h1>
+        
+        <div class="flex flex-wrap justify-center gap-6 max-w-6xl mx-auto">
+            @php
+                $permissions = Session::get('user_permissions', []);
+                $hasPermission = fn($perm) => in_array($perm, $permissions);
+            @endphp
+
+            @if($hasPermission('crear requisicion'))
+            <!-- Crear Requisiciones -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-blue-500 text-center">
                 <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                    </svg>
+                    <i class="fas fa-plus text-blue-600 text-2xl"></i>
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Crear Requisiciones</h3>
                 <p class="text-gray-600 mb-4">Genera nuevas solicitudes de materiales o servicios</p>
-                <a href="{{ route('requisiciones.create') }}" 
-                   class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('requisiciones.create') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Crear Nueva
                 </a>
             </div>
-        </div>
+            @endif
 
-        <!-- Tarjeta de Solicitar Nuevo Producto -->
-        <div class="bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500">
-            <div class="text-center">
+            @if($hasPermission('solicitar producto'))
+            <!-- Solicitar Nuevo Producto -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 text-center">
                 <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
+                    <i class="fas fa-box text-purple-600 text-2xl"></i>
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Solicitar Nuevo Producto</h3>
                 <p class="text-gray-600 mb-4">Solicita la adición de nuevos productos al catálogo</p>
-                <a href="#" 
-                   class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="#" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Solicitar
                 </a>
             </div>
-        </div>
+            @endif
 
-        <!-- Tarjeta Ver Requisiciones -->
-        <div class="bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500">
-            <div class="text-center">
+            @if($hasPermission('ver requisicion'))
+            <!-- Historial de Requisiciones -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 text-center">
                 <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
+                    <i class="fas fa-list text-green-600 text-2xl"></i>
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Requisiciones</h3>
                 <p class="text-gray-600 mb-4">Consulta y gestiona todas las solicitudes existentes</p>
-                <a href="#" 
-                   class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="#" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Ver Listado
                 </a>
             </div>
+            @endif
+
+            @if($hasPermission('crear oc'))
+            <!-- Generar Orden de Compra -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-yellow-500 text-center">
+                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-file-invoice-dollar text-yellow-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Generar Orden de Compra</h3>
+                <p class="text-gray-600 mb-4">Crea nuevas órdenes de compra</p>
+                <a href="#" class="inline-block bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Crear OC
+                </a>
+            </div>
+            @endif
+
+            @if($hasPermission('ver oc'))
+            <!-- Historial de Ordenes de Compra -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-orange-500 text-center">
+                <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-clipboard-list text-orange-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Ordenes de Compra</h3>
+                <p class="text-gray-600 mb-4">Consulta todas las órdenes de compra generadas</p>
+                <a href="#" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ver Listado
+                </a>
+            </div>
+            @endif
+
+            @if($hasPermission('ver producto'))
+            <!-- Ver Productos -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-500 text-center">
+                <div class="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-boxes text-teal-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Ver Productos</h3>
+                <p class="text-gray-600 mb-4">Consulta todos los productos disponibles</p>
+                <a href="#" class="inline-block bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ver Productos
+                </a>
+            </div>
+            @endif
+
+            @if($hasPermission('Dashboard'))
+            <!-- Dashboard -->
+            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 text-center">
+                <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-chart-line text-indigo-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Dashboard</h3>
+                <p class="text-gray-600 mb-4">Visualiza los indicadores y métricas del sistema</p>
+                <a href="#" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ver Dashboard
+                </a>
+            </div>
+            @endif
+
         </div>
     </div>
-</div>
 @endsection

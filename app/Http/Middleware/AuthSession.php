@@ -3,15 +3,17 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
-use Symfony\Component\HttpFoundation\Response;
 
-class AuthSession extends Middleware
+class AuthSession
 {
-    public function handle(Request $request, Closure $next): Response
+    /**
+     * Handle an incoming request.
+     */
+    public function handle(Request $request, Closure $next)
     {
+        // Verifica si hay sesión de usuario y token
         if (!Session::has('api_token') || !Session::has('user')) {
             return redirect('/')->with('error', 'Por favor inicia sesión');
         }

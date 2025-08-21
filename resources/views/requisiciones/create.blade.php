@@ -20,8 +20,6 @@
                     title: '¡Listo!',
                     text: '{{ session('success') }}',
                     confirmButtonText: 'OK'
-                }).then(() => {
-                    window.location.href = "{{ route('index') }}";
                 });
             });
         </script>
