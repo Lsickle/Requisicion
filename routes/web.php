@@ -13,7 +13,9 @@ use App\Models\OrdenCompra;
 use App\Http\Controllers\Mailto\MailtoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\api\ApiAuthController;
+use App\Http\Controllers\nuevo_producto\NuevoProductoController;
 use App\Http\Middleware\CheckPermission;
+use App\Models\Nuevo_Producto;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -30,15 +32,20 @@ Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.l
 
 // Rutas protegidas
 Route::middleware(['auth.session'])->group(function () {
-    // Crear requisiciones con permiso
-    Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
-        ->name('requisiciones.create')
-        ->middleware(CheckPermission::class . ':crear requisicion');
-    
     // Vista de menú protegida (sin controlador)
     Route::get('/requisiciones/menu', function () {
         return view('requisiciones.menu');
     })->name('requisiciones.menu');
+
+    // Crear requisiciones con permiso
+    Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
+        ->name('requisiciones.create')
+        ->middleware(CheckPermission::class . ':crear requisicion');
+
+    // Crear requisiciones con permiso
+    Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
+        ->name('productos.nuevoproducto')
+        ->middleware(CheckPermission::class . ':solicitar producto');
 });
 
 
@@ -77,3 +84,8 @@ Route::get('/test-orden-compra', function () {
     (new MailtoController())->sendOrdenCompraCreada($orden);
     return "Correo de orden de compra enviado!";
 });
+
+// Rutas para solicitud de nuevo producto
+Route::resource('nuevo-producto', NuevoProductoController::class);
+Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])->name('nuevo-producto.restore');
+Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])->name('nuevo-producto.force-delete');

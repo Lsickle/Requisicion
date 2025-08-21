@@ -44,7 +44,7 @@
             @endif
             
             @if($hasPermission('solicitar producto'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Solicitar nuevo producto</a></li>
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('productos.nuevoproducto')}}" class="block w-full">Solicitar nuevo producto</a></li>
             @endif
             
             @if($hasPermission('crear oc'))

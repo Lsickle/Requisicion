@@ -43,7 +43,7 @@
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Solicitar Nuevo Producto</h3>
                 <p class="text-gray-600 mb-4">Solicita la adición de nuevos productos al catálogo</p>
-                <a href="#" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('productos.nuevoproducto') }}" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Solicitar
                 </a>
             </div>

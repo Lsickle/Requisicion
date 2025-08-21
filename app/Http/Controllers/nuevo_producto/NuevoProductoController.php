@@ -5,7 +5,8 @@ namespace App\Http\Controllers\nuevo_producto;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Nuevo_Producto;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
+use App\Jobs\NuevoProductoSolicitadoJob;
 
 class NuevoProductoController extends Controller
 {
@@ -15,7 +16,7 @@ class NuevoProductoController extends Controller
     public function index()
     {
         $productos = Nuevo_Producto::withTrashed()->orderBy('nombre')->get();
-        return view('nuevo_producto.index', compact('productos'));
+        return view('requisiciones.menu', compact('productos'));
     }
 
     /**
@@ -23,7 +24,7 @@ class NuevoProductoController extends Controller
      */
     public function create()
     {
-        return view('nuevo_producto.create');
+        return view('productos.nuevoproducto');
     }
 
     /**
@@ -36,10 +37,25 @@ class NuevoProductoController extends Controller
             'descripcion' => 'required|string|max:500',
         ]);
 
-        Nuevo_Producto::create($validated);
+        DB::beginTransaction();
 
-        return redirect()->route('nuevo-producto.index')
-            ->with('success', 'Producto creado exitosamente.');
+        try {
+            $nuevoProducto = Nuevo_Producto::create($validated);
+
+            // Despachar el Job para enviar el correo
+            NuevoProductoSolicitadoJob::dispatch($nuevoProducto);
+
+            DB::commit();
+
+            return redirect()->route('requisiciones.menu')
+                ->with('success', 'Solicitud de producto creada exitosamente. Se ha enviado una notificación.');
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->withErrors([
+                'error' => 'Error al crear la solicitud: ' . $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -70,15 +86,15 @@ class NuevoProductoController extends Controller
 
         $nuevoProducto->update($validated);
 
-        return redirect()->route('nuevo-producto.index')
-            ->with('success', 'Producto actualizado exitosamente.');
+        return redirect()->route('requisiciones.menu')
+            ->with('success', 'Solicitud de producto actualizada exitosamente.');
     }
 
     public function destroy(Nuevo_Producto $nuevoProducto)
     {
         $nuevoProducto->delete();
-        return redirect()->route('nuevo-producto.index')
-            ->with('success', 'Producto eliminado exitosamente.');
+        return redirect()->route('requisiciones.menu')
+            ->with('success', 'Solicitud de producto eliminada exitosamente.');
     }
 
     public function restore($id)
@@ -86,19 +102,19 @@ class NuevoProductoController extends Controller
         $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
         $producto->restore();
 
-        return redirect()->route('nuevo-producto.index')
-            ->with('success', 'Producto restaurado exitosamente.');
+        return redirect()->route('requisiciones.menu')
+            ->with('success', 'Solicitud de producto restaurada exitosamente.');
     }
 
     /**
-     * borrar permanente del producto.
+     * Eliminar permanentemente un producto.
      */
     public function forceDelete($id)
     {
         $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
 
-        return redirect()->route('nuevo-producto.index')
-            ->with('success', 'Producto eliminado permanentemente.');
+        return redirect()->route('requisiciones.menu')
+            ->with('success', 'Solicitud de producto eliminada permanentemente.');
     }
 }
