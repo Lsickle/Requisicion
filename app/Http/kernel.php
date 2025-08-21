@@ -29,8 +29,7 @@ class Kernel extends HttpKernel
     protected $routeMiddleware = [
         'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-        
-        // ✅ SOLO TU MIDDLEWARE PERSONALIZADO
-        'check.requisition.access' => \App\Http\Middleware\CheckRequisitionAccess::class,
+        'auth.session' => \App\Http\Middleware\AuthSession::class,
+        'check.permission' => \App\Http\Middleware\CheckPermission::class,
     ];
 }

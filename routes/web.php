@@ -13,27 +13,33 @@ use App\Models\OrdenCompra;
 use App\Http\Controllers\Mailto\MailtoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\api\ApiAuthController;
-
+use App\Http\Middleware\CheckPermission;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
     return view('index');
 })->name('login');
 
+// Generar PDF genérico según tipo y id
+Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
+    ->where('tipo', 'orden|requisicion|estatus')
+    ->name('pdf.generar');  
+
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
-// Ruta protegida principal (requisiciones.create)
-Route::get('/requisiciones/create', function () {
-    if (!session('api_token')) {
-        return redirect()->route('login');
-    }
-    return view('requisiciones.create');
-})->name('requisiciones.create');
-
-Route::get('/requisiciones/menu', function () {
-    return view('requisiciones.menu');
-})->name('requisiciones.menu');
+// Rutas protegidas
+Route::middleware(['auth.session'])->group(function () {
+    // Ruta para crear requisiciones (requiere permiso)
+    Route::get('/requisiciones/create', function () {
+        return view('requisiciones.create');
+    })->name('requisiciones.create')->middleware(CheckPermission::class . ':crear requisiciones');
+    
+    // Ruta para ver requisiciones (requiere permiso)
+    Route::get('/requisiciones/menu', function () {
+        return view('requisiciones.menu');
+    })->name('requisiciones.menu')->middleware(CheckPermission::class . ':ver requisicion');
+});
 
 // Logout
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
@@ -46,7 +52,6 @@ Route::prefix('exportar')->group(function () {
     Route::get('/estatus-requisicion', [ExcelController::class, 'export'])->name('export.estatus-requisicion')->defaults('type', 'estatus-requisicion');
 });
 
-Route::view('/menu/menu_solicitante', 'menu.menu_solicitante')->name('menu_solicitante');
 Route::view('/index', 'index')->name('index');
 
 Route::resource('requisiciones', RequisicionController::class)->except(['show']);

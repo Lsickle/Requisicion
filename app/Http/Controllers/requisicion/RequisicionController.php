@@ -29,6 +29,12 @@ class RequisicionController extends Controller
         return view('requisiciones.create', compact('centros', 'productos'));
     }
 
+
+    public function menu()
+    {
+        return view('requisiciones.menu');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

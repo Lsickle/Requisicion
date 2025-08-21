@@ -19,14 +19,23 @@
             <div class="text-sm">
                 <p class="font-bold">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
                 <p class="text-blue-300">{{ Session::get('user')['email'] ?? '' }}</p>
+                <p class="text-blue-200 text-xs mt-1">
+                    Roles: {{ implode(', ', Session::get('user_roles', [])) }}
+                </p>
             </div>
             @endif
         </div>
 
         <!-- Opciones -->
         <ul class="list-none p-0 m-0 text-center flex-grow">
+            @if(in_array('ver requisicion', Session::get('user_permissions', [])))
             <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.menu') }}" class="block w-full">Menu</a></li>
+            @endif
+            
+            @if(in_array('crear requisicion', Session::get('user_permissions', [])))
             <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.create') }}" class="block w-full">Crear Requisición</a></li>
+            @endif
+            
             <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 3</a></li>
             <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 4</a></li>
         </ul>
@@ -75,7 +84,6 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Ahora sí enviamos el formulario
                 document.getElementById('logoutForm').submit();
             }
         });

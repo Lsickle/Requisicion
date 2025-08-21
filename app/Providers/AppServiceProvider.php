@@ -20,43 +20,36 @@ class AppServiceProvider extends ServiceProvider
                 $user = Session::get('user');
                 $view->with('currentUser', $user);
                 
-                // Obtener roles desde la API si tenemos token
-                if (isset($user['token'])) {
-                    $this->getUserRolesAndPermissions($user['token']);
-                }
+                // Obtener roles y permisos desde el usuario en sesión
+                $this->extractUserRolesAndPermissions($user);
             }
         });
     }
 
     /**
-     * Obtener roles y permisos desde la API y guardar en sesión
+     * Extraer roles y permisos desde los datos del usuario
      */
-    protected function getUserRolesAndPermissions(string $token): void
+    protected function extractUserRolesAndPermissions(array $user): void
     {
-        // Solo hacer la petición si no tenemos los datos en sesión
-        if (!Session::has('user_roles')) {
-            try {
-                $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $token,
-                    'Accept' => 'application/json',
-                ])->timeout(10)->get('https://vpl-nexus-core-test-testing.up.railway.app/api/todos/roles-permisos');
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    
-                    // Guardar en sesión para usar en middlewares y controllers
-                    Session::put('user_roles', $data['roles'] ?? []);
-                    Session::put('user_permissions', $data['permisos'] ?? []);
-                    
-                } else {
-                    Log::warning('Error al obtener roles y permisos', [
-                        'status' => $response->status()
-                    ]);
+        // Solo procesar si no tenemos los datos en sesión y el usuario tiene roles
+        if (!Session::has('user_roles') && isset($user['roles']) && is_array($user['roles'])) {
+            $roles = [];
+            $permissions = [];
+            
+            // Extraer roles y permisos de la estructura de la API
+            foreach ($user['roles'] as $roleData) {
+                if (isset($roleData['roles'])) {
+                    $roles[] = $roleData['roles'];
                 }
                 
-            } catch (\Exception $e) {
-                Log::error('Excepción al obtener roles y permisos: ' . $e->getMessage());
+                if (isset($roleData['permisos']) && is_array($roleData['permisos'])) {
+                    $permissions = array_merge($permissions, $roleData['permisos']);
+                }
             }
+            
+            // Guardar en sesión para usar en middlewares y controllers
+            Session::put('user_roles', array_unique($roles));
+            Session::put('user_permissions', array_unique($permissions));
         }
     }
 }

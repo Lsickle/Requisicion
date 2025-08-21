@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         tailwind.config = {
             theme: {
@@ -129,109 +130,42 @@
     <script>
         // Mostrar/ocultar contraseña
         document.querySelector('.toggle-password').addEventListener('click', function () {
-        const passwordInput = document.getElementById('password');
-        const icon = this.querySelector('i');
+            const passwordInput = document.getElementById('password');
+            const icon = this.querySelector('i');
 
-        if (passwordInput.type === 'password') {
-            passwordInput.type = 'text';
-            icon.classList.remove('fa-eye');
-            icon.classList.add('fa-eye-slash');
-        } else {
-            passwordInput.type = 'password';
-            icon.classList.remove('fa-eye-slash');
-            icon.classList.add('fa-eye');
-        }
-    });
-
-    // Login con fetch
-    const form = document.getElementById('loginForm');
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
-
-        const loginData = {
-            email: document.getElementById('email').value,
-            password: document.getElementById('password').value
-        };
-
-        Swal.fire({
-            title: 'Iniciando sesión',
-            text: 'Por favor espere...',
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading()
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
             }
         });
 
-        fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/auth/login", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
-            },
-            body: JSON.stringify(loginData)
-        });
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(err => { throw err; });
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log("Login exitoso:", data);
+        // Login con fetch
+        const form = document.getElementById('loginForm');
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
 
-                // GUARDAR USUARIO EN SESIÓN
-                if (data.user) {
-                    sessionStorage.setItem('user', JSON.stringify(data.user));
-                }
+            const loginData = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
 
-                // Guardar token
-                let token = data.token || data.access_token;
-                if (token) {
-                    sessionStorage.setItem('auth_token', token);
+            Swal.fire({
+                title: 'Iniciando sesión',
+                text: 'Por favor espere...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading()
                 }
-
-                // Validar token con /ping
-                return fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/ping", {
-                    method: "GET",
-                    headers: {
-                        "Accept": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("Token inválido o expirado.");
-                }
-                return response.json();
-            })
-            .then(pingData => {
-                console.log("Token válido:", pingData);
-                Swal.close();
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Éxito!',   
-                    text: 'Login exitoso',
-                    confirmButtonColor: '#1e40af',
-                    confirmButtonText: 'Continuar'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = "/requisiciones/create";
-                    }
-                });
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                sessionStorage.removeItem('auth_token');
-                Swal.close();
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error de autenticación',
-                    text: error.message || 'Credenciales incorrectas o token inválido.',
-                    confirmButtonColor: '#1e40af'
-                });
             });
-    });
+
+            // Usar el formulario tradicional en lugar de fetch para mantener la sesión
+            document.getElementById('loginForm').submit();
+        });
 
         // Recuperación de contraseña
         const forgotPasswordLink = document.getElementById('forgotPasswordLink');
@@ -306,6 +240,34 @@
                     });
                 });
         });
+
+        // Mostrar mensajes de éxito/error
+        @if(session('success'))
+            Swal.fire({
+                icon: 'success',
+                title: '¡Éxito!',
+                text: '{{ session('success') }}',
+                confirmButtonColor: '#1e40af'
+            });
+        @endif
+
+        @if(session('error'))
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: '{{ session('error') }}',
+                confirmButtonColor: '#1e40af'
+            });
+        @endif
+
+        @if($errors->any())
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de validación',
+                text: '{{ $errors->first() }}',
+                confirmButtonColor: '#1e40af'
+            });
+        @endif
     </script>
 </body>
 
