@@ -28,16 +28,40 @@
 
         <!-- Opciones -->
         <ul class="list-none p-0 m-0 text-center flex-grow">
-            @if(in_array('ver requisicion', Session::get('user_permissions', [])))
+            @php
+                $permissions = Session::get('user_permissions', []);
+                $hasPermission = fn($perm) => in_array($perm, $permissions);
+            @endphp
+
             <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.menu') }}" class="block w-full">Menu</a></li>
-            @endif
             
-            @if(in_array('crear requisicion', Session::get('user_permissions', [])))
+            @if($hasPermission('crear requisicion'))
             <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.create') }}" class="block w-full">Crear Requisición</a></li>
             @endif
             
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 3</a></li>
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Opción 4</a></li>
+            @if($hasPermission('ver requisicion'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Historial de Requisiciones</a></li>
+            @endif
+            
+            @if($hasPermission('solicitar producto'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Solicitar nuevo producto</a></li>
+            @endif
+            
+            @if($hasPermission('crear oc'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Generar Orden de compra</a></li>
+            @endif
+            
+            @if($hasPermission('ver oc'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Historial de ordenes de compra</a></li>
+            @endif
+            
+            @if($hasPermission('ver producto'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Ver productos</a></li>
+            @endif
+            
+            @if($hasPermission('Dashboard'))
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Dashboard</a></li>
+            @endif
         </ul>
 
         <!-- Botón de Cerrar Sesión -->

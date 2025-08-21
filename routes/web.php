@@ -33,7 +33,7 @@ Route::middleware(['auth.session'])->group(function () {
     // Ruta para crear requisiciones (requiere permiso)
     Route::get('/requisiciones/create', function () {
         return view('requisiciones.create');
-    })->name('requisiciones.create')->middleware(CheckPermission::class . ':crear requisiciones');
+    })->name('requisiciones.create')->middleware(CheckPermission::class . ':crear requisicion');
     
     // Ruta para ver requisiciones (requiere permiso)
     Route::get('/requisiciones/menu', function () {
