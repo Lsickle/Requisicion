@@ -29,7 +29,6 @@ class RequisicionController extends Controller
         return view('requisiciones.create', compact('centros', 'productos'));
     }
 
-
     public function menu()
     {
         return view('requisiciones.menu');
@@ -75,6 +74,7 @@ class RequisicionController extends Controller
 
             // Crear requisición
             $requisicion = new Requisicion();
+            $requisicion->user_id = session('user.id'); // 🔹 Guardar ID del usuario autenticado
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -96,7 +96,7 @@ class RequisicionController extends Controller
                     DB::table('centro_producto')->insert([
                         'producto_id' => $prod['id'],
                         'centro_id'   => $centro['id'],
-                        'requisicion_id' => $requisicion->id, // Añadir requisicion_id
+                        'requisicion_id' => $requisicion->id,
                         'amount'      => $centro['cantidad'],
                         'created_at'  => now(),
                         'updated_at'  => now(),
@@ -106,8 +106,8 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            // Enviar notificación por correo - FORMA CORRECTA
-            // Despachar el job para enviar el correo
+            // Enviar notificación por correo con nombre del solicitante
+            $requisicion->solicitante_name = session('user.name'); // 🔹 Adjuntar nombre en el objeto
             RequisicionCreadaJob::dispatch($requisicion);
 
             return redirect()->route('requisiciones.menu')->with('success', 'Requisición creada correctamente.');
@@ -135,6 +135,11 @@ class RequisicionController extends Controller
             'productos.centros',
             'estatusHistorial.estatus'
         ])->findOrFail($id);
+
+        // 🔹 Agregar el nombre del usuario desde sesión si coincide
+        $requisicion->solicitante_name = session('user.id') == $requisicion->user_id 
+            ? session('user.name') 
+            : 'Usuario Externo';
 
         $pdf = Pdf::loadView('requisiciones.pdf', compact('requisicion'))
             ->setPaper('A4', 'portrait');

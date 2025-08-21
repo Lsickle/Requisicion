@@ -11,7 +11,7 @@ class RequisicionSeeder extends Seeder
 {
     public function run()
     {
-        // Crear 20 requisiciones
+        // Crear 20 requisiciones con factory
         $requisiciones = Requisicion::factory()->count(20)->create();
 
         // Asociar productos a cada requisición
