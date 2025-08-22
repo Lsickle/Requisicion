@@ -21,8 +21,9 @@ class ApiAuthController extends Controller
             'password' => 'required'
         ]);
 
-        // Petición al API externo (ignora verificación SSL en local)
-        $response = Http::withoutVerifying()->post('https://vpl-nexus-core-test-testing.up.railway.app/api/auth/login', [
+        $url = env('VPL_CORE') . '/api/auth/login';
+
+        $response = Http::withoutVerifying()->post($url, [
             'email' => $request->email,
             'password' => $request->password,
         ]);
@@ -34,11 +35,9 @@ class ApiAuthController extends Controller
         }
 
         $data = $response->json();
-
-        // Extraer datos del usuario
         $userData = $data['user'] ?? [];
 
-        // Guardar token y usuario en la sesión
+        // Guardar token y usuario en sesión
         session([
             'api_token' => $data['access_token'] ?? null,
             'user' => $userData,
@@ -47,16 +46,14 @@ class ApiAuthController extends Controller
             'user.email' => $userData['email'] ?? null,
         ]);
 
-        // Extraer roles y permisos usando el helper
+        // Extraer roles y permisos usando helper
         $permissionData = PermissionHelper::extractRolesAndPermissionsFromUserData($userData);
-        
         Session::put('user_roles', $permissionData['roles']);
         Session::put('user_permissions', $permissionData['permissions']);
 
-        // Debug: Log para verificar los datos
-        Log::info('User roles from API: ' . json_encode($permissionData['roles']));
-        Log::info('User permissions from API: ' . json_encode($permissionData['permissions']));
         Log::info('Usuario autenticado: ' . json_encode(session('user')));
+        Log::info('Roles: ' . json_encode($permissionData['roles']));
+        Log::info('Permisos: ' . json_encode($permissionData['permissions']));
 
         // Redirigir según permisos
         if (in_array('crear requisiciones', $permissionData['permissions'])) {
@@ -73,19 +70,16 @@ class ApiAuthController extends Controller
      */
     public function logout(Request $request)
     {
-        // Eliminar sesión
+        $token = session('api_token');
+
         $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions', 'user.id', 'user.name']);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // Opcional: logout en API externa
-        if ($token = session('api_token')) {
-            Http::withoutVerifying()->withToken($token)->post(
-                'https://vpl-nexus-core-test-testing.up.railway.app/api/auth/logout'
-            );
+        if ($token) {
+            Http::withoutVerifying()->withToken($token)->post(env('VPL_CORE') . '/api/auth/logout');
         }
 
-        // Redirigir con mensaje flash
         return redirect()->route('index')->with('logout_success', 'Has cerrado sesión correctamente.');
     }
 }

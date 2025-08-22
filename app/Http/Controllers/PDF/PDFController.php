@@ -12,8 +12,6 @@ use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Requisicion;
-use App\Models\Estatus;
-use App\Models\Estatus_Requisicion;
 use Illuminate\Support\Facades\DB;
 
 class PdfController extends Controller
@@ -152,21 +150,24 @@ class PdfController extends Controller
         $requisicion = Requisicion::with(['productos'])->findOrFail($id);
         $requisicion->date_requisicion = Carbon::parse($requisicion->date_requisicion);
 
-        // Obtener la distribución de centros específica para ESTA requisición
         foreach ($requisicion->productos as $producto) {
             $producto->distribucion_centros = DB::table('centro_producto')
                 ->where('producto_id', $producto->id)
-                ->where('requisicion_id', $id) // ← FILTRAR por requisicion_id
+                ->where('requisicion_id', $id)
                 ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
                 ->select('centro.name_centro', 'centro_producto.amount')
                 ->get();
         }
 
+        // Obtener nombre del solicitante desde API usando file_get_contents
+        $nombreSolicitante = $this->obtenerNombreUsuario($requisicion->user_id);
+
         $pdf = PDF::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion,
             'logo' => $this->getLogoData(),
-            'fecha_actual' => Carbon::now()->format('d/m/Y H:i')
-        ]);
+            'fecha_actual' => Carbon::now()->format('d/m/Y H:i'),
+            'nombreSolicitante' => $nombreSolicitante,
+        ])->setPaper('a4', 'portrait');
 
         return $pdf->download("requisicion-{$requisicion->id}.pdf");
     }
@@ -192,5 +193,33 @@ class PdfController extends Controller
             ]);
 
         return $pdf->download("Estatus_requisicion_{$id}.pdf");
+    }
+
+    // Método auxiliar para obtener nombre de usuario usando file_get_contents
+    private function obtenerNombreUsuario($userId)
+    {
+        try {
+            $apiUrl = env('VPL_CORE') . "/api/users/{$userId}";
+            
+            // Usar file_get_contents con contexto SSL deshabilitado para desarrollo
+            $response = @file_get_contents($apiUrl, false, stream_context_create([
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false
+                ],
+                'http' => [
+                    'timeout' => 5 // Timeout de 5 segundos
+                ]
+            ]));
+            
+            if ($response !== false) {
+                $userData = json_decode($response, true);
+                return $userData['name'] ?? $userData['email'] ?? 'Usuario Desconocido';
+            }
+        } catch (\Throwable $e) {
+            Log::error("Error obteniendo usuario {$userId}: {$e->getMessage()}");
+        }
+        
+        return 'Usuario Desconocido';
     }
 }

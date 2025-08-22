@@ -178,7 +178,7 @@
     <div class="info-section">
         <div class="info-box">
             <h4>Detalles de la Requisición</h4>
-            <div class="info-item"><span class="label">Solicitante:</span> {{ $requisicion->solicitante_name ?? 'Desconocido' }}</div>
+            <div class="info-item"><span class="label">Solicitante:</span> {{ $nombreSolicitante ?? 'Desconocido' }}</div>
             <div class="info-item"><span class="label">Prioridad:</span> {{
                 ucfirst($requisicion->prioridad_requisicion)}}</div>
             <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>

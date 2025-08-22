@@ -12,6 +12,9 @@ use App\Models\Centro;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Http\Controllers\Mailto\MailtoController;
 use App\Jobs\RequisicionCreadaJob;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 
 class RequisicionController extends Controller
 {
@@ -141,14 +144,33 @@ class RequisicionController extends Controller
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
-        // 🔹 Agregar el nombre del usuario desde sesión si coincide
-        $requisicion->solicitante_name = session('user.id') == $requisicion->user_id
-            ? session('user.name')
-            : 'Usuario Externo';
+        // Obtener nombre desde API en lugar de session
+        $nombreSolicitante = $this->obtenerNombreUsuario($requisicion->user_id);
 
-        $pdf = Pdf::loadView('requisiciones.pdf', compact('requisicion'))
-            ->setPaper('A4', 'portrait');
+        $pdf = Pdf::loadView('requisiciones.pdf', [
+            'requisicion' => $requisicion,
+            'nombreSolicitante' => $nombreSolicitante,
+            'logo' => asset('logo_empresa.png'),
+        ])->setPaper('A4', 'portrait');
 
         return $pdf->download("requisicion_{$requisicion->id}.pdf");
+    }
+
+    // Método auxiliar para obtener nombre de usuario
+    private function obtenerNombreUsuario($userId)
+    {
+        try {
+            $apiUrl = env('VPL_CORE') . "/api/users/{$userId}";
+            $response = Http::withoutVerifying()->get($apiUrl);
+
+            if ($response->ok()) {
+                $userData = $response->json();
+                return $userData['name'] ?? $userData['email'] ?? 'Usuario Desconocido';
+            }
+        } catch (\Throwable $e) {
+            Log::error("Error obteniendo usuario {$userId}: {$e->getMessage()}");
+        }
+
+        return 'Usuario Desconocido';
     }
 }
