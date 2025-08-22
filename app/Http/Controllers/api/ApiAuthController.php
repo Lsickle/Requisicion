@@ -39,11 +39,11 @@ class ApiAuthController extends Controller
 
         // Guardar token y usuario en sesión
         session([
-            'api_token' => $data['access_token'] ?? null,
-            'user' => $userData,
-            'user.id' => $userData['id'] ?? null,
-            'user.name' => $userData['name'] ?? ($userData['email'] ?? 'Usuario'),
-            'user.email' => $userData['email'] ?? null,
+            'api_token'   => $data['access_token'] ?? null,
+            'user'        => $userData,
+            'user.id'     => $userData['id'] ?? null,
+            'user.name'   => $userData['name'] ?? ($userData['email'] ?? 'Usuario'),
+            'user.email'  => $userData['email'] ?? null,
         ]);
 
         // Extraer roles y permisos usando helper
@@ -55,7 +55,7 @@ class ApiAuthController extends Controller
         Log::info('Roles: ' . json_encode($permissionData['roles']));
         Log::info('Permisos: ' . json_encode($permissionData['permissions']));
 
-        // Definir los permisos válidos para acceder al sistema (los que aparecen en la sidebar)
+        // Permisos válidos de la sidebar
         $validPermissions = [
             'crear requisicion',
             'ver requisicion',
@@ -66,25 +66,15 @@ class ApiAuthController extends Controller
             'Dashboard'
         ];
 
+        // Si el usuario tiene al menos 1 de esos permisos → entra
         $userPermissions = $permissionData['permissions'];
-        
-        // Verificar si el usuario tiene al menos uno de los permisos válidos
-        $hasValidPermission = false;
-        foreach ($validPermissions as $permission) {
-            if (in_array($permission, $userPermissions)) {
-                $hasValidPermission = true;
-                break;
-            }
+        $hasAccess = count(array_intersect($validPermissions, $userPermissions)) > 0;
+
+        if ($hasAccess) {
+            return redirect()->route('requisiciones.menu');
         }
 
-        if (!$hasValidPermission) {
-            // Limpiar sesión si no tiene permisos válidos
-            $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions', 'user.id', 'user.name']);
-            return redirect()->route('index')->with('error', 'No tienes permisos para acceder al sistema');
-        }
-
-        // Redirigir al menú principal si tiene permisos válidos
-        return redirect()->route('requisiciones.menu')->with('success', 'Bienvenido al sistema');
+        return redirect()->route('index')->with('error', 'No tienes permisos para acceder al sistema');
     }
 
     /**
@@ -94,7 +84,14 @@ class ApiAuthController extends Controller
     {
         $token = session('api_token');
 
-        $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions', 'user.id', 'user.name']);
+        $request->session()->forget([
+            'api_token',
+            'user',
+            'user_roles',
+            'user_permissions',
+            'user.id',
+            'user.name'
+        ]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

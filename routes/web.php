@@ -31,32 +31,45 @@ Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
 // Rutas protegidas
+// Rutas protegidas - TODAS deben estar dentro de este grupo
 Route::middleware(['auth.session'])->group(function () {
-    // Vista de menú protegida (sin controlador)
-    Route::get('/requisiciones/menu', function () {
-        return view('requisiciones.menu');
-    })->name('requisiciones.menu');
+    Route::middleware(['auth.session'])->group(function () {
+        // Vista de menú protegida
+        Route::get('/requisiciones/menu', function () {
+            return view('requisiciones.menu');
+        })->name('requisiciones.menu');
 
-    // Crear requisiciones con permiso
-    Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
-        ->name('requisiciones.create')
-        ->middleware(CheckPermission::class . ':crear requisicion');
+        // Crear requisiciones con permiso
+        Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
+            ->name('requisiciones.create')
+            ->middleware(CheckPermission::class . ':crear requisicion');
 
-    // Crear requisiciones con permiso
-    Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
-        ->name('productos.nuevoproducto')
-        ->middleware(CheckPermission::class . ':solicitar producto');
-    
-    Route::get('/requisiciones/historial', [RequisicionController::class, 'historial'])
-        ->name('requisiciones.historial');
+        // Solicitar nuevo producto con permiso
+        Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
+            ->name('productos.nuevoproducto')
+            ->middleware(CheckPermission::class . ':solicitar producto');
 
-    Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
-        ->name('requisiciones.show');
+        // Historial de requisiciones
+        Route::get('/requisiciones/historial', [RequisicionController::class, 'historial'])
+            ->name('requisiciones.historial')
+            ->middleware(CheckPermission::class . ':ver requisicion');
 
-    Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
-        ->name('requisiciones.pdf');
+        // VER requisición específica 
+        Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
+            ->name('requisiciones.show')
+            ->middleware(CheckPermission::class . ':ver requisicion');
+
+        // PDF de requisición 
+        Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
+            ->name('requisiciones.pdf')
+            ->middleware(CheckPermission::class . ':ver requisicion');
+
+        // STORE de requisiciones 
+        Route::post('/requisiciones', [RequisicionController::class, 'store'])
+            ->name('requisiciones.store')
+            ->middleware(CheckPermission::class . ':crear requisicion');
+    });
 });
-
 
 
 // Logout

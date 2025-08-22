@@ -268,6 +268,33 @@
                 confirmButtonColor: '#1e40af'
             });
         @endif
+
+        @if(session('error'))
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: '{{ session('error') }}',
+            confirmButtonColor: '#1e40af'
+        });
+    @endif
+
+    @if(session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: '¡Éxito!',
+            text: '{{ session('success') }}',
+            confirmButtonColor: '#1e40af'
+        });
+    @endif
+
+    @if($errors->any())
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de validación',
+            text: '{{ $errors->first() }}',
+            confirmButtonColor: '#1e40af'
+        });
+    @endif
     </script>
 </body>
 
