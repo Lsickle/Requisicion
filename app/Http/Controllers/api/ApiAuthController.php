@@ -35,14 +35,19 @@ class ApiAuthController extends Controller
 
         $data = $response->json();
 
+        // Extraer datos del usuario
+        $userData = $data['user'] ?? [];
+
         // Guardar token y usuario en la sesión
         session([
             'api_token' => $data['access_token'] ?? null,
-            'user' => $data['user'] ?? null,
+            'user' => $userData,
+            'user.id' => $userData['id'] ?? null,
+            'user.name' => $userData['name'] ?? ($userData['email'] ?? 'Usuario'),
+            'user.email' => $userData['email'] ?? null,
         ]);
 
         // Extraer roles y permisos usando el helper
-        $userData = $data['user'] ?? [];
         $permissionData = PermissionHelper::extractRolesAndPermissionsFromUserData($userData);
         
         Session::put('user_roles', $permissionData['roles']);
@@ -51,6 +56,7 @@ class ApiAuthController extends Controller
         // Debug: Log para verificar los datos
         Log::info('User roles from API: ' . json_encode($permissionData['roles']));
         Log::info('User permissions from API: ' . json_encode($permissionData['permissions']));
+        Log::info('Usuario autenticado: ' . json_encode(session('user')));
 
         // Redirigir según permisos
         if (in_array('crear requisiciones', $permissionData['permissions'])) {
@@ -68,7 +74,7 @@ class ApiAuthController extends Controller
     public function logout(Request $request)
     {
         // Eliminar sesión
-        $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions']);
+        $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions', 'user.id', 'user.name']);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

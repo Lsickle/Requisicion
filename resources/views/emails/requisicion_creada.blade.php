@@ -15,6 +15,10 @@
         <div class="content bg-white p-6">
             <div class="details mb-6">
                 <div class="detail-item mb-3">
+                    <span class="detail-label font-semibold">Solicitante:</span>
+                    <span class="ml-2">{{ $nombreSolicitante }}</span>
+                </div>
+                <div class="detail-item mb-3">
                     <span class="detail-label font-semibold">Prioridad:</span>
                     <span class="ml-2">{{ ucfirst($requisicion->prioridad_requisicion) }}</span>
                 </div>
@@ -32,14 +36,18 @@
                 </div>
             </div>
 
-            <p class="mb-6 text-gray-700">Se ha creado una nueva requisición en el sistema. Puedes ver los detalles completos accediendo al sistema o descargando el PDF adjunto.</p>
+            <p class="mb-6 text-gray-700">Se ha creado una nueva requisición en el sistema. 
+                Puedes ver los detalles completos accediendo al sistema o descargando el PDF adjunto.</p>
             
-            <!-- Botón para descargar PDF -->
             <div class="text-center mt-8">
                 <a href="{{ route('pdf.generar', ['tipo' => 'requisicion', 'id' => $requisicion->id]) }}" 
                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg inline-flex items-center transition-colors duration-200">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 
+                              012-2h5.586a1 1 0 01.707.293l5.414 
+                              5.414a1 1 0 01.293.707V19a2 2 0 
+                              01-2 2z"/>
                     </svg>
                     Descargar PDF
                 </a>

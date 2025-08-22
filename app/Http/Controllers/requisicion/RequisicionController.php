@@ -74,7 +74,7 @@ class RequisicionController extends Controller
 
             // Crear requisición
             $requisicion = new Requisicion();
-            $requisicion->user_id = session('user.id'); // 🔹 Guardar ID del usuario autenticado
+            $requisicion->user_id = session('user.id'); // ID del usuario de la API
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -106,9 +106,13 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            // Enviar notificación por correo con nombre del solicitante
-            $requisicion->solicitante_name = session('user.name'); // 🔹 Adjuntar nombre en el objeto
-            RequisicionCreadaJob::dispatch($requisicion);
+            // Determinar nombre del solicitante comparando IDs
+            $nombreSolicitante = (session('user.id') == $requisicion->user_id)
+                ? session('user.name')
+                : 'Usuario Desconocido';
+
+            // Enviar correo usando el Job pasando nombre explícitamente
+            RequisicionCreadaJob::dispatch($requisicion, $nombreSolicitante);
 
             return redirect()->route('requisiciones.menu')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
@@ -116,6 +120,7 @@ class RequisicionController extends Controller
             return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
     }
+
 
     public function show($id)
     {
@@ -137,8 +142,8 @@ class RequisicionController extends Controller
         ])->findOrFail($id);
 
         // 🔹 Agregar el nombre del usuario desde sesión si coincide
-        $requisicion->solicitante_name = session('user.id') == $requisicion->user_id 
-            ? session('user.name') 
+        $requisicion->solicitante_name = session('user.id') == $requisicion->user_id
+            ? session('user.name')
             : 'Usuario Externo';
 
         $pdf = Pdf::loadView('requisiciones.pdf', compact('requisicion'))
