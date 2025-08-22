@@ -55,14 +55,36 @@ class ApiAuthController extends Controller
         Log::info('Roles: ' . json_encode($permissionData['roles']));
         Log::info('Permisos: ' . json_encode($permissionData['permissions']));
 
-        // Redirigir según permisos
-        if (in_array('crear requisiciones', $permissionData['permissions'])) {
-            return redirect()->route('requisiciones.create');
-        } elseif (in_array('ver requisicion', $permissionData['permissions'])) {
-            return redirect()->route('requisiciones.menu');
-        } else {
+        // Definir los permisos válidos para acceder al sistema (los que aparecen en la sidebar)
+        $validPermissions = [
+            'crear requisicion',
+            'ver requisicion',
+            'solicitar producto',
+            'crear oc',
+            'ver oc',
+            'ver producto',
+            'Dashboard'
+        ];
+
+        $userPermissions = $permissionData['permissions'];
+        
+        // Verificar si el usuario tiene al menos uno de los permisos válidos
+        $hasValidPermission = false;
+        foreach ($validPermissions as $permission) {
+            if (in_array($permission, $userPermissions)) {
+                $hasValidPermission = true;
+                break;
+            }
+        }
+
+        if (!$hasValidPermission) {
+            // Limpiar sesión si no tiene permisos válidos
+            $request->session()->forget(['api_token', 'user', 'user_roles', 'user_permissions', 'user.id', 'user.name']);
             return redirect()->route('index')->with('error', 'No tienes permisos para acceder al sistema');
         }
+
+        // Redirigir al menú principal si tiene permisos válidos
+        return redirect()->route('requisiciones.menu')->with('success', 'Bienvenido al sistema');
     }
 
     /**
