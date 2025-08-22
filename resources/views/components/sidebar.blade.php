@@ -1,78 +1,118 @@
 <div class="relative">
     <!-- Navbar -->
     <nav
-        class="bg-orange-500 text-white px-5 py-3 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md">
-        <button class="text-white text-2xl" onclick="toggleSidebar()">☰</button>
+        class="bg-orange-500 text-white px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
+        <button class="text-white text-xl" onclick="toggleSidebar()">☰</button>
         <div>
             <img src="{{ asset('images/logo_fondo_blanco.png') }}" alt="Vigía Plus Logistics"
-                class="mx-auto h-10 w-35 rounded-md object-cover">
+                class="mx-auto h-9 w-auto object-contain">
         </div>
     </nav>
 
     <!-- Sidebar -->
     <div id="sidebar"
-        class="fixed top-0 left-0 w-64 md:w-64 h-full bg-blue-900 text-white pt-16 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col justify-between">
-
-        <!-- Información del usuario -->
-        <div class="px-4 py-4 border-b border-blue-700">
-            @if(Session::has('user'))
-            <div class="text-sm">
-                <p class="font-bold">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
-                <p class="text-blue-300">{{ Session::get('user')['email'] ?? '' }}</p>
-                <p class="text-blue-200 text-xs mt-1">
-                    Roles: {{ implode(', ', Session::get('user_roles', [])) }}
-                </p>
-            </div>
-            @endif
-        </div>
+        class="fixed top-0 left-0 w-64 h-full bg-blue-900 text-white pt-16 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col">
 
         <!-- Opciones -->
-        <ul class="list-none p-0 m-0 text-center flex-grow">
+        <ul class="list-none p-0 m-0 flex-grow text-sm">
             @php
                 $permissions = Session::get('user_permissions', []);
                 $hasPermission = fn($perm) => in_array($perm, $permissions);
             @endphp
 
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.menu') }}" class="block w-full">Menu</a></li>
+            <li>
+                <a href="{{ route('requisiciones.menu') }}" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Menú
+                </a>
+            </li>
             
             @if($hasPermission('crear requisicion'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.create') }}" class="block w-full">Crear Requisición</a></li>
+            <li>
+                <a href="{{ route('requisiciones.create') }}" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Crear Requisición
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('ver requisicion'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.historial') }}" class="block w-full">Historial de Requisiciones</a></li>
+            <li>
+                <a href="{{ route('requisiciones.historial') }}" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Historial de Requisiciones
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('solicitar producto'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('productos.nuevoproducto')}}" class="block w-full">Solicitar nuevo producto</a></li>
+            <li>
+                <a href="{{ route('productos.nuevoproducto')}}" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Solicitar nuevo producto
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('crear oc'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Generar Orden de compra</a></li>
+            <li>
+                <a href="#" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Generar Orden de Compra
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('ver oc'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Historial de ordenes de compra</a></li>
+            <li>
+                <a href="#" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Historial de Órdenes de Compra
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('ver producto'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Ver productos</a></li>
+            <li>
+                <a href="#" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Ver productos
+                </a>
+            </li>
             @endif
             
             @if($hasPermission('Dashboard'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Dashboard</a></li>
+            <li>
+                <a href="#" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   Dashboard
+                </a>
+            </li>
             @endif
         </ul>
 
-        <!-- Botón de Cerrar Sesión -->
-        <div class="m-4">
-            <form id="logoutForm" action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="button" id="logoutBtn"
-                    class="w-full px-4 py-3 bg-red-600 hover:bg-red-700 rounded-md text-white font-bold">
-                    Cerrar sesión
-                </button>
-            </form>
+        <!-- Información del usuario -->
+        <div class="px-4 py-4 border-t border-blue-700 bg-blue-800 text-sm">
+            @if(Session::has('user'))
+            <div>
+                <p class="font-semibold text-white">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
+                <p class="text-blue-300 text-xs">{{ Session::get('user')['email'] ?? '' }}</p>
+                <p class="text-blue-200 text-xs mt-1">
+                    Roles: {{ implode(', ', Session::get('user_roles', [])) }}
+                </p>
+            </div>
+            @endif
+
+            <!-- Botón de Cerrar Sesión -->
+            <div class="mt-4">
+                <form id="logoutForm" action="{{ route('logout') }}" method="POST">
+                    @csrf
+                    <button type="button" id="logoutBtn"
+                        class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white font-semibold text-sm">
+                        Cerrar sesión
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 

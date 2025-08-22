@@ -15,7 +15,7 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center mt-11">Sistema de Requisiciones</h1>
         
-        <div class="flex flex-wrap justify-center gap-6 max-w-6xl mx-auto">
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-center max-w-7xl mx-auto">
             @php
                 $permissions = Session::get('user_permissions', []);
                 $hasPermission = fn($perm) => in_array($perm, $permissions);
@@ -23,7 +23,7 @@
 
             @if($hasPermission('crear requisicion'))
             <!-- Crear Requisiciones -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-blue-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-blue-500 text-center">
                 <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-plus text-blue-600 text-2xl"></i>
                 </div>
@@ -37,7 +37,7 @@
 
             @if($hasPermission('solicitar producto'))
             <!-- Solicitar Nuevo Producto -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 text-center">
                 <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-box text-purple-600 text-2xl"></i>
                 </div>
@@ -51,7 +51,7 @@
 
             @if($hasPermission('ver requisicion'))
             <!-- Historial de Requisiciones -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 text-center">
                 <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-list text-green-600 text-2xl"></i>
                 </div>
@@ -65,7 +65,7 @@
 
             @if($hasPermission('crear oc'))
             <!-- Generar Orden de Compra -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-yellow-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-yellow-500 text-center">
                 <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-file-invoice-dollar text-yellow-600 text-2xl"></i>
                 </div>
@@ -79,7 +79,7 @@
 
             @if($hasPermission('ver oc'))
             <!-- Historial de Ordenes de Compra -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-orange-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-orange-500 text-center">
                 <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-clipboard-list text-orange-600 text-2xl"></i>
                 </div>
@@ -93,7 +93,7 @@
 
             @if($hasPermission('ver producto'))
             <!-- Ver Productos -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-500 text-center">
                 <div class="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-boxes text-teal-600 text-2xl"></i>
                 </div>
@@ -107,7 +107,7 @@
 
             @if($hasPermission('Dashboard'))
             <!-- Dashboard -->
-            <div class="w-full sm:max-w-xs bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 text-center">
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 text-center">
                 <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-chart-line text-indigo-600 text-2xl"></i>
                 </div>
