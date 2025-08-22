@@ -46,6 +46,15 @@ Route::middleware(['auth.session'])->group(function () {
     Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
         ->name('productos.nuevoproducto')
         ->middleware(CheckPermission::class . ':solicitar producto');
+    
+    Route::get('/requisiciones/historial', [RequisicionController::class, 'historial'])
+        ->name('requisiciones.historial');
+
+    Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
+        ->name('requisiciones.show');
+
+    Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
+        ->name('requisiciones.pdf');
 });
 
 

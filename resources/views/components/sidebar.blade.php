@@ -40,7 +40,7 @@
             @endif
             
             @if($hasPermission('ver requisicion'))
-            <li class="px-4 py-4 hover:bg-blue-700"><a href="#" class="block w-full">Historial de Requisiciones</a></li>
+            <li class="px-4 py-4 hover:bg-blue-700"><a href="{{ route('requisiciones.historial') }}" class="block w-full">Historial de Requisiciones</a></li>
             @endif
             
             @if($hasPermission('solicitar producto'))

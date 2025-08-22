@@ -10,11 +10,9 @@ use App\Models\Requisicion;
 use App\Models\Producto;
 use App\Models\Centro;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Http\Controllers\Mailto\MailtoController;
 use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-
 
 class RequisicionController extends Controller
 {
@@ -61,12 +59,9 @@ class RequisicionController extends Controller
         DB::beginTransaction();
 
         try {
-            // Calcular total de la requisición
             $totalRequisicion = 0;
             foreach ($validated['productos'] as $prod) {
                 $totalRequisicion += (int)$prod['requisicion_amount'];
-
-                // Validación: suma de centros debe coincidir
                 $sumaCentros = array_sum(array_column($prod['centros'], 'cantidad'));
                 if ($sumaCentros !== (int)$prod['requisicion_amount']) {
                     throw ValidationException::withMessages([
@@ -75,9 +70,8 @@ class RequisicionController extends Controller
                 }
             }
 
-            // Crear requisición
             $requisicion = new Requisicion();
-            $requisicion->user_id = session('user.id'); // ID del usuario de la API
+            $requisicion->user_id = session('user.id');
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -85,16 +79,12 @@ class RequisicionController extends Controller
             $requisicion->amount_requisicion = $totalRequisicion;
             $requisicion->save();
 
-            // Adjuntar productos y centros
             foreach ($validated['productos'] as $prod) {
                 $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
-
-                // Pivot producto_requisicion
                 $requisicion->productos()->attach($prod['id'], [
                     'pr_amount' => $cantidadTotalCentros
                 ]);
 
-                // Tabla centro_producto (con requisicion_id)
                 foreach ($prod['centros'] as $centro) {
                     DB::table('centro_producto')->insert([
                         'producto_id' => $prod['id'],
@@ -109,12 +99,7 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            // Determinar nombre del solicitante comparando IDs
-            $nombreSolicitante = (session('user.id') == $requisicion->user_id)
-                ? session('user.name')
-                : 'Usuario Desconocido';
-
-            // Enviar correo usando el Job pasando nombre explícitamente
+            $nombreSolicitante = session('user.name') ?? 'Usuario Desconocido';
             RequisicionCreadaJob::dispatch($requisicion, $nombreSolicitante);
 
             return redirect()->route('requisiciones.menu')->with('success', 'Requisición creada correctamente.');
@@ -123,7 +108,6 @@ class RequisicionController extends Controller
             return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
     }
-
 
     public function show($id)
     {
@@ -144,7 +128,6 @@ class RequisicionController extends Controller
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
-        // Obtener nombre desde API en lugar de session
         $nombreSolicitante = $this->obtenerNombreUsuario($requisicion->user_id);
 
         $pdf = Pdf::loadView('requisiciones.pdf', [
@@ -156,7 +139,18 @@ class RequisicionController extends Controller
         return $pdf->download("requisicion_{$requisicion->id}.pdf");
     }
 
-    // Método auxiliar para obtener nombre de usuario
+    public function historial()
+    {
+        $userId = session('user.id');
+
+        $requisiciones = Requisicion::with(['productos', 'estatusHistorial.estatus'])
+            ->where('user_id', $userId)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('requisiciones.historial', compact('requisiciones'));
+    }
+
     private function obtenerNombreUsuario($userId)
     {
         try {

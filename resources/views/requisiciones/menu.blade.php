@@ -57,7 +57,7 @@
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Requisiciones</h3>
                 <p class="text-gray-600 mb-4">Consulta y gestiona todas las solicitudes existentes</p>
-                <a href="#" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('requisiciones.historial') }}" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Ver Listado
                 </a>
             </div>
