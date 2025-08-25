@@ -9,6 +9,8 @@ use Illuminate\Validation\ValidationException;
 use App\Models\Requisicion;
 use App\Models\Producto;
 use App\Models\Centro;
+use App\Models\Estatus;
+use App\Models\Estatus_Requisicion;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
@@ -78,6 +80,18 @@ class RequisicionController extends Controller
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
             $requisicion->save();
+
+            // 🔹 Asignar estatus inicial "Iniciada"
+            $estatusInicial = Estatus::where('status_name', 'Iniciada')->first();
+            if ($estatusInicial) {
+                Estatus_Requisicion::create([
+                    'requisicion_id' => $requisicion->id,
+                    'estatus_id'     => $estatusInicial->id,
+                    'estatus'        => 1, // activo
+                    'date_update'    => now(),
+                    'comentario'     => 'Requisición iniciada automáticamente.'
+                ]);
+            }
 
             foreach ($validated['productos'] as $prod) {
                 $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));

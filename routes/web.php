@@ -2,11 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OrdenCompraController;
-use App\Http\Controllers\EstatusRequisicionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\excel\ExcelController;
 use App\Http\Controllers\PDF\PdfController;
 use App\Http\Controllers\requisicion\RequisicionController;
+use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
 use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use App\Models\OrdenCompra;
@@ -68,6 +68,11 @@ Route::middleware(['auth.session'])->group(function () {
         Route::post('/requisiciones', [RequisicionController::class, 'store'])
             ->name('requisiciones.store')
             ->middleware(CheckPermission::class . ':crear requisicion');
+
+        //estatus de la requisición
+        Route::get('/requisiciones/{requisicion}/estatus', [EstatusRequisicionController::class, 'show'])
+            ->name('requisiciones.estatus')
+            ->middleware(CheckPermission::class . ':ver requisicion');
     });
 });
 

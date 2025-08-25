@@ -8,11 +8,17 @@
 <div class="max-w-6xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
     <h1 class="text-2xl font-bold mb-6">Historial de Requisiciones</h1>
 
+    <!-- 🔍 Barra de búsqueda -->
+    <div class="mb-4 flex justify-between items-center">
+        <input type="text" id="busqueda" placeholder="Buscar requisición..." 
+               class="border px-3 py-2 rounded w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300">
+    </div>
+
     @if($requisiciones->isEmpty())
         <p class="text-gray-500">No has realizado ninguna requisición aún.</p>
     @else
     <div class="overflow-x-auto">
-        <table class="w-full border border-gray-200 rounded-lg bg-white">
+        <table id="tablaRequisiciones" class="w-full border border-gray-200 rounded-lg bg-white">
             <thead class="bg-gray-50 text-gray-600 text-left">
                 <tr class="hidden md:table-row">
                     <th class="p-3">Fecha</th>
@@ -53,16 +59,34 @@
                     </td>
 
                     <td class="p-3 hidden md:table-cell">
-                        @if($req->estatusHistorial->last())
-                            <span class="px-2 py-1 rounded text-white 
-                                @if($req->estatusHistorial->last()->estatus->name=='Aprobado') bg-green-600
-                                @elseif($req->estatusHistorial->last()->estatus->name=='Rechazado') bg-red-600
-                                @else bg-gray-600 @endif">
-                                {{ $req->estatusHistorial->last()->estatus->name ?? 'Pendiente' }}
-                            </span>
-                        @else
-                            <span class="px-2 py-1 rounded bg-gray-500 text-white">Pendiente</span>
-                        @endif
+                        @php
+                            $nombreEstatus = 'Pendiente';
+                            $colorEstatus = 'bg-gray-500';
+                            
+                            if ($req->estatusHistorial && $req->estatusHistorial->isNotEmpty()) {
+                                $ultimoEstatus = $req->estatusHistorial->first();
+                                if ($ultimoEstatus->estatus && is_object($ultimoEstatus->estatus)) {
+                                    $nombreEstatus = $ultimoEstatus->estatus->name;
+                                } else {
+                                    $nombreEstatus = 'Iniciada';
+                                }
+                            }
+                            
+                            if ($nombreEstatus == 'Aprobado') {
+                                $colorEstatus = 'bg-green-600';
+                            } elseif ($nombreEstatus == 'Rechazado' || $nombreEstatus == 'Cancelado') {
+                                $colorEstatus = 'bg-red-600';
+                            } elseif ($nombreEstatus == 'Pendiente') {
+                                $colorEstatus = 'bg-gray-500';
+                            } elseif ($nombreEstatus == 'Iniciada') {
+                                $colorEstatus = 'bg-blue-600';
+                            } else {
+                                $colorEstatus = 'bg-gray-600';
+                            }
+                        @endphp
+                        <span class="px-2 py-1 rounded text-white {{ $colorEstatus }}">
+                            {{ $nombreEstatus }}
+                        </span>
                     </td>
 
                     <!-- Acciones -->
@@ -78,7 +102,7 @@
                     </td>
                 </tr>
 
-                <!-- Modal Mejorado -->
+                <!-- Modal -->
                 <div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
                     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 relative">
                         <!-- Cerrar -->
@@ -93,6 +117,14 @@
                             <div><strong>Fecha:</strong> {{ $req->created_at->format('d/m/Y H:i') }}</div>
                             <div><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</div>
                             <div><strong>Recobrable:</strong> {{ $req->Recobrable }}</div>
+                        </div>
+
+                        <!-- Botón Ver Estatus -->
+                        <div class="mb-4">
+                            <a href="{{ route('requisiciones.estatus', $req->id) }}" 
+                               class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                                Ver Estatus
+                            </a>
                         </div>
 
                         <!-- Detalle y Justificación -->
@@ -126,12 +158,22 @@
                         </ul>
 
                         <!-- Historial de Estatus -->
-                        @if($req->estatusHistorial->count() > 0)
+                        @if($req->estatusHistorial && $req->estatusHistorial->count() > 0)
                         <h3 class="text-xl font-semibold mt-6 mb-2">Historial de Estatus</h3>
                         <ul class="space-y-2">
                             @foreach($req->estatusHistorial as $estatus)
+                                @php
+                                    $nombreEstatusItem = 'Iniciada';
+                                    if ($estatus->estatus && is_object($estatus->estatus)) {
+                                        $nombreEstatusItem = $estatus->estatus->name;
+                                    }
+                                @endphp
                                 <li class="p-2 bg-gray-50 rounded">
-                                    <strong>{{ $estatus->estatus->name ?? 'Pendiente' }}:</strong> {{ $estatus->created_at->format('d/m/Y H:i') }}
+                                    <strong>{{ $nombreEstatusItem }}:</strong> 
+                                    {{ $estatus->created_at->format('d/m/Y H:i') }}
+                                    @if($estatus->comentario)
+                                        - {{ $estatus->comentario }}
+                                    @endif
                                 </li>
                             @endforeach
                         </ul>
@@ -152,5 +194,13 @@ function toggleModal(id){
     modal.classList.toggle('hidden');
     modal.classList.toggle('flex');
 }
+
+//Filtro búsqueda
+document.getElementById('busqueda').addEventListener('keyup', function() {
+    let filtro = this.value.toLowerCase();
+    document.querySelectorAll('#tablaRequisiciones tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+    });
+});
 </script>
 @endsection
