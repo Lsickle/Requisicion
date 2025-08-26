@@ -64,7 +64,9 @@ class ApiAuthController extends Controller
             'crear oc',
             'ver oc',
             'ver producto',
-            'Dashboard'
+            'Dashboard',
+            'Requisiciones en curso',
+            'Aprobar requisicion',
         ];
 
         // Si el usuario tiene al menos 1 de esos permisos → entra

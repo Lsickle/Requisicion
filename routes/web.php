@@ -15,6 +15,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\api\ApiAuthController;
 use App\Http\Controllers\nuevo_producto\NuevoProductoController;
 use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
 
 // Página de login (index.blade.php)
@@ -35,25 +36,25 @@ Route::get('/estadisticas-requisiciones', [EstatusRequisicionController::class, 
     ->name('requisiciones.estadisticas');
 
 // Rutas protegidas
-Route::middleware(['auth.session'])->group(function () {
+Route::middleware([AuthSession::class])->group(function () {
     
-    // --- RUTAS DE APROBACIÓN DE REQUISICIONES ---
-    // Panel de aprobación principal
-    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class, 'index'])
+    //  RUTAS DE APROBACIÓN DE REQUISICIONES 
+     // Panel de aprobación de requisiciones
+    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class,'index'])
         ->name('requisiciones.aprobacion')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
+        ->middleware(CheckPermission::class.':aprobar requisicion');
 
-    // Actualizar estatus de requisición
-    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class, 'updateStatus'])
+    // Actualizar estatus
+    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class,'updateStatus'])
         ->name('requisiciones.estatus.update')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
+        ->middleware(CheckPermission::class.':aprobar requisicion');
 
-    // Obtener detalles de requisición
-    Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class, 'getRequisicionDetails'])
+    // Obtener detalles
+    Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class,'getRequisicionDetails'])
         ->name('requisiciones.detalles')
-        ->middleware(CheckPermission::class . ':ver requisicion');
+        ->middleware(CheckPermission::class.':ver requisicion');
 
-    // --- RUTAS EXISTENTES DE REQUISICIONES ---
+    //  RUTAS EXISTENTES DE REQUISICIONES 
     // Vista de menú protegida
     Route::get('/requisiciones/menu', function () {
         return view('requisiciones.menu');

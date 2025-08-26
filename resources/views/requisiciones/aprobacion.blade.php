@@ -6,9 +6,7 @@
 <x-sidebar />
 
 <div class="max-w-6xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
-    <h1 class="text-2xl font-bold mb-6">
-        Panel de Aprobación de Requisiciones
-    </h1>
+    <h1 class="text-2xl font-bold mb-6">Panel de Aprobación de Requisiciones</h1>
 
     <!-- Estadísticas -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -44,22 +42,66 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse ($requisiciones as $req)
+                @forelse($requisiciones as $req)
                 <tr class="border-b">
                     <td class="px-4 py-2">{{ $req->id }}</td>
                     <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
                     <td class="px-4 py-2">{{ $req->prioridad_requisicion }}</td>
-                    <td class="px-4 py-2">${{ number_format($req->amount_requisicion, 2) }}</td>
+                    <td class="px-4 py-2">${{ number_format($req->amount_requisicion,2) }}</td>
+                    <td class="px-4 py-2">{{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}</td>
                     <td class="px-4 py-2">
-                        {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}
-                    </td>
-                    <td class="px-4 py-2">
-                        <button class="view-details bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                            data-id="{{ $req->id }}">
+                        <button onclick="toggleModal('modal-{{ $req->id }}')" 
+                            class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
                             Ver
                         </button>
                     </td>
                 </tr>
+
+                <!-- Modal -->
+                <div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 relative">
+                        <button onclick="toggleModal('modal-{{ $req->id }}')" 
+                            class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
+
+                        <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
+
+                        <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
+                        <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
+                        <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
+
+                        <h3 class="text-xl font-semibold mt-4">Productos</h3>
+                        <ul class="list-disc pl-5">
+                            @foreach($req->productos as $prod)
+                                <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
+                            @endforeach
+                        </ul>
+
+                        <h3 class="text-xl font-semibold mt-4">Historial</h3>
+                        <ul class="list-disc pl-5">
+                            @foreach($req->estatusHistorial as $hist)
+                                <li>{{ $hist->estatus->status_name ?? 'Iniciada' }} - {{ $hist->created_at->format('d/m/Y H:i') }} - {{ $hist->estatus }}</li>
+                            @endforeach
+                        </ul>
+
+                        <!-- Botones Aprobar / Rechazar -->
+                        <div class="flex justify-end gap-2 mt-6">
+                            @php
+                                $estatusAprobar = $estatusOptions->keys()->first(); // ID según rol
+                                $estatusRechazar = 4; // ID genérico para "rechazado"
+                            @endphp
+                            <button class="status-btn bg-green-600 text-white px-4 py-2 rounded" 
+                                data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}">
+                                Aprobar
+                            </button>
+                            <button class="status-btn bg-red-600 text-white px-4 py-2 rounded" 
+                                data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}">
+                                Rechazar
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
                 @empty
                 <tr>
                     <td colspan="6" class="text-center py-4">No hay requisiciones pendientes</td>
@@ -70,112 +112,46 @@
     </div>
 </div>
 
-<!-- Modal -->
-<div id="detailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center">
-    <div class="bg-white w-full max-w-2xl p-6 rounded-lg shadow-lg">
-        <h2 class="text-xl font-bold mb-4">Detalles de la Requisición</h2>
-
-        <div id="requisicion-details"></div>
-
-        <form id="statusForm" class="mt-4">
-            @csrf
-            <input type="hidden" name="requisicion_id" id="requisicion_id">
-
-            <label class="block mb-2">Cambiar estatus:</label>
-            <select name="estatus_id" id="estatus_id" class="border rounded w-full p-2 mb-4">
-                @foreach($estatusOptions as $id => $nombre)
-                <option value="{{ $id }}">{{ $nombre }}</option>
-                @endforeach
-            </select>
-
-            <label class="block mb-2">Comentarios:</label>
-            <textarea name="comentarios" id="comentarios" rows="3" class="border rounded w-full p-2"></textarea>
-
-            <div class="flex justify-end mt-4">
-                <button type="button" id="closeModal" class="bg-gray-500 text-white px-4 py-2 rounded mr-2">
-                    Cerrar
-                </button>
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">
-                    Guardar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-@endsection
-
-@section('scripts')
 <script>
-    $(document).ready(function() {
+function toggleModal(id){
+    const modal = document.getElementById(id);
+    modal.classList.toggle('hidden');
+    modal.classList.toggle('flex');
+}
 
-    function loadStatistics() {
-        $.ajax({
-            url: '{{ route("requisiciones.estadisticas") }}',
-            method: 'GET',
-            success: function(response) {
-                $('#pendientes-count').text(response['Pendiente'] || 0);
-                $('#aprobadas-count').text(response['Aprobado'] || 0);
-                $('#rechazadas-count').text(response['Rechazado'] || 0);
-                $('#revision-count').text(response['En revisión'] || 0);
-            }
-        });
-    }
-
-    loadStatistics();
-
-    $('.view-details').click(function() {
-        var requisicionId = $(this).data('id');
-        
-        $.ajax({
-            url: '{{ route("requisiciones.detalles", ":id") }}'.replace(':id', requisicionId),
-            method: 'GET',
-            success: function(response) {
-                $('#requisicion_id').val(requisicionId);
-
-                let detalles = `
-                    <p><strong>Justificación:</strong> ${response.requisicion.justify_requisicion}</p>
-                    <p><strong>Detalle:</strong> ${response.requisicion.detail_requisicion}</p>
-                    <p><strong>Monto:</strong> $${response.requisicion.amount_requisicion}</p>
-                    <h3 class="font-semibold mt-3">Productos</h3>
-                    <ul class="list-disc pl-5">
-                        ${response.productos.map(p => `<li>${p.cantidad} ${p.unidad} de ${p.nombre}</li>`).join('')}
-                    </ul>
-                    <h3 class="font-semibold mt-3">Historial</h3>
-                    <ul class="list-disc pl-5">
-                        ${response.historial.map(h => `<li>${h.estatus} (${h.fecha}) - ${h.comentarios}</li>`).join('')}
-                    </ul>
-                `;
-                $('#requisicion-details').html(detalles);
-                $('#detailsModal').removeClass('hidden');
-            }
-        });
+$(document).ready(function(){
+    // Estadísticas
+    $.ajax({
+        url: '{{ route("requisiciones.estadisticas") }}',
+        method: 'GET',
+        success: function(resp){
+            $('#pendientes-count').text(resp['Pendiente'] || 0);
+            $('#aprobadas-count').text(resp['Aprobado'] || 0);
+            $('#rechazadas-count').text(resp['Rechazado'] || 0);
+            $('#revision-count').text(resp['En revisión'] || 0);
+        }
     });
 
-    $('#closeModal').click(function() {
-        $('#detailsModal').addClass('hidden');
-    });
+    // Aprobar / Rechazar
+    $(document).on('click', '.status-btn', function(){
+        const requisicionId = $(this).data('id');
+        const estatusId = $(this).data('estatus');
 
-    $('#statusForm').submit(function(e) {
-        e.preventDefault();
-        var formData = $(this).serialize();
-        var requisicionId = $('#requisicion_id').val();
-        
         $.ajax({
             url: '{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId),
             method: 'POST',
-            data: formData,
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            data: {
+                _token: '{{ csrf_token() }}',
+                estatus_id: estatusId,
+                comentarios: ''
             },
-            success: function(response) {
-                alert(response.message);
-                $('#detailsModal').addClass('hidden');
-                loadStatistics();
+            success: function(resp){
+                alert(resp.message || 'Estatus actualizado');
+                toggleModal('modal-' + requisicionId);
                 location.reload();
             },
-            error: function(xhr) {
-                alert(xhr.responseJSON.message || 'Error al actualizar el estatus.');
+            error: function(xhr){
+                alert(xhr.responseJSON?.message || 'Error al actualizar estatus');
             }
         });
     });

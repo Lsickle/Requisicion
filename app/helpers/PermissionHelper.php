@@ -55,7 +55,6 @@ class PermissionHelper
         Session::put('user_roles', $roles);
         Session::put('user_permissions', $permissions);
 
-        // Guardar también datos básicos del usuario
         if (isset($userData['id'])) {
             Session::put('user_id', $userData['id']);
         }
@@ -106,38 +105,5 @@ class PermissionHelper
             'roles' => array_unique($roles),
             'permissions' => array_unique($permissions),
         ];
-    }
-
-    /**
-     * Devuelve el nombre del usuario según el ID.
-     * Primero busca en sesión, si no lo encuentra intenta llamar la API.
-     */
-    public static function getUserNameById($id)
-    {
-        if (Session::get('user_id') == $id) {
-            return Session::get('user_name');
-        }
-
-        try {
-            $client = new \GuzzleHttp\Client();
-            $token = Session::get('access_token');
-
-            if (!$token) {
-                return 'Usuario Desconocido';
-            }
-
-            $response = $client->get("https://vpl-nexus-core-test-testing.up.railway.app/api/users/{$id}", [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $token,
-                    'Accept' => 'application/json',
-                ]
-            ]);
-
-            $data = json_decode($response->getBody(), true);
-
-            return $data['name'] ?? 'Usuario Desconocido';
-        } catch (\Exception $e) {
-            return 'Usuario Desconocido';
-        }
     }
 }
