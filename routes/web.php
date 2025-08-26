@@ -17,7 +17,7 @@ use App\Http\Controllers\nuevo_producto\NuevoProductoController;
 use App\Http\Middleware\CheckPermission;
 use App\Models\Nuevo_Producto;
 
-// Página de login
+// Página de login (index.blade.php)
 Route::get('/', function () {
     return view('index');
 })->name('login');
@@ -30,68 +30,78 @@ Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
-// =======================
-// Rutas protegidas
-// =======================
-Route::middleware(['auth.session'])->group(function () {
+// Rutas públicas para estadísticas
+Route::get('/estadisticas-requisiciones', [EstatusRequisicionController::class, 'getStats'])
+    ->name('requisiciones.estadisticas');
 
-    // Vista menú
+// Rutas protegidas
+Route::middleware(['auth.session'])->group(function () {
+    
+    // --- RUTAS DE APROBACIÓN DE REQUISICIONES ---
+    // Panel de aprobación principal
+    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class, 'index'])
+        ->name('requisiciones.aprobacion')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
+    // Actualizar estatus de requisición
+    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class, 'updateStatus'])
+        ->name('requisiciones.estatus.update')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
+    // Obtener detalles de requisición
+    Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class, 'getRequisicionDetails'])
+        ->name('requisiciones.detalles')
+        ->middleware(CheckPermission::class . ':ver requisicion');
+
+    // --- RUTAS EXISTENTES DE REQUISICIONES ---
+    // Vista de menú protegida
     Route::get('/requisiciones/menu', function () {
         return view('requisiciones.menu');
     })->name('requisiciones.menu');
 
-    // Crear requisiciones
+    // Crear requisiciones con permiso
     Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
         ->name('requisiciones.create')
         ->middleware(CheckPermission::class . ':crear requisicion');
 
-    // Solicitar nuevo producto
+    // Solicitar nuevo producto con permiso
     Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
         ->name('productos.nuevoproducto')
         ->middleware(CheckPermission::class . ':solicitar producto');
 
-    // Historial
+    // Historial de requisiciones
     Route::get('/requisiciones/historial', [RequisicionController::class, 'historial'])
         ->name('requisiciones.historial')
         ->middleware(CheckPermission::class . ':ver requisicion');
 
-    // --- Aprobación de requisiciones (debe ir ANTES de /{id})
-    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class, 'aprobacion'])
-        ->name('requisiciones.aprobacion');
+    // VER requisición específica 
+    Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
+        ->name('requisiciones.show')
+        ->middleware(CheckPermission::class . ':ver requisicion');
 
-    Route::post('/requisiciones/{requisicion}/actualizar-estatus-aprobacion', [EstatusRequisicionController::class, 'actualizarEstatusAprobacion'])
-        ->name('requisiciones.actualizar-estatus-aprobacion');
+    // PDF de requisición 
+    Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
+        ->name('requisiciones.pdf')
+        ->middleware(CheckPermission::class . ':ver requisicion');
+
+    // STORE de requisiciones 
+    Route::post('/requisiciones', [RequisicionController::class, 'store'])
+        ->name('requisiciones.store')
+        ->middleware(CheckPermission::class . ':crear requisicion');
 
     // Estatus de la requisición
     Route::get('/requisiciones/{requisicion}/estatus', [EstatusRequisicionController::class, 'show'])
         ->name('requisiciones.estatus')
         ->middleware(CheckPermission::class . ':ver requisicion');
 
-    // Ver requisición específica
-    Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
-        ->name('requisiciones.show')
-        ->middleware(CheckPermission::class . ':ver requisicion');
-
-    // PDF de requisición
-    Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
-        ->name('requisiciones.pdf')
-        ->middleware(CheckPermission::class . ':ver requisicion');
-
-    // Store requisición
-    Route::post('/requisiciones', [RequisicionController::class, 'store'])
-        ->name('requisiciones.store')
-        ->middleware(CheckPermission::class . ':crear requisicion');
-
+    // Recurso principal de requisiciones
+    Route::resource('requisiciones', RequisicionController::class)->except(['show']);
 });
 
-// =======================
 // Logout
-// =======================
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
 
-// =======================
-// Exportaciones Excel
-// =======================
+// Reportes excel
 Route::prefix('exportar')->group(function () {
     Route::get('/productos', [ExcelController::class, 'export'])->name('export.productos')->defaults('type', 'productos');
     Route::get('/ordenes-compra', [ExcelController::class, 'export'])->name('export.ordenes-compra')->defaults('type', 'ordenes-compra');
@@ -99,33 +109,9 @@ Route::prefix('exportar')->group(function () {
     Route::get('/estatus-requisicion', [ExcelController::class, 'export'])->name('export.estatus-requisicion')->defaults('type', 'estatus-requisicion');
 });
 
-// =======================
-// Rutas de prueba
-// =======================
 Route::view('/index', 'index')->name('index');
 
-Route::get('/test-requisicion-creada', function () {
-    $requisicion = Requisicion::first();
-    (new MailtoController())->sendRequisicionCreada($requisicion);
-    return "Correo de requisición creada enviado!";
-});
-
-Route::get('/test-estatus-actualizado', function () {
-    $requisicion = Requisicion::first();
-    $estatus = Estatus_Requisicion::first();
-    (new MailtoController())->sendEstatusRequisicionActualizado($requisicion, $estatus);
-    return "Correo de estatus actualizado enviado!";
-});
-
-Route::get('/test-orden-compra', function () {
-    $orden = OrdenCompra::first();
-    (new MailtoController())->sendOrdenCompraCreada($orden);
-    return "Correo de orden de compra enviado!";
-});
-
-// =======================
 // Rutas para solicitud de nuevo producto
-// =======================
 Route::resource('nuevo-producto', NuevoProductoController::class);
 Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])->name('nuevo-producto.restore');
 Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])->name('nuevo-producto.force-delete');
