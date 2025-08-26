@@ -1,0 +1,18 @@
+[33m4f3893f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD~2
+[33me32a80e[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{1}: commit: add change status email
+[33me9bc5af[m HEAD@{2}: commit: history requisicion create
+[33m4f3893f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{3}: commit: correction desing and responsive
+[33m98d634a[m HEAD@{4}: commit: correction permmision verification login
+[33md2e4fdd[m HEAD@{5}: commit: correction AuhtController with permission
+[33m8fcfe38[m HEAD@{6}: commit: table
+[33mf6c1bd2[m HEAD@{7}: commit: add variables de entorno VPL_CORE
+[33m3884dc1[m HEAD@{8}: commit: add user id email
+[33m72ebf93[m HEAD@{9}: commit: add id user
+[33mc0e8e03[m HEAD@{10}: commit: add reques new products with email
+[33m3327e1d[m HEAD@{11}: commit: correction menu
+[33ma540364[m HEAD@{12}: commit: corrections sidebar for permission user
+[33m6a5d362[m HEAD@{13}: commit: middleware: checkPermission-authsession implementation
+[33m8bafd01[m HEAD@{14}: commit: login vpl-nexus and charge of data user
+[33m27b31dd[m HEAD@{15}: commit: correction_controller_PDF_and_implementation_login_vpl-nexus
+[33m8533cb9[m HEAD@{16}: commit: vpl-nexus:add
+[33mcb81147[m HEAD@{17}: clone: from https://github.com/xardo/Requisicion.git

@@ -21,9 +21,10 @@ class ApiAuthController extends Controller
             'password' => 'required'
         ]);
 
-        $url = env('VPL_CORE') . '/api/auth/login';
+        $apiurl = env('VPL_CORE') . '/api/auth/login';
 
-        $response = Http::withoutVerifying()->post($url, [
+
+        $response = Http::withoutVerifying()->post($apiurl, [
             'email' => $request->email,
             'password' => $request->password,
         ]);
