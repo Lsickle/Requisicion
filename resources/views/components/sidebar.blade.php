@@ -36,6 +36,15 @@
             </li>
             @endif
             
+            @if($hasPermission('aprobar requisicion'))
+            <li>
+                <a href="{{ route('requisiciones.aprobacion') }}" 
+                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                   requisiciones por aprobar
+                </a>
+            </li>
+            @endif
+            
             @if($hasPermission('ver requisicion'))
             <li>
                 <a href="{{ route('requisiciones.historial') }}" 

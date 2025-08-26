@@ -8,6 +8,7 @@ use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 use App\Mail\EstatusRequisicionActualizado;
 use Illuminate\Support\Facades\Mail;
 
@@ -26,6 +27,46 @@ class EstatusRequisicionController extends Controller
     {
         $estados = Estatus::all();
         return response()->json($estados);
+    }
+
+    /**
+     * Mostrar requisiciones pendientes de aprobación
+     */
+    public function aprobacion()
+    {
+        $requisicionesPendientes = collect();
+        $userPermissions = Session::get('user')['permissions'] ?? [];
+
+        $aprobacionGerenciaId = Estatus::where('status_name', 'Aprobación Gerencia')->value('id');
+        $aprobacionFinancieraId = Estatus::where('status_name', 'Aprobación Financiera')->value('id');
+
+        if (in_array('Gerencia', $userPermissions)) {
+            $requisicionesPendientes = Requisicion::whereHas('estatusHistorial', function ($query) use ($aprobacionGerenciaId) {
+                $query->where('estatus_id', $aprobacionGerenciaId)
+                      ->where('estatus', 1);
+            })->with(['user', 'productos.distribucion_centros', 'estatusHistorial.estatus'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        } elseif (in_array('Gerente financiero', $userPermissions)) {
+            $requisicionesPendientes = Requisicion::whereHas('estatusHistorial', function ($query) use ($aprobacionFinancieraId) {
+                $query->where('estatus_id', $aprobacionFinancieraId)
+                      ->where('estatus', 1);
+            })->with(['user', 'productos.distribucion_centros', 'estatusHistorial.estatus'])
+            ->orderByDesc('created_at')
+            ->get();
+        }
+
+        $requisicionesPendientes = $requisicionesPendientes->filter(function ($requisicion) use ($userPermissions, $aprobacionGerenciaId, $aprobacionFinancieraId) {
+            $ultimoEstatus = $requisicion->estatusHistorial->sortByDesc('created_at')->first();
+            if (!$ultimoEstatus || !$ultimoEstatus->estatus) {
+                return false;
+            }
+            return (in_array('Gerencia', $userPermissions) && $ultimoEstatus->estatus_id === $aprobacionGerenciaId) ||
+                   (in_array('Gerente financiero', $userPermissions) && $ultimoEstatus->estatus_id === $aprobacionFinancieraId);
+        });
+
+        return view('requisiciones.aprobacion', ['requisiciones' => $requisicionesPendientes]);
     }
 
     public function store(Request $request)
@@ -52,22 +93,28 @@ class EstatusRequisicionController extends Controller
     }
 
     /**
-     * Mostrar historial de una requisición específica
+     * Mostrar historial de TODAS las requisiciones
+     */
+    public function historial()
+    {
+        $requisiciones = Requisicion::with('estatus')->get();
+
+        return view('requisiciones.historial', [
+            'requisiciones' => $requisiciones
+        ]);
+    }
+
+    /**
+     * Mostrar historial de UNA requisición
      */
     public function show($id)
     {
-        // Cargar la requisición con su relación de estatus
         $requisicion = Requisicion::with('estatus')->findOrFail($id);
-
-        // Ordenar los estatus por fecha de creación en el pivot
         $estatusOrdenados = $requisicion->estatus->sortBy('pivot.created_at');
-
-        // Último estatus (el actual)
         $estatusActual = $estatusOrdenados->last();
 
         return view('requisiciones.estatus', compact('requisicion', 'estatusOrdenados', 'estatusActual'));
     }
-
 
     public function edit(Estatus_Requisicion $estatusRequisicion)
     {
@@ -103,6 +150,69 @@ class EstatusRequisicionController extends Controller
     {
         $estatusRequisicion->delete();
         return response()->json(['message' => 'Estado eliminado correctamente']);
+    }
+
+    public function actualizarEstatusAprobacion(Request $request, Requisicion $requisicion)
+    {
+        $request->validate([
+            'accion'     => 'required|in:aprobar,rechazar',
+            'comentario' => 'nullable|string|max:255',
+        ]);
+
+        $userPermissions = Session::get('user')['permissions'] ?? [];
+        $accion = $request->accion;
+        $comentario = $request->comentario;
+
+        return DB::transaction(function () use ($requisicion, $userPermissions, $accion, $comentario) {
+            $ultimoEstatusRegistro = Estatus_Requisicion::where('requisicion_id', $requisicion->id)
+                ->where('estatus', 1)
+                ->orderByDesc('created_at')
+                ->first();
+
+            if (!$ultimoEstatusRegistro) {
+                return response()->json(['error' => 'La requisición no tiene un estado activo'], 400);
+            }
+
+            $ultimoEstatus = $ultimoEstatusRegistro->estatus;
+            $nuevoEstatusId = null;
+            $comentarioAccion = ($accion === 'aprobar' ? 'Aprobado' : 'Rechazado') . ($comentario ? ': ' . $comentario : '');
+
+            $aprobacionGerenciaId = Estatus::where('status_name', 'Aprobación Gerencia')->value('id');
+            $aprobacionFinancieraId = Estatus::where('status_name', 'Aprobación Financiera')->value('id');
+            $contactoProveedorId = Estatus::where('status_name', 'Contacto con proveedor')->value('id');
+            $rechazadoId = Estatus::where('status_name', 'Rechazado')->value('id');
+
+            if ($accion === 'rechazar') {
+                $nuevoEstatusId = $rechazadoId;
+            } elseif ($accion === 'aprobar') {
+                if (in_array('Gerencia', $userPermissions) && $ultimoEstatus->id === $aprobacionGerenciaId) {
+                    $nuevoEstatusId = $aprobacionFinancieraId;
+                } elseif (in_array('Gerente financiero', $userPermissions) && $ultimoEstatus->id === $aprobacionFinancieraId) {
+                    $nuevoEstatusId = $contactoProveedorId;
+                } else {
+                    return response()->json(['error' => 'No tienes permiso para aprobar en este estado.'], 403);
+                }
+            }
+
+            if ($nuevoEstatusId === null) {
+                return response()->json(['error' => 'Transición de estado no válida.'], 400);
+            }
+
+            $ultimoEstatusRegistro->update(['estatus' => 0]);
+
+            $nuevoEstadoRegistro = Estatus_Requisicion::create([
+                'estatus_id'     => $nuevoEstatusId,
+                'requisicion_id' => $requisicion->id,
+                'estatus'        => 1,
+                'date_update'    => now(),
+                'comentario'     => $comentarioAccion,
+            ]);
+
+            return response()->json([
+                'message'      => "Requisición " . ($accion === 'aprobar' ? 'aprobada' : 'rechazada') . " y estado actualizado.",
+                'nuevo_estado' => $nuevoEstadoRegistro
+            ]);
+        });
     }
 
     public function avanzar(Request $request, Requisicion $requisicion)
@@ -147,7 +257,7 @@ class EstatusRequisicionController extends Controller
             Estatus_Requisicion::where('requisicion_id', $requisicion->id)->update(['estatus' => 0]);
 
             $cancelado = Estatus_Requisicion::create([
-                'estatus_id'     => 8, // ID de "Cancelado"
+                'estatus_id'     => 8,
                 'requisicion_id' => $requisicion->id,
                 'estatus'        => 1,
                 'date_update'    => now(),
