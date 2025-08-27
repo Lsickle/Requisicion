@@ -8,11 +8,8 @@ use App\Models\Estatus;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Session;
 use App\Helpers\PermissionHelper;
-use App\Mail\EstatusRequisicionActualizado;
-use Illuminate\Support\Facades\Mail;
-use app\Jobs\EstatusRequisicionActualizadoJob;
+use App\Jobs\EstatusRequisicionActualizadoJob;
 
 class EstatusRequisicionController extends Controller
 {
@@ -36,7 +33,7 @@ class EstatusRequisicionController extends Controller
         if ($role === 'Gerencia') $estatusFiltrar = 1; // iniciada
         if ($role === 'Gerente financiero') $estatusFiltrar = 2; // aprobación financiera
 
-        // Obtener requisiciones según estatus
+        // Obtener requisiciones
         $requisiciones = Requisicion::with(['ultimoEstatus.estatus', 'productos', 'estatusHistorial.estatus'])
             ->whereHas('ultimoEstatus', function ($q) use ($estatusFiltrar) {
                 $q->where('estatus_id', $estatusFiltrar);
@@ -53,15 +50,6 @@ class EstatusRequisicionController extends Controller
         }
 
         return view('requisiciones.aprobacion', compact('requisiciones', 'estatusOptions'));
-    }
-
-    public function show($id)
-    {
-        $requisicion = Requisicion::with('estatus')->findOrFail($id);
-        $estatusOrdenados = $requisicion->estatus->sortBy('pivot.created_at');
-        $estatusActual = $estatusOrdenados->last();
-
-        return view('requisiciones.estatus', compact('requisicion', 'estatusOrdenados', 'estatusActual'));
     }
 
     public function updateStatus(Request $request, $requisicionId)
@@ -100,36 +88,33 @@ class EstatusRequisicionController extends Controller
 
             // Si se rechaza (estatus_id 8), crear rechazado y completado
             if ($request->estatus_id == 8) {
-                $rechazado = new Estatus_Requisicion();
-                $rechazado->requisicion_id = $requisicionId;
-                $rechazado->estatus_id = 8; // Rechazado
-                $rechazado->estatus = 0; // Inactivo
-                $rechazado->date_update = now();
-                $rechazado->save();
+                $rechazado = Estatus_Requisicion::create([
+                    'requisicion_id' => $requisicionId,
+                    'estatus_id' => 8,
+                    'estatus' => 0,
+                    'date_update' => now(),
+                ]);
 
-                $completado = new Estatus_Requisicion();
-                $completado->requisicion_id = $requisicionId;
-                $completado->estatus_id = 9; // Completado
-                $completado->estatus = 1; // Activo
-                $completado->date_update = now();
-                $completado->save();
+                $completado = Estatus_Requisicion::create([
+                    'requisicion_id' => $requisicionId,
+                    'estatus_id' => 9,
+                    'estatus' => 1,
+                    'date_update' => now(),
+                ]);
 
                 $nuevoEstatus = $completado;
                 $mensajeAccion = 'rechazada';
             } else {
-                $nuevo = new Estatus_Requisicion();
-                $nuevo->requisicion_id = $requisicionId;
-                $nuevo->estatus_id = $request->estatus_id;
-                $nuevo->estatus = 1;
-                $nuevo->date_update = now();
-                $nuevo->save();
-
-                $nuevoEstatus = $nuevo;
+                $nuevoEstatus = Estatus_Requisicion::create([
+                    'requisicion_id' => $requisicionId,
+                    'estatus_id' => $request->estatus_id,
+                    'estatus' => 1,
+                    'date_update' => now(),
+                ]);
             }
 
-            // Enviar correo con Job (asincrónico)
+            // Enviar correo con Job
             EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus);
-
 
             DB::commit();
 
@@ -145,39 +130,5 @@ class EstatusRequisicionController extends Controller
                 'message' => 'Error al actualizar el estatus: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-
-    public function getRequisicionDetails($id)
-    {
-        $requisicion = Requisicion::with(['productos', 'estatusHistorial.estatus', 'centros'])->findOrFail($id);
-
-        $data = [
-            'requisicion' => $requisicion,
-            'productos' => $requisicion->productos->map(fn($p) => [
-                'nombre' => $p->name_produc,
-                'cantidad' => $p->pivot->pr_amount,
-                'unidad' => $p->unit_produc
-            ]),
-            'historial' => $requisicion->estatusHistorial->map(fn($h) => [
-                'estatus' => $h->estatus->status_name,
-                'fecha' => $h->created_at->format('d/m/Y H:i'),
-            ])
-        ];
-
-        return response()->json($data);
-    }
-
-    public function getStats()
-    {
-        $stats = DB::table('estatus_requisicion as er')
-            ->join('estatus as e', 'er.estatus_id', '=', 'e.id')
-            ->select('e.status_name', DB::raw('COUNT(DISTINCT er.requisicion_id) as total'))
-            ->where('er.estatus', 1) // Solo contar estatus activos
-            ->groupBy('e.status_name')
-            ->get()
-            ->pluck('total', 'status_name');
-
-        return response()->json($stats);
     }
 }

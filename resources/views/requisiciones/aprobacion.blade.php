@@ -4,7 +4,6 @@
 
 @section('content')
 <div class="flex pt-20">
-
     <!-- Sidebar -->
     <x-sidebar />
 
@@ -146,20 +145,7 @@ function toggleModal(id){
     modal.classList.toggle('flex');
 }
 
-// ⚡ Se mantiene tu funcionalidad original intacta
-function loadStatistics() {
-    fetch('{{ route("requisiciones.estadisticas") }}')
-        .then(res => res.json())
-        .then(resp => {
-            document.getElementById('pendientes-count').textContent = resp['Pendiente'] || 0;
-            document.getElementById('aprobadas-count').textContent = resp['Aprobado'] || 0;
-            document.getElementById('rechazadas-count').textContent = resp['Rechazado'] || 0;
-            document.getElementById('revision-count').textContent = resp['En revisión'] || 0;
-        })
-        .catch(err => console.error('Error estadísticas:', err));
-}
-loadStatistics();
-
+// ⚡ Función para aprobar/rechazar
 document.querySelectorAll('.status-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const requisicionId = this.dataset.id;
