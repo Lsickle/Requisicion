@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Helpers\PermissionHelper;
 use App\Jobs\EstatusRequisicionActualizadoJob;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class EstatusRequisicionController extends Controller
 {
@@ -113,8 +115,12 @@ class EstatusRequisicionController extends Controller
                 ]);
             }
 
+            // Obtener información del usuario para el email
+            $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
+            $userEmail = $userInfo['email'] ?? null;
+
             // Enviar correo con Job
-            EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus);
+            EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
 
             DB::commit();
 
@@ -129,6 +135,55 @@ class EstatusRequisicionController extends Controller
                 'success' => false,
                 'message' => 'Error al actualizar el estatus: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Obtener información del usuario desde la API
+     */
+    private function obtenerInformacionUsuario($userId)
+    {
+        try {
+            $apiToken = session('api_token');
+            
+            if (!$apiToken) {
+                Log::error("No hay token de API disponible en la sesión");
+                return ['email' => null];
+            }
+
+            // Intentar con diferentes endpoints posibles
+            $possibleEndpoints = [
+                env('VPL_CORE') . "/api/user/{$userId}",
+                env('VPL_CORE') . "/api/users/{$userId}",
+                env('VPL_CORE') . "/api/auth/user/{$userId}",
+            ];
+
+            foreach ($possibleEndpoints as $apiUrl) {
+                $response = Http::withoutVerifying()
+                    ->withToken($apiToken)
+                    ->timeout(15)
+                    ->get($apiUrl);
+
+                if ($response->successful()) {
+                    $userData = $response->json();
+                    
+                    // Diferentes estructuras posibles de respuesta
+                    $email = $userData['email'] ?? 
+                             $userData['user']['email'] ?? 
+                             ($userData['data']['email'] ?? null);
+                    
+                    if ($email) {
+                        return ['email' => $email];
+                    }
+                }
+            }
+
+            Log::error("Todos los endpoints fallaron para usuario {$userId}");
+            return ['email' => null];
+
+        } catch (\Throwable $e) {
+            Log::error("Error obteniendo información del usuario {$userId}: " . $e->getMessage());
+            return ['email' => null];
         }
     }
 }

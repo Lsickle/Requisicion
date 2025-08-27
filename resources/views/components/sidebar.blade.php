@@ -106,9 +106,6 @@
             <div>
                 <p class="font-semibold text-white">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
                 <p class="text-blue-300 text-xs">{{ Session::get('user')['email'] ?? '' }}</p>
-                <p class="text-blue-200 text-xs mt-1">
-                    Roles: {{ implode(', ', Session::get('user_roles', [])) }}
-                </p>
             </div>
             @endif
 
