@@ -19,14 +19,23 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
     protected $requisicion;
     protected $estatus;
 
+    /**
+     * Create a new job instance.
+     */
     public function __construct(Requisicion $requisicion, Estatus_Requisicion $estatus)
     {
         $this->requisicion = $requisicion;
         $this->estatus = $estatus;
     }
 
+    /**
+     * Execute the job.
+     */
     public function handle()
     {
-        Mail::send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
+        // Aquí defines los destinatarios de la notificación
+        Mail::to([
+            'pardomoyasegio@gmail.com'
+        ])->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
     }
 }

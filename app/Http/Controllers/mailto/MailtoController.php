@@ -39,40 +39,4 @@ class MailtoController extends Controller
         OrdenCompraCreadaJob::dispatch($orden);
         return response()->json(['message' => 'Purchase order created notification queued']);
     }
-
-    // The following methods can remain as is or be removed if not needed
-    public function index()
-    {
-        //
-    }
-
-    public function create()
-    {
-        //
-    }
-
-    public function store(Request $request)
-    {
-        //
-    }
-
-    public function show(string $id)
-    {
-        //
-    }
-
-    public function edit(string $id)
-    {
-        //
-    }
-
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    public function destroy(string $id)
-    {
-        //
-    }
 }

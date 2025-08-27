@@ -11,15 +11,15 @@ class EstatusSeeder extends Seeder
     public function run()
     {
         $estatus = [
-            ['status_name' => 'Iniciada'],
-            ['status_name' => 'Aprobación Gerencia'],
-            ['status_name' => 'Aprobación Financiera'],
-            ['status_name' => 'Contacto con proveedor'],
-            ['status_name' => 'Entrega aproximada'],
-            ['status_name' => 'Recibido en bodega'],
-            ['status_name' => 'Recogido por coordinador'],
-            ['status_name' => 'Rechazado'],
-            ['status_name' => 'Completado'],
+                ['status_name' => 'Iniciada'],
+                ['status_name' => 'Aprobación Gerencia'],
+                ['status_name' => 'Aprobación Financiera'],
+                ['status_name' => 'Contacto con proveedor'],
+                ['status_name' => 'Entrega aproximada'],
+                ['status_name' => 'Recibido en bodega'],
+                ['status_name' => 'Recogido por coordinador'],
+                ['status_name' => 'Rechazado'],
+                ['status_name' => 'Completado'],
         ];
 
         foreach ($estatus as $estado) {

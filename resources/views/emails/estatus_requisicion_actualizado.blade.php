@@ -1,18 +1,24 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-    <title>Actualización de Estatus - Requisición #{{ $requisicion->id }}</title>
+    <meta charset="utf-8">
+    <title>Cambio de Estatus - Requisición #{{ $requisicion->id }}</title>
 </head>
-
 <body>
-    <h1>Estatus Actualizado - Requisición #{{ $requisicion->id }}</h1>
-    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam et aliquet arcu. Curabitur et faucibus ex, sed
-        pharetra dolor. Fusce sit amet varius augue, sollicitudin fringilla justo. Nam ut dui iaculis, facilisis felis
-        eget, vehicula mauris. Ut sit amet pharetra mi, ut malesuada eros. Pellentesque habitant morbi tristique
-        senectus et netus et malesuada fames ac turpis egestas. Aenean fermentum pharetra orci. Etiam non erat id lectus
-        facilisis blandit quis auctor tortor.</p>
-    <p>Puedes revisar la requisición en el sistema.</p>
-</body>
+    <h2>Requisición #{{ $requisicion->id }}</h2>
+    <p>Se ha actualizado el estatus de la requisición.</p>
 
+    <p><strong>Nuevo estatus:</strong> {{ $estatus->estatus->status_name ?? 'Desconocido' }}</p>
+    <p><strong>Fecha:</strong> {{ $estatus->created_at->format('d/m/Y H:i') }}</p>
+
+    <h3>Detalles de la requisición:</h3>
+    <ul>
+        @foreach($requisicion->productos as $producto)
+            <li>{{ $producto->name_produc }} ({{ $producto->pivot->pr_amount }} {{ $producto->unit_produc }})</li>
+        @endforeach
+    </ul>
+
+    <p>Saludos,</p>
+    <p>El sistema de requisiciones</p>
+</body>
 </html>
