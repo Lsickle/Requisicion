@@ -11,6 +11,17 @@ class RequisicionFactory extends Factory
 
     public function definition(): array
     {
+        $operaciones = [
+            'MARY KAY', 'COLTABACO', 'ADMINISTRACION', 'CEDI FRIO', 'ORIFLAME',
+            'INVENTARIOS', 'HUAWEI', 'MULTICLIENTE 1E', 'OVERHEAD', 'MATTEL',
+            'NAOS', 'ORTOPEDICOS', 'COMERCIAL', 'MULTICLIENTE 12G', 'MANTENIMIENTO',
+            'SONY', 'TRANSPORTES', 'SEGURIDAD', 'MAC MILLAN', 'TECNOLOGIA',
+            'INNOVACION Y DESARROLLO', 'MULTICLIENTE', 'KW COLOMBIA', 'LAFAZENDA',
+            'MC MILLAN', 'HSEQ', 'TODOS COMEMOS', 'KIKES', 'MEJORAMIENTO CONTINUO',
+            'CALIDAD', 'FRIO', 'ORIFALME', 'COMPRAS', 'ORTOPEDICOS FUTURO',
+            'AGROFRUT', 'TALENTO HUMANO', 'SULFOQUIMICA', 'OVERHED'
+        ];
+
         $requisiciones = [
             [
                 'justify_requisicion' => 'Se necesita adquisición de equipos para la nueva sede.',
@@ -53,6 +64,7 @@ class RequisicionFactory extends Factory
 
         return array_merge($req, [
             'user_id' => (string) $this->faker->numberBetween(1, 100), // id simulado de la API
+            'operacion_user' => $this->faker->randomElement($operaciones), // operación/centro de costo aleatorio
         ]);
     }
 }

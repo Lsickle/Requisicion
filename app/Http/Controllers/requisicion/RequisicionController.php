@@ -72,8 +72,14 @@ class RequisicionController extends Controller
                 }
             }
 
+            // Obtener información del usuario desde la SESIÓN (más eficiente que API)
+            $userId = session('user.id');
+            $nombreUsuario = session('user.name', 'Usuario Desconocido');
+            $operacionUsuario = session('user.operaciones', 'Operación no definida');
+
             $requisicion = new Requisicion();
-            $requisicion->user_id = session('user.id');
+            $requisicion->user_id = $userId;
+            $requisicion->operacion_user = $operacionUsuario; // Guardar la operación
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -113,8 +119,7 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            $nombreSolicitante = session('user.name') ?? 'Usuario Desconocido';
-            RequisicionCreadaJob::dispatch($requisicion, $nombreSolicitante);
+            RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
 
             return redirect()->route('requisiciones.menu')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
@@ -142,11 +147,14 @@ class RequisicionController extends Controller
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
-        $nombreSolicitante = $this->obtenerNombreUsuario($requisicion->user_id);
+        $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
+        $nombreSolicitante = $userInfo['name'] ?? 'Usuario Desconocido';
+        $operacionSolicitante = $requisicion->operacion_user; // Usar la operación guardada
 
         $pdf = Pdf::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion,
             'nombreSolicitante' => $nombreSolicitante,
+            'operacionSolicitante' => $operacionSolicitante,
             'logo' => asset('logo_empresa.png'),
         ])->setPaper('A4', 'portrait');
 
@@ -165,7 +173,7 @@ class RequisicionController extends Controller
         return view('requisiciones.historial', compact('requisiciones'));
     }
 
-    private function obtenerNombreUsuario($userId)
+    private function obtenerInformacionUsuario($userId)
     {
         try {
             $apiUrl = env('VPL_CORE') . "/api/users/{$userId}";
@@ -173,12 +181,24 @@ class RequisicionController extends Controller
 
             if ($response->ok()) {
                 $userData = $response->json();
-                return $userData['name'] ?? $userData['email'] ?? 'Usuario Desconocido';
+                return [
+                    'name' => $userData['user']['name'] ?? $userData['user']['email'] ?? 'Usuario Desconocido',
+                    'operaciones' => $userData['user']['operaciones'] ?? 'Operación no definida'
+                ];
             }
         } catch (\Throwable $e) {
-            Log::error("Error obteniendo usuario {$userId}: {$e->getMessage()}");
+            Log::error("Error obteniendo información del usuario {$userId}: {$e->getMessage()}");
         }
 
-        return 'Usuario Desconocido';
+        return [
+            'name' => 'Usuario Desconocido',
+            'operaciones' => 'Operación no definida'
+        ];
+    }
+
+    private function obtenerNombreUsuario($userId)
+    {
+        $userInfo = $this->obtenerInformacionUsuario($userId);
+        return $userInfo['name'];
     }
 }

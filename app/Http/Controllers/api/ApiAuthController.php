@@ -23,7 +23,6 @@ class ApiAuthController extends Controller
 
         $apiurl = env('VPL_CORE') . '/api/auth/login';
 
-
         $response = Http::withoutVerifying()->post($apiurl, [
             'email' => $request->email,
             'password' => $request->password,
@@ -38,13 +37,14 @@ class ApiAuthController extends Controller
         $data = $response->json();
         $userData = $data['user'] ?? [];
 
-        // Guardar token y usuario en sesión
+        // Guardar token y usuario en sesión INCLUYENDO LA OPERACIÓN
         session([
             'api_token'   => $data['access_token'] ?? null,
             'user'        => $userData,
             'user.id'     => $userData['id'] ?? null,
             'user.name'   => $userData['name'] ?? ($userData['email'] ?? 'Usuario'),
             'user.email'  => $userData['email'] ?? null,
+            'user.operaciones' => $userData['operaciones'] ?? 'Operación no definida', // AGREGAR ESTA LÍNEA
         ]);
 
         // Extraer roles y permisos usando helper
@@ -93,7 +93,9 @@ class ApiAuthController extends Controller
             'user_roles',
             'user_permissions',
             'user.id',
-            'user.name'
+            'user.name',
+            'user.email',
+            'user.operaciones',
         ]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
