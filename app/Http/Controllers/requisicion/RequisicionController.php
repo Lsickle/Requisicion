@@ -72,13 +72,16 @@ class RequisicionController extends Controller
                 }
             }
 
-            // Obtener información del usuario desde la SESIÓN (más eficiente que API)
+            // Obtener información del usuario desde la SESIÓN
             $userId = session('user.id');
             $nombreUsuario = session('user.name', 'Usuario Desconocido');
+            $emailUsuario = session('user.email', 'email@desconocido.com');
             $operacionUsuario = session('user.operaciones', 'Operación no definida');
 
             $requisicion = new Requisicion();
             $requisicion->user_id = $userId;
+            $requisicion->name_user = $nombreUsuario; // Guardar el nombre
+            $requisicion->email_user = $emailUsuario; // Guardar el email
             $requisicion->operacion_user = $operacionUsuario; // Guardar la operación
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
@@ -147,13 +150,15 @@ class RequisicionController extends Controller
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
-        $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
-        $nombreSolicitante = $userInfo['name'] ?? 'Usuario Desconocido';
-        $operacionSolicitante = $requisicion->operacion_user; // Usar la operación guardada
+        // Usar los datos guardados en la requisición en lugar de hacer una nueva consulta
+        $nombreSolicitante = $requisicion->name_user;
+        $emailSolicitante = $requisicion->email_user;
+        $operacionSolicitante = $requisicion->operacion_user;
 
         $pdf = Pdf::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion,
             'nombreSolicitante' => $nombreSolicitante,
+            'emailSolicitante' => $emailSolicitante,
             'operacionSolicitante' => $operacionSolicitante,
             'logo' => asset('logo_empresa.png'),
         ])->setPaper('A4', 'portrait');
@@ -183,6 +188,7 @@ class RequisicionController extends Controller
                 $userData = $response->json();
                 return [
                     'name' => $userData['user']['name'] ?? $userData['user']['email'] ?? 'Usuario Desconocido',
+                    'email' => $userData['user']['email'] ?? 'email@desconocido.com',
                     'operaciones' => $userData['user']['operaciones'] ?? 'Operación no definida'
                 ];
             }
@@ -192,6 +198,7 @@ class RequisicionController extends Controller
 
         return [
             'name' => 'Usuario Desconocido',
+            'email' => 'email@desconocido.com',
             'operaciones' => 'Operación no definida'
         ];
     }

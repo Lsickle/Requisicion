@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('requisicion', function (Blueprint $table) {
             $table->id();
             $table->string('user_id'); #id del usuario en la api
+            $table->string('name_user'); #nombre del usuario
+            $table->string('email_user'); #email del usuario
             $table->string('operacion_user'); #nombre de la operacion            
             $table->text('justify_requisicion'); #justificacion de la requisicion
             $table->text('detail_requisicion'); #detalles adicionales de la requisicion

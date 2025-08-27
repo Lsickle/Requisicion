@@ -64,6 +64,8 @@ class RequisicionFactory extends Factory
 
         return array_merge($req, [
             'user_id' => (string) $this->faker->numberBetween(1, 100), // id simulado de la API
+            'name_user' => $this->faker->name(), // nombre simulado del usuario
+            'email_user' => $this->faker->email(), // email simulado del usuario
             'operacion_user' => $this->faker->randomElement($operaciones), // operación/centro de costo aleatorio
         ]);
     }
