@@ -98,7 +98,6 @@ class RequisicionController extends Controller
                     'estatus_id'     => $estatusInicial->id,
                     'estatus'        => 1, // activo
                     'date_update'    => now(),
-                    'comentario'     => 'Requisición iniciada automáticamente.'
                 ]);
             }
 
@@ -170,10 +169,29 @@ class RequisicionController extends Controller
     {
         $userId = session('user.id');
 
-        $requisiciones = Requisicion::with(['productos', 'estatusHistorial.estatus'])
+        $requisiciones = Requisicion::with([
+            'productos',
+            'ultimoEstatus.estatus', // Carga la relación anidada
+            'estatusHistorial.estatus' //  Cargar el historial completo por si acaso
+        ])
             ->where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Debug: Verificar qué datos se están obteniendo
+        Log::info('Requisiciones con estatus:', [
+            'count' => $requisiciones->count(),
+            'data' => $requisiciones->map(function ($req) {
+                return [
+                    'id' => $req->id,
+                    'ultimoEstatus' => $req->ultimoEstatus ? [
+                        'id' => $req->ultimoEstatus->id,
+                        'estatus_id' => $req->ultimoEstatus->estatus_id,
+                        'estatus_name' => $req->ultimoEstatus->estatus->status_name ?? null
+                    ] : null
+                ];
+            })
+        ]);
 
         return view('requisiciones.historial', compact('requisiciones'));
     }

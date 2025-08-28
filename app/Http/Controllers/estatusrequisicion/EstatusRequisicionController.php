@@ -17,12 +17,10 @@ class EstatusRequisicionController extends Controller
 {
     public function index()
     {
-        // Validar sesión y permisos
         if (!PermissionHelper::hasAnyRole(['Gerencia', 'Gerente financiero']) || !PermissionHelper::hasPermission('aprobar requisicion')) {
             return redirect()->route('index')->with('error', 'Debes iniciar sesión o no tienes permisos suficientes.');
         }
 
-        // Determinar rol
         $role = null;
         if (PermissionHelper::hasRole('Gerencia')) {
             $role = 'Gerencia';
@@ -30,12 +28,11 @@ class EstatusRequisicionController extends Controller
             $role = 'Gerente financiero';
         }
 
-        // Determinar estatus según rol
+        // Nuevo mapeo de estatus según rol
         $estatusFiltrar = 0;
-        if ($role === 'Gerencia') $estatusFiltrar = 1; // iniciada
-        if ($role === 'Gerente financiero') $estatusFiltrar = 2; // aprobación financiera
+        if ($role === 'Gerencia') $estatusFiltrar = 3; // ahora es "Aprobación Gerencia"
+        if ($role === 'Gerente financiero') $estatusFiltrar = 4; // ahora es "Aprobación Financiera"
 
-        // Obtener requisiciones
         $requisiciones = Requisicion::with(['ultimoEstatus.estatus', 'productos', 'estatusHistorial.estatus'])
             ->whereHas('ultimoEstatus', function ($q) use ($estatusFiltrar) {
                 $q->where('estatus_id', $estatusFiltrar);
@@ -43,15 +40,26 @@ class EstatusRequisicionController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Opciones de estatus según rol
+        // Opciones de estatus según rol (actualizadas)
         $estatusOptions = collect();
         if ($role === 'Gerencia') {
-            $estatusOptions = Estatus::whereIn('id', [2, 8])->pluck('status_name', 'id');
+            // Gerencia puede aprobar (4) o rechazar (9)
+            $estatusOptions = Estatus::whereIn('id', [4, 9])->pluck('status_name', 'id');
         } elseif ($role === 'Gerente financiero') {
-            $estatusOptions = Estatus::whereIn('id', [3, 8])->pluck('status_name', 'id');
+            // Finanzas puede aprobar siguiente paso (5) o rechazar (9)
+            $estatusOptions = Estatus::whereIn('id', [5, 9])->pluck('status_name', 'id');
         }
 
         return view('requisiciones.aprobacion', compact('requisiciones', 'estatusOptions'));
+    }
+
+    public function show($id)
+    {
+        $requisicion = Requisicion::with('estatus')->findOrFail($id);
+        $estatusOrdenados = $requisicion->estatus->sortBy('pivot.created_at');
+        $estatusActual = $estatusOrdenados->last();
+
+        return view('requisiciones.estatus', compact('requisicion', 'estatusOrdenados', 'estatusActual'));
     }
 
     public function updateStatus(Request $request, $requisicionId)
@@ -74,32 +82,31 @@ class EstatusRequisicionController extends Controller
 
             $requisicion = Requisicion::with('ultimoEstatus')->findOrFail($requisicionId);
 
-            // Validar estatus según rol
-            if ($role === 'Gerencia' && $requisicion->ultimoEstatus->estatus_id != 1) {
-                return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus iniciada'], 403);
+            // Validar estatus según rol con los nuevos IDs
+            if ($role === 'Gerencia' && $requisicion->ultimoEstatus->estatus_id != 3) {
+                return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus Aprobación Gerencia'], 403);
             }
 
-            if ($role === 'Gerente financiero' && $requisicion->ultimoEstatus->estatus_id != 2) {
-                return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus de aprobación financiera'], 403);
+            if ($role === 'Gerente financiero' && $requisicion->ultimoEstatus->estatus_id != 4) {
+                return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus Aprobación Financiera'], 403);
             }
 
             // Desactivar todos los estatus anteriores
             Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
-            $mensajeAccion = 'aprobada'; // por defecto
+            $mensajeAccion = 'aprobada';
 
-            // Si se rechaza (estatus_id 8), crear rechazado y completado
-            if ($request->estatus_id == 8) {
+            if ($request->estatus_id == 9) { // Rechazado
                 $rechazado = Estatus_Requisicion::create([
                     'requisicion_id' => $requisicionId,
-                    'estatus_id' => 8,
+                    'estatus_id' => 9,
                     'estatus' => 0,
                     'date_update' => now(),
                 ]);
 
                 $completado = Estatus_Requisicion::create([
                     'requisicion_id' => $requisicionId,
-                    'estatus_id' => 9,
+                    'estatus_id' => 10,
                     'estatus' => 1,
                     'date_update' => now(),
                 ]);
@@ -115,11 +122,9 @@ class EstatusRequisicionController extends Controller
                 ]);
             }
 
-            // Obtener información del usuario para el email
             $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
             $userEmail = $userInfo['email'] ?? null;
 
-            // Enviar correo con Job
             EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
 
             DB::commit();
@@ -138,9 +143,6 @@ class EstatusRequisicionController extends Controller
         }
     }
 
-    /**
-     * Obtener información del usuario desde la API
-     */
     private function obtenerInformacionUsuario($userId)
     {
         try {
@@ -151,7 +153,6 @@ class EstatusRequisicionController extends Controller
                 return ['email' => null];
             }
 
-            // Intentar con diferentes endpoints posibles
             $possibleEndpoints = [
                 env('VPL_CORE') . "/api/user/{$userId}",
                 env('VPL_CORE') . "/api/users/{$userId}",
@@ -167,7 +168,6 @@ class EstatusRequisicionController extends Controller
                 if ($response->successful()) {
                     $userData = $response->json();
                     
-                    // Diferentes estructuras posibles de respuesta
                     $email = $userData['email'] ?? 
                              $userData['user']['email'] ?? 
                              ($userData['data']['email'] ?? null);

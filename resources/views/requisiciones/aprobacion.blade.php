@@ -87,7 +87,7 @@
                                 <div class="flex justify-end gap-2 mt-6">
                                     @php
                                         $estatusAprobar = $estatusOptions->keys()->first();
-                                        $estatusRechazar = 8;
+                                        $estatusRechazar = 9;
                                     @endphp
                                     <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" 
                                         data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">

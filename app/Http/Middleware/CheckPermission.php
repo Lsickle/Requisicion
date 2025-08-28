@@ -29,7 +29,7 @@ class CheckPermission extends Middleware
         // Verificar si el usuario tiene el permiso requerido
         if (!in_array($permission, $userPermissions)) {
             Log::warning('Permission denied: ' . $permission);
-            return redirect('/')->with('error', 'No tienes permisos para acceder a esta sección. Permiso requerido: ' . $permission);
+            return back()->with('error', 'No tienes permisos para acceder a esta sección. Permiso requerido: ' . $permission);
         }
 
         Log::info('Permission granted: ' . $permission);

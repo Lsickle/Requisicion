@@ -163,11 +163,13 @@ class PdfController extends Controller
         $nombreSolicitante = $this->obtenerNombreUsuario($requisicion->user_id);
 
         $pdf = PDF::loadView('requisiciones.pdf', [
-            'requisicion' => $requisicion,
-            'logo' => $this->getLogoData(),
-            'fecha_actual' => Carbon::now()->format('d/m/Y H:i'),
-            'nombreSolicitante' => $nombreSolicitante,
+            'requisicion'        => $requisicion,
+            'logo'               => $this->getLogoData(),
+            'fecha_actual'       => Carbon::now()->format('d/m/Y H:i'),
+            'nombreSolicitante'  => $requisicion->nombre_user,
+            'operacionUsuario'   => $requisicion->operacion_user,
         ])->setPaper('a4', 'portrait');
+
 
         return $pdf->download("requisicion-{$requisicion->id}.pdf");
     }
@@ -200,7 +202,7 @@ class PdfController extends Controller
     {
         try {
             $apiUrl = env('VPL_CORE') . "/api/users/{$userId}";
-            
+
             // Usar file_get_contents con contexto SSL deshabilitado para desarrollo
             $response = @file_get_contents($apiUrl, false, stream_context_create([
                 'ssl' => [
@@ -211,7 +213,7 @@ class PdfController extends Controller
                     'timeout' => 5 // Timeout de 5 segundos
                 ]
             ]));
-            
+
             if ($response !== false) {
                 $userData = json_decode($response, true);
                 return $userData['name'] ?? $userData['email'] ?? 'Usuario Desconocido';
@@ -219,7 +221,7 @@ class PdfController extends Controller
         } catch (\Throwable $e) {
             Log::error("Error obteniendo usuario {$userId}: {$e->getMessage()}");
         }
-        
+
         return 'Usuario Desconocido';
     }
 }

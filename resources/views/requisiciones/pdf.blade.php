@@ -168,7 +168,12 @@
         </div>
 
         <div class="document-info">
-            <div class="title">REQUISICIÓN #{{ $requisicion->id }}</div>
+            <div class="title">
+                REQUISICIÓN #{{ $requisicion->id }}
+                @if(!empty($operacionUsuario))
+                {{ $operacionUsuario }}
+                @endif
+            </div>
             <div><strong>Fecha:</strong> {{ $requisicion->created_at->format('d/m/Y') }}</div>
         </div>
         <div class="clear"></div>
@@ -178,13 +183,11 @@
     <div class="info-section">
         <div class="info-box">
             <h4>Detalles de la Requisición</h4>
-            <div class="info-item"><span class="label">Solicitante:</span> {{ $nombreSolicitante ?? 'Desconocido' }}</div>
-            <div class="info-item"><span class="label">Prioridad:</span> {{
-                ucfirst($requisicion->prioridad_requisicion)}}</div>
+            <div class="info-item"><span class="label">Solicitante:</span> {{ $requisicion->name_user ?? 'Desconocido' }}</div>
+            <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion)}}</div>
             <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>
             <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
-            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}
-            </div>
+            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}</div>
         </div>
     </div>
 

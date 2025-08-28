@@ -12,6 +12,7 @@ class EstatusSeeder extends Seeder
     {
         $estatus = [
                 ['status_name' => 'Iniciada'],
+                ['status_name' => 'Revision'],
                 ['status_name' => 'Aprobación Gerencia'],
                 ['status_name' => 'Aprobación Financiera'],
                 ['status_name' => 'Contacto con proveedor'],
