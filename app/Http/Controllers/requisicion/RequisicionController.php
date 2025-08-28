@@ -37,6 +37,126 @@ class RequisicionController extends Controller
         return view('requisiciones.menu');
     }
 
+    public function edit($id)
+    {
+        $requisicion = Requisicion::with([
+            'productos',
+            'productos.centros',
+            'estatusHistorial.estatus'
+        ])->findOrFail($id);
+
+        // Verificar que la requisición está en estatus "Corregir"
+        $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+        if ($ultimoEstatus != 11) { // 11 = Corregir
+            return redirect()->route('requisiciones.historial')->with('error', 'Solo se pueden editar requisiciones en estatus "Corregir"');
+        }
+
+        // Obtener el comentario de rechazo
+        $comentarioRechazo = Estatus_Requisicion::where('requisicion_id', $id)
+            ->where('estatus_id', 11)
+            ->where('estatus', 1)
+            ->first()->comentario ?? '';
+
+        $centros = Centro::all();
+        $productos = Producto::all(); // Añadir esta línea
+
+        return view('requisiciones.edit', compact('requisicion', 'centros', 'productos', 'comentarioRechazo'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $requisicion = Requisicion::findOrFail($id);
+
+        // Verificar que la requisición está en estatus "Corregir"
+        $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+        if ($ultimoEstatus != 11) {
+            return redirect()->route('requisiciones.historial')->with('error', 'Solo se pueden editar requisiciones en estatus "Corregir"');
+        }
+
+        $validated = $request->validate([
+            'Recobrable' => 'required|in:Recobrable,No recobrable',
+            'prioridad_requisicion' => 'required|in:baja,media,alta',
+            'justify_requisicion' => 'required|string|min:3|max:500',
+            'detail_requisicion' => 'required|string|min:3|max:1000',
+            'productos' => 'required|array|min:1',
+            'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
+            'productos.*.requisicion_amount' => 'required|integer|min:1',
+            'productos.*.centros' => 'required|array|min:1',
+            'productos.*.centros.*.id' => 'required|exists:centro,id',
+            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+        ], [
+            'productos.required' => 'Agrega al menos un producto.',
+            'productos.*.requisicion_amount.required' => 'La cantidad total por producto es obligatoria.',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $totalRequisicion = 0;
+            foreach ($validated['productos'] as $prod) {
+                $totalRequisicion += (int)$prod['requisicion_amount'];
+                $sumaCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+                if ($sumaCentros !== (int)$prod['requisicion_amount']) {
+                    throw ValidationException::withMessages([
+                        'productos' => "Para el producto {$prod['id']}, la suma de cantidades por centros ({$sumaCentros}) no coincide con la cantidad total indicada ({$prod['requisicion_amount']})."
+                    ]);
+                }
+            }
+
+            // Actualizar la requisición
+            $requisicion->Recobrable = $validated['Recobrable'];
+            $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
+            $requisicion->justify_requisicion = $validated['justify_requisicion'];
+            $requisicion->detail_requisicion = $validated['detail_requisicion'];
+            $requisicion->amount_requisicion = $totalRequisicion;
+            $requisicion->save();
+
+            // Eliminar productos y centros anteriores
+            $requisicion->productos()->detach();
+            DB::table('centro_producto')->where('requisicion_id', $requisicion->id)->delete();
+
+            // Agregar nuevos productos y centros
+            foreach ($validated['productos'] as $prod) {
+                $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+                $requisicion->productos()->attach($prod['id'], [
+                    'pr_amount' => $cantidadTotalCentros
+                ]);
+
+                foreach ($prod['centros'] as $centro) {
+                    DB::table('centro_producto')->insert([
+                        'producto_id' => $prod['id'],
+                        'centro_id'   => $centro['id'],
+                        'requisicion_id' => $requisicion->id,
+                        'amount'      => $centro['cantidad'],
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+                }
+            }
+
+            // Cambiar estatus a "Iniciada" para reenviar a aprobación
+            Estatus_Requisicion::where('requisicion_id', $requisicion->id)->update(['estatus' => 0]);
+
+            $estatusIniciada = Estatus::where('status_name', 'Iniciada')->first();
+            if ($estatusIniciada) {
+                Estatus_Requisicion::create([
+                    'requisicion_id' => $requisicion->id,
+                    'estatus_id'     => $estatusIniciada->id,
+                    'estatus'        => 1,
+                    'date_update'    => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('requisiciones.historial')->with('success', 'Requisición corregida y enviada correctamente.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->withInput()->withErrors(['error' => 'Error al actualizar la requisición: ' . $e->getMessage()]);
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

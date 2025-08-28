@@ -54,10 +54,12 @@ class Requisicion extends Model
             ->orderBy('created_at', 'desc');
     }
 
+    // En el modelo Requisicion.php
     public function ultimoEstatus()
     {
         return $this->hasOne(Estatus_Requisicion::class, 'requisicion_id')
             ->where('estatus', 1)
-            ->latestOfMany();
+            ->with('estatus')
+            ->latest();
     }
 }

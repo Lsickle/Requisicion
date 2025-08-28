@@ -8,7 +8,7 @@
 <div class="max-w-6xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
     <h1 class="text-2xl font-bold mb-6">Historial de Requisiciones</h1>
 
-    <!-- 🔍 Barra de búsqueda -->
+    <!-- Barra de búsqueda -->
     <div class="mb-4 flex justify-between items-center">
         <input type="text" id="busqueda" placeholder="Buscar requisición..."
             class="border px-3 py-2 rounded w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300">

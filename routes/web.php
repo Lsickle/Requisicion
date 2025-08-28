@@ -37,22 +37,22 @@ Route::get('/estadisticas-requisiciones', [EstatusRequisicionController::class, 
 
 // Rutas protegidas
 Route::middleware([AuthSession::class])->group(function () {
-    
+
     //  RUTAS DE APROBACIÓN DE REQUISICIONES 
-     // Panel de aprobación de requisiciones
-    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class,'index'])
+    // Panel de aprobación de requisiciones
+    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class, 'index'])
         ->name('requisiciones.aprobacion')
-        ->middleware(CheckPermission::class.':aprobar requisicion');
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
 
     // Actualizar estatus
-    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class,'updateStatus'])
+    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class, 'updateStatus'])
         ->name('requisiciones.estatus.update')
-        ->middleware(CheckPermission::class.':aprobar requisicion');
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
 
     // Obtener detalles
-    Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class,'getRequisicionDetails'])
+    Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class, 'getRequisicionDetails'])
         ->name('requisiciones.detalles')
-        ->middleware(CheckPermission::class.':ver requisicion');
+        ->middleware(CheckPermission::class . ':ver requisicion');
 
     //  RUTAS EXISTENTES DE REQUISICIONES 
     // Vista de menú protegida
@@ -97,6 +97,12 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Recurso principal de requisiciones
     Route::resource('requisiciones', RequisicionController::class)->except(['show']);
+
+    Route::get('/requisiciones/{id}/edit', [RequisicionController::class, 'edit'])
+        ->name('requisiciones.edit');
+
+    Route::put('/requisiciones/{id}', [RequisicionController::class, 'update'])
+        ->name('requisiciones.update');
 });
 
 // Logout
