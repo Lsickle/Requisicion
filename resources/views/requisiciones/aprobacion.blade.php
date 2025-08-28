@@ -136,6 +136,8 @@
 
 @section('scripts')
 <!-- SweetAlert2 -->
+@section('scripts')
+<!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
@@ -152,9 +154,12 @@ document.querySelectorAll('.status-btn').forEach(btn => {
         const estatusId = parseInt(this.dataset.estatus);
         const accion = this.dataset.action;
 
+        console.log('Botón clickeado:', {requisicionId, estatusId, accion});
+
         if (accion === "rechazar") {
             // Verificar si es área de compras (requiere comentario)
             @if($role === 'Area de compras')
+                console.log('Usuario es Area de compras - solicitando comentario');
                 // Pedir comentario obligatorio solo para área de compras
                 Swal.fire({
                     title: "Motivo de rechazo",
@@ -170,11 +175,14 @@ document.querySelectorAll('.status-btn').forEach(btn => {
                         if (!value || value.trim() === '') return "Debes escribir un motivo de rechazo";
                     }
                 }).then((result) => {
+                    console.log('Resultado de SweetAlert:', result);
                     if (result.isConfirmed) {
+                        console.log('Comentario ingresado:', result.value);
                         confirmarCambioEstatus(requisicionId, estatusId, result.value);
                     }
                 });
             @else
+                console.log('Usuario es Gerencia/Financiero - confirmación simple');
                 // Para Gerencia y Gerente financiero: solo confirmación
                 Swal.fire({
                     title: `¿Seguro que deseas rechazar la requisición #${requisicionId}?`,
@@ -192,6 +200,7 @@ document.querySelectorAll('.status-btn').forEach(btn => {
             @endif
         } else {
             // aprobar
+            console.log('Acción de aprobar');
             Swal.fire({
                 title: `¿Seguro que deseas ${accion} la requisición #${requisicionId}?`,
                 icon: "success",
@@ -211,12 +220,19 @@ document.querySelectorAll('.status-btn').forEach(btn => {
 
 function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
     // Crear objeto con los datos a enviar
+    if (!comentario) {
+        const input = document.getElementById(`comentario-${requisicionId}`);
+        if (input) {
+            comentario = input.value.trim();
+        }
+    }
+
     const data = {
         estatus_id: estatusId,
         comentario: comentario
     };
 
-    console.log('Enviando datos:', data);
+    console.log('Enviando datos al servidor:', JSON.stringify(data, null, 2));
 
     fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
         method: 'POST',
@@ -228,12 +244,14 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         body: JSON.stringify(data)
     })
     .then(response => {
+        console.log('Respuesta del servidor - status:', response.status);
         if (!response.ok) {
             throw new Error('Error en la respuesta del servidor: ' + response.status);
         }
         return response.json();
     })
     .then(data => {
+        console.log('Respuesta del servidor - data:', data);
         if (data.success) {
             Swal.fire("Éxito", data.message || "Estatus actualizado", "success")
                 .then(() => location.reload());
@@ -242,7 +260,7 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        console.error('Error en la petición:', error);
         Swal.fire("Error", "No se pudo actualizar el estatus: " + error.message, "error");
     });
 }

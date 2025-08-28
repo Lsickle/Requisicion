@@ -93,6 +93,9 @@ class EstatusRequisicionController extends Controller
             $role = 'Area de compras';
         }
 
+        Log::info("Actualizando estatus para requisición $requisicionId por rol: $role");
+        Log::info("Datos recibidos: " . json_encode($request->all()));
+
         $request->validate([
             'estatus_id' => 'required|exists:estatus,id',
         ]);
@@ -119,14 +122,19 @@ class EstatusRequisicionController extends Controller
             $mensajeAccion = 'aprobada';
             $comentario = $request->comentario ? trim($request->comentario) : null;
 
+            Log::info("Comentario procesado: " . ($comentario ?: 'NULL'));
+
             if ($request->estatus_id == 9) { // Rechazo
                 if ($role === 'Area de compras') {
                     // SOLO Compras debe escribir comentario
                     if (!$comentario || $comentario == '') {
+                        Log::warning("Área de compras intentó rechazar sin comentario");
                         return response()->json(['success' => false, 'message' => 'Debes escribir un motivo de rechazo.'], 422);
                     }
 
-                    // Enviar a corrección (activo) - Este es el estatus activo actual
+                    Log::info("Enviando a corrección con comentario: $comentario");
+
+                    // Enviar directamente a corrección (activo)
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 11, // Corregir
@@ -135,33 +143,26 @@ class EstatusRequisicionController extends Controller
                         'date_update' => now(),
                     ]);
 
-                    // También registrar el rechazo (inactivo) para el historial
-                    Estatus_Requisicion::create([
-                        'requisicion_id' => $requisicionId,
-                        'estatus_id' => 9, // Rechazado
-                        'estatus' => 0,
-                        'comentario' => $comentario,
-                        'date_update' => now(),
-                    ]);
-
-                    $mensajeAccion = 'rechazada y enviada a corrección';
+                    $mensajeAccion = 'enviada a corrección';
                 } else {
                     // Gerencia / Financiero → rechazo directo
+                    Log::info("Creando estatus de rechazo definitivo con comentario: " . ($comentario ?: 'NULL'));
+
                     // Rechazo definitivo (activo)
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 10, // Rechazada definitiva
                         'estatus' => 1,
-                        'comentario' => $comentario, // Opcional, no obligatorio
+                        'comentario' => $comentario, // Opcional
                         'date_update' => now(),
                     ]);
 
-                    // También registrar el rechazo (inactivo) para el historial
+                    // También registrar el rechazo (inactivo) como historial
                     Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 9, // Rechazado
                         'estatus' => 0,
-                        'comentario' => $comentario, // Opcional, no obligatorio
+                        'comentario' => $comentario, // Opcional
                         'date_update' => now(),
                     ]);
 
@@ -169,11 +170,12 @@ class EstatusRequisicionController extends Controller
                 }
             } else {
                 // Caso de aprobación normal
+                Log::info("Aprobando requisición sin comentario");
                 $nuevoEstatus = Estatus_Requisicion::create([
                     'requisicion_id' => $requisicionId,
                     'estatus_id' => $request->estatus_id,
                     'estatus' => 1,
-                    'comentario' => null, // no se guarda comentario en aprobaciones
+                    'comentario' => null,
                     'date_update' => now(),
                 ]);
             }
@@ -186,6 +188,8 @@ class EstatusRequisicionController extends Controller
 
             DB::commit();
 
+            Log::info("Estatus actualizado exitosamente: $mensajeAccion");
+
             return response()->json([
                 'success' => true,
                 'message' => 'Requisición ' . $mensajeAccion . ' correctamente',
@@ -193,6 +197,7 @@ class EstatusRequisicionController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error("Error al actualizar el estatus: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar el estatus: ' . $e->getMessage()

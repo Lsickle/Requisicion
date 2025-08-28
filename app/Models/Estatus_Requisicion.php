@@ -15,6 +15,7 @@ class Estatus_Requisicion extends Model
         'estatus_id',
         'requisicion_id',
         'estatus',
+        'comentario',
         'date_update'
     ];
 
