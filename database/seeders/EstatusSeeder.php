@@ -12,15 +12,16 @@ class EstatusSeeder extends Seeder
     {
         $estatus = [
                 ['status_name' => 'Iniciada'],
-                ['status_name' => 'Revision'],
-                ['status_name' => 'Aprobación Gerencia'],
-                ['status_name' => 'Aprobación Financiera'],
-                ['status_name' => 'Contacto con proveedor'],
-                ['status_name' => 'Entrega aproximada'],
+                ['status_name' => 'Revisado por area de compras'],
+                ['status_name' => 'Aprobado Gerencia'],
+                ['status_name' => 'Aprobado Financiera'],
+                ['status_name' => 'Orden de compra generada'],
+                ['status_name' => 'Cancelada'],
                 ['status_name' => 'Recibido en bodega'],
-                ['status_name' => 'Recogido por coordinador'],
+                ['status_name' => 'Recibido por coordinador'],
                 ['status_name' => 'Rechazado'],
                 ['status_name' => 'Completado'],
+                ['status_name' => 'Corregir'],
         ];
 
         foreach ($estatus as $estado) {

@@ -16,7 +16,8 @@ return new class extends Migration
             $table->foreignId('estatus_id')->constrained('estatus')->onDelete('cascade');  #id del estatus
             $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade');  #id de la requisicion
             $table->boolean('estatus')->default(0);  #estatus de la requisicion activa que trae por defecto 0
-            $table->date('date_update')->nullable;  #fecha en la que se realizo el cambio de estatus
+            $table->date('date_update')->nullable();  #fecha en la que se realizo el cambio de estatus
+            $table->text('comentario')->nullable();  #comentario de la requisicion
             $table->timestamps();
             $table->softDeletes();
         });

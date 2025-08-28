@@ -145,43 +145,107 @@ function toggleModal(id){
     modal.classList.toggle('flex');
 }
 
-// ⚡ Función para aprobar/rechazar
+// Función para aprobar/rechazar
 document.querySelectorAll('.status-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const requisicionId = this.dataset.id;
-        const estatusId = this.dataset.estatus;
+        const estatusId = parseInt(this.dataset.estatus);
         const accion = this.dataset.action;
 
-        Swal.fire({
-            title: `¿Seguro que deseas ${accion} la requisición #${requisicionId}?`,
-            icon: accion === "aprobar" ? "success" : "warning",
-            showCancelButton: true,
-            confirmButtonText: `Sí, ${accion}`,
-            cancelButtonText: "Cancelar",
-            confirmButtonColor: accion === "aprobar" ? "#16a34a" : "#dc2626",
-            cancelButtonColor: "#6b7280"
-        }).then((result) => {
-            if (result.isConfirmed) {
-                fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ estatus_id: estatusId })
-                })
-                .then(res => res.json())
-                .then(resp => {
-                    Swal.fire("Éxito", resp.message || "Estatus actualizado", "success")
-                        .then(() => location.reload());
-                })
-                .catch(err => {
-                    console.error('Error actualización:', err);
-                    Swal.fire("Error", "No se pudo actualizar el estatus", "error");
+        if (accion === "rechazar") {
+            // Verificar si es área de compras (requiere comentario)
+            @if($role === 'Area de compras')
+                // Pedir comentario obligatorio solo para área de compras
+                Swal.fire({
+                    title: "Motivo de rechazo",
+                    input: "textarea",
+                    inputPlaceholder: "Escribe el motivo...",
+                    inputAttributes: { 'aria-label': 'Motivo de rechazo' },
+                    showCancelButton: true,
+                    confirmButtonText: "Rechazar",
+                    cancelButtonText: "Cancelar",
+                    confirmButtonColor: "#dc2626",
+                    cancelButtonColor: "#6b7280",
+                    inputValidator: (value) => {
+                        if (!value || value.trim() === '') return "Debes escribir un motivo de rechazo";
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        confirmarCambioEstatus(requisicionId, estatusId, result.value);
+                    }
                 });
-            }
-        });
+            @else
+                // Para Gerencia y Gerente financiero: solo confirmación
+                Swal.fire({
+                    title: `¿Seguro que deseas rechazar la requisición #${requisicionId}?`,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Sí, rechazar",
+                    cancelButtonText: "Cancelar",
+                    confirmButtonColor: "#dc2626",
+                    cancelButtonColor: "#6b7280"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        confirmarCambioEstatus(requisicionId, estatusId, null);
+                    }
+                });
+            @endif
+        } else {
+            // aprobar
+            Swal.fire({
+                title: `¿Seguro que deseas ${accion} la requisición #${requisicionId}?`,
+                icon: "success",
+                showCancelButton: true,
+                confirmButtonText: `Sí, ${accion}`,
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#16a34a",
+                cancelButtonColor: "#6b7280"
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    confirmarCambioEstatus(requisicionId, estatusId, null);
+                }
+            });
+        }
     });
 });
+
+function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
+    // Crear objeto con los datos a enviar
+    const data = {
+        estatus_id: estatusId,
+        comentario: comentario
+    };
+
+    console.log('Enviando datos:', data);
+
+    fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error en la respuesta del servidor: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            Swal.fire("Éxito", data.message || "Estatus actualizado", "success")
+                .then(() => location.reload());
+        } else {
+            Swal.fire("Error", data.message || "No se pudo actualizar el estatus", "error");
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        Swal.fire("Error", "No se pudo actualizar el estatus: " + error.message, "error");
+    });
+}
+
 </script>
 @endsection

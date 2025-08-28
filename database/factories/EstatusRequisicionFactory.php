@@ -27,6 +27,7 @@ class EstatusRequisicionFactory extends Factory
             'requisicion_id' => $requisicion->id,
             'date_update' => $fecha,
             'estatus' => 0,
+            'comentario' => '', // Cambiado de null a cadena vacía
             'created_at' => $fecha,
             'updated_at' => $fecha,
         ];

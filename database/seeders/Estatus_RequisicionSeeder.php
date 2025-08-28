@@ -27,6 +27,7 @@ class Estatus_RequisicionSeeder extends Seeder
                         'requisicion_id' => $requisicion->id,
                         'estatus' => 0,
                         'date_update' => $fecha,
+                        'comentario' => '', // Cambiado de null a cadena vacía
                         'created_at' => $fecha,
                         'updated_at' => $fecha,
                     ]);
