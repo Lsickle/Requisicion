@@ -8,7 +8,7 @@
 <div class="max-w-6xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
     <h1 class="text-2xl font-bold mb-6">Historial de Requisiciones</h1>
 
-    <!-- Barra de búsqueda -->
+    <!-- 🔍 Barra de búsqueda -->
     <div class="mb-4 flex justify-between items-center">
         <input type="text" id="busqueda" placeholder="Buscar requisición..."
             class="border px-3 py-2 rounded w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300">
@@ -109,6 +109,18 @@
                             class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm">
                             Ver
                         </button>
+                        
+                        <!-- Botón para editar si está en estatus "Corregir" -->
+                        @php
+                            $ultimoEstatusId = $req->ultimoEstatus->estatus_id ?? null;
+                        @endphp
+                        @if($ultimoEstatusId == 11) <!-- 11 = Corregir -->
+                        <a href="{{ route('requisiciones.edit', $req->id) }}"
+                            class="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm">
+                            Editar
+                        </a>
+                        @endif
+                        
                         <a href="{{ route('requisiciones.pdf', $req->id) }}"
                             class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm">
                             PDF

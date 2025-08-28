@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let cantidadTotal = 0;
     let cantidadAsignada = 0;
 
-    // Precargar productos existentes
+    // Precargar productos existentes de la requisición
     @foreach($requisicion->productos as $index => $producto)
     productos.push({
         id: {{ $producto->id }},
@@ -388,4 +388,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-@endsection 
+@endsection
