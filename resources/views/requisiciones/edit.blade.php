@@ -258,14 +258,12 @@ document.addEventListener('DOMContentLoaded', function() {
         proveedorId: {{ $producto->proveedor_id ?? 'null' }},
         cantidadTotal: {{ $producto->pivot->pr_amount }},
         centros: [
-            @foreach($producto->centros as $centro)
-            @if($centro->pivot->requisicion_id == $requisicion->id)
+            @foreach($producto->centrosRequisicion as $centro)
             {
                 id: {{ $centro->id }},
                 nombre: "{{ $centro->name_centro }}",
                 cantidad: {{ $centro->pivot->amount }}
             },
-            @endif
             @endforeach
         ]
     });

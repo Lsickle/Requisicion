@@ -14,9 +14,11 @@ use App\Http\Controllers\Mailto\MailtoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\api\ApiAuthController;
 use App\Http\Controllers\nuevo_producto\NuevoProductoController;
+use App\Http\Controllers\productos\ProductosController;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
+use App\Http\Controllers\Proveedores\ProveedoresController;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -98,11 +100,23 @@ Route::middleware([AuthSession::class])->group(function () {
     // Recurso principal de requisiciones
     Route::resource('requisiciones', RequisicionController::class)->except(['show']);
 
+    // Asegúrate de tener estas rutas definidas
     Route::get('/requisiciones/{id}/edit', [RequisicionController::class, 'edit'])
         ->name('requisiciones.edit');
 
     Route::put('/requisiciones/{id}', [RequisicionController::class, 'update'])
         ->name('requisiciones.update');
+
+    // Agregar esta ruta
+    Route::get('/productos/gestor', [ProductosController::class, 'gestor'])
+        ->name('productos.gestor');
+
+    // Rutas de productos
+    Route::resource('productos', ProductosController::class);
+    Route::post('productos/{id}/restore', [ProductosController::class, 'restore'])
+        ->name('productos.restore');
+    Route::delete('productos/{id}/force-delete', [ProductosController::class, 'forceDelete'])
+        ->name('productos.force-delete');
 });
 
 // Logout
@@ -122,3 +136,6 @@ Route::view('/index', 'index')->name('index');
 Route::resource('nuevo-producto', NuevoProductoController::class);
 Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])->name('nuevo-producto.restore');
 Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])->name('nuevo-producto.force-delete');
+
+
+Route::resource('proveedores', ProveedoresController::class);

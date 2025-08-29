@@ -7,15 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Producto extends Model
 {
+    use HasFactory, SoftDeletes;
     use HasFactory;
 
     protected $table = 'productos';
 
     protected $fillable = [
-        'proveedor_id', // este es el campo real
+        'proveedor_id', 
         'categoria_produc',
         'name_produc',
         'stock_produc',
@@ -42,7 +44,7 @@ class Producto extends Model
     public function ordenesCompra()
     {
         return $this->belongsToMany(OrdenCompra::class, 'ordencompra_producto')
-            ->withPivot('id', 'po_amount', 'precio_unitario', 'observaciones') 
+            ->withPivot('id', 'po_amount', 'precio_unitario', 'observaciones')
             ->withTimestamps();
     }
 
@@ -65,7 +67,15 @@ class Producto extends Model
     public function centros(): BelongsToMany
     {
         return $this->belongsToMany(Centro::class, 'centro_producto')
-                    ->withPivot('amount')
-                    ->withTimestamps();
+            ->withPivot('amount')
+            ->withTimestamps();
+    }
+
+    // En Producto.php, reemplazar el método centrosRequisicion() con:
+    public function centrosRequisicion()
+    {
+        return $this->belongsToMany(Centro::class, 'centro_producto')
+            ->withPivot('amount', 'requisicion_id')
+            ->withTimestamps();
     }
 }

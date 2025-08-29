@@ -83,7 +83,7 @@
             
             @if($hasPermission('ver producto'))
             <li>
-                <a href="#" 
+                <a href="{{ route('productos.gestor')}}" 
                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
                    Ver productos
                 </a>

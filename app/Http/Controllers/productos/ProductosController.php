@@ -7,6 +7,7 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB; // ← AGREGAR ESTA IMPORTACIÓN
 
 class ProductosController extends Controller
 {
@@ -15,19 +16,51 @@ class ProductosController extends Controller
      */
     public function index(Request $request)
     {
-        // Agregamos búsqueda por nombre de producto opcional
         $query = Producto::withTrashed()->with('proveedor')->orderBy('name_produc');
 
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where('name_produc', 'like', "%{$search}%")
-                  ->orWhere('categoria_produc', 'like', "%{$search}%");
+                ->orWhere('categoria_produc', 'like', "%{$search}%");
         }
 
         $productos = $query->get();
 
         return view('productos.index', compact('productos'));
     }
+
+
+    /**
+     * Método para el gestor de productos
+     */
+    public function gestor()
+    {
+        // Productos registrados
+        $productos = Producto::withTrashed()->with('proveedor')->orderBy('name_produc')->get();
+
+        // Productos solicitados en requisiciones
+        $productosSolicitados = DB::table('producto_requisicion')
+            ->join('requisicion', 'producto_requisicion.id_requisicion', '=', 'requisicion.id')
+            ->join('productos', 'producto_requisicion.id_producto', '=', 'productos.id')
+            ->leftJoin('estatus_requisicion', function ($join) {
+                $join->on('requisicion.id', '=', 'estatus_requisicion.requisicion_id')
+                    ->where('estatus_requisicion.estatus', 1);
+            })
+            ->leftJoin('estatus', 'estatus_requisicion.estatus_id', '=', 'estatus.id')
+            ->select(
+                'producto_requisicion.*',
+                'requisicion.prioridad_requisicion',
+                'requisicion.created_at',
+                'estatus.status_name'
+            )
+            ->orderBy('requisicion.created_at', 'desc')
+            ->get();
+
+        $proveedores = Proveedor::orderBy('prov_name')->get();
+
+        return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores'));
+    }
+
 
     /**
      * Show the form for creating a new resource.
@@ -135,7 +168,7 @@ class ProductosController extends Controller
     {
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->restore();
-        
+
         return redirect()->route('productos.index')->with('success', 'Producto restaurado exitosamente.');
     }
 
@@ -146,7 +179,7 @@ class ProductosController extends Controller
     {
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
-        
+
         return redirect()->route('productos.index')->with('success', 'Producto eliminado permanentemente.');
     }
 }

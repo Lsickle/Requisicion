@@ -40,8 +40,11 @@ class RequisicionController extends Controller
     public function edit($id)
     {
         $requisicion = Requisicion::with([
-            'productos',
-            'productos.centros',
+            'productos' => function ($query) use ($id) {
+                $query->with(['centrosRequisicion' => function ($q) use ($id) {
+                    $q->wherePivot('requisicion_id', $id);
+                }]);
+            },
             'estatusHistorial.estatus'
         ])->findOrFail($id);
 
@@ -58,7 +61,7 @@ class RequisicionController extends Controller
             ->first()->comentario ?? '';
 
         $centros = Centro::all();
-        $productos = Producto::all(); // Añadir esta línea
+        $productos = Producto::all();
 
         return view('requisiciones.edit', compact('requisicion', 'centros', 'productos', 'comentarioRechazo'));
     }
