@@ -68,82 +68,90 @@
                 </div>
 
             </div>
+        
+            <div class="overflow-x-auto">
+                <table id="productosTable" class="w-full table-auto">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left">ID</th>
+                            <th class="px-4 py-2 text-left">Nombre</th>
+                            <th class="px-4 py-2 text-left">Categoría</th>
+                            <th class="px-4 py-2 text-left">Proveedor</th>
+                            <th class="px-4 py-2 text-left">Stock</th>
+                            <th class="px-4 py-2 text-left">Precio</th>
+                            <th class="px-4 py-2 text-left">Estado</th>
+                            <th class="px-4 py-2 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($productos as $producto)
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="px-4 py-2">{{ $producto->id }}</td>
+                            <td class="px-4 py-2">{{ $producto->name_produc }}</td>
+                            <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
+                            <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
+                            <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
+                            <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
+                            <td class="px-4 py-2">
+                                @if($producto->trashed())
+                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
+                                @else
+                                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-center">
+                                <div class="flex justify-center space-x-2">
+                                    @if($producto->trashed())
+                                    <form action="{{ route('productos.restore', $producto->id) }}" method="POST"
+                                        class="inline" onsubmit="showLoading(event)">
+                                        @csrf
+                                        @method('POST')
+                                        <button type="submit" class="text-green-600 hover:text-green-800" title="Restaurar">
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{{ route('productos.forceDelete', $producto->id) }}" method="POST"
+                                        class="inline" onsubmit="return confirmDelete(event)">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:text-red-800"
+                                            title="Eliminar Permanentemente">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    @else
+                                    <button
+                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
+                                        class="text-blue-600 hover:text-blue-800" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <form action="{{ route('productos.destroy', $producto->id) }}" method="POST"
+                                        class="inline" onsubmit="return confirmDelete(event)">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table id="productosTable" class="w-full table-auto">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-2 text-left">ID</th>
-                        <th class="px-4 py-2 text-left">Nombre</th>
-                        <th class="px-4 py-2 text-left">Categoría</th>
-                        <th class="px-4 py-2 text-left">Proveedor</th>
-                        <th class="px-4 py-2 text-left">Stock</th>
-                        <th class="px-4 py-2 text-left">Precio</th>
-                        <th class="px-4 py-2 text-left">Estado</th>
-                        <th class="px-4 py-2 text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($productos as $producto)
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="px-4 py-2">{{ $producto->id }}</td>
-                        <td class="px-4 py-2">{{ $producto->name_produc }}</td>
-                        <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
-                        <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
-                        <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
-                        <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
-                        <td class="px-4 py-2">
-                            @if($producto->trashed())
-                            <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
-                            @else
-                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
-                            @endif
-                        </td>
-                        <td class="px-4 py-2 text-center">
-                            <div class="flex justify-center space-x-2">
-                                @if($producto->trashed())
-                                <form action="{{ route('productos.restore', $producto->id) }}" method="POST"
-                                    class="inline">
-                                    @csrf
-                                    @method('POST')
-                                    <!-- Cambiado de PATCH a POST -->
-                                    <button type="submit" class="text-green-600 hover:text-green-800" title="Restaurar">
-                                        <i class="fas fa-undo"></i>
-                                    </button>
-                                </form>
-                                <form action="{{ route('productos.forceDelete', $producto->id) }}" method="POST"
-                                    class="inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:text-red-800"
-                                        onclick="return confirm('¿Eliminar permanentemente este producto?')"
-                                        title="Eliminar Permanentemente">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                                @else
-                                <button
-                                    onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
-                                    class="text-blue-600 hover:text-blue-800" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <form action="{{ route('productos.destroy', $producto->id) }}" method="POST"
-                                    class="inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:text-red-800"
-                                        onclick="return confirm('¿Eliminar este producto?')" title="Eliminar">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
+        <!-- Sección de Productos Solicitados (oculta inicialmente) -->
+        <div id="solicitudes-section" class="bg-white rounded-lg shadow mb-6 hidden">
+            <div class="p-4 border-b">
+                <h2 class="text-xl font-semibold">Productos Solicitados</h2>
+            </div>
+            <div class="p-4">
+                <p class="text-gray-500">Aquí se mostrarán los productos solicitados.</p>
+                <!-- Contenido de productos solicitados -->
+            </div>
         </div>
     </div>
 
@@ -157,7 +165,7 @@
                 </button>
             </div>
             <div class="p-4">
-                <form id="productForm" action="{{ route('productos.store') }}" method="POST">
+                <form id="productForm" action="{{ route('productos.store') }}" method="POST" onsubmit="return validateProductForm()">
                     @csrf
                     <input type="hidden" id="formMethod" name="_method" value="POST">
                     <input type="hidden" id="productId" name="id" value="">
@@ -167,6 +175,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
                             <input type="text" id="name_produc" name="name_produc"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="name_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
@@ -185,6 +194,7 @@
                                 <option value="Mantenimiento">Mantenimiento</option>
                                 <option value="Otros">Otros</option>
                             </select>
+                            <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
@@ -199,7 +209,7 @@
                                     </button>
                                 </div>
                                 <select id="proveedor_id" name="proveedor_id"
-                                    class="w-full px-3 py-2 border rounded-md mt-1 hidden" required>
+                                    class="w-full px-3 py-2 border rounded-md mt-1" required>
                                     <option value="">Seleccionar proveedor</option>
                                     @foreach($proveedores as $proveedor)
                                     <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
@@ -208,22 +218,26 @@
                                 <div id="proveedor_results"
                                     class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto hidden">
                                 </div>
+                                <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
                             <input type="number" id="stock_produc" name="stock_produc" min="0"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
                             <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
                             <input type="text" id="unit_produc" name="unit_produc"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="unit_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                     </div>
                     <div class="mb-4">
@@ -238,7 +252,7 @@
                     class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
                     Cancelar
                 </button>
-                <button onclick="document.getElementById('productForm').submit()"
+                <button onclick="submitProductForm()"
                     class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
                     Guardar
                 </button>
@@ -256,38 +270,44 @@
                 </button>
             </div>
             <div class="p-4">
-                <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST">
+                <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST" onsubmit="return validateProveedorForm()">
                     @csrf
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor *</label>
                             <input type="text" id="prov_name" name="prov_name"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="prov_name_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">NIT</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">NIT *</label>
                             <input type="text" id="prov_nit" name="prov_nit" class="w-full px-3 py-2 border rounded-md"
                                 required>
+                            <span id="prov_nit_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto *</label>
                             <input type="text" id="prov_name_c" name="prov_name_c"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="prov_name_c_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
                             <input type="text" id="prov_phone" name="prov_phone"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="prov_phone_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección *</label>
                             <input type="text" id="prov_adress" name="prov_adress"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="prov_adress_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad *</label>
                             <input type="text" id="prov_city" name="prov_city"
                                 class="w-full px-3 py-2 border rounded-md" required>
+                            <span id="prov_city_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                     </div>
                     <div class="mb-4">
@@ -302,13 +322,21 @@
                     class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
                     Cancelar
                 </button>
-                <button onclick="document.getElementById('proveedorForm').submit()"
+                <button onclick="submitProveedorForm()"
                     class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
                     Guardar
                 </button>
             </div>
         </div>
     </div>
+
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
+            <p class="text-center text-gray-500">Por favor espere.</p>
+        </div>
     </div>
 
     <script>
@@ -324,9 +352,13 @@
                 // Limpiar búsqueda de proveedores
                 document.getElementById('proveedor_search').value = '';
                 document.getElementById('proveedor_results').classList.add('hidden');
+                // Limpiar mensajes de error
+                clearErrorMessages();
             } else if (type === 'proveedor') {
                 document.getElementById('proveedorModal').classList.remove('hidden');
                 document.getElementById('proveedorForm').reset();
+                // Limpiar mensajes de error
+                clearProveedorErrorMessages();
             }
         }
 
@@ -358,6 +390,9 @@
             document.getElementById('proveedor_search').value = selectedOption.text;
             
             document.getElementById('productModal').classList.remove('hidden');
+            
+            // Limpiar mensajes de error
+            clearErrorMessages();
         }
 
         function toggleSection(section) {
@@ -417,6 +452,174 @@
             }
         });
 
+        // Mostrar loading
+        function showLoading(event) {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            return true;
+        }
+
+        // Confirmar eliminación
+        function confirmDelete(event) {
+            event.preventDefault();
+            const form = event.target;
+            
+            Swal.fire({
+                title: '¿Estás seguro?',
+                text: "Esta acción no se puede deshacer",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#1e40af',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading();
+                    form.submit();
+                }
+            });
+        }
+
+        // Limpiar mensajes de error
+        function clearErrorMessages() {
+            const errorElements = document.querySelectorAll('[id$="_error"]');
+            errorElements.forEach(element => {
+                element.classList.add('hidden');
+                element.textContent = '';
+            });
+        }
+
+        function clearProveedorErrorMessages() {
+            const errorElements = document.querySelectorAll('[id$="_error"]');
+            errorElements.forEach(element => {
+                element.classList.add('hidden');
+                element.textContent = '';
+            });
+        }
+
+        // Validar formulario de producto
+        function validateProductForm() {
+            clearErrorMessages();
+            let isValid = true;
+            
+            const name_produc = document.getElementById('name_produc');
+            const categoria_produc = document.getElementById('categoria_produc');
+            const proveedor_id = document.getElementById('proveedor_id');
+            const stock_produc = document.getElementById('stock_produc');
+            const price_produc = document.getElementById('price_produc');
+            const unit_produc = document.getElementById('unit_produc');
+            
+            if (!name_produc.value.trim()) {
+                document.getElementById('name_produc_error').textContent = 'El nombre del producto es requerido';
+                document.getElementById('name_produc_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!categoria_produc.value) {
+                document.getElementById('categoria_produc_error').textContent = 'La categoría es requerida';
+                document.getElementById('categoria_produc_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!proveedor_id.value) {
+                document.getElementById('proveedor_id_error').textContent = 'El proveedor es requerido';
+                document.getElementById('proveedor_id_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!stock_produc.value || stock_produc.value < 0) {
+                document.getElementById('stock_produc_error').textContent = 'El stock debe ser un número válido mayor o igual a 0';
+                document.getElementById('stock_produc_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!price_produc.value || price_produc.value < 0) {
+                document.getElementById('price_produc_error').textContent = 'El precio debe ser un número válido mayor o igual a 0';
+                document.getElementById('price_produc_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!unit_produc.value.trim()) {
+                document.getElementById('unit_produc_error').textContent = 'La unidad de medida es requerida';
+                document.getElementById('unit_produc_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (isValid) {
+                showLoading();
+            }
+            
+            return isValid;
+        }
+
+        // Validar formulario de proveedor
+        function validateProveedorForm() {
+            clearProveedorErrorMessages();
+            let isValid = true;
+            
+            const prov_name = document.getElementById('prov_name');
+            const prov_nit = document.getElementById('prov_nit');
+            const prov_name_c = document.getElementById('prov_name_c');
+            const prov_phone = document.getElementById('prov_phone');
+            const prov_adress = document.getElementById('prov_adress');
+            const prov_city = document.getElementById('prov_city');
+            
+            if (!prov_name.value.trim()) {
+                document.getElementById('prov_name_error').textContent = 'El nombre del proveedor es requerido';
+                document.getElementById('prov_name_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!prov_nit.value.trim()) {
+                document.getElementById('prov_nit_error').textContent = 'El NIT es requerido';
+                document.getElementById('prov_nit_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!prov_name_c.value.trim()) {
+                document.getElementById('prov_name_c_error').textContent = 'El nombre de contacto es requerido';
+                document.getElementById('prov_name_c_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!prov_phone.value.trim()) {
+                document.getElementById('prov_phone_error').textContent = 'El teléfono es requerido';
+                document.getElementById('prov_phone_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!prov_adress.value.trim()) {
+                document.getElementById('prov_adress_error').textContent = 'La dirección es requerida';
+                document.getElementById('prov_adress_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (!prov_city.value.trim()) {
+                document.getElementById('prov_city_error').textContent = 'La ciudad es requerida';
+                document.getElementById('prov_city_error').classList.remove('hidden');
+                isValid = false;
+            }
+            
+            if (isValid) {
+                showLoading();
+            }
+            
+            return isValid;
+        }
+
+        // Enviar formularios
+        function submitProductForm() {
+            if (validateProductForm()) {
+                document.getElementById('productForm').submit();
+            }
+        }
+
+        function submitProveedorForm() {
+            if (validateProveedorForm()) {
+                document.getElementById('proveedorForm').submit();
+            }
+        }
+
         // Mostrar mensajes de éxito/error con SweetAlert
         @if(session('success'))
             Swal.fire({
@@ -444,37 +647,54 @@
                 confirmButtonColor: '#1e40af'
             });
         @endif
+
         function filterTable() {
-        const searchInput = document.getElementById("searchInput").value.toLowerCase();
-        const filterCategoria = document.getElementById("filterCategoria").value.toLowerCase();
-        const filterEstado = document.getElementById("filterEstado").value.toLowerCase();
-        const table = document.getElementById("productosTable");
-        const rows = table.getElementsByTagName("tr");
+            const searchInput = document.getElementById("searchInput").value.toLowerCase();
+            const filterCategoria = document.getElementById("filterCategoria").value.toLowerCase();
+            const filterEstado = document.getElementById("filterEstado").value.toLowerCase();
+            const table = document.getElementById("productosTable");
+            const rows = table.getElementsByTagName("tr");
 
-        for (let i = 1; i < rows.length; i++) { // empieza en 1 para saltar el header
-            let cells = rows[i].getElementsByTagName("td");
-            if (!cells.length) continue;
+            for (let i = 1; i < rows.length; i++) { // empieza en 1 para saltar el header
+                let cells = rows[i].getElementsByTagName("td");
+                if (!cells.length) continue;
 
-            const nombre = cells[1].textContent.toLowerCase();
-            const categoria = cells[2].textContent.toLowerCase();
-            const estado = cells[6].textContent.toLowerCase();
+                const nombre = cells[1].textContent.toLowerCase();
+                const categoria = cells[2].textContent.toLowerCase();
+                const estado = cells[6].textContent.toLowerCase();
 
-            const matchesSearch = nombre.includes(searchInput) || categoria.includes(searchInput);
-            const matchesCategoria = filterCategoria === "" || categoria === filterCategoria;
-            const matchesEstado = filterEstado === "" || estado.includes(filterEstado);
+                const matchesSearch = nombre.includes(searchInput) || categoria.includes(searchInput);
+                const matchesCategoria = filterCategoria === "" || categoria === filterCategoria;
+                const matchesEstado = filterEstado === "" || estado.includes(filterEstado);
 
-            if (matchesSearch && matchesCategoria && matchesEstado) {
-                rows[i].style.display = "";
-            } else {
-                rows[i].style.display = "none";
+                if (matchesSearch && matchesCategoria && matchesEstado) {
+                    rows[i].style.display = "";
+                } else {
+                    rows[i].style.display = "none";
+                }
             }
         }
-}
     </script>
 
     <style>
         .hidden {
             display: none;
+        }
+        
+        .loader {
+            border-top-color: #1e40af;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </body>

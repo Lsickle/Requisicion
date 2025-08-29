@@ -107,20 +107,27 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::put('/requisiciones/{id}', [RequisicionController::class, 'update'])
         ->name('requisiciones.update');
 
-    // Ruta de gestion de productos
+    // Rutas para productos
     Route::get('/productos/gestor', [ProductosController::class, 'gestor'])
         ->name('productos.gestor');
-
-    // Rutas de productos
-    Route::resource('productos', ProductosController::class);
-    Route::post('productos/{id}/restore', [ProductosController::class, 'restore'])
+    Route::post('/productos', [ProductosController::class, 'store'])
+        ->name('productos.store');
+    Route::put('/productos/{producto}', [ProductosController::class, 'update'])
+        ->name('productos.update');
+    Route::delete('/productos/{producto}', [ProductosController::class, 'destroy'])
+        ->name('productos.destroy');
+    Route::post('/productos/{id}/restore', [ProductosController::class, 'restore'])
         ->name('productos.restore');
-    Route::delete('productos/{id}/force-delete', [ProductosController::class, 'forceDelete'])
+    Route::delete('/productos/{id}/force-delete', [ProductosController::class, 'forceDelete'])
         ->name('productos.forceDelete');
+
+    // Rutas para proveedores
+    Route::post('/proveedores', [ProductosController::class, 'storeProveedor'])
+        ->name('proveedores.store');
 
     // Rutas para solicitud de nuevo producto
     Route::resource('nuevo-producto', NuevoProductoController::class);
-    
+
     Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])
         ->name('nuevo-producto.restore');
 

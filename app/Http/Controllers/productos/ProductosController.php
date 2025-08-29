@@ -22,7 +22,7 @@ class ProductosController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name_produc', 'like', "%{$search}%")
-                  ->orWhere('categoria_produc', 'like', "%{$search}%");
+                    ->orWhere('categoria_produc', 'like', "%{$search}%");
             });
         }
 
@@ -66,63 +66,101 @@ class ProductosController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'proveedor_id' => 'required|exists:proveedores,id',
-            'categoria_produc' => 'required|string|max:255',
-            'name_produc' => 'required|string|max:255',
-            'stock_produc' => 'required|integer|min:0',
-            'description_produc' => 'nullable|string',
-            'price_produc' => 'required|numeric|min:0',
-            'unit_produc' => 'required|string|max:50',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'name_produc' => 'required|string|max:255',
+                'categoria_produc' => 'required|string|max:255',
+                'proveedor_id' => 'required|exists:proveedores,id',
+                'stock_produc' => 'required|integer|min:0',
+                'price_produc' => 'required|numeric|min:0',
+                'unit_produc' => 'required|string|max:50',
+                'description_produc' => 'required|text|max:1000',
+            ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput()
+                    ->with('error', 'Por favor, corrige los errores en el formulario.');
+            }
+
+            Producto::create($request->all());
+
+            return redirect()->route('productos.gestor')->with('success', 'Producto creado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al crear el producto: ' . $e->getMessage())->withInput();
         }
-
-        Producto::create([
-            'proveedor_id' => $request->proveedor_id,
-            'categoria_produc' => $request->categoria_produc,
-            'name_produc' => $request->name_produc,
-            'stock_produc' => $request->stock_produc,
-            'description_produc' => $request->description_produc,
-            'price_produc' => $request->price_produc,
-            'unit_produc' => $request->unit_produc,
-        ]);
-
-        return redirect()->route('productos.gestor')->with('success', 'Producto creado exitosamente.');
     }
+
+    /**
+     * Store a new provider
+     */
+    public function storeProveedor(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'prov_name'   => 'required|string|max:255',
+                'prov_nit'    => 'required|string|max:50|unique:proveedores,prov_nit',
+                'prov_name_c' => 'required|string|max:255',
+                'prov_phone'  => 'required|string|max:20',
+                'prov_adress' => 'required|string|max:255',
+                'prov_city'   => 'required|string|max:100',
+                'prov_descrip' => 'required|text|max:1000',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput()
+                    ->with('error', 'Por favor, corrige los errores en el formulario.');
+            }
+
+            Proveedor::create($request->all());
+
+            return redirect()->route('productos.gestor')->with('success', 'Proveedor creado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al crear el proveedor: ' . $e->getMessage())->withInput();
+        }
+    }
+
 
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Producto $producto)
     {
-        $validator = Validator::make($request->all(), [
-            'proveedor_id' => 'required|exists:proveedores,id',
-            'categoria_produc' => 'required|string|max:255',
-            'name_produc' => 'required|string|max:255',
-            'stock_produc' => 'required|integer|min:0',
-            'description_produc' => 'nullable|string',
-            'price_produc' => 'required|numeric|min:0',
-            'unit_produc' => 'required|string|max:50',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'proveedor_id' => 'required|exists:proveedores,id',
+                'categoria_produc' => 'required|string|max:255',
+                'name_produc' => 'required|string|max:255',
+                'stock_produc' => 'required|integer|min:0',
+                'description_produc' => 'required|text|max:1000',
+                'price_produc' => 'required|numeric|min:0',
+                'unit_produc' => 'required|string|max:50',
+            ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput()
+                    ->with('error', 'Por favor, corrige los errores en el formulario.');
+            }
+
+            $producto->update([
+                'proveedor_id' => $request->proveedor_id,
+                'categoria_produc' => $request->categoria_produc,
+                'name_produc' => $request->name_produc,
+                'stock_produc' => $request->stock_produc,
+                'description_produc' => $request->description_produc,
+                'price_produc' => $request->price_produc,
+                'unit_produc' => $request->unit_produc,
+            ]);
+
+            return redirect()->route('productos.gestor')->with('success', 'Producto actualizado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al actualizar el producto: ' . $e->getMessage())->withInput();
         }
-
-        $producto->update([
-            'proveedor_id' => $request->proveedor_id,
-            'categoria_produc' => $request->categoria_produc,
-            'name_produc' => $request->name_produc,
-            'stock_produc' => $request->stock_produc,
-            'description_produc' => $request->description_produc,
-            'price_produc' => $request->price_produc,
-            'unit_produc' => $request->unit_produc,
-        ]);
-
-        return redirect()->route('productos.gestor')->with('success', 'Producto actualizado exitosamente.');
     }
 
     /**
@@ -130,8 +168,12 @@ class ProductosController extends Controller
      */
     public function destroy(Producto $producto)
     {
-        $producto->delete();
-        return redirect()->route('productos.gestor')->with('success', 'Producto eliminado exitosamente.');
+        try {
+            $producto->delete();
+            return redirect()->route('productos.gestor')->with('success', 'Producto eliminado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al eliminar el producto: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -139,10 +181,14 @@ class ProductosController extends Controller
      */
     public function restore($id)
     {
-        $producto = Producto::withTrashed()->findOrFail($id);
-        $producto->restore();
+        try {
+            $producto = Producto::withTrashed()->findOrFail($id);
+            $producto->restore();
 
-        return redirect()->route('productos.gestor')->with('success', 'Producto restaurado exitosamente.');
+            return redirect()->route('productos.gestor')->with('success', 'Producto restaurado exitosamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al restaurar el producto: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -150,9 +196,13 @@ class ProductosController extends Controller
      */
     public function forceDelete($id)
     {
-        $producto = Producto::withTrashed()->findOrFail($id);
-        $producto->forceDelete();
+        try {
+            $producto = Producto::withTrashed()->findOrFail($id);
+            $producto->forceDelete();
 
-        return redirect()->route('productos.gestor')->with('success', 'Producto eliminado permanentemente.');
+            return redirect()->route('productos.gestor')->with('success', 'Producto eliminado permanentemente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al eliminar permanentemente el producto: ' . $e->getMessage());
+        }
     }
 }
