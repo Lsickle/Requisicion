@@ -65,12 +65,6 @@
                         <option value="Activo">Activo</option>
                         <option value="Eliminado">Eliminado</option>
                     </select>
-
-                    <!-- Nuevo: Ordenar por ID -->
-                    <select id="sortId" onchange="sortTableById()" class="px-3 py-2 border rounded-md w-full md:w-40">
-                        <option value="asc">ID: Menor a Mayor</option>
-                        <option value="desc">ID: Mayor a Menor</option>
-                    </select>
                 </div>
 
             </div>
@@ -451,53 +445,30 @@
             });
         @endif
         function filterTable() {
-            const searchInput = document.getElementById("searchInput").value.toLowerCase();
-            const filterCategoria = document.getElementById("filterCategoria").value.toLowerCase();
-            const filterEstado = document.getElementById("filterEstado").value.toLowerCase();
-            const table = document.getElementById("productosTable");
-            const rows = table.getElementsByTagName("tr");
+        const searchInput = document.getElementById("searchInput").value.toLowerCase();
+        const filterCategoria = document.getElementById("filterCategoria").value.toLowerCase();
+        const filterEstado = document.getElementById("filterEstado").value.toLowerCase();
+        const table = document.getElementById("productosTable");
+        const rows = table.getElementsByTagName("tr");
 
-            for (let i = 1; i < rows.length; i++) {
-                let cells = rows[i].getElementsByTagName("td");
-                if (!cells.length) continue;
+        for (let i = 1; i < rows.length; i++) { // empieza en 1 para saltar el header
+            let cells = rows[i].getElementsByTagName("td");
+            if (!cells.length) continue;
 
-                const nombre = cells[1].textContent.toLowerCase();
-                const categoria = cells[2].textContent.toLowerCase();
-                const estado = cells[6].textContent.toLowerCase();
+            const nombre = cells[1].textContent.toLowerCase();
+            const categoria = cells[2].textContent.toLowerCase();
+            const estado = cells[6].textContent.toLowerCase();
 
-                const matchesSearch = nombre.includes(searchInput) || categoria.includes(searchInput);
-                const matchesCategoria = filterCategoria === "" || categoria === filterCategoria;
-                const matchesEstado = filterEstado === "" || estado.includes(filterEstado);
+            const matchesSearch = nombre.includes(searchInput) || categoria.includes(searchInput);
+            const matchesCategoria = filterCategoria === "" || categoria === filterCategoria;
+            const matchesEstado = filterEstado === "" || estado.includes(filterEstado);
 
-                rows[i].style.display = (matchesSearch && matchesCategoria && matchesEstado) ? "" : "none";
+            if (matchesSearch && matchesCategoria && matchesEstado) {
+                rows[i].style.display = "";
+            } else {
+                rows[i].style.display = "none";
             }
-
-            // Mantener orden aplicado después del filtro
-            sortTableById();
         }
-
-        // Ordenar por ID
-        function sortTableById() {
-            const table = document.getElementById("productosTable");
-            const tbody = table.querySelector("tbody");
-            const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => r.style.display !== "none");
-            const sortOrder = document.getElementById("sortId").value;
-
-            rows.sort((a, b) => {
-                const idA = parseInt(a.cells[0].textContent.trim());
-                const idB = parseInt(b.cells[0].textContent.trim());
-                return sortOrder === "asc" ? idA - idB : idB - idA;
-            });
-
-            tbody.innerHTML = "";
-            rows.forEach(row => tbody.appendChild(row));
-        }
-
-        // Al cargar la página, ordenar automáticamente de menor a mayor
-        document.addEventListener("DOMContentLoaded", () => {
-            sortTableById();
-        });
-            
 }
     </script>
 

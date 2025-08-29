@@ -7,7 +7,7 @@ use App\Models\Producto;
 use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB; // ← AGREGAR ESTA IMPORTACIÓN
+use Illuminate\Support\Facades\DB;
 
 class ProductosController extends Controller
 {
@@ -20,25 +20,25 @@ class ProductosController extends Controller
 
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
-            $query->where('name_produc', 'like', "%{$search}%")
-                ->orWhere('categoria_produc', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name_produc', 'like', "%{$search}%")
+                  ->orWhere('categoria_produc', 'like', "%{$search}%");
+            });
         }
 
         $productos = $query->get();
+        $proveedores = Proveedor::orderBy('prov_name')->get();
 
-        return view('productos.gestor', compact('productos'));
+        return view('productos.gestor', compact('productos', 'proveedores'));
     }
-
 
     /**
      * Método para el gestor de productos
      */
     public function gestor()
     {
-        // Productos registrados
         $productos = Producto::withTrashed()->with('proveedor')->orderBy('name_produc')->get();
 
-        // Productos solicitados en requisiciones
         $productosSolicitados = DB::table('producto_requisicion')
             ->join('requisicion', 'producto_requisicion.id_requisicion', '=', 'requisicion.id')
             ->join('productos', 'producto_requisicion.id_producto', '=', 'productos.id')
@@ -61,23 +61,13 @@ class ProductosController extends Controller
         return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores'));
     }
 
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        $proveedores = Proveedor::orderBy('prov_name')->get();
-        return view('productos.create', compact('proveedores'));
-    }
-
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'id_proveedores' => 'required|exists:proveedores,id',
+            'proveedor_id' => 'required|exists:proveedores,id',
             'categoria_produc' => 'required|string|max:255',
             'name_produc' => 'required|string|max:255',
             'stock_produc' => 'required|integer|min:0',
@@ -91,7 +81,7 @@ class ProductosController extends Controller
         }
 
         Producto::create([
-            'id_proveedores' => $request->id_proveedores,
+            'proveedor_id' => $request->proveedor_id,
             'categoria_produc' => $request->categoria_produc,
             'name_produc' => $request->name_produc,
             'stock_produc' => $request->stock_produc,
@@ -104,29 +94,12 @@ class ProductosController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(Producto $producto)
-    {
-        return view('productos.show', compact('producto'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Producto $producto)
-    {
-        $proveedores = Proveedor::orderBy('prov_name')->get();
-        return view('productos.edit', compact('producto', 'proveedores'));
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, Producto $producto)
     {
         $validator = Validator::make($request->all(), [
-            'id_proveedores' => 'required|exists:proveedores,id',
+            'proveedor_id' => 'required|exists:proveedores,id',
             'categoria_produc' => 'required|string|max:255',
             'name_produc' => 'required|string|max:255',
             'stock_produc' => 'required|integer|min:0',
@@ -140,7 +113,7 @@ class ProductosController extends Controller
         }
 
         $producto->update([
-            'id_proveedores' => $request->id_proveedores,
+            'proveedor_id' => $request->proveedor_id,
             'categoria_produc' => $request->categoria_produc,
             'name_produc' => $request->name_produc,
             'stock_produc' => $request->stock_produc,
