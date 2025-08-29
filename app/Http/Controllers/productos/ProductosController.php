@@ -26,7 +26,7 @@ class ProductosController extends Controller
 
         $productos = $query->get();
 
-        return view('productos.index', compact('productos'));
+        return view('productos.gestor', compact('productos'));
     }
 
 
@@ -100,7 +100,7 @@ class ProductosController extends Controller
             'unit_produc' => $request->unit_produc,
         ]);
 
-        return redirect()->route('productos.index')->with('success', 'Producto creado exitosamente.');
+        return redirect()->route('productos.gestor')->with('success', 'Producto creado exitosamente.');
     }
 
     /**
@@ -149,7 +149,7 @@ class ProductosController extends Controller
             'unit_produc' => $request->unit_produc,
         ]);
 
-        return redirect()->route('productos.index')->with('success', 'Producto actualizado exitosamente.');
+        return redirect()->route('productos.gestor')->with('success', 'Producto actualizado exitosamente.');
     }
 
     /**
@@ -158,7 +158,7 @@ class ProductosController extends Controller
     public function destroy(Producto $producto)
     {
         $producto->delete();
-        return redirect()->route('productos.index')->with('success', 'Producto eliminado exitosamente.');
+        return redirect()->route('productos.gestor')->with('success', 'Producto eliminado exitosamente.');
     }
 
     /**
@@ -169,7 +169,7 @@ class ProductosController extends Controller
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->restore();
 
-        return redirect()->route('productos.index')->with('success', 'Producto restaurado exitosamente.');
+        return redirect()->route('productos.gestor')->with('success', 'Producto restaurado exitosamente.');
     }
 
     /**
@@ -180,6 +180,6 @@ class ProductosController extends Controller
         $producto = Producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
 
-        return redirect()->route('productos.index')->with('success', 'Producto eliminado permanentemente.');
+        return redirect()->route('productos.gestor')->with('success', 'Producto eliminado permanentemente.');
     }
 }

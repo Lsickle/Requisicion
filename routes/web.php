@@ -107,7 +107,7 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::put('/requisiciones/{id}', [RequisicionController::class, 'update'])
         ->name('requisiciones.update');
 
-    // Agregar esta ruta
+    // Ruta de gestion de productos
     Route::get('/productos/gestor', [ProductosController::class, 'gestor'])
         ->name('productos.gestor');
 
@@ -116,7 +116,16 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('productos/{id}/restore', [ProductosController::class, 'restore'])
         ->name('productos.restore');
     Route::delete('productos/{id}/force-delete', [ProductosController::class, 'forceDelete'])
-        ->name('productos.force-delete');
+        ->name('productos.forceDelete');
+
+    // Rutas para solicitud de nuevo producto
+    Route::resource('nuevo-producto', NuevoProductoController::class);
+    
+    Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])
+        ->name('nuevo-producto.restore');
+
+    Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
+        ->name('nuevo-producto.forceDelete');
 });
 
 // Logout
@@ -131,11 +140,6 @@ Route::prefix('exportar')->group(function () {
 });
 
 Route::view('/index', 'index')->name('index');
-
-// Rutas para solicitud de nuevo producto
-Route::resource('nuevo-producto', NuevoProductoController::class);
-Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])->name('nuevo-producto.restore');
-Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])->name('nuevo-producto.force-delete');
 
 
 Route::resource('proveedores', ProveedoresController::class);
