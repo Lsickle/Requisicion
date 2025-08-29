@@ -10,8 +10,9 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
-<body class="bg-gray-100">
-    <div class="max-w-7xl mx-auto p-6 mt-10 bg-white rounded-lg shadow-md">
+<body class="bg-gray-100 pt-16">
+    <x-sidebar />
+    <div class="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow-md mt-4">
         <h1 class="text-2xl font-bold mb-6">Gestor de Productos</h1>
 
         <!-- Botones de acción principales -->
@@ -34,230 +35,286 @@
 
         <!-- Sección de Productos Registrados -->
         <div id="productos-section" class="bg-white rounded-lg shadow mb-6">
-            <div class="p-4 border-b">
+            <div class="p-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <h2 class="text-xl font-semibold">Productos Registrados</h2>
-            </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full table-auto">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-4 py-2 text-left">ID</th>
-                            <th class="px-4 py-2 text-left">Nombre</th>
-                            <th class="px-4 py-2 text-left">Categoría</th>
-                            <th class="px-4 py-2 text-left">Proveedor</th>
-                            <th class="px-4 py-2 text-left">Stock</th>
-                            <th class="px-4 py-2 text-left">Precio</th>
-                            <th class="px-4 py-2 text-left">Estado</th>
-                            <th class="px-4 py-2 text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($productos as $producto)
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ $producto->id }}</td>
-                            <td class="px-4 py-2">{{ $producto->name_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
-                            <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
-                            <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
-                            <td class="px-4 py-2">
-                                @if($producto->trashed())
-                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
-                                @else
-                                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-2 text-center">
-                                <div class="flex justify-center space-x-2">
-                                    @if($producto->trashed())
-                                    <form action="{{ route('productos.restore', $producto->id) }}" method="POST"
-                                        class="inline">
-                                        @csrf
-                                        @method('POST') <!-- Cambiado de PATCH a POST -->
-                                        <button type="submit" class="text-green-600 hover:text-green-800"
-                                            title="Restaurar">
-                                            <i class="fas fa-undo"></i>
-                                        </button>
-                                    </form>
-                                    <form action="{{ route('productos.forceDelete', $producto->id) }}" method="POST"
-                                        class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800"
-                                            onclick="return confirm('¿Eliminar permanentemente este producto?')"
-                                            title="Eliminar Permanentemente">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                    @else
-                                    <button
-                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
-                                        class="text-blue-600 hover:text-blue-800" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <form action="{{ route('productos.destroy', $producto->id) }}" method="POST"
-                                        class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800"
-                                            onclick="return confirm('¿Eliminar este producto?')" title="Eliminar">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                    @endif
-                                </div>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                <!-- Barra de búsqueda y filtros -->
+                <div class="flex flex-col md:flex-row gap-2 md:items-center">
+                    <input type="text" id="searchInput" placeholder="Buscar producto..."
+                        class="px-3 py-2 border rounded-md w-full md:w-64" onkeyup="filterTable()">
+
+                    <select id="filterCategoria" onchange="filterTable()"
+                        class="px-3 py-2 border rounded-md w-full md:w-48">
+                        <option value="">Todas las Categorías</option>
+                        <option value="Tecnología">Tecnología</option>
+                        <option value="Contabilidad">Contabilidad</option>
+                        <option value="Talento Humano">Talento Humano</option>
+                        <option value="Compras">Compras</option>
+                        <option value="Calidad">Calidad</option>
+                        <option value="HSEQ">HSEQ</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Operaciones">Operaciones</option>
+                        <option value="Financiera">Financiera</option>
+                        <option value="Mantenimiento">Mantenimiento</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+
+                    <select id="filterEstado" onchange="filterTable()"
+                        class="px-3 py-2 border rounded-md w-full md:w-40">
+                        <option value="">Todos</option>
+                        <option value="Activo">Activo</option>
+                        <option value="Eliminado">Eliminado</option>
+                    </select>
+
+                    <!-- Nuevo: Ordenar por ID -->
+                    <select id="sortId" onchange="sortTableById()" class="px-3 py-2 border rounded-md w-full md:w-40">
+                        <option value="asc">ID: Menor a Mayor</option>
+                        <option value="desc">ID: Mayor a Menor</option>
+                    </select>
+                </div>
+
             </div>
         </div>
 
-        <!-- Modal para crear/editar producto -->
-        <div id="productModal"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
-                <div class="p-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-semibold" id="modalTitle">Nuevo Producto</h2>
-                    <button onclick="closeModal('producto')" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="p-4">
-                    <form id="productForm" action="{{ route('productos.store') }}" method="POST">
-                        @csrf
-                        <input type="hidden" id="formMethod" name="_method" value="POST">
-                        <input type="hidden" id="productId" name="id" value="">
+        <div class="overflow-x-auto">
+            <table id="productosTable" class="w-full table-auto">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">ID</th>
+                        <th class="px-4 py-2 text-left">Nombre</th>
+                        <th class="px-4 py-2 text-left">Categoría</th>
+                        <th class="px-4 py-2 text-left">Proveedor</th>
+                        <th class="px-4 py-2 text-left">Stock</th>
+                        <th class="px-4 py-2 text-left">Precio</th>
+                        <th class="px-4 py-2 text-left">Estado</th>
+                        <th class="px-4 py-2 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($productos as $producto)
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-2">{{ $producto->id }}</td>
+                        <td class="px-4 py-2">{{ $producto->name_produc }}</td>
+                        <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
+                        <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
+                        <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
+                        <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
+                        <td class="px-4 py-2">
+                            @if($producto->trashed())
+                            <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
+                            @else
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-2 text-center">
+                            <div class="flex justify-center space-x-2">
+                                @if($producto->trashed())
+                                <form action="{{ route('productos.restore', $producto->id) }}" method="POST"
+                                    class="inline">
+                                    @csrf
+                                    @method('POST')
+                                    <!-- Cambiado de PATCH a POST -->
+                                    <button type="submit" class="text-green-600 hover:text-green-800" title="Restaurar">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                </form>
+                                <form action="{{ route('productos.forceDelete', $producto->id) }}" method="POST"
+                                    class="inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 hover:text-red-800"
+                                        onclick="return confirm('¿Eliminar permanentemente este producto?')"
+                                        title="Eliminar Permanentemente">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @else
+                                <button
+                                    onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
+                                    class="text-blue-600 hover:text-blue-800" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form action="{{ route('productos.destroy', $producto->id) }}" method="POST"
+                                    class="inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 hover:text-red-800"
+                                        onclick="return confirm('¿Eliminar este producto?')" title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
-                                <input type="text" id="name_produc" name="name_produc"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                                <input type="text" id="categoria_produc" name="categoria_produc"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+    <!-- Modal para crear/editar producto -->
+    <div id="productModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-semibold" id="modalTitle">Nuevo Producto</h2>
+                <button onclick="closeModal('producto')" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <form id="productForm" action="{{ route('productos.store') }}" method="POST">
+                    @csrf
+                    <input type="hidden" id="formMethod" name="_method" value="POST">
+                    <input type="hidden" id="productId" name="id" value="">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
+                            <input type="text" id="name_produc" name="name_produc"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                            <select id="categoria_produc" name="categoria_produc"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                                <option value="">Seleccionar categoría</option>
+                                <option value="Tecnología">Tecnología</option>
+                                <option value="Contabilidad">Contabilidad</option>
+                                <option value="Talento Humano">Talento Humano</option>
+                                <option value="Compras">Compras</option>
+                                <option value="Calidad">Calidad</option>
+                                <option value="HSEQ">HSEQ</option>
+                                <option value="Comercial">Comercial</option>
+                                <option value="Operaciones">Operaciones</option>
+                                <option value="Financiera">Financiera</option>
+                                <option value="Mantenimiento">Mantenimiento</option>
+                                <option value="Otros">Otros</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                            <div class="relative">
                                 <div class="flex">
-                                    <select id="proveedor_id" name="proveedor_id"
-                                        class="w-full px-3 py-2 border rounded-md rounded-r-none" required>
-                                        <option value="">Seleccionar proveedor</option>
-                                        @foreach($proveedores as $proveedor)
-                                        <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
-                                        @endforeach
-                                    </select>
+                                    <input type="text" id="proveedor_search" placeholder="Buscar proveedor..."
+                                        class="w-full px-3 py-2 border rounded-md rounded-r-none"
+                                        oninput="filterProveedores()">
                                     <button type="button" onclick="openModal('proveedor')"
                                         class="bg-blue-500 text-white px-3 rounded-r-md">
                                         <i class="fas fa-plus"></i>
                                     </button>
                                 </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                                <input type="number" id="stock_produc" name="stock_produc" min="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
-                                <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
-                                <input type="text" id="unit_produc" name="unit_produc"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <select id="proveedor_id" name="proveedor_id"
+                                    class="w-full px-3 py-2 border rounded-md mt-1 hidden" required>
+                                    <option value="">Seleccionar proveedor</option>
+                                    @foreach($proveedores as $proveedor)
+                                    <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                                    @endforeach
+                                </select>
+                                <div id="proveedor_results"
+                                    class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto hidden">
+                                </div>
                             </div>
                         </div>
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                            <textarea id="description_produc" name="description_produc" rows="3"
-                                class="w-full px-3 py-2 border rounded-md"></textarea>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                            <input type="number" id="stock_produc" name="stock_produc" min="0"
+                                class="w-full px-3 py-2 border rounded-md" required>
                         </div>
-                    </form>
-                </div>
-                <div class="p-4 border-t flex justify-end space-x-2">
-                    <button onclick="closeModal('producto')"
-                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
-                        Cancelar
-                    </button>
-                    <button onclick="document.getElementById('productForm').submit()"
-                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
-                        Guardar
-                    </button>
-                </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
+                            <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
+                            <input type="text" id="unit_produc" name="unit_produc"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                        <textarea id="description_produc" name="description_produc" rows="3"
+                            class="w-full px-3 py-2 border rounded-md"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-2">
+                <button onclick="closeModal('producto')"
+                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
+                    Cancelar
+                </button>
+                <button onclick="document.getElementById('productForm').submit()"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                    Guardar
+                </button>
             </div>
         </div>
+    </div>
 
-        <!-- Modal para crear proveedor -->
-        <div id="proveedorModal"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
-                <div class="p-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-semibold">Nuevo Proveedor</h2>
-                    <button onclick="closeModal('proveedor')" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="p-4">
-                    <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST">
-                        @csrf
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor</label>
-                                <input type="text" id="prov_name" name="prov_name"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">NIT</label>
-                                <input type="text" id="prov_nit" name="prov_nit"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto</label>
-                                <input type="text" id="prov_name_c" name="prov_name_c"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                                <input type="text" id="prov_phone" name="prov_phone"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-                                <input type="text" id="prov_adress" name="prov_adress"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-                                <input type="text" id="prov_city" name="prov_city"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                            </div>
+    <!-- Modal para crear proveedor -->
+    <div id="proveedorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-semibold">Nuevo Proveedor</h2>
+                <button onclick="closeModal('proveedor')" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST">
+                    @csrf
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor</label>
+                            <input type="text" id="prov_name" name="prov_name"
+                                class="w-full px-3 py-2 border rounded-md" required>
                         </div>
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                            <textarea id="prov_descrip" name="prov_descrip" rows="3"
-                                class="w-full px-3 py-2 border rounded-md"></textarea>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">NIT</label>
+                            <input type="text" id="prov_nit" name="prov_nit" class="w-full px-3 py-2 border rounded-md"
+                                required>
                         </div>
-                    </form>
-                </div>
-                <div class="p-4 border-t flex justify-end space-x-2">
-                    <button onclick="closeModal('proveedor')"
-                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
-                        Cancelar
-                    </button>
-                    <button onclick="document.getElementById('proveedorForm').submit()"
-                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
-                        Guardar
-                    </button>
-                </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto</label>
+                            <input type="text" id="prov_name_c" name="prov_name_c"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <input type="text" id="prov_phone" name="prov_phone"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                            <input type="text" id="prov_adress" name="prov_adress"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+                            <input type="text" id="prov_city" name="prov_city"
+                                class="w-full px-3 py-2 border rounded-md" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                        <textarea id="prov_descrip" name="prov_descrip" rows="3"
+                            class="w-full px-3 py-2 border rounded-md"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="p-4 border-t flex justify-end space-x-2">
+                <button onclick="closeModal('proveedor')"
+                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
+                    Cancelar
+                </button>
+                <button onclick="document.getElementById('proveedorForm').submit()"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                    Guardar
+                </button>
             </div>
         </div>
+    </div>
     </div>
 
     <script>
@@ -270,6 +327,9 @@
                 document.getElementById('formMethod').value = 'POST';
                 document.getElementById('productForm').action = "{{ route('productos.store') }}";
                 document.getElementById('productForm').reset();
+                // Limpiar búsqueda de proveedores
+                document.getElementById('proveedor_search').value = '';
+                document.getElementById('proveedor_results').classList.add('hidden');
             } else if (type === 'proveedor') {
                 document.getElementById('proveedorModal').classList.remove('hidden');
                 document.getElementById('proveedorForm').reset();
@@ -298,6 +358,11 @@
             document.getElementById('unit_produc').value = unidad;
             document.getElementById('description_produc').value = descripcion;
             
+            // Para el proveedor, mostrar el nombre en el campo de búsqueda
+            const proveedorSelect = document.getElementById('proveedor_id');
+            const selectedOption = proveedorSelect.options[proveedorSelect.selectedIndex];
+            document.getElementById('proveedor_search').value = selectedOption.text;
+            
             document.getElementById('productModal').classList.remove('hidden');
         }
 
@@ -310,6 +375,53 @@
                 document.getElementById('solicitudes-section').classList.remove('hidden');
             }
         }
+
+        // Función para filtrar proveedores
+        function filterProveedores() {
+            const searchTerm = document.getElementById('proveedor_search').value.toLowerCase();
+            const proveedorSelect = document.getElementById('proveedor_id');
+            const resultsContainer = document.getElementById('proveedor_results');
+            
+            // Limpiar resultados anteriores
+            resultsContainer.innerHTML = '';
+            
+            if (searchTerm === '') {
+                resultsContainer.classList.add('hidden');
+                return;
+            }
+            
+            let hasResults = false;
+            
+            // Buscar coincidencias
+            for (let i = 0; i < proveedorSelect.options.length; i++) {
+                const option = proveedorSelect.options[i];
+                if (option.text.toLowerCase().includes(searchTerm)) {
+                    const div = document.createElement('div');
+                    div.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
+                    div.textContent = option.text;
+                    div.onclick = function() {
+                        proveedorSelect.value = option.value;
+                        document.getElementById('proveedor_search').value = option.text;
+                        resultsContainer.classList.add('hidden');
+                    };
+                    resultsContainer.appendChild(div);
+                    hasResults = true;
+                }
+            }
+            
+            if (hasResults) {
+                resultsContainer.classList.remove('hidden');
+            } else {
+                resultsContainer.classList.add('hidden');
+            }
+        }
+
+        // Cerrar resultados al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#proveedor_search') && !e.target.closest('#proveedor_results')) {
+                document.getElementById('proveedor_results').classList.add('hidden');
+            }
+        });
 
         // Mostrar mensajes de éxito/error con SweetAlert
         @if(session('success'))
@@ -338,6 +450,55 @@
                 confirmButtonColor: '#1e40af'
             });
         @endif
+        function filterTable() {
+            const searchInput = document.getElementById("searchInput").value.toLowerCase();
+            const filterCategoria = document.getElementById("filterCategoria").value.toLowerCase();
+            const filterEstado = document.getElementById("filterEstado").value.toLowerCase();
+            const table = document.getElementById("productosTable");
+            const rows = table.getElementsByTagName("tr");
+
+            for (let i = 1; i < rows.length; i++) {
+                let cells = rows[i].getElementsByTagName("td");
+                if (!cells.length) continue;
+
+                const nombre = cells[1].textContent.toLowerCase();
+                const categoria = cells[2].textContent.toLowerCase();
+                const estado = cells[6].textContent.toLowerCase();
+
+                const matchesSearch = nombre.includes(searchInput) || categoria.includes(searchInput);
+                const matchesCategoria = filterCategoria === "" || categoria === filterCategoria;
+                const matchesEstado = filterEstado === "" || estado.includes(filterEstado);
+
+                rows[i].style.display = (matchesSearch && matchesCategoria && matchesEstado) ? "" : "none";
+            }
+
+            // Mantener orden aplicado después del filtro
+            sortTableById();
+        }
+
+        // Ordenar por ID
+        function sortTableById() {
+            const table = document.getElementById("productosTable");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr")).filter(r => r.style.display !== "none");
+            const sortOrder = document.getElementById("sortId").value;
+
+            rows.sort((a, b) => {
+                const idA = parseInt(a.cells[0].textContent.trim());
+                const idB = parseInt(b.cells[0].textContent.trim());
+                return sortOrder === "asc" ? idA - idB : idB - idA;
+            });
+
+            tbody.innerHTML = "";
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Al cargar la página, ordenar automáticamente de menor a mayor
+        document.addEventListener("DOMContentLoaded", () => {
+            sortTableById();
+        });
+            
+}
     </script>
 
     <style>

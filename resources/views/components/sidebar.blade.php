@@ -11,90 +11,91 @@
 
     <!-- Sidebar -->
     <div id="sidebar"
-        class="fixed top-0 left-0 w-64 h-full bg-blue-900 text-white pt-16 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col">
+        class="fixed top-14 left-0 w-64 h-[calc(100%-3.5rem)] bg-blue-900 text-white pt-6 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col">
+
 
         <!-- Opciones -->
         <ul class="list-none p-0 m-0 flex-grow text-sm">
             @php
-                $permissions = Session::get('user_permissions', []);
-                $hasPermission = fn($perm) => in_array($perm, $permissions);
+            $permissions = Session::get('user_permissions', []);
+            $hasPermission = fn($perm) => in_array($perm, $permissions);
             @endphp
 
             <li>
-                <a href="{{ route('requisiciones.menu') }}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Menú
+                <a href="{{ route('requisiciones.menu') }}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Menú
                 </a>
             </li>
-            
+
             @if($hasPermission('crear requisicion'))
             <li>
-                <a href="{{ route('requisiciones.create') }}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Crear Requisición
+                <a href="{{ route('requisiciones.create') }}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Crear Requisición
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('aprobar requisicion'))
             <li>
-                <a href="{{ route('requisiciones.aprobacion') }}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   requisiciones por aprobar
+                <a href="{{ route('requisiciones.aprobacion') }}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    requisiciones por aprobar
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('ver requisicion'))
             <li>
-                <a href="{{ route('requisiciones.historial') }}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Historial de Requisiciones
+                <a href="{{ route('requisiciones.historial') }}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Historial de Requisiciones
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('solicitar producto'))
             <li>
-                <a href="{{ route('productos.nuevoproducto')}}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Solicitar nuevo producto
+                <a href="{{ route('productos.nuevoproducto')}}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Solicitar nuevo producto
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('crear oc'))
             <li>
-                <a href="#" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Generar Orden de Compra
+                <a href="#"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Generar Orden de Compra
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('ver oc'))
             <li>
-                <a href="#" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Historial de Órdenes de Compra
+                <a href="#"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Historial de Órdenes de Compra
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('ver producto'))
             <li>
-                <a href="{{ route('productos.gestor')}}" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Ver productos
+                <a href="{{ route('productos.gestor')}}"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Ver productos
                 </a>
             </li>
             @endif
-            
+
             @if($hasPermission('Dashboard'))
             <li>
-                <a href="#" 
-                   class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
-                   Dashboard
+                <a href="#"
+                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    Dashboard
                 </a>
             </li>
             @endif
