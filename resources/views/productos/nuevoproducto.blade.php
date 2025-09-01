@@ -62,77 +62,82 @@
             </form>
         </div>
     </div>
-    @endsection
-    @section('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('productoForm');
+@endsection
+
+@section('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('productoForm');
+        
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
             
-            form.addEventListener('submit', function(event) {
-                event.preventDefault();
-                
-                let isValid = true;
-                const nombre = document.getElementById('nombre');
-                const descripcion = document.getElementById('descripcion');
-                
-                // Reset errors
-                nombre.classList.remove('border-red-500');
-                descripcion.classList.remove('border-red-500');
-                
-                // Validar nombre
-                if (!nombre.value.trim()) {
-                    isValid = false;
-                    nombre.classList.add('border-red-500');
-                }
-                
-                // Validar descripción
-                if (!descripcion.value.trim()) {
-                    isValid = false;
-                    descripcion.classList.add('border-red-500');
-                }
-                
-                if (!isValid) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Por favor, completa todos los campos correctamente.',
-                        confirmButtonColor: '#2563eb'
-                    });
-                    return;
-                }
-                
-                // Mostrar confirmación de envío
+            let isValid = true;
+            const nombre = document.getElementById('nombre');
+            const descripcion = document.getElementById('descripcion');
+            
+            // Reset errors
+            nombre.classList.remove('border-red-500');
+            descripcion.classList.remove('border-red-500');
+            
+            // Validar nombre
+            if (!nombre.value.trim()) {
+                isValid = false;
+                nombre.classList.add('border-red-500');
+            }
+            
+            // Validar descripción
+            if (!descripcion.value.trim()) {
+                isValid = false;
+                descripcion.classList.add('border-red-500');
+            }
+            
+            if (!isValid) {
                 Swal.fire({
-                    title: '¿Confirmar envío?',
-                    text: "¿Estás seguro de que deseas solicitar este producto?",
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#2563eb',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: 'Sí, solicitar',
-                    cancelButtonText: 'Cancelar'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        // Deshabilitar el botón para evitar múltiples envíos
-                        const submitButton = form.querySelector('button[type="submit"]');
-                        submitButton.disabled = true;
-                        submitButton.textContent = 'Enviando...';
-                        
-                        // Enviar el formulario
-                        form.submit();
-                    }
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Por favor, completa todos los campos correctamente.',
+                    confirmButtonColor: '#2563eb'
                 });
-            });
+                return;
+            }
             
-            // Mostrar alerta de éxito si viene de una redirección con sesión flash
-            @if(session('success'))
+            // Confirmación antes de enviar
             Swal.fire({
-                icon: 'success',
-                title: '¡Éxito!',
-                text: '{{ session('success') }}',
-                confirmButtonColor: '#2563eb'
+                title: '¿Confirmar envío?',
+                text: "¿Estás seguro de que deseas solicitar este producto?",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, solicitar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Mostrar alerta de carga
+                    Swal.fire({
+                        title: 'Enviando solicitud...',
+                        text: 'Por favor espera mientras procesamos tu solicitud.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    form.submit();
+                }
             });
-            @endif
         });
-    </script>
-    @endsection
+        
+        // Mostrar alerta de éxito si viene de una redirección con sesión flash
+        @if(session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: '¡Éxito!',
+            text: '{{ session('success') }}',
+            confirmButtonColor: '#2563eb'
+        });
+        @endif
+    });
+</script>
+@endsection

@@ -40,16 +40,25 @@ class NuevoProductoController extends Controller
         DB::beginTransaction();
 
         try {
-            $nuevoProducto = Nuevo_Producto::create($validated);
+            // Extraer usuario de sesión
+            $nameUser  = session('user.name') ?? 'Desconocido';
+            $emailUser = session('user.email') ?? 'no-email@dominio.com';
+
+            // Crear registro incluyendo nombre y email del usuario
+            $nuevoProducto = Nuevo_Producto::create([
+                'nombre'      => $validated['nombre'],
+                'descripcion' => $validated['descripcion'],
+                'name_user'   => $nameUser,
+                'email_user'  => $emailUser,
+            ]);
 
             // Despachar el Job para enviar el correo
             NuevoProductoSolicitadoJob::dispatch($nuevoProducto);
 
             DB::commit();
 
-            return redirect()->route('requisiciones.menu')
+            return redirect()->route('productos.nuevoproducto')
                 ->with('success', 'Solicitud de producto creada exitosamente. Se ha enviado una notificación.');
-                
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withInput()->withErrors([

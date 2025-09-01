@@ -25,6 +25,9 @@
                 <span class="label">Descripción:</span> {{ $producto->descripcion }}
             </div>
             <div class="detail">
+                <span class="label">Solicitado por:</span> {{ $producto->name_user }} 
+            </div>
+            <div class="detail">
                 <span class="label">Fecha de solicitud:</span> {{ $producto->created_at->format('d/m/Y H:i') }}
             </div>
         </div>
