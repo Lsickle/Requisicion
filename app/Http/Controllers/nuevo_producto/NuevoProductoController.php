@@ -95,14 +95,14 @@ class NuevoProductoController extends Controller
 
         $nuevoProducto->update($validated);
 
-        return redirect()->route('requisiciones.menu')
+        return redirect()->route('productos.gestor')
             ->with('success', 'Solicitud de producto actualizada exitosamente.');
     }
 
     public function destroy(Nuevo_Producto $nuevoProducto)
     {
         $nuevoProducto->delete();
-        return redirect()->route('requisiciones.menu')
+        return redirect()->route('productos.gestor')
             ->with('success', 'Solicitud de producto eliminada exitosamente.');
     }
 
@@ -111,7 +111,7 @@ class NuevoProductoController extends Controller
         $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
         $producto->restore();
 
-        return redirect()->route('requisiciones.menu')
+        return redirect()->route('productos.gestor')
             ->with('success', 'Solicitud de producto restaurada exitosamente.');
     }
 
@@ -123,7 +123,7 @@ class NuevoProductoController extends Controller
         $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
 
-        return redirect()->route('requisiciones.menu')
+        return redirect()->route('productos.gestor')
             ->with('success', 'Solicitud de producto eliminada permanentemente.');
     }
 }

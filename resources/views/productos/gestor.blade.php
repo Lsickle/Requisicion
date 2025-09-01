@@ -12,26 +12,24 @@
 
 <body class="bg-gray-100 pt-16">
     <x-sidebar />
-    <div class="max-w-7xl mx-auto p-6 bg-white rounded-lg shadow-md mt-4">
-        <h1 class="text-2xl font-bold mb-6">Gestor de Productos</h1>
+    <div class="max-w-7xl mx-auto mt-4 bg-white">
+        <!-- Header -->
+        <div class="bg-gray-100 border border-solid border-gray-300 px-6 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
+        </div>
 
-        <!-- Botones de acción principales -->
-        <div class="flex justify-between mb-6">
-            <div class="flex space-x-2">
-                <button onclick="toggleSection('productos')"
-                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-                    Productos Registrados
-                </button>
-                <button onclick="toggleSection('solicitudes')"
-                    class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
-                    Productos Solicitados
-                </button>
-            </div>
-            <button onclick="openModal('producto')"
-                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
-                + Nuevo Producto
+        <!-- Tabs -->
+        <div class="flex space-x-1 bg-gray-200 px-2 pt-2">
+            <button id="tab-productos" onclick="toggleSection('productos')"
+                class="px-4 py-2 bg-white rounded-t-lg shadow text-gray-700 font-medium">
+                Productos Registrados
+            </button>
+            <button id="tab-solicitudes" onclick="toggleSection('solicitudes')"
+                class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">
+                Productos Solicitados
             </button>
         </div>
+
 
         <!-- Sección de Productos Registrados -->
         <div id="productos-section" class="bg-white rounded-lg shadow mb-6">
@@ -40,6 +38,11 @@
 
                 <!-- Barra de búsqueda y filtros -->
                 <div class="flex flex-col md:flex-row gap-2 md:items-center">
+                    <button onclick="openModal('producto')"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                        + Añadir Producto
+                    </button>
+
                     <input type="text" id="searchInput" placeholder="Buscar producto..."
                         class="px-3 py-2 border rounded-md w-full md:w-64" onkeyup="filterTable()">
 
@@ -145,7 +148,7 @@
         </div>
 
         <!-- Sección de Productos Solicitados (oculta inicialmente) -->
-        <div class="p-4 overflow-x-auto">
+        <div id="solicitudes-section" class="p-4 overflow-x-auto hidden">
             @if($solicitudes->isEmpty())
             <p class="text-gray-500">No hay productos solicitados.</p>
             @else
@@ -185,14 +188,33 @@
                                     </button>
                                 </form>
                                 @else
+                                <!-- Botón Añadir producto -->
+                                <button type="button"
+                                    class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                                    title="Añadir producto">
+                                    <i class="fas fa-plus"></i> Añadir
+                                </button>
+
+                                <!-- Botón Rechazar solicitud -->
                                 <form action="{{ route('nuevo_producto.destroy', $solicitud->id) }}" method="POST"
-                                    onsubmit="return confirmDelete(event)">
+                                    onsubmit="return confirmDelete(event)" class="inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
-                                        <i class="fas fa-trash"></i>
+                                    <button type="submit"
+                                        class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                                        title="Rechazar solicitud">
+                                        <i class="fas fa-times"></i> Rechazar
                                     </button>
                                 </form>
+
+                                <!-- Botón Ver solicitud -->
+                                <button type="button"
+                                    onclick="openSolicitudModal('{{ $solicitud->nombre }}', `{{ $solicitud->descripcion }}`, '{{ $solicitud->name_user }}')"
+                                    class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                    title="Ver solicitud">
+                                    <i class="fas fa-eye"></i> Ver
+                                </button>
+
                                 @endif
                             </div>
                         </td>
@@ -202,6 +224,7 @@
             </table>
             @endif
         </div>
+
 
 
         <!-- Modal para crear/editar producto -->
@@ -384,6 +407,31 @@
             </div>
         </div>
 
+        <!-- Modal Ver Solicitud -->
+        <div id="solicitudModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-2/3 lg:w-1/3">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Detalle de la Solicitud</h2>
+                    <button onclick="closeSolicitudModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-4 space-y-3">
+                    <p><strong>Solicitado por:</strong> <span id="solicitudUsuario"></span></p>
+                    <p><strong>Nombre:</strong> <span id="solicitudNombre"></span></p>
+                    <p><strong>Descripción:</strong> <span id="solicitudDescripcion"></span></p>
+                </div>
+                <div class="p-4 border-t flex justify-end">
+                    <button type="button" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                        title="Añadir producto">
+                        <i class="fas fa-plus"></i> Añadir
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
         <!-- Loading overlay -->
         <div id="loadingOverlay"
             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
@@ -395,27 +443,42 @@
         </div>
 
         <script>
-            // Funciones para controlar modales
-        function openModal(type) {
-            if (type === 'producto') {
-                document.getElementById('productModal').classList.remove('hidden');
-                document.getElementById('modalTitle').textContent = 'Nuevo Producto';
-                document.getElementById('productId').value = '';
-                document.getElementById('formMethod').value = 'POST';
-                document.getElementById('productForm').action = "{{ route('productos.store') }}";
-                document.getElementById('productForm').reset();
-                // Limpiar búsqueda de proveedores
-                document.getElementById('proveedor_search').value = '';
-                document.getElementById('proveedor_results').classList.add('hidden');
-                // Limpiar mensajes de error
-                clearErrorMessages();
-            } else if (type === 'proveedor') {
-                document.getElementById('proveedorModal').classList.remove('hidden');
-                document.getElementById('proveedorForm').reset();
-                // Limpiar mensajes de error
-                clearProveedorErrorMessages();
+            // Abrir modal de solicitud
+            function openSolicitudModal(nombre, descripcion, usuario) {
+                document.getElementById('solicitudNombre').textContent = nombre;
+                document.getElementById('solicitudDescripcion').textContent = descripcion;
+                document.getElementById('solicitudUsuario').textContent = usuario;
+                document.getElementById('solicitudModal').classList.remove('hidden');
             }
-        }
+
+            // Cerrar modal de solicitud
+            function closeSolicitudModal() {
+                document.getElementById('solicitudModal').classList.add('hidden');
+            }
+
+
+
+            // Funciones para controlar modales
+            function openModal(type) {
+                if (type === 'producto') {
+                    document.getElementById('productModal').classList.remove('hidden');
+                    document.getElementById('modalTitle').textContent = 'Nuevo Producto';
+                    document.getElementById('productId').value = '';
+                    document.getElementById('formMethod').value = 'POST';
+                    document.getElementById('productForm').action = "{{ route('productos.store') }}";
+                    document.getElementById('productForm').reset();
+                    // Limpiar búsqueda de proveedores
+                    document.getElementById('proveedor_search').value = '';
+                    document.getElementById('proveedor_results').classList.add('hidden');
+                    // Limpiar mensajes de error
+                    clearErrorMessages();
+                } else if (type === 'proveedor') {
+                    document.getElementById('proveedorModal').classList.remove('hidden');
+                    document.getElementById('proveedorForm').reset();
+                    // Limpiar mensajes de error
+                    clearProveedorErrorMessages();
+                }
+            }
 
         function closeModal(type) {
             if (type === 'producto') {
@@ -451,14 +514,37 @@
         }
 
         function toggleSection(section) {
+            const productosSection = document.getElementById('productos-section');
+            const solicitudesSection = document.getElementById('solicitudes-section');
+
+            const tabProductos = document.getElementById('tab-productos');
+            const tabSolicitudes = document.getElementById('tab-solicitudes');
+
             if (section === 'productos') {
-                document.getElementById('productos-section').classList.remove('hidden');
-                document.getElementById('solicitudes-section').classList.add('hidden');
+                productosSection.classList.remove('hidden');
+                solicitudesSection.classList.add('hidden');
+
+                // Activar tab productos
+                tabProductos.classList.add('bg-white', 'shadow', 'text-gray-700');
+                tabProductos.classList.remove('text-gray-600');
+
+                // Desactivar tab solicitudes
+                tabSolicitudes.classList.remove('bg-white', 'shadow', 'text-gray-700');
+                tabSolicitudes.classList.add('text-gray-600');
             } else {
-                document.getElementById('productos-section').classList.add('hidden');
-                document.getElementById('solicitudes-section').classList.remove('hidden');
+                productosSection.classList.add('hidden');
+                solicitudesSection.classList.remove('hidden');
+
+                // Activar tab solicitudes
+                tabSolicitudes.classList.add('bg-white', 'shadow', 'text-gray-700');
+                tabSolicitudes.classList.remove('text-gray-600');
+
+                // Desactivar tab productos
+                tabProductos.classList.remove('bg-white', 'shadow', 'text-gray-700');
+                tabProductos.classList.add('text-gray-600');
             }
         }
+
 
         // Función para filtrar proveedores
         function filterProveedores() {
@@ -760,6 +846,22 @@
                 100% {
                     transform: rotate(360deg);
                 }
+            }
+
+            /* Tabs estilo Chrome */
+            button[id^="tab-"] {
+                border-top-left-radius: 0.5rem;
+                border-top-right-radius: 0.5rem;
+                transition: all 0.2s;
+            }
+
+            button[id^="tab-"]:hover {
+                background-color: #f9f9f9;
+            }
+
+            button[id^="tab-"].bg-white {
+                border-bottom: 3px solid #2563eb;
+                /* azul Tailwind */
             }
         </style>
 </body>
