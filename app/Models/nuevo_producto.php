@@ -15,6 +15,8 @@ class Nuevo_Producto extends Model
 
     // Campos que se pueden asignar masivamente
     protected $fillable = [
+        'name_user',
+        'email_user',
         'nombre',
         'descripcion',
     ];
