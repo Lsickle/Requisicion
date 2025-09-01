@@ -126,14 +126,16 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('proveedores.store');
 
     // Rutas para solicitud de nuevo producto
-    Route::resource('nuevo-producto', NuevoProductoController::class);
+    Route::resource('nuevo_producto', NuevoProductoController::class);
 
-    Route::post('nuevo-producto/{id}/restore', [NuevoProductoController::class, 'restore'])
-        ->name('nuevo-producto.restore');
+    Route::post('nuevo_producto/{id}/restore', [NuevoProductoController::class, 'restore'])
+        ->name('nuevo_producto.restore');
 
-    Route::delete('nuevo-producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
-        ->name('nuevo-producto.forceDelete');
+    Route::delete('nuevo_producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
+        ->name('nuevo_producto.forceDelete');
 });
+
+Route::resource('nuevo_producto', NuevoProductoController::class);
 
 // Logout
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');

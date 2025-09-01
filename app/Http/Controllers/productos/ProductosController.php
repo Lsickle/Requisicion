@@ -8,6 +8,7 @@ use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Models\Nuevo_Producto;
 
 class ProductosController extends Controller
 {
@@ -29,8 +30,12 @@ class ProductosController extends Controller
         $productos = $query->get();
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
-        return view('productos.gestor', compact('productos', 'proveedores'));
+        //  Agregamos las solicitudes de nuevos productos
+        $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
+
+        return view('productos.gestor', compact('productos', 'proveedores', 'solicitudes'));
     }
+
 
     /**
      * Método para el gestor de productos
@@ -58,8 +63,12 @@ class ProductosController extends Controller
 
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
-        return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores'));
+        // Agregamos las solicitudes de nuevos productos (para que no falte en la vista)
+        $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
+
+        return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores', 'solicitudes'));
     }
+
 
     /**
      * Store a newly created resource in storage.

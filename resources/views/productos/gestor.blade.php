@@ -68,7 +68,7 @@
                 </div>
 
             </div>
-        
+
             <div class="overflow-x-auto">
                 <table id="productosTable" class="w-full table-auto">
                     <thead class="bg-gray-50">
@@ -106,7 +106,8 @@
                                         class="inline" onsubmit="showLoading(event)">
                                         @csrf
                                         @method('POST')
-                                        <button type="submit" class="text-green-600 hover:text-green-800" title="Restaurar">
+                                        <button type="submit" class="text-green-600 hover:text-green-800"
+                                            title="Restaurar">
                                             <i class="fas fa-undo"></i>
                                         </button>
                                     </form>
@@ -144,203 +145,257 @@
         </div>
 
         <!-- Sección de Productos Solicitados (oculta inicialmente) -->
-        <div id="solicitudes-section" class="bg-white rounded-lg shadow mb-6 hidden">
-            <div class="p-4 border-b">
-                <h2 class="text-xl font-semibold">Productos Solicitados</h2>
-            </div>
-            <div class="p-4">
-                <p class="text-gray-500">Aquí se mostrarán los productos solicitados.</p>
-                <!-- Contenido de productos solicitados -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal para crear/editar producto -->
-    <div id="productModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h2 class="text-xl font-semibold" id="modalTitle">Nuevo Producto</h2>
-                <button onclick="closeModal('producto')" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="p-4">
-                <form id="productForm" action="{{ route('productos.store') }}" method="POST" onsubmit="return validateProductForm()">
-                    @csrf
-                    <input type="hidden" id="formMethod" name="_method" value="POST">
-                    <input type="hidden" id="productId" name="id" value="">
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
-                            <input type="text" id="name_produc" name="name_produc"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="name_produc_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
-                            <select id="categoria_produc" name="categoria_produc"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                                <option value="">Seleccionar categoría</option>
-                                <option value="Tecnología">Tecnología</option>
-                                <option value="Contabilidad">Contabilidad</option>
-                                <option value="Talento Humano">Talento Humano</option>
-                                <option value="Compras">Compras</option>
-                                <option value="Calidad">Calidad</option>
-                                <option value="HSEQ">HSEQ</option>
-                                <option value="Comercial">Comercial</option>
-                                <option value="Operaciones">Operaciones</option>
-                                <option value="Financiera">Financiera</option>
-                                <option value="Mantenimiento">Mantenimiento</option>
-                                <option value="Otros">Otros</option>
-                            </select>
-                            <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                            <div class="relative">
-                                <div class="flex">
-                                    <input type="text" id="proveedor_search" placeholder="Buscar proveedor..."
-                                        class="w-full px-3 py-2 border rounded-md rounded-r-none"
-                                        oninput="filterProveedores()">
-                                    <button type="button" onclick="openModal('proveedor')"
-                                        class="bg-blue-500 text-white px-3 rounded-r-md">
-                                        <i class="fas fa-plus"></i>
+        <div class="p-4 overflow-x-auto">
+            @if($solicitudes->isEmpty())
+            <p class="text-gray-500">No hay productos solicitados.</p>
+            @else
+            <table class="w-full table-auto">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Solicitado por</th>
+                        <th class="px-4 py-2 text-left">Producto</th>
+                        <th class="px-4 py-2 text-left">Descripción</th>
+                        <th class="px-4 py-2 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($solicitudes as $solicitud)
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-2">{{ $solicitud->name_user }}</td>
+                        <td class="px-4 py-2">{{ $solicitud->nombre }}</td>
+                        <td class="px-4 py-2">{{ $solicitud->descripcion }}</td>
+                        <td class="px-4 py-2 text-center">
+                            <div class="flex justify-center space-x-2">
+                                @if($solicitud->trashed())
+                                <form action="{{ route('nuevo_producto.restore', $solicitud->id) }}" method="POST"
+                                    onsubmit="showLoading(event)">
+                                    @csrf
+                                    @method('POST')
+                                    <button type="submit" class="text-green-600 hover:text-green-800" title="Restaurar">
+                                        <i class="fas fa-undo"></i>
                                     </button>
-                                </div>
-                                <select id="proveedor_id" name="proveedor_id"
-                                    class="w-full px-3 py-2 border rounded-md mt-1" required>
-                                    <option value="">Seleccionar proveedor</option>
-                                    @foreach($proveedores as $proveedor)
-                                    <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
-                                    @endforeach
+                                </form>
+                                <form action="{{ route('nuevo_producto.forceDelete', $solicitud->id) }}" method="POST"
+                                    onsubmit="return confirmDelete(event)">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 hover:text-red-800"
+                                        title="Eliminar Permanentemente">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @else
+                                <form action="{{ route('nuevo_producto.destroy', $solicitud->id) }}" method="POST"
+                                    onsubmit="return confirmDelete(event)">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            @endif
+        </div>
+
+
+        <!-- Modal para crear/editar producto -->
+        <div id="productModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-semibold" id="modalTitle">Nuevo Producto</h2>
+                    <button onclick="closeModal('producto')" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <form id="productForm" action="{{ route('productos.store') }}" method="POST"
+                        onsubmit="return validateProductForm()">
+                        @csrf
+                        <input type="hidden" id="formMethod" name="_method" value="POST">
+                        <input type="hidden" id="productId" name="id" value="">
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
+                                <input type="text" id="name_produc" name="name_produc"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="name_produc_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                                <select id="categoria_produc" name="categoria_produc"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                    <option value="">Seleccionar categoría</option>
+                                    <option value="Tecnología">Tecnología</option>
+                                    <option value="Contabilidad">Contabilidad</option>
+                                    <option value="Talento Humano">Talento Humano</option>
+                                    <option value="Compras">Compras</option>
+                                    <option value="Calidad">Calidad</option>
+                                    <option value="HSEQ">HSEQ</option>
+                                    <option value="Comercial">Comercial</option>
+                                    <option value="Operaciones">Operaciones</option>
+                                    <option value="Financiera">Financiera</option>
+                                    <option value="Mantenimiento">Mantenimiento</option>
+                                    <option value="Otros">Otros</option>
                                 </select>
-                                <div id="proveedor_results"
-                                    class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto hidden">
+                                <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                                <div class="relative">
+                                    <div class="flex">
+                                        <input type="text" id="proveedor_search" placeholder="Buscar proveedor..."
+                                            class="w-full px-3 py-2 border rounded-md rounded-r-none"
+                                            oninput="filterProveedores()">
+                                        <button type="button" onclick="openModal('proveedor')"
+                                            class="bg-blue-500 text-white px-3 rounded-r-md">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                    <select id="proveedor_id" name="proveedor_id"
+                                        class="w-full px-3 py-2 border rounded-md mt-1" required>
+                                        <option value="">Seleccionar proveedor</option>
+                                        @foreach($proveedores as $proveedor)
+                                        <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <div id="proveedor_results"
+                                        class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto hidden">
+                                    </div>
+                                    <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
                                 </div>
-                                <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                                <input type="number" id="stock_produc" name="stock_produc" min="0"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
+                                <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
+                                <input type="text" id="unit_produc" name="unit_produc"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="unit_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                            <input type="number" id="stock_produc" name="stock_produc" min="0"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                            <textarea id="description_produc" name="description_produc" rows="3"
+                                class="w-full px-3 py-2 border rounded-md"></textarea>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
-                            <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
-                            <input type="text" id="unit_produc" name="unit_produc"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="unit_produc_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                        <textarea id="description_produc" name="description_produc" rows="3"
-                            class="w-full px-3 py-2 border rounded-md"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="p-4 border-t flex justify-end space-x-2">
-                <button onclick="closeModal('producto')"
-                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
-                    Cancelar
-                </button>
-                <button onclick="submitProductForm()"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
-                    Guardar
-                </button>
+                    </form>
+                </div>
+                <div class="p-4 border-t flex justify-end space-x-2">
+                    <button onclick="closeModal('producto')"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
+                        Cancelar
+                    </button>
+                    <button onclick="submitProductForm()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                        Guardar
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Modal para crear proveedor -->
-    <div id="proveedorModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h2 class="text-xl font-semibold">Nuevo Proveedor</h2>
-                <button onclick="closeModal('proveedor')" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="p-4">
-                <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST" onsubmit="return validateProveedorForm()">
-                    @csrf
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor *</label>
-                            <input type="text" id="prov_name" name="prov_name"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="prov_name_error" class="text-red-500 text-xs hidden"></span>
+        <!-- Modal para crear proveedor -->
+        <div id="proveedorModal"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-1/2 max-h-screen overflow-y-auto">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Nuevo Proveedor</h2>
+                    <button onclick="closeModal('proveedor')" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-4">
+                    <form id="proveedorForm" action="{{ route('proveedores.store') }}" method="POST"
+                        onsubmit="return validateProveedorForm()">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor
+                                    *</label>
+                                <input type="text" id="prov_name" name="prov_name"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_name_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">NIT *</label>
+                                <input type="text" id="prov_nit" name="prov_nit"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_nit_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto *</label>
+                                <input type="text" id="prov_name_c" name="prov_name_c"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_name_c_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
+                                <input type="text" id="prov_phone" name="prov_phone"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_phone_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Dirección *</label>
+                                <input type="text" id="prov_adress" name="prov_adress"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_adress_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad *</label>
+                                <input type="text" id="prov_city" name="prov_city"
+                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_city_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">NIT *</label>
-                            <input type="text" id="prov_nit" name="prov_nit" class="w-full px-3 py-2 border rounded-md"
-                                required>
-                            <span id="prov_nit_error" class="text-red-500 text-xs hidden"></span>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                            <textarea id="prov_descrip" name="prov_descrip" rows="3"
+                                class="w-full px-3 py-2 border rounded-md"></textarea>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre de Contacto *</label>
-                            <input type="text" id="prov_name_c" name="prov_name_c"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="prov_name_c_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono *</label>
-                            <input type="text" id="prov_phone" name="prov_phone"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="prov_phone_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección *</label>
-                            <input type="text" id="prov_adress" name="prov_adress"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="prov_adress_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Ciudad *</label>
-                            <input type="text" id="prov_city" name="prov_city"
-                                class="w-full px-3 py-2 border rounded-md" required>
-                            <span id="prov_city_error" class="text-red-500 text-xs hidden"></span>
-                        </div>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                        <textarea id="prov_descrip" name="prov_descrip" rows="3"
-                            class="w-full px-3 py-2 border rounded-md"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="p-4 border-t flex justify-end space-x-2">
-                <button onclick="closeModal('proveedor')"
-                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
-                    Cancelar
-                </button>
-                <button onclick="submitProveedorForm()"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
-                    Guardar
-                </button>
+                    </form>
+                </div>
+                <div class="p-4 border-t flex justify-end space-x-2">
+                    <button onclick="closeModal('proveedor')"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition">
+                        Cancelar
+                    </button>
+                    <button onclick="submitProveedorForm()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                        Guardar
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Loading overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-            <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
-            <p class="text-center text-gray-500">Por favor espere.</p>
+        <!-- Loading overlay -->
+        <div id="loadingOverlay"
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+                <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
+                <p class="text-center text-gray-500">Por favor espere.</p>
+            </div>
         </div>
-    </div>
 
-    <script>
-        // Funciones para controlar modales
+        <script>
+            // Funciones para controlar modales
         function openModal(type) {
             if (type === 'producto') {
                 document.getElementById('productModal').classList.remove('hidden');
@@ -674,29 +729,39 @@
                 }
             }
         }
-    </script>
+        </script>
 
-    <style>
-        .hidden {
-            display: none;
-        }
-        
-        .loader {
-            border-top-color: #1e40af;
-            -webkit-animation: spinner 1.5s linear infinite;
-            animation: spinner 1.5s linear infinite;
-        }
-        
-        @-webkit-keyframes spinner {
-            0% { -webkit-transform: rotate(0deg); }
-            100% { -webkit-transform: rotate(360deg); }
-        }
-        
-        @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+        <style>
+            .hidden {
+                display: none;
+            }
+
+            .loader {
+                border-top-color: #1e40af;
+                -webkit-animation: spinner 1.5s linear infinite;
+                animation: spinner 1.5s linear infinite;
+            }
+
+            @-webkit-keyframes spinner {
+                0% {
+                    -webkit-transform: rotate(0deg);
+                }
+
+                100% {
+                    -webkit-transform: rotate(360deg);
+                }
+            }
+
+            @keyframes spinner {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
 </body>
 
 </html>
