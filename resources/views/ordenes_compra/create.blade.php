@@ -38,6 +38,8 @@
                         <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
                     </div>
                 </div>
+            @else
+                <input type="hidden" name="requisicion_id" value="0"> <!-- Valor por defecto -->
             @endisset
 
             <!-- Información de la orden de compra -->
@@ -141,7 +143,7 @@
             @endempty
 
             <div class="flex justify-end gap-4">
-                <a href="{{ isset($requisicion) ? route('requisiciones.lista') : route('ordenes-compra.index') }}" 
+                <a href="{{ isset($requisicion) ? route('ordenes-compra.lista') : url()->previous() }}" 
                    class="bg-gray-600 text-white px-6 py-2 rounded-lg shadow hover:bg-gray-700">
                     Cancelar
                 </a>

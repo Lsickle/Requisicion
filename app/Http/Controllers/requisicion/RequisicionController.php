@@ -349,4 +349,22 @@ class RequisicionController extends Controller
         $userInfo = $this->obtenerInformacionUsuario($userId);
         return $userInfo['name'];
     }
+
+    // Agrega este método al final de la clase RequisicionController
+    public function listaAprobadas()
+    {
+        // Obtener requisiciones con estatus 4 (Aprobadas)
+        $requisiciones = Requisicion::with([
+            'productos',
+            'ultimoEstatus.estatus',
+            'estatusHistorial.estatus'
+        ])
+            ->whereHas('ultimoEstatus', function ($query) {
+                $query->where('estatus_id', 4); // 4 = Aprobado
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('ordenes_compra.lista', compact('requisiciones'));
+    }
 }

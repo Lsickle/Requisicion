@@ -66,7 +66,7 @@
 
             @if($hasPermission('crear oc'))
             <li>
-                <a href="#"
+                <a href="{{ route('ordenes_compra.lista') }}"
                     class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
                     Generar Orden de Compra
                 </a>
