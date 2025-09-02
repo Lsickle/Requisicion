@@ -110,7 +110,7 @@ class ProductosController extends Controller
     /**
      * Store a new provider
      */
-    public function storeProveedor(Request $request)
+public function storeProveedor(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
@@ -120,21 +120,28 @@ class ProductosController extends Controller
                 'prov_phone'  => 'required|string|max:20',
                 'prov_adress' => 'required|string|max:255',
                 'prov_city'   => 'required|string|max:100',
-                'prov_descrip' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
+                'prov_descrip' => 'required|string|max:1000', // Ahora es obligatorio
             ]);
 
             if ($validator->fails()) {
-                return redirect()->back()
-                    ->withErrors($validator)
-                    ->withInput()
-                    ->with('error', 'Por favor, corrige los errores en el formulario.');
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
             }
 
             Proveedor::create($request->all());
 
-            return redirect()->route('productos.gestor')->with('success', 'Proveedor creado exitosamente.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Proveedor creado exitosamente.',
+                'proveedores' => Proveedor::orderBy('prov_name')->get()
+            ]);
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Error al crear el proveedor: ' . $e->getMessage())->withInput();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear el proveedor: ' . $e->getMessage()
+            ], 500);
         }
     }
 

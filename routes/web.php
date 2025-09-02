@@ -120,6 +120,9 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('productos.restore');
     Route::delete('/productos/{id}/force-delete', [ProductosController::class, 'forceDelete'])
         ->name('productos.forceDelete');
+    // Ruta para obtener datos de solicitud
+    Route::get('/productos/solicitud/{id}', [ProductosController::class, 'getSolicitudData'])
+        ->name('productos.solicitud.data');
 
     // Rutas para proveedores
     Route::post('/proveedores', [ProductosController::class, 'storeProveedor'])
