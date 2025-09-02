@@ -136,6 +136,7 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::delete('nuevo_producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
         ->name('nuevo_producto.forceDelete');
+        
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

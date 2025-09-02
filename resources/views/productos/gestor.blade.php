@@ -405,7 +405,7 @@
 
         <!-- Modal Ver Solicitud -->
         <div id="solicitudModal"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-30">
             <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-2/3 lg:w-1/3">
                 <div class="p-4 border-b flex justify-between items-center">
                     <h2 class="text-xl font-semibold">Detalle de la Solicitud</h2>
@@ -419,10 +419,6 @@
                     <p><strong>Descripción:</strong> <span id="solicitudDescripcion"></span></p>
                 </div>
                 <div class="p-4 border-t flex justify-end">
-                    <button type="button" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                        title="Añadir producto">
-                        <i class="fas fa-plus"></i> Añadir
-                    </button>
                 </div>
             </div>
         </div>
@@ -596,7 +592,9 @@
                             confirmButtonColor: '#1e40af'
                         });
                     });
-            }// Abrir modal de solicitud
+            }
+            
+            // Abrir modal de solicitud
             function openSolicitudModal(nombre, descripcion, usuario) {
                 document.getElementById('solicitudNombre').textContent = nombre;
                 document.getElementById('solicitudDescripcion').textContent = descripcion;
@@ -1049,7 +1047,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Mostrar SweetAlert de éxito
+                        // Mostrar SweetAlert de éxito (confirmación)
                         Swal.fire({
                             icon: 'success',
                             title: '¡Éxito!',
@@ -1075,7 +1073,7 @@
                             Swal.fire({
                                 icon: 'error',
                                 title: 'Error',
-                                text: data.message,
+                                text: data.message || 'Error al crear el proveedor',
                                 confirmButtonColor: '#1e40af'
                             });
                         }
