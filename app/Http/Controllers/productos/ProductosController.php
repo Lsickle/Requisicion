@@ -30,12 +30,11 @@ class ProductosController extends Controller
         $productos = $query->get();
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
-        //  Agregamos las solicitudes de nuevos productos
+        // Agregamos las solicitudes de nuevos productos
         $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'proveedores', 'solicitudes'));
     }
-
 
     /**
      * Método para el gestor de productos
@@ -63,12 +62,11 @@ class ProductosController extends Controller
 
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
-        // Agregamos las solicitudes de nuevos productos (para que no falte en la vista)
+        // Agregamos las solicitudes de nuevos productos
         $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores', 'solicitudes'));
     }
-
 
     /**
      * Store a newly created resource in storage.
@@ -83,7 +81,7 @@ class ProductosController extends Controller
                 'stock_produc' => 'required|integer|min:0',
                 'price_produc' => 'required|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
-                'description_produc' => 'required|text|max:1000',
+                'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
             ]);
 
             if ($validator->fails()) {
@@ -94,6 +92,14 @@ class ProductosController extends Controller
             }
 
             Producto::create($request->all());
+
+            // Si viene de una solicitud, eliminar la solicitud
+            if ($request->has('solicitud_id') && $request->solicitud_id) {
+                $solicitud = Nuevo_Producto::find($request->solicitud_id);
+                if ($solicitud) {
+                    $solicitud->delete();
+                }
+            }
 
             return redirect()->route('productos.gestor')->with('success', 'Producto creado exitosamente.');
         } catch (\Exception $e) {
@@ -114,7 +120,7 @@ class ProductosController extends Controller
                 'prov_phone'  => 'required|string|max:20',
                 'prov_adress' => 'required|string|max:255',
                 'prov_city'   => 'required|string|max:100',
-                'prov_descrip' => 'required|text|max:1000',
+                'prov_descrip' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
             ]);
 
             if ($validator->fails()) {
@@ -132,7 +138,6 @@ class ProductosController extends Controller
         }
     }
 
-
     /**
      * Update the specified resource in storage.
      */
@@ -144,7 +149,7 @@ class ProductosController extends Controller
                 'categoria_produc' => 'required|string|max:255',
                 'name_produc' => 'required|string|max:255',
                 'stock_produc' => 'required|integer|min:0',
-                'description_produc' => 'required|text|max:1000',
+                'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
                 'price_produc' => 'required|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
             ]);
@@ -212,6 +217,19 @@ class ProductosController extends Controller
             return redirect()->route('productos.gestor')->with('success', 'Producto eliminado permanentemente.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error al eliminar permanentemente el producto: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Obtener datos de una solicitud para añadir producto
+     */
+    public function getSolicitudData($id)
+    {
+        try {
+            $solicitud = Nuevo_Producto::findOrFail($id);
+            return response()->json($solicitud);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Solicitud no encontrada'], 404);
         }
     }
 }

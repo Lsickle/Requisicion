@@ -29,7 +29,7 @@
                 <h2 class="text-white text-xl font-bold">Solicitar nuevo producto</h2>
             </div>
 
-            <form id="productoForm" action="{{ route('nuevo-producto.store') }}" method="POST" class="px-6 py-4">
+            <form id="productoForm" action="{{ route('nuevo_producto.store') }}" method="POST" class="px-6 py-4">
                 @csrf
 
                 <div class="mb-4">

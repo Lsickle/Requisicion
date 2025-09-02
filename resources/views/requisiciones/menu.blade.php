@@ -99,7 +99,7 @@
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Ver Productos</h3>
                 <p class="text-gray-600 mb-4">Consulta todos los productos disponibles</p>
-                <a href="#" class="inline-block bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('productos.gestor')}}" class="inline-block bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Ver Productos
                 </a>
             </div>

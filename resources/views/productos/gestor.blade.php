@@ -76,8 +76,7 @@
                 <table id="productosTable" class="w-full table-auto">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-2 text-left">ID</th>
-                            <th class="px-4 py-2 text-left">Nombre</th>
+                            <th class="px-4 py-2 text-left">Producto</th>
                             <th class="px-4 py-2 text-left">Categoría</th>
                             <th class="px-4 py-2 text-left">Proveedor</th>
                             <th class="px-4 py-2 text-left">Stock</th>
@@ -89,7 +88,6 @@
                     <tbody>
                         @foreach($productos as $producto)
                         <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ $producto->id }}</td>
                             <td class="px-4 py-2">{{ $producto->name_produc }}</td>
                             <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
                             <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
