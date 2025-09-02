@@ -9,6 +9,7 @@ use App\Models\OrdenCompra;
 use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
+use App\Models\Requisicion;
 use App\Mail\OrdenCompraCreada;
 use Illuminate\Support\Facades\Mail;
 
@@ -32,9 +33,19 @@ class OrdenCompraController extends Controller
         return view('ordenes_compra.create', compact('proveedores', 'productos', 'centros'));
     }
 
+    public function createFromRequisicion($requisicionId)
+    {
+        $requisicion = Requisicion::with(['productos', 'productos.proveedor'])->findOrFail($requisicionId);
+        $proveedores = Proveedor::all();
+        $centros     = Centro::all();
+
+        return view('ordenes_compra.create-from-requisicion', compact('requisicion', 'proveedores', 'centros'));
+    }
+
     public function store(Request $request)
     {
         $request->validate([
+            'requisicion_id'              => 'required|exists:requisicion,id',
             'proveedor_id'                => 'required|exists:proveedores,id',
             'date_oc'                     => 'required|date',
             'methods_oc'                  => 'required|string|max:255',
@@ -52,6 +63,7 @@ class OrdenCompraController extends Controller
 
         return DB::transaction(function () use ($request) {
             $orden = OrdenCompra::create([
+                'requisicion_id' => $request->requisicion_id,
                 'proveedor_id'  => $request->proveedor_id,
                 'date_oc'       => $request->date_oc,
                 'methods_oc'    => $request->methods_oc,
@@ -65,7 +77,11 @@ class OrdenCompraController extends Controller
                 $orden->productos()->attach($productoData['id'], [
                     'po_amount'       => $productoData['cantidad'],
                     'precio_unitario' => $productoData['precio'],
-                    'observaciones'   => $request->observaciones ?? null
+                    'observaciones'   => $request->observaciones ?? null,
+                    'date_oc'         => $request->date_oc,
+                    'methods_oc'      => $request->methods_oc,
+                    'plazo_oc'        => $request->plazo_oc,
+                    'order_oc'        => $request->order_oc
                 ]);
 
                 foreach ($productoData['centros'] as $centroData) {
@@ -80,8 +96,22 @@ class OrdenCompraController extends Controller
                 }
             }
 
+            // Actualizar el estatus de la requisición a "En proceso de compra" (estatus 5)
+            DB::table('estatus_requisicion')
+                ->where('requisicion_id', $request->requisicion_id)
+                ->update(['estatus' => 0]);
+
+            DB::table('estatus_requisicion')->insert([
+                'requisicion_id' => $request->requisicion_id,
+                'estatus_id'     => 5, // En proceso de compra
+                'estatus'        => 1,
+                'date_update'    => now(),
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+
             // Enviar correo electrónico
-            $destinatarios = ['compras@empresa.com', 'proveedor@empresa.com']; // Reemplaza con tus destinatarios reales
+            $destinatarios = ['compras@empresa.com', 'proveedor@empresa.com'];
             Mail::to($destinatarios)->send(new OrdenCompraCreada($orden));
 
             return redirect()->route('ordenes-compra.index')->with('success', 'Orden de compra creada exitosamente');
@@ -164,7 +194,11 @@ class OrdenCompraController extends Controller
                 $productosSync[$productoData['id']] = [
                     'po_amount'       => $productoData['cantidad'],
                     'precio_unitario' => $productoData['precio'],
-                    'observaciones'   => $validated['observaciones'] ?? null
+                    'observaciones'   => $validated['observaciones'] ?? null,
+                    'date_oc'         => $validated['date_oc'],
+                    'methods_oc'      => $validated['methods_oc'],
+                    'plazo_oc'        => $validated['plazo_oc'],
+                    'order_oc'        => $validated['order_oc']
                 ];
             }
             $orden->productos()->sync($productosSync);

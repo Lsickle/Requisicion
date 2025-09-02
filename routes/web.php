@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\OrdenCompraController;
+use App\Http\Controllers\ordencompra\OrdenCompraController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\excel\ExcelController;
 use App\Http\Controllers\PDF\PdfController;
@@ -136,7 +136,21 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::delete('nuevo_producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
         ->name('nuevo_producto.forceDelete');
-        
+
+    // Lista de requisiciones aprobadas
+    Route::get('/requisiciones/lista', [RequisicionController::class, 'listaAprobadas'])
+        ->name('requisiciones.lista')
+        ->middleware(CheckPermission::class . ':crear orden compra');
+
+    // Crear orden de compra desde requisición
+    Route::get('/ordenes-compra/crear-desde-requisicion/{requisicionId}', [OrdenCompraController::class, 'createFromRequisicion'])
+        ->name('ordenes-compra.create-from-requisicion')
+        ->middleware(CheckPermission::class . ':crear orden compra');
+
+    // Store para orden de compra (ya existe pero se actualizó)
+    Route::post('/ordenes-compra', [OrdenCompraController::class, 'store'])
+        ->name('ordenes-compra.store')
+        ->middleware(CheckPermission::class . ':crear orden compra');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

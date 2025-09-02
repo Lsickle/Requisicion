@@ -67,6 +67,8 @@ class ApiAuthController extends Controller
             'Dashboard',
             'Requisiciones en curso',
             'Aprobar requisicion',
+            'Total requisiciones',
+            'requisicionesxorden',
         ];
 
         // Si el usuario tiene al menos 1 de esos permisos → entra
