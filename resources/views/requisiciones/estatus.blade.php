@@ -15,7 +15,20 @@
             $estatusIds = $estatusOrdenados->pluck('id')->toArray();
             $currentId  = $estatusActual->id;
 
-            // Flujo normal de estatus
+            // Filtrar "Iniciado": solo conservar el último
+            $ultimoIniciadoIndex = $estatusOrdenados->keys()->filter(function($i) use ($estatusOrdenados) {
+                return $estatusOrdenados[$i]->id == 1;
+            })->last();
+
+            $estatusFiltrados = collect();
+            foreach ($estatusOrdenados as $index => $item) {
+                if ($item->id == 1 && $index !== $ultimoIniciadoIndex) {
+                    continue; // ignorar los anteriores
+                }
+                $estatusFiltrados->push($item);
+            }
+
+            // Flujo normal
             $flujo = [
                 1 => 2,
                 2 => 3,
@@ -35,19 +48,17 @@
                 $siguiente = null;
             }
 
-            // Si el estatus es cancelado, rechazado, corregir o completado, termina ahí
+            // Cancelado, rechazado, corregir o completado: termina
             if (in_array($currentId, [6, 9, 10, 11])) {
                 $siguiente = null;
             }
 
-            // Solo mostrar anteriores + actual
-            $idsMostrar = array_filter($estatusIds, function($id) use ($currentId) {
-                return $id <= $currentId;
-            });
+            // Mostrar anteriores + actual
+            $idsMostrar = array_filter($estatusIds, fn($id) => $id <= $currentId);
         @endphp
 
         {{-- Mostrar estatus anteriores y actual --}}
-        @foreach($estatusOrdenados as $item)
+        @foreach($estatusFiltrados as $item)
             @if(!in_array($item->id, $idsMostrar))
                 @continue
             @endif
@@ -62,7 +73,7 @@
             @endphp
 
             <div class="mb-6 ml-6 relative">
-                <!-- Punto indicador -->
+                {{-- Punto indicador --}}
                 @if($isCompleted)
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white shadow-md">
                         <i class="fas fa-check text-xs"></i>
@@ -81,7 +92,7 @@
                     </span>
                 @endif
 
-                <!-- Tarjeta de estatus -->
+                {{-- Tarjeta --}}
                 <div class="p-4 rounded-lg shadow-sm border 
                     @if($isCompleted) bg-green-50 border-green-300
                     @elseif($isCurrent && $isRejected) bg-red-50 border-red-300
@@ -132,7 +143,7 @@
             </div>
         @endforeach
 
-        {{-- Bloque artificial: Pendiente por respuesta (1,2,3) --}}
+        {{-- Pendiente por respuesta --}}
         @if($siguiente === 'pendiente')
             <div class="mb-6 ml-6 relative">
                 <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-400 text-white shadow-md">
@@ -155,7 +166,7 @@
             </div>
         @endif
 
-        {{-- Bloque artificial: Siguiente real (4 en adelante) --}}
+        {{-- Siguiente real --}}
         @if(is_numeric($siguiente))
             <div class="mb-6 ml-6 relative">
                 <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-400 text-white shadow-md">
