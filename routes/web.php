@@ -25,11 +25,6 @@ Route::get('/', function () {
     return view('index');
 })->name('login');
 
-// Generar PDF genérico según tipo y id
-Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
-    ->where('tipo', 'orden|requisicion|estatus')
-    ->name('pdf.generar');
-
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
@@ -82,10 +77,10 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('requisiciones.show')
         ->middleware(CheckPermission::class . ':ver requisicion');
 
-    // PDF de requisición 
-    Route::get('/requisiciones/pdf/{id}', [RequisicionController::class, 'pdf'])
-        ->name('requisiciones.pdf')
-        ->middleware(CheckPermission::class . ':ver requisicion');
+    // Generar PDF genérico según tipo y id
+    Route::get('/requisiciones/{id}/pdf', [RequisicionController::class, 'pdf'])
+        ->name('requisiciones.pdf');
+
 
     // STORE de requisiciones 
     Route::post('/requisiciones', [RequisicionController::class, 'store'])
@@ -96,9 +91,6 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/requisiciones/{requisicion}/estatus', [EstatusRequisicionController::class, 'show'])
         ->name('requisiciones.estatus')
         ->middleware(CheckPermission::class . ':ver requisicion');
-
-    // Recurso principal de requisiciones
-    Route::resource('requisiciones', RequisicionController::class)->except(['show']);
 
     // Asegúrate de tener estas rutas definidas
     Route::get('/requisiciones/{id}/edit', [RequisicionController::class, 'edit'])
@@ -140,7 +132,6 @@ Route::middleware([AuthSession::class])->group(function () {
     // Para mostrar la lista de requisiciones aprobadas estatus 4
     Route::get('/ordenes_compra/lista-aprobadas', [RequisicionController::class, 'listaAprobadas'])
         ->name('ordenes_compra.lista');
-
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

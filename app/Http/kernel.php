@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http;
+namespace App\Http\Kernel;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
@@ -40,5 +40,6 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'auth.session' => \App\Http\Middleware\AuthSession::class,
         'check.permission' => \App\Http\Middleware\CheckPermission::class,
+        'limitPdf' => \App\Http\Middleware\LimitPdfDownloads::class,
     ];
 }
