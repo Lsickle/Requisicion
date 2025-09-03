@@ -137,7 +137,8 @@
                             data-nombre="{{ $p->name_produc }}"
                             data-proveedor="{{ $p->proveedor_id ?? '' }}" 
                             data-categoria="{{ $p->categoria_produc }}"
-                            data-unidad="{{ $p->unit_produc }}">
+                            data-unidad="{{ $p->unit_produc }}"
+                            data-stock="{{ $p->stock_produc }}">
                         {{ $p->name_produc }} ({{ $p->unit_produc }})
                     </option>
                     @endforeach
@@ -286,12 +287,19 @@ document.addEventListener('DOMContentLoaded', function() {
         resetModalDistribucion();
     });
     
-    // Mostrar unidad de medida al seleccionar producto
+    // Mostrar unidad de medida y validar stock al seleccionar producto
     productoSelect.addEventListener('change', function() {
         if (this.value) {
             const selectedOption = this.selectedOptions[0];
             unidadMedida = selectedOption.dataset.unidad;
+            const stock = parseInt(selectedOption.dataset.stock) || 0;
+            
             unidadMedidaSpan.textContent = `Unidad: ${unidadMedida}`;
+            
+            // Validar si el producto tiene stock
+            if (stock > 0) {
+                mostrarAlertaStock(stock, unidadMedida);
+            }
         } else {
             unidadMedida = '';
             unidadMedidaSpan.textContent = 'Unidad: -';
@@ -320,6 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Obtener datos del producto seleccionado
         const selectedOption = productoSelect.selectedOptions[0];
         const unidad = selectedOption.dataset.unidad;
+        const stock = parseInt(selectedOption.dataset.stock) || 0;
         
         // Configurar producto actual
         productoActual = { 
@@ -328,6 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
             proveedorId: selectedOption.dataset.proveedor || null, 
             cantidadTotal, 
             unidad,
+            stock,
             centros: [] 
         };
         
@@ -374,6 +384,25 @@ document.addEventListener('DOMContentLoaded', function() {
             title: 'Error', 
             text: mensaje, 
             confirmButtonText: 'Entendido' 
+        });
+    }
+    
+    function mostrarAlertaStock(stock, unidad) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Producto con stock disponible',
+            html: `Este producto tiene <b>${stock} ${unidad}</b> disponibles en inventario.<br><br>¿Desea continuar con la requisición?`,
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+        }).then((result) => {
+            if (result.isDismissed) {
+                // Si el usuario cancela, limpiar la selección
+                productoSelect.value = '';
+                unidadMedidaSpan.textContent = 'Unidad: -';
+            }
         });
     }
     
@@ -432,6 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <input type="hidden" name="productos[${i}][id]" value="${prod.id}">
                     ${prod.proveedorId ? `<input type="hidden" name="productos[${i}][proveedor_id]" value="${prod.proveedorId}">` : ''}
                     <input type="hidden" name="productos[${i}][unidad]" value="${prod.unidad}">
+                    <input type="hidden" name="productos[${i}][stock]" value="${prod.stock}">
                 </td>
                 <td class="p-3">
                     ${prod.cantidadTotal} ${prod.unidad}
