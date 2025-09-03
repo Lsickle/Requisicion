@@ -9,9 +9,9 @@ class ProductoFactory extends Factory
 {
     public function definition(): array
     {
-        $unidades = ['unidad', 'paquete', 'kg', 'litro', 'metro', 'caja'];
+        $unidades = ['unidades', 'paquetes', 'kg', 'litros', 'metros', 'cajas'];
         $categorias = [
-            'Tecnología', 
+            'Tecnología',
             'Contabilidad', 
             'Talento Humano', 
             'Compras', 
