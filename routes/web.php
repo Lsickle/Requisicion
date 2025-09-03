@@ -25,6 +25,11 @@ Route::get('/', function () {
     return view('index');
 })->name('login');
 
+// Generar PDF genérico según tipo y id
+Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
+    ->where('tipo', 'orden|requisicion|estatus')
+    ->name('pdf.generar');
+
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
