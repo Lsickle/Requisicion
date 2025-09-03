@@ -28,7 +28,10 @@ class ProductoFactory extends Factory
             'proveedor_id' => Proveedor::factory(),
             'categoria_produc' => $this->faker->randomElement($categorias),
             'name_produc' => $this->faker->words(2, true),
-            'stock_produc' => $this->faker->numberBetween(5, 200),
+            // 30% de los productos quedan con stock 0, 70% con stock entre 5 y 200
+            'stock_produc' => $this->faker->boolean(30) 
+                ? 0 
+                : $this->faker->numberBetween(5, 200),
             'description_produc' => $this->faker->sentence(10),
             'price_produc' => $this->faker->randomFloat(2, 20, 5000),
             'unit_produc' => $this->faker->randomElement($unidades),

@@ -127,15 +127,18 @@
         </div>
 
         <!-- Selección de producto y cantidad -->
-        <div class="grid grid-cols-2 gap-4 items-end">
+        <div class="grid grid-cols-3 gap-4 items-end">
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Producto</label>
                 <select id="productoSelect" class="w-full border rounded-lg p-2">
                     <option value="">-- Selecciona producto --</option>
                     @foreach ($productos as $p)
-                    <option value="{{ $p->id }}" data-nombre="{{ $p->name_produc }}"
-                        data-proveedor="{{ $p->proveedor_id ?? '' }}" data-categoria="{{ $p->categoria_produc }}">
-                        {{ $p->name_produc }}
+                    <option value="{{ $p->id }}" 
+                            data-nombre="{{ $p->name_produc }}"
+                            data-proveedor="{{ $p->proveedor_id ?? '' }}" 
+                            data-categoria="{{ $p->categoria_produc }}"
+                            data-unidad="{{ $p->unit_produc }}">
+                        {{ $p->name_produc }} ({{ $p->unit_produc }})
                     </option>
                     @endforeach
                 </select>
@@ -143,6 +146,9 @@
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
                 <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
+            </div>
+            <div class="flex items-center">
+                <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
             </div>
         </div>
 
@@ -164,7 +170,7 @@
 
         <div class="mb-4 p-3 bg-gray-50 rounded-lg">
             <p class="font-semibold" id="productoSeleccionadoNombre"></p>
-            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> unidades</p>
+            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> <span id="productoSeleccionadoUnidad"></span></p>
         </div>
 
         <!-- Distribución por centros -->
@@ -194,7 +200,7 @@
             </div>
 
             <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span>
+                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span id="unidadDisponible"></span>
             </div>
 
             <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto"></ul>
@@ -251,14 +257,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const requisicionForm = $('#requisicionForm');
     const totalAsignadoSpan = $('#totalAsignado');
     const cantidadDisponibleSpan = $('#cantidadDisponible');
+    const unidadDisponibleSpan = $('#unidadDisponible');
     const categoriaFilter = $('#categoriaFilter');
     const productoSeleccionadoNombre = $('#productoSeleccionadoNombre');
     const productoSeleccionadoCantidad = $('#productoSeleccionadoCantidad');
+    const productoSeleccionadoUnidad = $('#productoSeleccionadoUnidad');
+    const unidadMedidaSpan = $('#unidadMedida');
 
     let productos = [];
     let productoActual = null;
     let cantidadTotal = 0;
     let cantidadAsignada = 0;
+    let unidadMedida = '';
 
     // Event listeners para abrir/cerrar modales
     abrirBtn.addEventListener('click', () => {
@@ -274,6 +284,18 @@ document.addEventListener('DOMContentLoaded', function() {
     cerrarDistribucionBtn.addEventListener('click', () => {
         modalDistribucion.classList.add('hidden');
         resetModalDistribucion();
+    });
+    
+    // Mostrar unidad de medida al seleccionar producto
+    productoSelect.addEventListener('change', function() {
+        if (this.value) {
+            const selectedOption = this.selectedOptions[0];
+            unidadMedida = selectedOption.dataset.unidad;
+            unidadMedidaSpan.textContent = `Unidad: ${unidadMedida}`;
+        } else {
+            unidadMedida = '';
+            unidadMedidaSpan.textContent = 'Unidad: -';
+        }
     });
     
     siguienteBtn.addEventListener('click', () => {
@@ -295,21 +317,29 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Obtener datos del producto seleccionado
+        const selectedOption = productoSelect.selectedOptions[0];
+        const unidad = selectedOption.dataset.unidad;
+        
         // Configurar producto actual
         productoActual = { 
             id: productoId, 
-            nombre: productoSelect.selectedOptions[0].dataset.nombre, 
-            proveedorId: productoSelect.selectedOptions[0].dataset.proveedor || null, 
+            nombre: selectedOption.dataset.nombre, 
+            proveedorId: selectedOption.dataset.proveedor || null, 
             cantidadTotal, 
+            unidad,
             centros: [] 
         };
         
         cantidadAsignada = 0;
+        unidadMedida = unidad;
         
         // Actualizar información en modal de distribución
-        productoSeleccionadoNombre.textContent = productoSelect.selectedOptions[0].dataset.nombre;
+        productoSeleccionadoNombre.textContent = selectedOption.dataset.nombre;
         productoSeleccionadoCantidad.textContent = cantidadTotal;
+        productoSeleccionadoUnidad.textContent = unidad;
         cantidadDisponibleSpan.textContent = cantidadTotal;
+        unidadDisponibleSpan.textContent = unidad;
         totalAsignadoSpan.textContent = cantidadAsignada;
         centrosList.innerHTML = '';
         
@@ -335,6 +365,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         productoSelect.value = '';
+        unidadMedidaSpan.textContent = 'Unidad: -';
     });
 
     function mostrarError(mensaje) {
@@ -358,6 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
         productoSelect.value = '';
         cantidadTotalInput.value = '';
         categoriaFilter.value = '';
+        unidadMedidaSpan.textContent = 'Unidad: -';
         
         // Mostrar todos los productos nuevamente
         const opcionesProductos = productoSelect.querySelectorAll('option');
@@ -372,6 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
         productoActual = null;
         cantidadTotal = 0;
         cantidadAsignada = 0;
+        unidadMedida = '';
     }
 
     function actualizarResumen() {
@@ -385,7 +418,7 @@ document.addEventListener('DOMContentLoaded', function() {
             prod.centros.forEach((centro, j) => {
                 centrosHTML += `
                     <span class="inline-block bg-gray-200 px-2 py-1 rounded-full text-xs mr-1 mb-1">
-                        ${centro.nombre} <b>(${centro.cantidad})</b>
+                        ${centro.nombre} <b>(${centro.cantidad} ${prod.unidad})</b>
                     </span>
                     <input type="hidden" name="productos[${i}][centros][${j}][id]" value="${centro.id}">
                     <input type="hidden" name="productos[${i}][centros][${j}][cantidad]" value="${centro.cantidad}">
@@ -395,12 +428,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="p-3">
-                    ${prod.nombre}
+                    ${prod.nombre} (${prod.unidad})
                     <input type="hidden" name="productos[${i}][id]" value="${prod.id}">
                     ${prod.proveedorId ? `<input type="hidden" name="productos[${i}][proveedor_id]" value="${prod.proveedorId}">` : ''}
+                    <input type="hidden" name="productos[${i}][unidad]" value="${prod.unidad}">
                 </td>
                 <td class="p-3">
-                    ${prod.cantidadTotal}
+                    ${prod.cantidadTotal} ${prod.unidad}
                     <input type="hidden" name="productos[${i}][requisicion_amount]" value="${prod.cantidadTotal}">
                 </td>
                 <td class="p-3">${centrosHTML}</td>
@@ -437,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (cantidadCentro > cantidadRestante) {
-            mostrarError(`No puedes asignar más de ${cantidadRestante} unidades.`);
+            mostrarError(`No puedes asignar más de ${cantidadRestante} ${unidadMedida}.`);
             return;
         }
         
@@ -465,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
             li.className = 'py-2 px-3 flex justify-between items-center';
             li.innerHTML = `
                 <span>${c.nombre}</span>
-                <span class="font-semibold">${c.cantidad} unidades</span>
+                <span class="font-semibold">${c.cantidad} ${unidadMedida}</span>
             `;
             centrosList.appendChild(li);
         });
@@ -482,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (cantidadAsignada !== cantidadTotal) {
-            mostrarError(`Debes distribuir toda la cantidad (${cantidadTotal - cantidadAsignada} restantes).`);
+            mostrarError(`Debes distribuir toda la cantidad (${cantidadTotal - cantidadAsignada} ${unidadMedida} restantes).`);
             return;
         }
         
