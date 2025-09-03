@@ -64,37 +64,40 @@
                         @php
                         $nombreEstatus = 'Pendiente';
                         $colorEstatus = 'bg-gray-500';
+                        $ultimoEstatusId = null;
 
-                        // Verificación más robusta para evitar el error
-                        if (isset($req->ultimoEstatus) && 
-                            is_object($req->ultimoEstatus) && 
-                            isset($req->ultimoEstatus->estatus) &&
-                            is_object($req->ultimoEstatus->estatus)) {
+                        // Obtener el último estatus de la requisición basado en el ID
+                        if ($req->estatusHistorial && $req->estatusHistorial->count() > 0) {
+                            $ultimoEstatus = $req->estatusHistorial->sortByDesc('created_at')->first();
+                            $ultimoEstatusId = $ultimoEstatus->estatus_id;
                             
-                            $nombreEstatus = $req->ultimoEstatus->estatus->status_name;
-                            
-                        } elseif (isset($req->estatusHistorial) && 
-                                  $req->estatusHistorial->count() > 0 &&
-                                  isset($req->estatusHistorial->first()->estatus) &&
-                                  is_object($req->estatusHistorial->first()->estatus)) {
-                            
-                            $ultimoHistorial = $req->estatusHistorial->first();
-                            $nombreEstatus = $ultimoHistorial->estatus->status_name ?? 'Pendiente';
+                            // Asignar el nombre del estatus basado en el ID
+                            switch($ultimoEstatusId) {
+                                case 1: $nombreEstatus = 'Iniciada'; break;
+                                case 2: $nombreEstatus = 'Revisado por area de compras'; break;
+                                case 3: $nombreEstatus = 'Aprobado Gerencia'; break;
+                                case 4: $nombreEstatus = 'Aprobado Financiera'; break;
+                                case 5: $nombreEstatus = 'Orden de compra generada'; break;
+                                case 6: $nombreEstatus = 'Cancelada'; break;
+                                case 7: $nombreEstatus = 'Recibido en bodega'; break;
+                                case 8: $nombreEstatus = 'Recibido por coordinador'; break;
+                                case 9: $nombreEstatus = 'Rechazado'; break;
+                                case 10: $nombreEstatus = 'Completado'; break;
+                                case 11: $nombreEstatus = 'Corregir'; break;
+                                default: $nombreEstatus = 'Pendiente';
+                            }
                         }
 
-                        // Definir colores según el nombre del estatus
-                        if (str_contains($nombreEstatus, 'Aprobación')) {
-                            $colorEstatus = 'bg-yellow-500';
-                        } elseif ($nombreEstatus === 'Completado') {
-                            $colorEstatus = 'bg-green-600';
-                        } elseif (in_array($nombreEstatus, ['Rechazado', 'Cancelado'])) {
-                            $colorEstatus = 'bg-red-600';
-                        } elseif ($nombreEstatus === 'Iniciada') {
-                            $colorEstatus = 'bg-blue-600';
-                        } elseif ($nombreEstatus === 'Pendiente') {
-                            $colorEstatus = 'bg-gray-500';
-                        } else {
-                            $colorEstatus = 'bg-gray-600';
+                        // Definir colores según el ID del estatus
+                        switch($ultimoEstatusId) {
+                            case 1: $colorEstatus = 'bg-blue-600'; break; // Iniciada
+                            case 2: case 3: case 4: $colorEstatus = 'bg-yellow-500'; break; // Revisión/Aprobación
+                            case 5: $colorEstatus = 'bg-purple-600'; break; // Orden de compra
+                            case 6: case 9: $colorEstatus = 'bg-red-600'; break; // Cancelada/Rechazado
+                            case 7: case 8: $colorEstatus = 'bg-indigo-600'; break; // Recibido
+                            case 10: $colorEstatus = 'bg-green-600'; break; // Completado
+                            case 11: $colorEstatus = 'bg-orange-500'; break; // Corregir
+                            default: $colorEstatus = 'bg-gray-500'; // Pendiente
                         }
                         @endphp
 
@@ -111,9 +114,6 @@
                         </button>
                         
                         <!-- Botón para editar si está en estatus "Corregir" -->
-                        @php
-                            $ultimoEstatusId = $req->ultimoEstatus->estatus_id ?? null;
-                        @endphp
                         @if($ultimoEstatusId == 11) <!-- 11 = Corregir -->
                         <a href="{{ route('requisiciones.edit', $req->id) }}"
                             class="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm">
@@ -142,8 +142,7 @@
 
                         <!-- Información General -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div><strong>Solicitante:</strong> {{ $req->name_user ?? $req->user->name ?? 'Desconocido'
-                                }}</div>
+                            <div><strong>Solicitante:</strong> {{ $req->name_user ?? $req->user->name ?? 'Desconocido' }}</div>
                             <div><strong>Fecha:</strong> {{ $req->created_at->format('d/m/Y H:i') }}</div>
                             <div><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</div>
                             <div><strong>Recobrable:</strong> {{ $req->Recobrable }}</div>
@@ -172,16 +171,25 @@
                         <ul class="space-y-3">
                             @foreach($req->productos as $prod)
                             <li class="border p-3 rounded-lg shadow-sm bg-gray-50">
-                                <div class="font-medium mb-1">{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})
-                                </div>
+                                <div class="font-medium mb-1">{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</div>
                                 <div><strong>Centros:</strong></div>
                                 <ul class="ml-4 list-disc">
-                                    @if(isset($prod->distribucion_centros) && $prod->distribucion_centros->count() > 0)
-                                    @foreach($prod->distribucion_centros as $centro)
-                                    <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
-                                    @endforeach
+                                    @php
+                                    // Obtener la distribución por centros para este producto y requisición
+                                    $distribucion = DB::table('centro_producto')
+                                        ->where('requisicion_id', $req->id)
+                                        ->where('producto_id', $prod->id)
+                                        ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                        ->select('centro.name_centro', 'centro_producto.amount')
+                                        ->get();
+                                    @endphp
+                                    
+                                    @if($distribucion->count() > 0)
+                                        @foreach($distribucion as $centro)
+                                        <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                                        @endforeach
                                     @else
-                                    <li>No hay centros asignados</li>
+                                        <li>No hay centros asignados</li>
                                     @endif
                                 </ul>
                             </li>
@@ -201,7 +209,23 @@
         const modal = document.getElementById(id);
         modal.classList.toggle('hidden');
         modal.classList.toggle('flex');
+        
+        // Prevenir scroll del body cuando el modal está abierto
+        if (modal.classList.contains('hidden')) {
+            document.body.style.overflow = 'auto';
+        } else {
+            document.body.style.overflow = 'hidden';
+        }
     }
+
+    // Cerrar modal al hacer clic fuera del contenido
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('fixed')) {
+            event.target.classList.add('hidden');
+            event.target.classList.remove('flex');
+            document.body.style.overflow = 'auto';
+        }
+    });
 
     // Filtro búsqueda
     document.getElementById('busqueda').addEventListener('keyup', function() {
@@ -210,22 +234,23 @@
             row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none';
         });
     });
-        @if(session('success'))
-            Swal.fire({
-                icon: 'success',
-                title: '¡Éxito!',
-                text: '{{ session('success') }}',
-                confirmButtonColor: '#1e40af'
-            });
-        @endif
+    
+    @if(session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: '¡Éxito!',
+            text: '{{ session('success') }}',
+            confirmButtonColor: '#1e40af'
+        });
+    @endif
 
-        @if(session('error'))
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: '{{ session('error') }}',
-                confirmButtonColor: '#1e40af'
-            });
-        @endif
+    @if(session('error'))
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: '{{ session('error') }}',
+            confirmButtonColor: '#1e40af'
+        });
+    @endif
 </script>
 @endsection
