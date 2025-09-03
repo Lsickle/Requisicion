@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
 @section('content')
 <x-sidebar/>
 <div class="max-w-5xl mx-auto p-6 mt-20">
@@ -109,9 +110,7 @@
                             <th class="p-3"></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <!-- Los productos se agregarán dinámicamente aquí -->
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
 
@@ -119,7 +118,7 @@
                 <a href="{{ route('requisiciones.historial') }}" class="bg-gray-600 text-white px-6 py-2 rounded-lg shadow hover:bg-gray-700">
                     Cancelar
                 </a>
-                <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
+                <button type="submit" id="submitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
                     Guardar y Reenviar
                 </button>
             </div>
@@ -127,11 +126,11 @@
     </div>
 </div>
 
-<!-- Modal -->
+<!-- Modal 1: Selección de Producto -->
 <div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold text-gray-700">Añadir Producto</h2>
+            <h2 class="text-xl font-bold text-gray-700">Seleccionar Producto</h2>
             <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
@@ -156,9 +155,13 @@
                 <select id="productoSelect" class="w-full border rounded-lg p-2">
                     <option value="">-- Selecciona producto --</option>
                     @foreach ($productos as $p)
-                    <option value="{{ $p->id }}" data-nombre="{{ $p->name_produc }}"
-                        data-proveedor="{{ $p->proveedor_id ?? '' }}" data-categoria="{{ $p->categoria_produc }}">
-                        {{ $p->name_produc }}
+                    <option value="{{ $p->id }}" 
+                            data-nombre="{{ $p->name_produc }}"
+                            data-proveedor="{{ $p->proveedor_id ?? '' }}" 
+                            data-categoria="{{ $p->categoria_produc }}"
+                            data-unidad="{{ $p->unit_produc }}"
+                            data-stock="{{ $p->stock_produc }}">
+                        {{ $p->name_produc }} ({{ $p->unit_produc }})
                     </option>
                     @endforeach
                 </select>
@@ -167,15 +170,34 @@
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
                 <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
             </div>
-            <div>
-                <button type="button" id="iniciarProductoBtn" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-                    Distribuir en Centros
-                </button>
+            <div class="flex items-center">
+                <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
             </div>
         </div>
 
+        <div class="flex justify-end mt-6">
+            <button type="button" id="siguienteModalBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                Siguiente <i class="ml-1 fas fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Distribución por Centros de Costo -->
+<div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-700">Distribuir Producto</h2>
+            <button id="cerrarModalDistribucionBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
+        </div>
+
+        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+            <p class="font-semibold" id="productoSeleccionadoNombre"></p>
+            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> <span id="productoSeleccionadoUnidad"></span></p>
+        </div>
+
         <!-- Distribución por centros -->
-        <div id="centrosSection" class="hidden mt-6">
+        <div id="centrosSection" class="mt-4">
             <h4 class="text-lg font-semibold text-gray-700 mb-2">Distribución por Centros de Costo</h4>
             <p class="text-sm text-gray-500 mb-4">Distribuya la cantidad total entre los centros de costo</p>
 
@@ -201,12 +223,15 @@
             </div>
 
             <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span>
+                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span id="unidadDisponible"></span>
             </div>
 
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3"></ul>
+            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto"></ul>
 
-            <div class="flex justify-end mt-4">
+            <div class="flex justify-between mt-6">
+                <button type="button" id="volverModalBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+                    <i class="fas fa-arrow-left mr-1"></i> Volver
+                </button>
                 <button type="button" id="guardarProductoBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                     Guardar Producto
                 </button>
@@ -214,41 +239,59 @@
         </div>
     </div>
 </div>
+
+<!-- Alertas de carga -->
+<div id="cargandoAlert" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white rounded-2xl shadow-xl p-6 flex flex-col items-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+        <p class="text-gray-700 font-semibold">Procesando, por favor espere...</p>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
 
-    // Modal
-    const modal = $('#modalProducto');
+    // Modales
+    const modalProducto = $('#modalProducto');
+    const modalDistribucion = $('#modalDistribucion');
+    const cargandoAlert = $('#cargandoAlert');
+    
+    // Botones
     const abrirBtn = $('#abrirModalBtn');
     const cerrarBtn = $('#cerrarModalBtn');
-    abrirBtn.addEventListener('click', () => modal.classList.remove('hidden'));
-    cerrarBtn.addEventListener('click', () => modal.classList.add('hidden'));
-
-    // Elementos
-    const iniciarProductoBtn = $('#iniciarProductoBtn');
+    const cerrarDistribucionBtn = $('#cerrarModalDistribucionBtn');
+    const siguienteBtn = $('#siguienteModalBtn');
+    const volverBtn = $('#volverModalBtn');
     const agregarCentroBtn = $('#agregarCentroBtn');
     const guardarProductoBtn = $('#guardarProductoBtn');
+    const submitBtn = $('#submitBtn');
+    
+    // Elementos de formulario
     const productoSelect = $('#productoSelect');
     const cantidadTotalInput = $('#cantidadTotalInput');
     const centroSelect = $('#centroSelect');
     const cantidadCentroInput = $('#cantidadCentroInput');
-    const centrosSection = $('#centrosSection');
     const centrosList = $('#centrosList');
     const productosTable = $('#productosTable tbody');
     const requisicionForm = $('#requisicionForm');
     const totalAsignadoSpan = $('#totalAsignado');
     const cantidadDisponibleSpan = $('#cantidadDisponible');
+    const unidadDisponibleSpan = $('#unidadDisponible');
     const categoriaFilter = $('#categoriaFilter');
+    const productoSeleccionadoNombre = $('#productoSeleccionadoNombre');
+    const productoSeleccionadoCantidad = $('#productoSeleccionadoCantidad');
+    const productoSeleccionadoUnidad = $('#productoSeleccionadoUnidad');
+    const unidadMedidaSpan = $('#unidadMedida');
 
     let productos = [];
     let productoActual = null;
     let cantidadTotal = 0;
     let cantidadAsignada = 0;
+    let unidadMedida = '';
 
     // Precargar productos existentes de la requisición
     @foreach($requisicion->productos as $index => $producto)
@@ -257,6 +300,8 @@ document.addEventListener('DOMContentLoaded', function() {
         nombre: "{{ $producto->name_produc }}",
         proveedorId: {{ $producto->proveedor_id ?? 'null' }},
         cantidadTotal: {{ $producto->pivot->pr_amount }},
+        unidad: "{{ $producto->unit_produc }}",
+        stock: {{ $producto->stock_produc }},
         centros: [
             @foreach($producto->centrosRequisicion as $centro)
             {
@@ -272,24 +317,173 @@ document.addEventListener('DOMContentLoaded', function() {
     // Actualizar tabla con productos precargados
     actualizarTabla();
 
+    // Event listeners para abrir/cerrar modales
+    abrirBtn.addEventListener('click', () => {
+        modalProducto.classList.remove('hidden');
+        resetModalProducto();
+    });
+    
+    cerrarBtn.addEventListener('click', () => {
+        modalProducto.classList.add('hidden');
+        resetModalProducto();
+    });
+    
+    cerrarDistribucionBtn.addEventListener('click', () => {
+        modalDistribucion.classList.add('hidden');
+        resetModalDistribucion();
+    });
+    
+    // Mostrar unidad de medida y validar stock al seleccionar producto
+    productoSelect.addEventListener('change', function() {
+        if (this.value) {
+            const selectedOption = this.selectedOptions[0];
+            unidadMedida = selectedOption.dataset.unidad;
+            const stock = parseInt(selectedOption.dataset.stock) || 0;
+            
+            unidadMedidaSpan.textContent = `Unidad: ${unidadMedida}`;
+            
+            // Validar si el producto tiene stock
+            if (stock > 0) {
+                mostrarAlertaStock(stock, unidadMedida);
+            }
+        } else {
+            unidadMedida = '';
+            unidadMedidaSpan.textContent = 'Unidad: -';
+        }
+    });
+    
+    siguienteBtn.addEventListener('click', () => {
+        const productoId = productoSelect.value;
+        cantidadTotal = parseInt(cantidadTotalInput.value);
+        
+        if (!productoId) {
+            mostrarError('Debes seleccionar un producto.');
+            return;
+        }
+        
+        if (!cantidadTotal || cantidadTotal < 1) {
+            mostrarError('Debes ingresar una cantidad válida.');
+            return;
+        }
+        
+        if (productos.some(p => p.id === productoId)) {
+            mostrarError('Este producto ya fue agregado.');
+            return;
+        }
+        
+        // Obtener datos del producto seleccionado
+        const selectedOption = productoSelect.selectedOptions[0];
+        const unidad = selectedOption.dataset.unidad;
+        const stock = parseInt(selectedOption.dataset.stock) || 0;
+        
+        // Configurar producto actual
+        productoActual = { 
+            id: productoId, 
+            nombre: selectedOption.dataset.nombre, 
+            proveedorId: selectedOption.dataset.proveedor || null, 
+            cantidadTotal, 
+            unidad,
+            stock,
+            centros: [] 
+        };
+        
+        cantidadAsignada = 0;
+        unidadMedida = unidad;
+        
+        // Actualizar información en modal de distribución
+        productoSeleccionadoNombre.textContent = selectedOption.dataset.nombre;
+        productoSeleccionadoCantidad.textContent = cantidadTotal;
+        productoSeleccionadoUnidad.textContent = unidad;
+        cantidadDisponibleSpan.textContent = cantidadTotal;
+        unidadDisponibleSpan.textContent = unidad;
+        totalAsignadoSpan.textContent = cantidadAsignada;
+        centrosList.innerHTML = '';
+        
+        // Cambiar de modal
+        modalProducto.classList.add('hidden');
+        modalDistribucion.classList.remove('hidden');
+    });
+    
+    volverBtn.addEventListener('click', () => {
+        modalDistribucion.classList.add('hidden');
+        modalProducto.classList.remove('hidden');
+        resetModalDistribucion();
+    });
+
     // Filtrar productos por categoría
     categoriaFilter.addEventListener('change', () => {
         const categoriaSeleccionada = categoriaFilter.value;
         const opcionesProductos = productoSelect.querySelectorAll('option');
+        
         opcionesProductos.forEach(opcion => {
-            if (opcion.value === '') return opcion.style.display = '';
+            if (opcion.value === '') return;
             opcion.style.display = (categoriaSeleccionada === '' || opcion.dataset.categoria === categoriaSeleccionada) ? '' : 'none';
         });
+        
         productoSelect.value = '';
+        unidadMedidaSpan.textContent = 'Unidad: -';
     });
 
     function mostrarError(mensaje) {
-        Swal.fire({ icon: 'error', title: 'Error', text: mensaje, confirmButtonText: 'Entendido' });
+        Swal.fire({ 
+            icon: 'error', 
+            title: 'Error', 
+            text: mensaje, 
+            confirmButtonText: 'Entendido' 
+        });
+    }
+    
+    function mostrarAlertaStock(stock, unidad) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Producto con stock disponible',
+            html: `Este producto tiene <b>${stock} ${unidad}</b> disponibles en inventario.<br><br>¿Desea continuar con la requisición?`,
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+        }).then((result) => {
+            if (result.isDismissed) {
+                // Si el usuario cancela, limpiar la selección
+                productoSelect.value = '';
+                unidadMedidaSpan.textContent = 'Unidad: -';
+            }
+        });
+    }
+    
+    function mostrarCarga() {
+        cargandoAlert.classList.remove('hidden');
+    }
+    
+    function ocultarCarga() {
+        cargandoAlert.classList.add('hidden');
+    }
+
+    function resetModalProducto() {
+        productoSelect.value = '';
+        cantidadTotalInput.value = '';
+        categoriaFilter.value = '';
+        unidadMedidaSpan.textContent = 'Unidad: -';
+        
+        // Mostrar todos los productos nuevamente
+        const opcionesProductos = productoSelect.querySelectorAll('option');
+        opcionesProductos.forEach(opcion => {
+            opcion.style.display = '';
+        });
+    }
+    
+    function resetModalDistribucion() {
+        centroSelect.value = '';
+        cantidadCentroInput.value = '';
+        productoActual = null;
+        cantidadTotal = 0;
+        cantidadAsignada = 0;
+        unidadMedida = '';
     }
 
     function actualizarResumen() {
         totalAsignadoSpan.textContent = cantidadAsignada;
-        cantidadDisponibleSpan.textContent = cantidadTotal;
     }
 
     function actualizarTabla() {
@@ -299,21 +493,24 @@ document.addEventListener('DOMContentLoaded', function() {
             prod.centros.forEach((centro, j) => {
                 centrosHTML += `
                     <span class="inline-block bg-gray-200 px-2 py-1 rounded-full text-xs mr-1 mb-1">
-                        ${centro.nombre} <b>(${centro.cantidad})</b>
+                        ${centro.nombre} <b>(${centro.cantidad} ${prod.unidad})</b>
                     </span>
                     <input type="hidden" name="productos[${i}][centros][${j}][id]" value="${centro.id}">
                     <input type="hidden" name="productos[${i}][centros][${j}][cantidad]" value="${centro.cantidad}">
                 `;
             });
+            
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="p-3">
-                    ${prod.nombre}
+                    ${prod.nombre} (${prod.unidad})
                     <input type="hidden" name="productos[${i}][id]" value="${prod.id}">
                     ${prod.proveedorId ? `<input type="hidden" name="productos[${i}][proveedor_id]" value="${prod.proveedorId}">` : ''}
+                    <input type="hidden" name="productos[${i}][unidad]" value="${prod.unidad}">
+                    <input type="hidden" name="productos[${i}][stock]" value="${prod.stock}">
                 </td>
                 <td class="p-3">
-                    ${prod.cantidadTotal}
+                    ${prod.cantidadTotal} ${prod.unidad}
                     <input type="hidden" name="productos[${i}][requisicion_amount]" value="${prod.cantidadTotal}">
                 </td>
                 <td class="p-3">${centrosHTML}</td>
@@ -332,57 +529,93 @@ document.addEventListener('DOMContentLoaded', function() {
         actualizarTabla();
     };
 
-    iniciarProductoBtn.addEventListener('click', () => {
-        const productoId = productoSelect.value;
-        cantidadTotal = parseInt(cantidadTotalInput.value);
-        if (!productoId || !cantidadTotal || cantidadTotal < 1) return mostrarError('Selecciona un producto y una cantidad válida.');
-        if (productos.some(p => p.id === productoId)) return mostrarError('Este producto ya fue agregado.');
-        productoActual = { id: productoId, nombre: productoSelect.selectedOptions[0].dataset.nombre, proveedorId: productoSelect.selectedOptions[0].dataset.proveedor || null, cantidadTotal, centros: [] };
-        cantidadAsignada = 0;
-        centrosSection.classList.remove('hidden');
-        centrosList.innerHTML = '';
-        actualizarResumen();
-    });
-
     agregarCentroBtn.addEventListener('click', () => {
         if (!productoActual) return;
+        
         const centroId = centroSelect.value;
         const cantidadCentro = parseInt(cantidadCentroInput.value);
         const cantidadRestante = cantidadTotal - cantidadAsignada;
-        if (!centroId || !cantidadCentro || cantidadCentro < 1) return mostrarError('Selecciona un centro y una cantidad válida.');
-        if (cantidadCentro > cantidadRestante) return mostrarError(`No puedes asignar más de ${cantidadRestante} unidades.`);
+        
+        if (!centroId) {
+            mostrarError('Debes seleccionar un centro de costo.');
+            return;
+        }
+        
+        if (!cantidadCentro || cantidadCentro < 1) {
+            mostrarError('Debes ingresar una cantidad válida.');
+            return;
+        }
+        
+        if (cantidadCentro > cantidadRestante) {
+            mostrarError(`No puedes asignar más de ${cantidadRestante} ${unidadMedida}.`);
+            return;
+        }
+        
+        // Verificar si el centro ya existe
         const idx = productoActual.centros.findIndex(c => c.id === centroId);
-        if (idx >= 0) productoActual.centros[idx].cantidad += cantidadCentro;
-        else productoActual.centros.push({ id: centroId, nombre: centroSelect.selectedOptions[0].dataset.nombre, cantidad: cantidadCentro });
+        
+        if (idx >= 0) {
+            // Si el centro ya existe, sumar la cantidad
+            productoActual.centros[idx].cantidad += cantidadCentro;
+        } else {
+            // Si es un centro nuevo, agregarlo
+            productoActual.centros.push({ 
+                id: centroId, 
+                nombre: centroSelect.selectedOptions[0].dataset.nombre, 
+                cantidad: cantidadCentro 
+            });
+        }
+        
         cantidadAsignada += cantidadCentro;
+        
+        // Actualizar la lista de centros
         centrosList.innerHTML = '';
         productoActual.centros.forEach(c => {
             const li = document.createElement('li');
-            li.className = 'py-1 text-sm';
-            li.textContent = `${c.nombre} - ${c.cantidad} unidades`;
+            li.className = 'py-2 px-3 flex justify-between items-center';
+            li.innerHTML = `
+                <span>${c.nombre}</span>
+                <span class="font-semibold">${c.cantidad} ${unidadMedida}</span>
+            `;
             centrosList.appendChild(li);
         });
+        
         actualizarResumen();
         cantidadCentroInput.value = '';
         centroSelect.value = '';
     });
 
     guardarProductoBtn.addEventListener('click', () => {
-        if (!productoActual || productoActual.centros.length === 0) return mostrarError('Debes añadir al menos un centro.');
-        if (cantidadAsignada !== cantidadTotal) return mostrarError(`Debes distribuir toda la cantidad (${cantidadTotal - cantidadAsignada} restantes).`);
+        if (!productoActual || productoActual.centros.length === 0) {
+            mostrarError('Debes añadir al menos un centro de costo.');
+            return;
+        }
+        
+        if (cantidadAsignada !== cantidadTotal) {
+            mostrarError(`Debes distribuir toda la cantidad (${cantidadTotal - cantidadAsignada} ${unidadMedida} restantes).`);
+            return;
+        }
+        
         productos.push(productoActual);
-        productoActual = null; cantidadTotal = 0; cantidadAsignada = 0;
-        centrosSection.classList.add('hidden');
-        productoSelect.value = ''; cantidadTotalInput.value = '';
         actualizarTabla();
-        modal.classList.add('hidden'); // cerrar modal al guardar
+        
+        // Cerrar modal y resetear
+        modalDistribucion.classList.add('hidden');
+        resetModalDistribucion();
+        resetModalProducto();
     });
 
-    requisicionForm.addEventListener('submit', e => {
+    requisicionForm.addEventListener('submit', function(e) {
         if (productos.length === 0) {
             e.preventDefault();
-            mostrarError('Agrega al menos un producto.');
+            mostrarError('Debes agregar al menos un producto.');
+            return;
         }
+        
+        // Mostrar alerta de carga
+        mostrarCarga();
+        
+        // El formulario se enviará normalmente después de esto
     });
 });
 </script>
