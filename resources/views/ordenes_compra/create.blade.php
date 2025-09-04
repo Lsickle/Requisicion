@@ -14,7 +14,7 @@
         @endif
     </h1>
 
-    <form action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
+    <form action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6" id="ordenCompraForm">
         @csrf
 
         <input type="hidden" name="requisicion_id" value="{{ $requisicion->id ?? 0 }}">
@@ -55,12 +55,14 @@
             <select name="proveedor_id" class="w-full border rounded-lg p-2" required>
                 <option value="">-- Selecciona un proveedor --</option>
                 @foreach($proveedoresProductos as $proveedor)
-                <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                <option value="{{ $proveedor->id }}" @if($proveedorPreseleccionado==$proveedor->id) selected @endif>
+                    {{ $proveedor->prov_name }}
+                </option>
                 @endforeach
             </select>
         </div>
 
-        <!-- Productos (solo la tabla con proveedor) -->
+        <!-- Productos -->
         @if(isset($requisicion) && $requisicion->productos->count() > 0)
         <div class="overflow-x-auto">
             <table class="w-full border text-sm">
@@ -75,29 +77,41 @@
                 </thead>
                 <tbody>
                     @foreach($requisicion->productos as $index => $producto)
+                    @php
+                    $cantidadTotal = 0;
+                    if (isset($distribucionCentros[$producto->id])) {
+                    $cantidadTotal = $distribucionCentros[$producto->id]->sum('amount');
+                    }
+                    @endphp
                     <tr class="border-t">
-                        <td class="p-3">{{ $producto->name_produc }}
+                        <td class="p-3">
+                            {{ $producto->name_produc }}
                             <input type="hidden" name="productos[{{ $index }}][id]" value="{{ $producto->id }}">
                         </td>
                         <td class="p-3">{{ $producto->proveedor->prov_name ?? 'Sin proveedor' }}</td>
                         <td class="p-3">
-                            {{ $requisicion->amount_requisicion }}
-                            <input type="hidden" name="productos[{{ $index }}][cantidad]"
-                                value="{{ $requisicion->amount_requisicion }}">
+                            <!-- Solo mostrar cantidad total como texto -->
+                            <span>{{ $cantidadTotal }}</span>
+                            <input type="hidden" name="productos[{{ $index }}][cantidad]" value="{{ $cantidadTotal }}">
                         </td>
                         <td class="p-3">
                             @if(isset($distribucionCentros[$producto->id]))
-                            @foreach($distribucionCentros[$producto->id] as $d)
-                            <div>{{ $d->name_centro }}: {{ $d->amount }}</div>
-                            <input type="hidden" name="productos[{{ $index }}][centros][{{ $loop->index }}][id]"
-                                value="{{ $d->centro_id }}">
-                            <input type="hidden" name="productos[{{ $index }}][centros][{{ $loop->index }}][cantidad]"
-                                value="{{ $d->amount }}">
+                            @foreach($distribucionCentros[$producto->id] as $centroIndex => $distribucion)
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="mr-2">{{ $distribucion->name_centro }}:</span>
+                                <!-- Solo mostrar cantidad por centro como texto -->
+                                <span>{{ $distribucion->amount }}</span>
+                                <input type="hidden"
+                                    name="productos[{{ $index }}][centros][{{ $centroIndex }}][cantidad]"
+                                    value="{{ $distribucion->amount }}">
+                                <input type="hidden" name="productos[{{ $index }}][centros][{{ $centroIndex }}][id]"
+                                    value="{{ $distribucion->centro_id }}">
+                            </div>
                             @endforeach
                             @endif
                         </td>
                         <td class="p-3">
-                            {{ $producto->price_produc }}
+                            <span>{{ number_format($producto->price_produc, 2) }}</span>
                             <input type="hidden" name="productos[{{ $index }}][precio]"
                                 value="{{ $producto->price_produc }}">
                         </td>
@@ -130,12 +144,15 @@
 @section('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Validación básica del formulario
-        const form = document.querySelector('form');
+        const form = document.getElementById('ordenCompraForm');
+        
+        // Validación del formulario
         form.addEventListener('submit', function(e) {
             let isValid = true;
             const precioInputs = document.querySelectorAll('input[name$="[precio]"]');
+            const cantidadInputs = document.querySelectorAll('input[name$="[cantidad]"]');
             
+            // Validar precios
             precioInputs.forEach(input => {
                 if (!input.value || parseFloat(input.value) <= 0) {
                     isValid = false;
@@ -145,13 +162,23 @@
                 }
             });
             
+            // Validar cantidades
+            cantidadInputs.forEach(input => {
+                if (!input.value || parseInt(input.value) <= 0) {
+                    isValid = false;
+                    input.style.borderColor = 'red';
+                } else {
+                    input.style.borderColor = '';
+                }
+            });
+            
             if (!isValid) {
                 e.preventDefault();
-                alert('Por favor, ingrese precios válidos para todos los productos.');
+                alert('Por favor, complete todos los campos requeridos correctamente.');
             }
         });
 
-        // Si hay solo un proveedor, seleccionarlo automáticamente
+        // Seleccionar automáticamente el proveedor si hay solo uno
         @if(isset($proveedorPreseleccionado) && $proveedorPreseleccionado)
             document.querySelector('select[name="proveedor_id"]').value = "{{ $proveedorPreseleccionado }}";
         @endif

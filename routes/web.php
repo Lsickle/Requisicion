@@ -151,9 +151,6 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('ordenes_compra.createFromRequisicion')
         ->middleware([AuthSession::class]);
 
-    Route::get('/', [OrdenCompraController::class, 'index'])
-        ->name('ordenes_compra.index');
-
     Route::get('/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
 

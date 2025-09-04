@@ -10,6 +10,10 @@ use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Requisicion;
+use ZipArchive;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 
 class OrdenCompraController extends Controller
 {
@@ -120,63 +124,96 @@ class OrdenCompraController extends Controller
         ));
     }
 
-    // Guardar orden
     public function store(Request $request)
     {
-        $validaciones = [
-            'proveedor_id'  => 'required|exists:proveedores,id',
-            'order_oc'      => 'required|string',
+        // Validación más robusta
+        $validator = Validator::make($request->all(), [
             'date_oc'       => 'required|date',
-            'methods_oc'    => 'nullable|string',
-            'plazo_oc'      => 'nullable|string',
-            'observaciones' => 'nullable|string',
-            'productos'     => 'required|array',
-        ];
-
-        if ($request->requisicion_id != 0) {
-            $validaciones['requisicion_id'] = 'required|exists:requisicion,id';
-        }
-
-        $request->validate($validaciones);
-
-        $ordenCompra = OrdenCompra::create([
-            'order_oc'       => $request->order_oc,
-            'date_oc'        => $request->date_oc,
-            'proveedor_id'   => $request->proveedor_id,
-            'methods_oc'     => $request->methods_oc,
-            'plazo_oc'       => $request->plazo_oc,
-            'observaciones'  => $request->observaciones,
-            'requisicion_id' => $request->requisicion_id != 0 ? $request->requisicion_id : null,
+            'proveedor_id'  => 'required|exists:proveedores,id',
+            'productos'     => 'required|array|min:1',
+            'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.cantidad' => 'required|integer|min:1',
+            'productos.*.precio' => 'required|numeric|min:0',
+            'productos.*.centros' => 'required|array|min:1',
+            'productos.*.centros.*.id' => 'required|exists:centro,id',
+            'productos.*.centros.*.cantidad' => 'required|integer|min:0',
         ]);
 
-        foreach ($request->productos as $producto) {
-            $ordenCompra->productos()->attach($producto['id'], [
-                'po_amount'       => $producto['cantidad'],
-                'precio_unitario' => $producto['precio'],
-                'order_oc'        => $request->order_oc,
-                'date_oc'         => $request->date_oc,
-                'methods_oc'      => $request->methods_oc,
-                'plazo_oc'        => $request->plazo_oc,
-                'observaciones'   => $request->observaciones,
-            ]);
-
-            if (isset($producto['centros'])) {
-                foreach ($producto['centros'] as $centro) {
-                    DB::table('centro_ordencompra')->insert([
-                        'producto_id'     => $producto['id'],
-                        'centro_id'       => $centro['id'],
-                        'rc_amount'       => $centro['cantidad'],
-                        'orden_compra_id' => $ordenCompra->id,
-                        'created_at'      => now(),
-                        'updated_at'      => now(),
-                    ]);
-                }
-            }
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
         }
 
-        return redirect()->route('ordenes_compra.index')
-            ->with('success', 'Orden de compra creada correctamente.');
+        // Generar el número de orden automáticamente
+        $ultimoOrderOc = DB::table('ordencompra_producto')
+            ->orderByDesc('id')
+            ->value('order_oc');
+
+        if ($ultimoOrderOc) {
+            $numero = intval(str_replace('OC-', '', $ultimoOrderOc)) + 1;
+        } else {
+            $numero = 1;
+        }
+        $nuevoOrderOc = 'OC-' . str_pad($numero, 6, '0', STR_PAD_LEFT);
+
+        DB::beginTransaction();
+
+        try {
+            // Crear la orden de compra principal
+            $ordenCompra = OrdenCompra::create([
+                // Ya no guardes order_oc aquí, solo en la pivote
+                'date_oc'        => $request->date_oc,
+                'proveedor_id'   => $request->proveedor_id,
+                'methods_oc'     => $request->methods_oc,
+                'plazo_oc'       => $request->plazo_oc,
+                'observaciones'  => $request->observaciones,
+                'requisicion_id' => $request->requisicion_id != 0 ? $request->requisicion_id : null,
+            ]);
+
+            // Procesar cada producto
+            foreach ($request->productos as $productoData) {
+                $sumaCentros = array_sum(array_column($productoData['centros'], 'cantidad'));
+                if ($sumaCentros != $productoData['cantidad']) {
+                    throw new \Exception("La suma de cantidades por centros no coincide con la cantidad total para el producto {$productoData['id']}");
+                }
+
+                $producto = Producto::findOrFail($productoData['id']);
+                $precioUnitario = $producto->price_produc;
+
+                // Adjuntar producto a la orden de compra (tabla pivote)
+                $ordenCompra->productos()->attach($productoData['id'], [
+                    'po_amount'       => $productoData['cantidad'],
+                    'precio_unitario' => $precioUnitario,
+                    'order_oc'        => $nuevoOrderOc, // Usar el nuevo número generado
+                    'date_oc'         => $request->date_oc,
+                    'methods_oc'      => $request->methods_oc,
+                    'plazo_oc'        => $request->plazo_oc,
+                    'observaciones'   => $request->observaciones,
+                ]);
+
+                foreach ($productoData['centros'] as $centroData) {
+                    if ($centroData['cantidad'] > 0) {
+                        DB::table('centro_ordencompra')->insert([
+                            'producto_id'     => $productoData['id'],
+                            'centro_id'       => $centroData['id'],
+                            'rc_amount'       => $centroData['cantidad'],
+                            'orden_compra_id' => $ordenCompra->id,
+                            'created_at'      => now(),
+                            'updated_at'      => now(),
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('ordenes_compra.show', $ordenCompra->id)
+                ->with('success', 'Orden de compra creada correctamente.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return back()->withInput()->withErrors(['error' => 'Error al crear la orden de compra: ' . $e->getMessage()]);
+        }
     }
+
 
     public function listaAprobadas()
     {

@@ -21,7 +21,8 @@ class EstatusSeeder extends Seeder
                 ['status_name' => 'Recibido por coordinador'],
                 ['status_name' => 'Rechazado'],
                 ['status_name' => 'Completado'],
-                ['status_name' => 'Corregir'],
+                ['status_name' => 'Corregir requisicion'],
+                ['status_name' => 'Entrega parcial'],
         ];
 
         foreach ($estatus as $estado) {
