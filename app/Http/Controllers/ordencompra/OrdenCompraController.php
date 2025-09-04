@@ -10,8 +10,6 @@ use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Requisicion;
-use App\Mail\OrdenCompraCreada;
-use Illuminate\Support\Facades\Mail;
 
 class OrdenCompraController extends Controller
 {
@@ -21,120 +19,198 @@ class OrdenCompraController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('ordenes_compra.index', compact('ordenes')); // Esta vista no existe según tu estructura
+        return view('ordenes_compra.index', compact('ordenes'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $proveedores = Proveedor::all();
         $productos   = Producto::all();
         $centros     = Centro::all();
 
-        return view('ordenes_compra.create', compact('proveedores', 'productos', 'centros'));
-    }
+        $requisicion = null;
+        $distribucionCentros = [];
+        $proveedoresProductos = collect(); // Inicializar como colección vacía
+        $proveedorPreseleccionado = null;
 
-    public function createFromRequisicion($requisicionId)
+        // Generar número de orden único
+        $orderNumber = 'OC-' . str_pad(OrdenCompra::max('id') + 1, 6, '0', STR_PAD_LEFT);
+
+        // Si se pasa un ID de requisición, cargarla con la distribución de centros
+        if ($request->has('requisicion_id') && $request->requisicion_id != 0) {
+            $requisicion = Requisicion::with(['productos'])->find($request->requisicion_id);
+
+            if ($requisicion) {
+                // Obtener proveedores de los productos de la requisición
+                $proveedoresProductos = Proveedor::whereIn(
+                    'id',
+                    $requisicion->productos->pluck('proveedor_id')->filter()
+                )->get();
+
+                $proveedorPreseleccionado = $proveedoresProductos->count() === 1
+                    ? $proveedoresProductos->first()->id
+                    : null;
+
+                $distribucionCentros = DB::table('centro_producto')
+                    ->where('requisicion_id', $requisicion->id)
+                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                    ->join('productos', 'centro_producto.producto_id', '=', 'productos.id')
+                    ->select(
+                        'centro_producto.producto_id',
+                        'centro.name_centro',
+                        'centro_producto.amount',
+                        'centro_producto.centro_id'
+                    )
+                    ->get()
+                    ->groupBy('producto_id');
+            }
+        }
+
+        return view('ordenes_compra.create', compact(
+            'requisicion',
+            'proveedores',
+            'centros',
+            'productos',
+            'distribucionCentros',
+            'orderNumber',
+            'proveedoresProductos', // Añadir esta variable
+            'proveedorPreseleccionado' // Añadir esta variable
+        ));
+    }
+    public function createFromRequisicion($id)
     {
-        $requisicion = Requisicion::with(['productos'])->findOrFail($requisicionId);
-        $proveedores = Proveedor::all();
-        $centros     = Centro::all();
-        $productos   = Producto::all(); // Agregado para consistencia
+        $requisicion = Requisicion::with(['productos', 'productos.centrosRequisicion'])->findOrFail($id);
 
-        return view('ordenes_compra.create', compact('requisicion', 'proveedores', 'centros', 'productos'));
+        // Generar número de orden único
+        $orderNumber = 'OC-' . str_pad(OrdenCompra::max('id') + 1, 6, '0', STR_PAD_LEFT);
+
+        // Proveedores de los productos de la requisición
+        $proveedoresProductos = Proveedor::whereIn(
+            'id',
+            $requisicion->productos->pluck('proveedor_id')->filter()
+        )->get();
+
+        $proveedorPreseleccionado = $proveedoresProductos->count() === 1
+            ? $proveedoresProductos->first()->id
+            : null;
+
+        // Distribución de productos en centros
+        $distribucionCentros = DB::table('centro_producto')
+            ->where('requisicion_id', $requisicion->id)
+            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+            ->join('productos', 'centro_producto.producto_id', '=', 'productos.id')
+            ->select(
+                'centro_producto.producto_id',
+                'centro.name_centro',
+                'centro_producto.amount',
+                'centro_producto.centro_id'
+            )
+            ->get()
+            ->groupBy('producto_id');
+
+        // FALTABA: Obtener todos los productos y centros para la vista
+        $productos = Producto::all();
+        $centros = Centro::all();
+        $proveedores = Proveedor::all();
+
+        return view('ordenes_compra.create', compact(
+            'requisicion',
+            'orderNumber',
+            'proveedoresProductos',
+            'proveedorPreseleccionado',
+            'distribucionCentros',
+            'productos',        // Añadido
+            'centros',          // Añadido
+            'proveedores'       // Añadido
+        ));
     }
 
+    // Guardar orden
     public function store(Request $request)
     {
-        $request->validate([
-            'requisicion_id'              => 'required|exists:requisicion,id',
-            'proveedor_id'                => 'required|exists:proveedores,id',
-            'date_oc'                     => 'required|date',
-            'methods_oc'                  => 'required|string|max:255',
-            'plazo_oc'                    => 'required|string|max:255',
-            'order_oc'                    => 'required|integer|unique:orden_compras,order_oc',
-            'observaciones'               => 'nullable|string',
-            'productos'                   => 'required|array|min:1',
-            'productos.*.id'              => 'required|exists:productos,id',
-            'productos.*.cantidad'        => 'required|integer|min:1',
-            'productos.*.precio'          => 'required|numeric|min:0',
-            'productos.*.centros'         => 'required|array|min:1',
-            'productos.*.centros.*.id'    => 'required|exists:centros,id',
-            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+        $validaciones = [
+            'proveedor_id'  => 'required|exists:proveedores,id',
+            'order_oc'      => 'required|string',
+            'date_oc'       => 'required|date',
+            'methods_oc'    => 'nullable|string',
+            'plazo_oc'      => 'nullable|string',
+            'observaciones' => 'nullable|string',
+            'productos'     => 'required|array',
+        ];
+
+        // Solo validar requisicion_id si no es 0 (creación desde cero)
+        if ($request->requisicion_id != 0) {
+            $validaciones['requisicion_id'] = 'required|exists:requisicion,id';
+        }
+
+        $request->validate($validaciones);
+
+        // Crear la orden de compra
+        $ordenCompra = OrdenCompra::create([
+            'order_oc'       => $request->order_oc,
+            'date_oc'        => $request->date_oc,
+            'proveedor_id'   => $request->proveedor_id,
+            'methods_oc'     => $request->methods_oc,
+            'plazo_oc'       => $request->plazo_oc,
+            'observaciones'  => $request->observaciones,
+            'requisicion_id' => $request->requisicion_id != 0 ? $request->requisicion_id : null,
         ]);
 
-        try {
-            DB::beginTransaction();
-
-            $orden = OrdenCompra::create([
-                'requisicion_id' => $request->requisicion_id,
-                'proveedor_id'  => $request->proveedor_id,
-                'date_oc'       => $request->date_oc,
-                'methods_oc'    => $request->methods_oc,
-                'plazo_oc'      => $request->plazo_oc,
-                'order_oc'      => $request->order_oc,
-                'observaciones' => $request->observaciones,
-                'estado'        => 'pendiente',
+        // Guardar productos
+        foreach ($request->productos as $producto) {
+            // Adjuntar producto a la orden de compra
+            $ordenCompra->productos()->attach($producto['id'], [
+                'po_amount'       => $producto['cantidad'],
+                'precio_unitario' => $producto['precio'],
+                'order_oc'        => $request->order_oc,
+                'date_oc'         => $request->date_oc,
+                'methods_oc'      => $request->methods_oc,
+                'plazo_oc'        => $request->plazo_oc,
+                'observaciones'   => $request->observaciones,
             ]);
 
-            foreach ($request->productos as $productoData) {
-                $orden->productos()->attach($productoData['id'], [
-                    'po_amount'       => $productoData['cantidad'],
-                    'precio_unitario' => $productoData['precio'],
-                    'date_oc'         => $request->date_oc,
-                    'methods_oc'      => $request->methods_oc,
-                    'plazo_oc'        => $request->plazo_oc,
-                    'order_oc'        => $request->order_oc
-                ]);
-
-                foreach ($productoData['centros'] as $centroData) {
+            // Guardar distribución por centros si existe (para requisiciones)
+            if (isset($producto['centros'])) {
+                foreach ($producto['centros'] as $centro) {
                     DB::table('centro_ordencompra')->insert([
-                        'producto_id'      => $productoData['id'],
-                        'centro_id'        => $centroData['id'],
-                        'orden_compra_id'  => $orden->id,
-                        'rc_amount'        => $centroData['cantidad'],
-                        'created_at'       => now(),
-                        'updated_at'       => now(),
+                        'producto_id'     => $producto['id'],
+                        'centro_id'       => $centro['id'],
+                        'rc_amount'       => $centro['cantidad'],
+                        'orden_compra_id' => $ordenCompra->id,
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
                     ]);
                 }
             }
-
-            // Actualizar el estatus de la requisición a "En proceso de compra" (estatus 5)
-            DB::table('estatus_requisicion')->insert([
-                'requisicion_id' => $request->requisicion_id,
-                'estatus_id'     => 5, // En proceso de compra
-                'estatus'        => 1,
-                'date_update'    => now(),
-                'created_at'     => now(),
-                'updated_at'     => now(),
-            ]);
-
-            DB::commit();
-
-            // Enviar correo electrónico (comentado temporalmente para pruebas)
-            // $destinatarios = ['compras@empresa.com', 'proveedor@empresa.com'];
-            // Mail::to($destinatarios)->send(new OrdenCompraCreada($orden));
-
-            return redirect()->route('ordenes-compra.lista')->with('success', 'Orden de compra creada exitosamente');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error al crear la orden de compra: ' . $e->getMessage());
+            // Para órdenes creadas desde cero
+            elseif (isset($producto['centro_id']) && $producto['centro_id']) {
+                DB::table('centro_ordencompra')->insert([
+                    'producto_id'     => $producto['id'],
+                    'centro_id'       => $producto['centro_id'],
+                    'rc_amount'       => $producto['cantidad'],
+                    'orden_compra_id' => $ordenCompra->id,
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]);
+            }
         }
+
+        return redirect()->route('ordenes_compra.index')
+            ->with('success', 'Orden de compra creada correctamente.');
     }
 
-    // Método para mostrar la lista de requisiciones aprobadas
     public function listaAprobadas()
     {
-        // Obtener requisiciones con estatus 4 (Aprobadas)
         $requisiciones = Requisicion::with([
             'productos',
-            'productos.centros' => function ($query) {
+            'productos.centrosRequisicion' => function ($query) {
                 $query->wherePivot('requisicion_id', DB::raw('requisicion.id'));
             },
             'ultimoEstatus.estatus',
             'estatusHistorial.estatus'
         ])
             ->whereHas('ultimoEstatus', function ($query) {
-                $query->where('estatus_id', 4); // 4 = Aprobado
+                $query->where('estatus_id', 4);
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -142,24 +218,53 @@ class OrdenCompraController extends Controller
         return view('ordenes_compra.lista', compact('requisiciones'));
     }
 
-    // Los siguientes métodos son opcionales ya que no tienes las vistas
+    public function generarPDF($requisicionId)
+    {
+        $requisicion = Requisicion::with(['productos', 'ordenesCompra.productos'])->findOrFail($requisicionId);
+
+        $productosConOrden = [];
+        foreach ($requisicion->ordenesCompra as $orden) {
+            foreach ($orden->productos as $producto) {
+                $productosConOrden[$producto->id] = true;
+            }
+        }
+
+        $productosFaltantes = [];
+        foreach ($requisicion->productos as $producto) {
+            if (!isset($productosConOrden[$producto->id])) {
+                $productosFaltantes[] = $producto->name_produc;
+            }
+        }
+
+        if (!empty($productosFaltantes)) {
+            return back()->with('error', 'Faltan crear órdenes de compra para: ' . implode(', ', $productosFaltantes));
+        }
+
+        return redirect()->route('pdf.generar', ['tipo' => 'orden', 'id' => $requisicionId]);
+    }
+
     public function show(string $id)
     {
-        // Implementación si necesitas ver una orden específica
+        $orden = OrdenCompra::with(['proveedor', 'productos', 'requisicion'])->findOrFail($id);
+        return view('ordenes_compra.show', compact('orden'));
     }
 
     public function edit(string $id)
     {
-        // Implementación si necesitas editar una orden
+        $orden = OrdenCompra::with(['proveedor', 'productos'])->findOrFail($id);
+        $proveedores = Proveedor::all();
+        $centros = Centro::all();
+
+        return view('ordenes_compra.edit', compact('orden', 'proveedores', 'centros'));
     }
 
     public function update(Request $request, string $id)
     {
-        // Implementación si necesitas actualizar una orden
+        // TODO
     }
 
     public function destroy(string $id)
     {
-        // Implementación si necesitas eliminar una orden
+        // TODO
     }
 }

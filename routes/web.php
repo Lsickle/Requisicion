@@ -25,11 +25,6 @@ Route::get('/', function () {
     return view('index');
 })->name('login');
 
-// Generar PDF genérico según tipo y id
-Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
-    ->where('tipo', 'orden|requisicion|estatus')
-    ->name('pdf.generar');
-
 // Login contra API externo
 Route::post('/auth/api-login', [ApiAuthController::class, 'login'])->name('api.login');
 
@@ -137,6 +132,48 @@ Route::middleware([AuthSession::class])->group(function () {
     // Para mostrar la lista de requisiciones aprobadas estatus 4
     Route::get('/ordenes_compra/lista-aprobadas', [RequisicionController::class, 'listaAprobadas'])
         ->name('ordenes_compra.lista');
+
+    // Add this route inside the middleware group, before the createFromRequisicion route
+    Route::get('/ordenes-compra/create', [OrdenCompraController::class, 'create'])
+        ->name('ordenes_compra.create')
+        ->middleware([AuthSession::class]);
+
+    Route::get('ordenes-compra/requisicion/{id}/create', [OrdenCompraController::class, 'createFromRequisicion'])
+        ->name('ordenes_compra.createFromRequisicion')
+        ->middleware([AuthSession::class]);
+
+    // Add the store route as well
+    Route::post('ordenes-compra', [OrdenCompraController::class, 'store'])
+        ->name('ordenes_compra.store')
+        ->middleware([AuthSession::class]);
+
+    Route::get('ordenes-compra/requisicion/{id}/create', [OrdenCompraController::class, 'createFromRequisicion'])
+        ->name('ordenes_compra.createFromRequisicion')
+        ->middleware([AuthSession::class]);
+
+    Route::get('/', [OrdenCompraController::class, 'index'])
+        ->name('ordenes_compra.index');
+
+    Route::get('/{id}', [OrdenCompraController::class, 'show'])
+        ->name('ordenes_compra.show');
+
+    Route::get('/{id}/edit', [OrdenCompraController::class, 'edit'])
+        ->name('ordenes_compra.edit');
+
+    Route::put('/{id}', [OrdenCompraController::class, 'update'])
+        ->name('ordenes_compra.update');
+
+    Route::delete('/{id}', [OrdenCompraController::class, 'destroy'])
+        ->name('ordenes_compra.destroy');
+
+    // Generar PDF genérico según tipo y id
+    Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
+        ->where('tipo', 'orden|requisicion|estatus')
+        ->name('pdf.generar');
+
+    // Dentro del grupo de rutas de órdenes de compra
+    Route::get('/generar-pdf/{requisicionId}', [OrdenCompraController::class, 'generarPDF'])
+        ->name('ordenes_compra.generarPDF');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

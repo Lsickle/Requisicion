@@ -1,232 +1,175 @@
 @extends('layouts.app')
 
-@section('title', 'Crear Requisición')
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome para iconos -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+@section('title', 'Crear Orden de Compra')
+
 @section('content')
-<x-sidebar/>
-<div class="max-w-5xl mx-auto p-6 mt-20">
-    <div class="bg-white shadow-xl rounded-2xl p-6">
-        <h1 class="text-2xl font-bold text-gray-700 mb-6">Crear Requisición</h1>
+<x-sidebar />
 
-        @if (session('success'))
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Listo!',
-                    text: '{{ session('success') }}',
-                    confirmButtonText: 'OK'
-                });
-            });
-        </script>
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-white rounded-lg shadow-md">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">
+        Crear Orden de Compra 
+        @if(isset($requisicion))
+            - Requisición #{{ $requisicion->id }}
         @endif
+    </h1>
 
-        @if ($errors->any())
-        <script>
-            window.addEventListener('DOMContentLoaded', () => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    html: `{!! implode('<br>', $errors->all()) !!}`,
-                    confirmButtonText: 'OK'
-                });
-            });
-        </script>
+    <form action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
+        @csrf
+
+        @if(isset($requisicion))
+            <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
+        @else
+            <input type="hidden" name="requisicion_id" value="0">
         @endif
+        
+        <input type="hidden" name="order_oc" value="{{ $orderNumber }}">
 
-        <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
-            @csrf
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
-                    <select name="Recobrable" class="w-full border rounded-lg p-2" required>
-                        <option value="">-- Selecciona --</option>
-                        <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable</option>
-                        <option value="No recobrable" {{ old('Recobrable')=='No recobrable' ? 'selected' : '' }}>No recobrable</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Prioridad</label>
-                    <select name="prioridad_requisicion" class="w-full border rounded-lg p-2" required>
-                        <option value="">-- Selecciona --</option>
-                        <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja</option>
-                        <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media</option>
-                        <option value="alta" {{ old('prioridad_requisicion')=='alta' ? 'selected' : '' }}>Alta</option>
-                    </select>
-                </div>
-            </div>
-
+        <!-- Datos generales de la orden -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Justificación</label>
-                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2" required>{{ old('justify_requisicion') }}</textarea>
+                <label class="block text-gray-600 font-semibold mb-1">Número de Orden</label>
+                <input type="text" value="{{ $orderNumber }}" class="w-full border rounded-lg p-2 bg-gray-100" readonly>
             </div>
-
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Detalles Adicionales</label>
-                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2" required>{{ old('detail_requisicion') }}</textarea>
+                <label class="block text-gray-600 font-semibold mb-1">Fecha *</label>
+                <input type="date" name="date_oc" value="{{ date('Y-m-d') }}" class="w-full border rounded-lg p-2" required>
             </div>
-
-            <hr class="my-4">
-
-            <div class="flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
-                <button type="button" id="abrirModalBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
-                    + Añadir Producto
-                </button>
+            <div>
+                <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
+                <input type="text" name="methods_oc" class="w-full border rounded-lg p-2" placeholder="Ej: Transferencia bancaria">
             </div>
-
-            <div class="overflow-x-auto">
-                <table id="productosTable" class="w-full border border-gray-200 rounded-lg overflow-hidden mt-3">
-                    <thead class="bg-gray-100 text-gray-600 text-left">
-                        <tr>
-                            <th class="p-3">Producto</th>
-                            <th class="p-3">Cantidad Total</th>
-                            <th class="p-3">Distribución por Centros</th>
-                            <th class="p-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            <div>
+                <label class="block text-gray-600 font-semibold mb-1">Plazo de Pago</label>
+                <input type="text" name="plazo_oc" class="w-full border rounded-lg p-2" placeholder="Ej: 30 días">
             </div>
-
-            <div class="flex justify-end">
-                <button type="submit" id="submitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
-                    Guardar Requisición
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal 1: Selección de Producto -->
-<div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold text-gray-700">Seleccionar Producto</h2>
-            <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
-        <!-- Filtro de categoría -->
-        <div class="mb-4">
-            <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-            <select id="categoriaFilter" class="w-full border rounded-lg p-2">
-                <option value="">-- Todas las categorías --</option>
-                @php
-                    $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
-                @endphp
-                @foreach ($categoriasUnicas as $categoria)
-                    <option value="{{ $categoria }}">{{ $categoria }}</option>
-                @endforeach
+        <!-- Observaciones -->
+        <div>
+            <label class="block text-gray-600 font-semibold mb-1">Observaciones</label>
+            <textarea name="observaciones" rows="3" class="w-full border rounded-lg p-2" placeholder="Observaciones adicionales para la orden de compra"></textarea>
+        </div>
+
+        <!-- Proveedor -->
+        <div>
+            <label class="block text-gray-600 font-semibold mb-1">Proveedor *</label>
+            <select name="proveedor_id" class="w-full border rounded-lg p-2" required>
+                <option value="">-- Selecciona un proveedor --</option>
+                @if(isset($proveedoresProductos))
+                    @foreach($proveedoresProductos as $proveedor)
+                    <option value="{{ $proveedor->id }}" {{ old('proveedor_id', $proveedorPreseleccionado) == $proveedor->id ? 'selected' : '' }}>
+                        {{ $proveedor->name_proveedor }}
+                    </option>
+                    @endforeach
+                @else
+                    @foreach($proveedores as $proveedor)
+                    <option value="{{ $proveedor->id }}">
+                        {{ $proveedor->name_proveedor }}
+                    </option>
+                    @endforeach
+                @endif
             </select>
         </div>
 
-        <!-- Selección de producto y cantidad -->
-        <div class="grid grid-cols-3 gap-4 items-end">
-            <div>
-                <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-                <select id="productoSelect" class="w-full border rounded-lg p-2">
-                    <option value="">-- Selecciona producto --</option>
-                    @foreach ($productos as $p)
-                    <option value="{{ $p->id }}" 
-                            data-nombre="{{ $p->name_produc }}"
-                            data-proveedor="{{ $p->proveedor_id ?? '' }}" 
-                            data-categoria="{{ $p->categoria_produc }}"
-                            data-unidad="{{ $p->unit_produc }}"
-                            data-stock="{{ $p->stock_produc }}">
-                        {{ $p->name_produc }} ({{ $p->unit_produc }})
-                    </option>
+        <!-- Tabla de productos -->
+        @if(isset($requisicion) && $requisicion->productos->count() > 0)
+        <div class="overflow-x-auto">
+            <table class="w-full border border-gray-300 rounded-lg text-sm">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-3 text-left">Producto</th>
+                        <th class="p-3 text-left">Cantidad</th>
+                        <th class="p-3 text-left">Precio Unitario *</th>
+                        <th class="p-3 text-left">Distribución por Centros</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($requisicion->productos as $index => $producto)
+                    @php
+                    $distribucion = $distribucionCentros[$producto->id] ?? collect([]);
+                    @endphp
+                    <tr class="border-t">
+                        <td class="p-3 border">
+                            {{ $producto->name_produc }}
+                            <input type="hidden" name="productos[{{ $index }}][id]" value="{{ $producto->id }}">
+                        </td>
+                        <td class="p-3 border">
+                            <input type="number" name="productos[{{ $index }}][cantidad]" 
+                                   value="{{ $producto->pivot->pr_amount }}" 
+                                   class="w-24 border rounded p-1" required min="1">
+                        </td>
+                        <td class="p-3 border">
+                            <input type="number" step="0.01" name="productos[{{ $index }}][precio]" 
+                                   class="w-32 border rounded p-1" required min="0" placeholder="0.00">
+                        </td>
+                        <td class="p-3 border">
+                            @if($distribucion->count() > 0)
+                            @foreach($distribucion as $centroIndex => $centro)
+                            <div class="mb-2 p-2 bg-gray-50 rounded">
+                                <span class="font-medium">{{ $centro->name_centro }}</span>
+                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold ml-2">
+                                    {{ $centro->amount }}
+                                </span>
+                                <input type="hidden" name="productos[{{ $index }}][centros][{{ $centroIndex }}][id]" value="{{ $centro->centro_id }}">
+                                <input type="hidden" name="productos[{{ $index }}][centros][{{ $centroIndex }}][cantidad]" value="{{ $centro->amount }}">
+                            </div>
+                            @endforeach
+                            @else
+                            <p class="text-sm text-gray-500">No hay distribución registrada</p>
+                            @endif
+                        </td>
+                    </tr>
                     @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
-                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
-            </div>
-            <div class="flex items-center">
-                <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
-            </div>
+                </tbody>
+            </table>
         </div>
+        @else
+        <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+            <p>No hay productos en la requisición o no se ha seleccionado una requisición.</p>
+        </div>
+        @endif
 
-        <div class="flex justify-end mt-6">
-            <button type="button" id="siguienteModalBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
-                Siguiente <i class="ml-1 fas fa-arrow-right"></i>
+        <!-- Botones -->
+        <div class="flex justify-end gap-4">
+            <a href="{{ route('ordenes_compra.lista') }}" class="bg-gray-600 text-white px-6 py-2 rounded-lg shadow hover:bg-gray-700">
+                Cancelar
+            </a>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+                Guardar Orden de Compra
             </button>
         </div>
-    </div>
-</div>
-
-<!-- Modal 2: Distribución por Centros de Costo -->
-<div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold text-gray-700">Distribuir Producto</h2>
-            <button id="cerrarModalDistribucionBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
-        </div>
-
-        <div class="mb-4 p-3 bg-gray-50 rounded-lg">
-            <p class="font-semibold" id="productoSeleccionadoNombre"></p>
-            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> <span id="productoSeleccionadoUnidad"></span></p>
-        </div>
-
-        <!-- Distribución por centros -->
-        <div id="centrosSection" class="mt-4">
-            <h4 class="text-lg font-semibold text-gray-700 mb-2">Distribución por Centros de Costo</h4>
-            <p class="text-sm text-gray-500 mb-4">Distribuya la cantidad total entre los centros de costo</p>
-
-            <div class="grid grid-cols-3 gap-4 items-end">
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Centro</label>
-                    <select id="centroSelect" class="w-full border rounded-lg p-2">
-                        <option value="">-- Selecciona centro --</option>
-                        @foreach ($centros as $c)
-                        <option value="{{ $c->id }}" data-nombre="{{ $c->name_centro }}">{{ $c->name_centro }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
-                    <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 50">
-                </div>
-                <div>
-                    <button type="button" id="agregarCentroBtn" class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                        Agregar
-                    </button>
-                </div>
-            </div>
-
-            <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span id="unidadDisponible"></span>
-            </div>
-
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto"></ul>
-
-            <div class="flex justify-between mt-6">
-                <button type="button" id="volverModalBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
-                    <i class="fas fa-arrow-left mr-1"></i> Volver
-                </button>
-                <button type="button" id="guardarProductoBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
-                    Guardar Producto
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Alertas de carga -->
-<div id="cargandoAlert" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl p-6 flex flex-col items-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-        <p class="text-gray-700 font-semibold">Procesando, por favor espere...</p>
-    </div>
+    </form>
 </div>
 @endsection
 
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Validación básica del formulario
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            let isValid = true;
+            const precioInputs = document.querySelectorAll('input[name$="[precio]"]');
+            
+            precioInputs.forEach(input => {
+                if (!input.value || parseFloat(input.value) <= 0) {
+                    isValid = false;
+                    input.style.borderColor = 'red';
+                } else {
+                    input.style.borderColor = '';
+                }
+            });
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert('Por favor, ingrese precios válidos para todos los productos.');
+            }
+        });
+    }
+});
+</script>
+@endsection
 @section('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {

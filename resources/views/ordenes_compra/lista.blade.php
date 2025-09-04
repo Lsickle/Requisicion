@@ -184,9 +184,9 @@
             </div>
         </div>
 
-        <!-- Botón Crear Orden de Compra (DENTRO del modal) -->
+        <!-- Botón Crear Orden de Compra (DENTRO del modal) - CORREGIDO -->
         <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
-            <form action="#" method="GET">
+            <form action="{{ route('ordenes_compra.create') }}" method="GET">
                 <input type="hidden" name="requisicion_id" value="{{ $req->id }}">
                 <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition flex items-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

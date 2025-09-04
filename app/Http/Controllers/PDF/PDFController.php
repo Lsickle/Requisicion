@@ -42,105 +42,92 @@ class PdfController extends Controller
         }
     }
 
-    private function pdfOrdenCompra($id)
+    private function pdfOrdenCompra($requisicionId)
     {
-        $orden = OrdenCompra::with([
-            'productos.proveedor',
-            'productos.centrosOrdenCompra' => function ($q) {
-                $q->withPivot('rc_amount');
+        // Obtener la requisición con todas sus órdenes de compra
+        $requisicion = Requisicion::with([
+            'ordenesCompra' => function($query) {
+                $query->with([
+                    'proveedor',
+                    'productos' => function($q) {
+                        $q->with(['centrosOrdenCompra' => function($q2) {
+                            $q2->withPivot('rc_amount');
+                        }]);
+                    }
+                ]);
             }
-        ])->findOrFail($id);
+        ])->findOrFail($requisicionId);
 
-        $proveedores = [];
-        foreach ($orden->productos as $producto) {
-            $proveedorId = $producto->proveedor->id ?? 'sin_proveedor';
-            $dateOC = $producto->pivot->date_oc ? Carbon::parse($producto->pivot->date_oc) : Carbon::now();
-            $methodsOC = $producto->pivot->methods_oc ?? '';
-            $plazoOC = $producto->pivot->plazo_oc ?? '';
-            $orderNumber = $producto->pivot->id;
-
-            if (!isset($proveedores[$proveedorId])) {
-                $proveedores[$proveedorId] = [
-                    'proveedor'     => $producto->proveedor,
-                    'items'         => [],
-                    'subtotal'      => 0,
-                    'observaciones' => [],
-                    'date_oc'       => $dateOC,
-                    'methods_oc'    => $methodsOC,
-                    'plazo_oc'      => $plazoOC,
-                    'order_oc'      => $orderNumber,
-                ];
-            }
-
-            $cantidad = (int)$producto->pivot->po_amount;
-            $precio = (float)$producto->pivot->precio_unitario;
-            $totalItem = $cantidad * $precio;
-
-            $centros = $producto->centrosOrdenCompra->map(function ($centro) {
-                return [
-                    'name_centro' => $centro->name_centro,
-                    'rc_amount'   => $centro->pivot->rc_amount,
-                ];
-            })->toArray();
-
-            $proveedores[$proveedorId]['items'][] = [
-                'name_produc' => $producto->name_produc,
-                'description_produc' => $producto->description_produc,
-                'unit_produc' => $producto->unit_produc,
-                'po_amount' => $cantidad,
-                'precio_unitario' => $precio,
-                'total' => $totalItem,
-                'centros' => $centros,
-            ];
-
-            if (!empty($producto->pivot->observaciones)) {
-                $proveedores[$proveedorId]['observaciones'][] = $producto->pivot->observaciones;
-            }
-
-            $proveedores[$proveedorId]['subtotal'] += $totalItem;
-        }
-
-        if (empty($proveedores)) {
-            abort(404, 'No hay productos/proveedores para esta orden.');
+        if ($requisicion->ordenesCompra->isEmpty()) {
+            abort(404, 'No hay órdenes de compra para esta requisición.');
         }
 
         $tempFolder = storage_path('app/temp_pdfs');
         if (!is_dir($tempFolder)) mkdir($tempFolder, 0777, true);
 
-        $zipFile = storage_path("app/OrdenCompra-{$orden->id}.zip");
+        $zipFile = storage_path("app/OrdenCompra-Requisicion-{$requisicion->id}.zip");
         $zip = new ZipArchive();
         if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             abort(500, 'No se pudo crear el archivo ZIP.');
         }
 
-        foreach ($proveedores as $prov) {
-            $nombreProveedor = $prov['proveedor']->prov_name ?? 'Sin Proveedor';
+        foreach ($requisicion->ordenesCompra as $orden) {
+            $proveedor = $orden->proveedor;
+            $nombreProveedor = $proveedor->name_proveedor ?? 'Sin Proveedor';
+
+            // Preparar los datos según el formato del PDF
+            $items = [];
+            foreach ($orden->productos as $producto) {
+                $centros = $producto->centrosOrdenCompra->map(function($centro) {
+                    return [
+                        'name_centro' => $centro->name_centro,
+                        'rc_amount' => $centro->pivot->rc_amount,
+                    ];
+                })->toArray();
+
+                $items[] = [
+                    'name_produc' => $producto->name_produc,
+                    'description_produc' => $producto->description_produc,
+                    'unit_produc' => $producto->unit_produc,
+                    'po_amount' => $producto->pivot->po_amount,
+                    'precio_unitario' => $producto->pivot->precio_unitario,
+                    'centros' => $centros,
+                ];
+            }
+
+            $subtotal = $orden->productos->sum(function($producto) {
+                return $producto->pivot->po_amount * $producto->pivot->precio_unitario;
+            });
 
             $data = [
-                'orden'         => $orden,
-                'proveedor'     => $prov['proveedor'],
-                'items'         => $prov['items'],
-                'subtotal'      => $prov['subtotal'],
-                'observaciones' => implode("\n", $prov['observaciones']),
-                'fecha_actual'  => Carbon::now()->format('d/m/Y H:i'),
-                'logo'          => $this->getLogoData(),
-                'date_oc'       => $prov['date_oc']->format('d/m/Y'),
-                'methods_oc'    => $prov['methods_oc'],
-                'plazo_oc'      => $prov['plazo_oc'],
-                'order_oc'      => $prov['order_oc'],
+                'orden' => $orden,
+                'proveedor' => $proveedor,
+                'items' => $items,
+                'subtotal' => $subtotal,
+                'observaciones' => $orden->observaciones,
+                'fecha_actual' => Carbon::now()->format('d/m/Y H:i'),
+                'logo' => $this->getLogoData(),
+                'date_oc' => Carbon::parse($orden->date_oc)->format('d/m/Y'),
+                'methods_oc' => $orden->methods_oc,
+                'plazo_oc' => $orden->plazo_oc,
             ];
 
+            // Usar la vista específica para el formato de PDF
             $pdf = PDF::loadView('ordenes_compra.pdf', $data)
                 ->setPaper('a4', 'portrait')
                 ->setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true, 'defaultFont' => 'sans-serif']);
 
-            $fileName = "Orden-Compra-{$prov['order_oc']}-Proveedor-{$nombreProveedor}.pdf";
+            $fileName = "Orden-Compra-{$orden->order_oc}-Proveedor-{$nombreProveedor}.pdf";
             $pdfPath = $tempFolder . '/' . $fileName;
             $pdf->save($pdfPath);
             $zip->addFile($pdfPath, $fileName);
         }
 
         $zip->close();
+
+        // Limpiar archivos temporales
+        array_map('unlink', glob("$tempFolder/*.pdf"));
+        rmdir($tempFolder);
 
         return response()->download($zipFile)->deleteFileAfterSend(true);
     }
@@ -169,7 +156,6 @@ class PdfController extends Controller
             'nombreSolicitante'  => $requisicion->nombre_user,
             'operacionUsuario'   => $requisicion->operacion_user,
         ])->setPaper('a4', 'portrait');
-
 
         return $pdf->download("requisicion-{$requisicion->id}.pdf");
     }
