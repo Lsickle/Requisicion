@@ -74,7 +74,49 @@
         <!-- Mostrar productos de la requisición -->
         <div class="overflow-x-auto">
             <table class="w-full border border-gray-300 rounded-lg text-sm">
-                <!-- ... código de la tabla para requisición ... -->
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-3 text-left">Producto</th>
+                        <th class="p-3 text-left">Cantidad Total</th>
+                        <th class="p-3 text-left">Distribución por Centros</th>
+                        <th class="p-3 text-left">Precio Unitario *</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($requisicion->productos as $index => $producto)
+                    <tr class="border-t">
+                        <td class="p-3 border">
+                            {{ $producto->name_produc }}
+                            <input type="hidden" name="productos[{{ $index }}][id]" value="{{ $producto->id }}">
+                        </td>
+                        <td class="p-3 border">
+                            {{ $producto->pivot->amount }}
+                            <input type="hidden" name="productos[{{ $index }}][cantidad]"
+                                value="{{ $producto->pivot->amount }}">
+                        </td>
+                        <td class="p-3 border">
+                            @if(isset($distribucionCentros[$producto->id]))
+                            <div class="text-xs">
+                                @foreach($distribucionCentros[$producto->id] as $distribucion)
+                                <div>{{ $distribucion->name_centro }}: {{ $distribucion->amount }}</div>
+                                <input type="hidden" name="productos[{{ $index }}][centros][{{ $loop->index }}][id]"
+                                    value="{{ $distribucion->centro_id }}">
+                                <input type="hidden"
+                                    name="productos[{{ $index }}][centros][{{ $loop->index }}][cantidad]"
+                                    value="{{ $distribucion->amount }}">
+                                @endforeach
+                            </div>
+                            @else
+                            <span class="text-red-500">No hay distribución definida</span>
+                            @endif
+                        </td>
+                        <td class="p-3 border">
+                            <input type="number" step="0.01" name="productos[{{ $index }}][precio]"
+                                class="w-32 border rounded p-1" required min="0" placeholder="0.00">
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
             </table>
         </div>
         @elseif($productos->count() > 0)

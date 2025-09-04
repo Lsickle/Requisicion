@@ -30,7 +30,7 @@ class OrdenCompraController extends Controller
 
         $requisicion = null;
         $distribucionCentros = [];
-        $proveedoresProductos = collect(); // Inicializar como colección vacía
+        $proveedoresProductos = collect();
         $proveedorPreseleccionado = null;
 
         // Generar número de orden único
@@ -38,14 +38,13 @@ class OrdenCompraController extends Controller
 
         // Si se pasa un ID de requisición, cargarla con la distribución de centros
         if ($request->has('requisicion_id') && $request->requisicion_id != 0) {
-            $requisicion = Requisicion::with(['productos'])->find($request->requisicion_id);
+            $requisicion = Requisicion::with(['productos', 'productos.proveedor'])->find($request->requisicion_id);
 
             if ($requisicion) {
                 // Obtener proveedores de los productos de la requisición
-                $proveedoresProductos = Proveedor::whereIn(
-                    'id',
-                    $requisicion->productos->pluck('proveedor_id')->filter()
-                )->get();
+                $proveedoresProductos = $requisicion->productos->map(function ($producto) {
+                    return $producto->proveedor;
+                })->filter()->unique('id');
 
                 $proveedorPreseleccionado = $proveedoresProductos->count() === 1
                     ? $proveedoresProductos->first()->id
@@ -73,22 +72,22 @@ class OrdenCompraController extends Controller
             'productos',
             'distribucionCentros',
             'orderNumber',
-            'proveedoresProductos', // Añadir esta variable
-            'proveedorPreseleccionado' // Añadir esta variable
+            'proveedoresProductos',
+            'proveedorPreseleccionado'
         ));
     }
+
     public function createFromRequisicion($id)
     {
-        $requisicion = Requisicion::with(['productos', 'productos.centrosRequisicion'])->findOrFail($id);
+        $requisicion = Requisicion::with(['productos', 'productos.proveedor'])->findOrFail($id);
 
         // Generar número de orden único
         $orderNumber = 'OC-' . str_pad(OrdenCompra::max('id') + 1, 6, '0', STR_PAD_LEFT);
 
-        // Proveedores de los productos de la requisición
-        $proveedoresProductos = Proveedor::whereIn(
-            'id',
-            $requisicion->productos->pluck('proveedor_id')->filter()
-        )->get();
+        // Obtener proveedores únicos de los productos de la requisición
+        $proveedoresProductos = $requisicion->productos->map(function ($producto) {
+            return $producto->proveedor;
+        })->filter()->unique('id');
 
         $proveedorPreseleccionado = $proveedoresProductos->count() === 1
             ? $proveedoresProductos->first()->id
@@ -108,7 +107,7 @@ class OrdenCompraController extends Controller
             ->get()
             ->groupBy('producto_id');
 
-        // FALTABA: Obtener todos los productos y centros para la vista
+        // Obtener todos los productos y centros para la vista
         $productos = Producto::all();
         $centros = Centro::all();
         $proveedores = Proveedor::all();
@@ -119,9 +118,9 @@ class OrdenCompraController extends Controller
             'proveedoresProductos',
             'proveedorPreseleccionado',
             'distribucionCentros',
-            'productos',        // Añadido
-            'centros',          // Añadido
-            'proveedores'       // Añadido
+            'productos',
+            'centros',
+            'proveedores'
         ));
     }
 
