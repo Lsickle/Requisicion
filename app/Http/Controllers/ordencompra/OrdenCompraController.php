@@ -24,8 +24,7 @@ class OrdenCompraController extends Controller
 
     public function create(Request $request)
     {
-        $proveedores = Proveedor::all();
-        $productos   = Producto::all();
+        $productos   = Producto::with('proveedor')->get();
         $centros     = Centro::all();
 
         $requisicion = null;
@@ -33,23 +32,20 @@ class OrdenCompraController extends Controller
         $proveedoresProductos = collect();
         $proveedorPreseleccionado = null;
 
-        // Generar número de orden único
         $orderNumber = 'OC-' . str_pad(OrdenCompra::max('id') + 1, 6, '0', STR_PAD_LEFT);
 
-        // Si se pasa un ID de requisición, cargarla con la distribución de centros
         if ($request->has('requisicion_id') && $request->requisicion_id != 0) {
-            $requisicion = Requisicion::with(['productos', 'productos.proveedor'])->find($request->requisicion_id);
+            $requisicion = Requisicion::with(['productos.proveedor'])->find($request->requisicion_id);
 
             if ($requisicion) {
-                // Obtener proveedores de los productos de la requisición
-                $proveedoresProductos = $requisicion->productos->map(function ($producto) {
-                    return $producto->proveedor;
-                })->filter()->unique('id');
+                // Proveedores que sí están en los productos de la requisición
+                $proveedoresProductos = $requisicion->productos->map(fn($p) => $p->proveedor)->filter()->unique('id');
 
                 $proveedorPreseleccionado = $proveedoresProductos->count() === 1
                     ? $proveedoresProductos->first()->id
                     : null;
 
+                // Distribución por centros
                 $distribucionCentros = DB::table('centro_producto')
                     ->where('requisicion_id', $requisicion->id)
                     ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
@@ -67,7 +63,6 @@ class OrdenCompraController extends Controller
 
         return view('ordenes_compra.create', compact(
             'requisicion',
-            'proveedores',
             'centros',
             'productos',
             'distribucionCentros',
@@ -76,6 +71,7 @@ class OrdenCompraController extends Controller
             'proveedorPreseleccionado'
         ));
     }
+
 
     public function createFromRequisicion($id)
     {
@@ -137,14 +133,12 @@ class OrdenCompraController extends Controller
             'productos'     => 'required|array',
         ];
 
-        // Solo validar requisicion_id si no es 0 (creación desde cero)
         if ($request->requisicion_id != 0) {
             $validaciones['requisicion_id'] = 'required|exists:requisicion,id';
         }
 
         $request->validate($validaciones);
 
-        // Crear la orden de compra
         $ordenCompra = OrdenCompra::create([
             'order_oc'       => $request->order_oc,
             'date_oc'        => $request->date_oc,
@@ -155,9 +149,7 @@ class OrdenCompraController extends Controller
             'requisicion_id' => $request->requisicion_id != 0 ? $request->requisicion_id : null,
         ]);
 
-        // Guardar productos
         foreach ($request->productos as $producto) {
-            // Adjuntar producto a la orden de compra
             $ordenCompra->productos()->attach($producto['id'], [
                 'po_amount'       => $producto['cantidad'],
                 'precio_unitario' => $producto['precio'],
@@ -168,7 +160,6 @@ class OrdenCompraController extends Controller
                 'observaciones'   => $request->observaciones,
             ]);
 
-            // Guardar distribución por centros si existe (para requisiciones)
             if (isset($producto['centros'])) {
                 foreach ($producto['centros'] as $centro) {
                     DB::table('centro_ordencompra')->insert([
@@ -180,17 +171,6 @@ class OrdenCompraController extends Controller
                         'updated_at'      => now(),
                     ]);
                 }
-            }
-            // Para órdenes creadas desde cero
-            elseif (isset($producto['centro_id']) && $producto['centro_id']) {
-                DB::table('centro_ordencompra')->insert([
-                    'producto_id'     => $producto['id'],
-                    'centro_id'       => $producto['centro_id'],
-                    'rc_amount'       => $producto['cantidad'],
-                    'orden_compra_id' => $ordenCompra->id,
-                    'created_at'      => now(),
-                    'updated_at'      => now(),
-                ]);
             }
         }
 
