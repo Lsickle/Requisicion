@@ -367,4 +367,117 @@ class RequisicionController extends Controller
 
         return view('ordenes_compra.lista', compact('requisiciones'));
     }
+
+    public function cancelar($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $requisicion = Requisicion::findOrFail($id);
+
+            // Verificar que el usuario es el propietario de la requisición
+            $userId = session('user.id');
+            if ($requisicion->user_id != $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para cancelar esta requisición'
+                ], 403);
+            }
+
+            // Verificar que no esté ya cancelada o en un estatus final
+            $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+            if (in_array($ultimoEstatus, [6, 9, 10, 5])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede cancelar una requisición en su estado actual'
+                ], 400);
+            }
+
+            // Desactivar el estatus actual
+            Estatus_Requisicion::where('requisicion_id', $requisicion->id)
+                ->update(['estatus' => 0]);
+
+            // Crear nuevo registro de estatus "Cancelada" (6)
+            Estatus_Requisicion::create([
+                'requisicion_id' => $requisicion->id,
+                'estatus_id'     => 6, // Cancelada
+                'estatus'        => 1, // activo
+                'date_update'    => now(),
+                'comentario'     => 'Cancelada por el solicitante'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Requisición cancelada correctamente'
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Error cancelando requisición {$id}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al cancelar la requisición: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reenviar una requisición cancelada (cambiar estatus a 1)
+     */
+    public function reenviar($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $requisicion = Requisicion::findOrFail($id);
+
+            // Verificar que el usuario es el propietario de la requisición
+            $userId = session('user.id');
+            if ($requisicion->user_id != $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No tienes permisos para reenviar esta requisición'
+                ], 403);
+            }
+
+            // Verificar que esté cancelada (estatus 6)
+            $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+            if ($ultimoEstatus != 6) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo se pueden reenviar requisiciones canceladas'
+                ], 400);
+            }
+
+            // Desactivar el estatus actual (Cancelada)
+            Estatus_Requisicion::where('requisicion_id', $requisicion->id)
+                ->update(['estatus' => 0]);
+
+            // Crear nuevo registro de estatus "Iniciada" (1)
+            Estatus_Requisicion::create([
+                'requisicion_id' => $requisicion->id,
+                'estatus_id'     => 1, // Iniciada
+                'estatus'        => 1, // activo
+                'date_update'    => now(),
+                'comentario'     => 'Reenviada por el solicitante'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Requisición reenviada correctamente'
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Error reenviando requisición {$id}: " . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al reenviar la requisición: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

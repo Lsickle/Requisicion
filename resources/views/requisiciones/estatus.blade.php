@@ -20,10 +20,18 @@
                 return $estatusOrdenados[$i]->id == 1;
             })->last();
 
+            // Filtrar "Cancelada": solo conservar la última
+            $ultimaCanceladaIndex = $estatusOrdenados->keys()->filter(function($i) use ($estatusOrdenados) {
+                return $estatusOrdenados[$i]->id == 6;
+            })->last();
+
             $estatusFiltrados = collect();
             foreach ($estatusOrdenados as $index => $item) {
                 if ($item->id == 1 && $index !== $ultimoIniciadoIndex) {
-                    continue; // ignorar los anteriores
+                    continue; // ignorar iniciados anteriores
+                }
+                if ($item->id == 6 && $index !== $ultimaCanceladaIndex) {
+                    continue; // ignorar canceladas anteriores
                 }
                 $estatusFiltrados->push($item);
             }
@@ -69,6 +77,7 @@
 
                 // Colores especiales
                 $isRejected  = $item->id === 9;
+                $isCanceled  = $item->id === 6;
                 $isCorregir  = $item->id === 11;
             @endphp
 
@@ -78,7 +87,7 @@
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white shadow-md">
                         <i class="fas fa-check text-xs"></i>
                     </span>
-                @elseif($isCurrent && $isRejected)
+                @elseif($isCurrent && ($isRejected || $isCanceled))
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white shadow-md">
                         <i class="fas fa-times text-xs"></i>
                     </span>
@@ -95,7 +104,7 @@
                 {{-- Tarjeta --}}
                 <div class="p-4 rounded-lg shadow-sm border 
                     @if($isCompleted) bg-green-50 border-green-300
-                    @elseif($isCurrent && $isRejected) bg-red-50 border-red-300
+                    @elseif($isCurrent && ($isRejected || $isCanceled)) bg-red-50 border-red-300
                     @elseif($isCurrent && $isCorregir) bg-yellow-50 border-yellow-300
                     @elseif($isCurrent) bg-blue-50 border-blue-300
                     @endif">
@@ -104,7 +113,7 @@
                         <div>
                             <h3 class="font-semibold 
                                 @if($isCompleted) text-green-800
-                                @elseif($isCurrent && $isRejected) text-red-800
+                                @elseif($isCurrent && ($isRejected || $isCanceled)) text-red-800
                                 @elseif($isCurrent && $isCorregir) text-yellow-800
                                 @elseif($isCurrent) text-blue-800
                                 @endif">
@@ -114,7 +123,7 @@
                             @if(isset($item->pivot->created_at))
                                 <p class="text-sm 
                                     @if($isCompleted) text-green-600
-                                    @elseif($isCurrent && $isRejected) text-red-600
+                                    @elseif($isCurrent && ($isRejected || $isCanceled)) text-red-600
                                     @elseif($isCurrent && $isCorregir) text-yellow-600
                                     @elseif($isCurrent) text-blue-600
                                     @endif mt-1">
@@ -132,7 +141,7 @@
 
                         @if($isCurrent)
                             <span class="text-xs font-medium px-2.5 py-0.5 rounded-full
-                                @if($isRejected) bg-red-100 text-red-800
+                                @if($isRejected || $isCanceled) bg-red-100 text-red-800
                                 @elseif($isCorregir) bg-yellow-100 text-yellow-800
                                 @else bg-blue-100 text-blue-800 @endif">
                                 Estatus actual
@@ -182,6 +191,28 @@
                             <p class="text-sm text-gray-500 mt-1">
                                 <i class="far fa-clock mr-1"></i>
                                 En espera de que avance el proceso
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- Proceso finalizado --}}
+        @if(in_array($currentId, [6, 9, 10, 11]))
+            <div class="mb-6 ml-6 relative">
+                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-600 text-white shadow-md">
+                    <i class="fas fa-flag-checkered text-xs"></i>
+                </span>
+
+                <div class="p-4 rounded-lg shadow-sm border bg-gray-100 border-gray-400">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-semibold text-gray-700">
+                                Proceso finalizado
+                            </h3>
+                            <p class="text-sm text-gray-500 mt-1">
+                                La requisición ya no avanzará en el flujo.
                             </p>
                         </div>
                     </div>

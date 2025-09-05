@@ -87,7 +87,7 @@
 
                     <!-- Acciones -->
                     <td class="p-3 text-center">
-                        <div class="flex justify-center gap-2">
+                        <div class="flex justify-center gap-2 flex-wrap">
                             <button onclick="toggleModal('modal-{{ $req->id }}')"
                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
                                 <i class="fas fa-eye"></i> Ver
@@ -102,6 +102,21 @@
                                 class="bg-green-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-700 transition flex items-center gap-1">
                                 <i class="fas fa-file-pdf"></i> PDF
                             </a>
+                            
+                            <!-- Botón de Cancelar/Reenviar -->
+                            @if($ultimoEstatusId != 6 && $ultimoEstatusId != 10 && $ultimoEstatusId != 5)
+                            <button onclick="cancelarRequisicion({{ $req->id }})"
+                                class="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700 transition flex items-center gap-1">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                            @endif
+                            
+                            @if($ultimoEstatusId == 6)
+                            <button onclick="reenviarRequisicion({{ $req->id }})"
+                                class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-indigo-700 transition flex items-center gap-1">
+                                <i class="fas fa-paper-plane"></i> Reenviar
+                            </button>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -250,6 +265,132 @@
             row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none';
         });
     });
+
+    // Función para cancelar requisición
+    function cancelarRequisicion(id) {
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Esta acción cancelará la requisición",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, cancelar',
+            cancelButtonText: 'No, volver'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostrar alerta de carga
+                Swal.fire({
+                    title: 'Procesando',
+                    text: 'Cancelando requisición...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading()
+                    }
+                });
+                
+                // Enviar solicitud al servidor
+                fetch(`/requisiciones/${id}/cancelar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Cancelada!',
+                            text: 'La requisición ha sido cancelada',
+                            confirmButtonColor: '#1e40af'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message || 'Ocurrió un error al cancelar la requisición',
+                            confirmButtonColor: '#1e40af'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Ocurrió un error al procesar la solicitud',
+                        confirmButtonColor: '#1e40af'
+                    });
+                });
+            }
+        });
+    }
+
+    // Función para reenviar requisición
+    function reenviarRequisicion(id) {
+        Swal.fire({
+            title: '¿Reenviar requisición?',
+            text: "Esta acción cambiará el estatus a 'Iniciada'",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#1e40af',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, reenviar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostrar alerta de carga
+                Swal.fire({
+                    title: 'Procesando',
+                    text: 'Reenviando requisición...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading()
+                    }
+                });
+                
+                // Enviar solicitud al servidor
+                fetch(`/requisiciones/${id}/reenviar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Reenviada!',
+                            text: 'La requisición ha sido reenviada',
+                            confirmButtonColor: '#1e40af'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message || 'Ocurrió un error al reenviar la requisición',
+                            confirmButtonColor: '#1e40af'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Ocurrió un error al procesar la solicitud',
+                        confirmButtonColor: '#1e40af'
+                    });
+                });
+            }
+        });
+    }
 
     @if(session('success'))
         Swal.fire({
