@@ -1810,6 +1810,7 @@ function updateProveedoresSelect(proveedores) {
             .option-item:hover,
             .option-item-cat:hover {
                 background-color: #e0e7ff !important;
+            }
         </style>
 </body>
 
