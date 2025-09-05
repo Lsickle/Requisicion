@@ -10,8 +10,6 @@ use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Requisicion;
-use ZipArchive;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
