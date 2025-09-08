@@ -154,12 +154,6 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
 
-    Route::get('/{id}/edit', [OrdenCompraController::class, 'edit'])
-        ->name('ordenes_compra.edit');
-
-    Route::put('/{id}', [OrdenCompraController::class, 'update'])
-        ->name('ordenes_compra.update');
-
     Route::delete('/{id}', [OrdenCompraController::class, 'destroy'])
         ->name('ordenes_compra.destroy');
 
@@ -175,9 +169,24 @@ Route::middleware([AuthSession::class])->group(function () {
     // Rutas para cancelar y reenviar requisiciones
     Route::post('/requisiciones/{id}/cancelar', [RequisicionController::class, 'cancelar'])
         ->name('requisiciones.cancelar');
-        
+
     Route::post('/requisiciones/{id}/reenviar', [RequisicionController::class, 'reenviar'])
         ->name('requisiciones.reenviar');
+
+    Route::get('ordenes_compra/create', [OrdenCompraController::class, 'create'])
+        ->name('ordenes_compra.create');
+
+    Route::post('ordenes_compra', [OrdenCompraController::class, 'store'])
+        ->name('ordenes_compra.store');
+
+    Route::get('ordenes_compra/{id}/edit', [OrdenCompraController::class, 'edit'])
+        ->name('ordenes_compra.edit');
+
+    Route::put('ordenes_compra/{id}', [OrdenCompraController::class, 'update'])
+        ->name('ordenes_compra.update');
+        
+    Route::delete('ordenes_compra/{id}', [OrdenCompraController::class, 'destroy'])
+        ->name('ordenes_compra.destroy');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);
