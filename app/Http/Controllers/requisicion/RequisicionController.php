@@ -244,26 +244,6 @@ class RequisicionController extends Controller
 
             DB::commit();
 
-            // Guardar en orden_compras si hay proveedores asociados
-            foreach ($validated['productos'] as $prod) {
-                if (!empty($prod['proveedor_id'])) {
-                    // Verificar si ya existe una orden para este proveedor y requisición
-                    $existeOrden = DB::table('orden_compras')
-                        ->where('requisicion_id', $requisicion->id)
-                        ->where('proveedor_id', $prod['proveedor_id'])
-                        ->exists();
-
-                    if (!$existeOrden) {
-                        DB::table('orden_compras')->insert([
-                            'requisicion_id' => $requisicion->id,
-                            'proveedor_id' => $prod['proveedor_id'],
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-                    }
-                }
-            }
-
             RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
 
             return redirect()->route('requisiciones.create')->with('success', 'Requisición creada correctamente.');
