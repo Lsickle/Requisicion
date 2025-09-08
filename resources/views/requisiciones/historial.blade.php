@@ -70,7 +70,7 @@
                         $ultimoEstatusId = $ultimoEstatus->estatus_id;
 
                         switch($ultimoEstatusId) {
-                        case 1: $nombreEstatus = 'Iniciada'; $colorEstatus = 'bg-blue-600'; break;
+                        case 1: $nombreEstatus = 'Requisición creada'; $colorEstatus = 'bg-blue-600'; break;
                         case 2: case 3: case 4: $nombreEstatus = 'En revisión'; $colorEstatus = 'bg-yellow-500'; break;
                         case 5: $nombreEstatus = 'Orden generada'; $colorEstatus = 'bg-purple-600'; break;
                         case 6: case 9: $nombreEstatus = 'Cancelada/Rechazada'; $colorEstatus = 'bg-red-600'; break;
@@ -333,7 +333,7 @@
     function reenviarRequisicion(id) {
         Swal.fire({
             title: '¿Reenviar requisición?',
-            text: "Esta acción cambiará el estatus a 'Iniciada'",
+            text: "Esta acción cambiará el estatus a 'Requisición creada'",
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#1e40af',

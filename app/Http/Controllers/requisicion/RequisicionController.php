@@ -141,7 +141,7 @@ class RequisicionController extends Controller
             // Cambiar estatus a "Iniciada" para reenviar a aprobación
             Estatus_Requisicion::where('requisicion_id', $requisicion->id)->update(['estatus' => 0]);
 
-            $estatusIniciada = Estatus::where('status_name', 'Iniciada')->first();
+            $estatusIniciada = Estatus::where('status_name', 'Requisición creada')->first();
             if ($estatusIniciada) {
                 Estatus_Requisicion::create([
                     'requisicion_id' => $requisicion->id,
@@ -214,7 +214,7 @@ class RequisicionController extends Controller
             $requisicion->save();
 
             // 🔹 Asignar estatus inicial "Iniciada"
-            $estatusInicial = Estatus::where('status_name', 'Iniciada')->first();
+            $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
             if ($estatusInicial) {
                 Estatus_Requisicion::create([
                     'requisicion_id' => $requisicion->id,
