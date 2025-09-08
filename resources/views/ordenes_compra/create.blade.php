@@ -13,11 +13,11 @@
     @if(session('success'))
     <script>
         Swal.fire({
-                icon: 'success',
-                title: 'Éxito',
-                text: '{{ session('success') }}',
-                confirmButtonText: 'Aceptar'
-            });
+            icon: 'success',
+            title: 'Éxito',
+            text: '{{ session('success') }}',
+            confirmButtonText: 'Aceptar'
+        });
     </script>
     @endif
 
@@ -52,7 +52,6 @@
             <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
         </div>
     </div>
-    <!-- ================= Fin Datos Requisición ================= -->
     @endif
 
     <!-- Selector de Proveedor -->
@@ -67,8 +66,8 @@
                 <select name="proveedor_id" class="w-full border rounded-lg p-2" required>
                     <option value="0">Seleccione un proveedor</option>
                     @foreach($proveedoresDisponibles as $proveedor)
-                    <option value="{{ $proveedor->id }}" {{ $proveedorSeleccionado && $proveedorSeleccionado->id ==
-                        $proveedor->id ? 'selected' : '' }}>
+                    <option value="{{ $proveedor->id }}" 
+                        {{ $proveedorSeleccionado && $proveedorSeleccionado->id == $proveedor->id ? 'selected' : '' }}>
                         {{ $proveedor->prov_name }}
                     </option>
                     @endforeach
@@ -88,7 +87,8 @@
     <!-- Formulario para Crear Orden -->
     @if($proveedorSeleccionado && $requisicion)
     <div class="border p-4 mb-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold text-gray-700 mb-4">Crear Orden para: {{ $proveedorSeleccionado->prov_name }}
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">
+            Crear Orden para: {{ $proveedorSeleccionado->prov_name }}
         </h2>
 
         <form action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
@@ -98,11 +98,6 @@
             <input type="hidden" name="proveedor_id" value="{{ $proveedorSeleccionado->id }}">
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Fecha *</label>
-                    <input type="date" name="date_oc" value="{{ date('Y-m-d') }}" class="w-full border rounded-lg p-2"
-                        required>
-                </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
                     <input type="text" name="methods_oc" class="w-full border rounded-lg p-2"
@@ -117,7 +112,7 @@
                         <option value="45 días">45 días</option>
                     </select>
                 </div>
-                <div>
+                <div class="md:col-span-2">
                     <label class="block text-gray-600 font-semibold mb-1">Observaciones</label>
                     <textarea name="observaciones" rows="2" class="w-full border rounded-lg p-2"
                         placeholder="Observaciones adicionales"></textarea>
@@ -136,7 +131,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($requisicion->productos->where('proveedor_id', $proveedorSeleccionado->id) as $producto)
+                        @foreach($productosProveedor as $producto)
                         <tr class="border-t">
                             <td class="p-3 truncate">{{ $producto->name_produc }}</td>
                             <td class="p-3 text-center font-semibold">{{ $producto->pivot->pr_amount }}</td>
@@ -146,11 +141,9 @@
                             </td>
                         </tr>
                         @endforeach
-
                     </tbody>
                 </table>
             </div>
-
 
             <div class="flex justify-end gap-4">
                 <button type="submit"

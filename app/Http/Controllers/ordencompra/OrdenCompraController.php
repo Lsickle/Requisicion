@@ -49,35 +49,39 @@ class OrdenCompraController extends Controller
             }
         }
 
+        $productosProveedor = collect();
+        if ($requisicion && $proveedorSeleccionado) {
+            $productosProveedor = $requisicion->productos->where('proveedor_id', $proveedorSeleccionado->id);
+        }
+
         return view('ordenes_compra.create', compact(
             'requisicion',
             'orderNumber',
             'proveedoresDisponibles',
             'proveedoresConOrden',
-            'proveedorSeleccionado'
+            'proveedorSeleccionado',
+            'productosProveedor',
         ));
     }
 
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'date_oc'       => 'required|date',
-            'proveedor_id'  => 'required|exists:proveedores,id',
-            'methods_oc'    => 'nullable|string|max:255',
-            'plazo_oc'      => 'nullable|string|max:255',
-            'observaciones' => 'nullable|string',
+            'proveedor_id'   => 'required|exists:proveedores,id',
+            'methods_oc'     => 'nullable|string|max:255',
+            'plazo_oc'       => 'nullable|string|max:255',
+            'observaciones'  => 'nullable|string',
             'requisicion_id' => 'required|exists:requisicion,id',
-            'productos'     => 'required|array',
+            'productos'      => 'required|array',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.cantidad' => 'required|numeric|min:1',
-            'productos.*.precio' => 'required|numeric|min:0',
+            'productos.*.precio'   => 'required|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
 
-        // Verificar si ya existe una orden para este proveedor en esta requisición
         $ordenExistente = OrdenCompra::where('proveedor_id', $request->proveedor_id)
             ->where('requisicion_id', $request->requisicion_id)
             ->first();
@@ -89,42 +93,41 @@ class OrdenCompraController extends Controller
         try {
             DB::beginTransaction();
 
-            // Crear la orden de compra principal
             $ultimo = OrdenCompra::orderByDesc('id')->first();
             $numero = $ultimo ? $ultimo->id + 1 : 1;
             $nuevoOrderOc = 'OC-' . str_pad($numero, 6, '0', STR_PAD_LEFT);
 
+            // 📌 fecha automática con now()
+            $fechaActual = now()->format('Y-m-d');
+
             $ordenCompra = OrdenCompra::create([
                 'requisicion_id' => $request->requisicion_id,
-                'proveedor_id' => $request->proveedor_id,
-                'observaciones' => $request->observaciones,
-                'date_oc' => $request->date_oc,
-                'methods_oc' => $request->methods_oc,
-                'plazo_oc' => $request->plazo_oc,
-                'order_oc' => $nuevoOrderOc,
+                'proveedor_id'   => $request->proveedor_id,
+                'observaciones'  => $request->observaciones,
+                'date_oc'        => $fechaActual,
+                'methods_oc'     => $request->methods_oc,
+                'plazo_oc'       => $request->plazo_oc,
+                'order_oc'       => $nuevoOrderOc,
             ]);
 
-            // Crear los registros en la tabla pivot ordencompra_producto
             foreach ($request->productos as $productoData) {
                 OrdencompraProducto::create([
-                    'producto_id' => $productoData['id'],
-                    'orden_compras_id' => $ordenCompra->id,
+                    'producto_id'         => $productoData['id'],
+                    'orden_compras_id'    => $ordenCompra->id,
                     'proveedor_seleccionado' => $request->proveedor_id,
-                    'observaciones' => $request->observaciones,
-                    'date_oc' => $request->date_oc,
-                    'methods_oc' => $request->methods_oc,
-                    'plazo_oc' => $request->plazo_oc,
-                    'order_oc' => $nuevoOrderOc,
-                    'cantidad' => $productoData['cantidad'],
-                    'precio_unitario' => $productoData['precio'],
+                    'observaciones'       => $request->observaciones,
+                    'date_oc'             => $fechaActual,
+                    'methods_oc'          => $request->methods_oc,
+                    'plazo_oc'            => $request->plazo_oc,
+                    'order_oc'            => $nuevoOrderOc,
+                    'cantidad'            => $productoData['cantidad'],
+                    'precio_unitario'     => $productoData['precio'],
                 ]);
             }
 
             DB::commit();
 
             $requisicion = Requisicion::with(['productos.proveedor', 'ordenesCompra'])->find($request->requisicion_id);
-            
-            // Obtener proveedores disponibles restantes
             $todosProveedores = $requisicion->productos->pluck('proveedor')->unique('id');
             $proveedoresConOrden = $requisicion->ordenesCompra->pluck('proveedor_id');
             $proveedoresDisponibles = $todosProveedores->whereNotIn('id', $proveedoresConOrden);
@@ -145,6 +148,7 @@ class OrdenCompraController extends Controller
             return back()->withInput()->withErrors(['error' => 'Error al crear la orden de compra: ' . $e->getMessage()]);
         }
     }
+
 
     public function show(string $id)
     {
@@ -243,10 +247,10 @@ class OrdenCompraController extends Controller
 
         try {
             DB::beginTransaction();
-            
+
             // Eliminar los registros de la tabla pivot primero
             OrdencompraProducto::where('orden_compras_id', $id)->delete();
-            
+
             // Luego eliminar la orden principal
             $orden->delete();
 
