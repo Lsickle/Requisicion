@@ -66,8 +66,8 @@
                 <select name="proveedor_id" class="w-full border rounded-lg p-2" required>
                     <option value="0">Seleccione un proveedor</option>
                     @foreach($proveedoresDisponibles as $proveedor)
-                    <option value="{{ $proveedor->id }}" 
-                        {{ $proveedorSeleccionado && $proveedorSeleccionado->id == $proveedor->id ? 'selected' : '' }}>
+                    <option value="{{ $proveedor->id }}" {{ $proveedorSeleccionado && $proveedorSeleccionado->id ==
+                        $proveedor->id ? 'selected' : '' }}>
                         {{ $proveedor->prov_name }}
                     </option>
                     @endforeach
@@ -140,8 +140,16 @@
                                 ${{ number_format($producto->pivot->pr_amount * $producto->price_produc, 2) }}
                             </td>
                         </tr>
+
+                        <!-- 📌 Inputs ocultos para que se envíen al backend -->
+                        <input type="hidden" name="productos[{{ $loop->index }}][id]" value="{{ $producto->id }}">
+                        <input type="hidden" name="productos[{{ $loop->index }}][cantidad]"
+                            value="{{ $producto->pivot->pr_amount }}">
+                        <input type="hidden" name="productos[{{ $loop->index }}][precio]"
+                            value="{{ $producto->price_produc }}">
                         @endforeach
                     </tbody>
+
                 </table>
             </div>
 
