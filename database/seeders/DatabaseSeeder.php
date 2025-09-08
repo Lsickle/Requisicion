@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         Estatus_RequisicionSeeder::class,
         CentroProductoSeeder::class,
         OrdenCompraSeeder::class,
+        OrdenCompraProductoSeeder::class,
     ]);
 }
 }

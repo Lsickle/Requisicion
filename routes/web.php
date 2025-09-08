@@ -133,18 +133,8 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/ordenes_compra/lista-aprobadas', [RequisicionController::class, 'listaAprobadas'])
         ->name('ordenes_compra.lista');
 
-    // Add this route inside the middleware group, before the createFromRequisicion route
-    Route::get('/ordenes-compra/create', [OrdenCompraController::class, 'create'])
-        ->name('ordenes_compra.create')
-        ->middleware([AuthSession::class]);
-
     Route::get('ordenes-compra/requisicion/{id}/create', [OrdenCompraController::class, 'createFromRequisicion'])
         ->name('ordenes_compra.createFromRequisicion')
-        ->middleware([AuthSession::class]);
-
-    // Add the store route as well
-    Route::post('ordenes-compra', [OrdenCompraController::class, 'store'])
-        ->name('ordenes_compra.store')
         ->middleware([AuthSession::class]);
 
     Route::get('ordenes-compra/requisicion/{id}/create', [OrdenCompraController::class, 'createFromRequisicion'])
@@ -153,9 +143,6 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::get('/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
-
-    Route::delete('/{id}', [OrdenCompraController::class, 'destroy'])
-        ->name('ordenes_compra.destroy');
 
     // Generar PDF genérico según tipo y id
     Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
@@ -184,7 +171,7 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::put('ordenes_compra/{id}', [OrdenCompraController::class, 'update'])
         ->name('ordenes_compra.update');
-        
+
     Route::delete('ordenes_compra/{id}', [OrdenCompraController::class, 'destroy'])
         ->name('ordenes_compra.destroy');
 });
