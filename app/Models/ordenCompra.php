@@ -12,35 +12,25 @@ class OrdenCompra extends Model
 
     protected $table = 'orden_compras';
 
-    protected $dates = [
-        'created_at',
-        'updated_at',
-        'deleted_at'
+    protected $fillable = [
+        'requisicion_id',
+        'proveedor_id',
+        'observaciones',
+        'date_oc',
+        'methods_oc',
+        'plazo_oc',
+        'order_oc',
     ];
 
-    public function productos()
-    {
-        return $this->belongsToMany(Producto::class, 'ordencompra_producto')
-            ->withPivot([
-                'po_amount',
-                'precio_unitario',
-                'observaciones',
-                'date_oc',
-                'methods_oc',
-                'plazo_oc',
-                'order_oc'
-            ])
-            ->withTimestamps();
-    }
-
+    // Relación con requisición
     public function requisicion()
     {
-        return $this->belongsTo(Requisicion::class);
+        return $this->belongsTo(Requisicion::class, 'requisicion_id');
     }
 
+    // Relación con proveedor
     public function proveedor()
     {
-        return $this->belongsTo(Proveedor::class);
+        return $this->belongsTo(Proveedor::class, 'proveedor_id');
     }
-
 }

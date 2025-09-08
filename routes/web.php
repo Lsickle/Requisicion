@@ -171,6 +171,13 @@ Route::middleware([AuthSession::class])->group(function () {
     // Dentro del grupo de rutas de órdenes de compra
     Route::get('/generar-pdf/{requisicionId}', [OrdenCompraController::class, 'generarPDF'])
         ->name('ordenes_compra.generarPDF');
+
+    // Rutas para cancelar y reenviar requisiciones
+    Route::post('/requisiciones/{id}/cancelar', [RequisicionController::class, 'cancelar'])
+        ->name('requisiciones.cancelar');
+        
+    Route::post('/requisiciones/{id}/reenviar', [RequisicionController::class, 'reenviar'])
+        ->name('requisiciones.reenviar');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);
