@@ -20,7 +20,7 @@
             <div class="flex-1 overflow-y-auto">
                 <!-- Tabla en escritorio -->
                 <div class="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
-                    <table class="min-w-full table-auto border-collapse">
+                    <table class="min-w-full table-auto border-collapse" id="tablaAprobacion">
                         <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
@@ -36,19 +36,26 @@
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
                                 <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
-                                <td class="px-4 py-2">{{ $req->prioridad_requisicion }}</td>
+                                <td class="px-4 py-2">
+                                    <span class="px-2 py-1 rounded-full text-xs font-semibold 
+                                        {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
+                                           ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
+                                           'bg-green-100 text-green-800') }}">
+                                        {{ ucfirst($req->prioridad_requisicion) }}
+                                    </span>
+                                </td>
                                 <td class="px-4 py-2 font-semibold">${{ number_format($req->amount_requisicion,2) }}</td>
                                 <td class="px-4 py-2">
-                                    <span class="px-2 py-1 rounded text-xs font-medium
-                                        {{ ($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Aprobado' ? 'bg-green-100 text-green-700' :
-                                           (($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Rechazado' ? 'bg-red-100 text-red-700' :
-                                           'bg-yellow-100 text-yellow-700') }}">
+                                    <span class="px-3 py-1 text-xs font-semibold rounded-full
+                                        {{ ($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Aprobado' ? 'bg-green-600 text-white' :
+                                           (($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Rechazado' ? 'bg-red-600 text-white' :
+                                           'bg-yellow-500 text-white') }}">
                                         {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-2 text-center">
                                     <button onclick="toggleModal('modal-{{ $req->id }}')" 
-                                        class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
+                                        class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
                                         Ver
                                     </button>
                                 </td>
@@ -64,19 +71,29 @@
 
                                         <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
 
-                                        <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
-                                        <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
-                                        <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div class="bg-gray-50 p-4 rounded-lg">
+                                                <h3 class="font-semibold text-gray-700 mb-2">Detalles Generales</h3>
+                                                <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
+                                                <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
+                                                <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
+                                            </div>
+                                            <div class="bg-gray-50 p-4 rounded-lg">
+                                                <h3 class="font-semibold text-gray-700 mb-2">Información Adicional</h3>
+                                                <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                                                <p><strong>Estatus:</strong> {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}</p>
+                                            </div>
+                                        </div>
 
-                                        <h3 class="text-xl font-semibold mt-4">Productos</h3>
-                                        <ul class="list-disc pl-5">
+                                        <h3 class="text-xl font-semibold mt-4 mb-2">Productos</h3>
+                                        <ul class="list-disc pl-5 space-y-1">
                                             @foreach($req->productos as $prod)
                                                 <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
                                             @endforeach
                                         </ul>
 
-                                        <h3 class="text-xl font-semibold mt-4">Historial</h3>
-                                        <ul class="list-disc pl-5">
+                                        <h3 class="text-xl font-semibold mt-4 mb-2">Historial</h3>
+                                        <ul class="list-disc pl-5 space-y-1">
                                             @foreach($req->estatusHistorial as $hist)
                                                 <li>{{ $hist->estatus->status_name ?? 'Iniciada' }} - {{ $hist->created_at->format('d/m/Y H:i') }}</li>
                                             @endforeach
@@ -114,12 +131,12 @@
                     @forelse($requisiciones as $req)
                     <div class="bg-white rounded-lg shadow p-4">
                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
-                        <p><strong>Prioridad:</strong> {{ $req->prioridad_requisicion }}</p>
+                        <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
                         <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
                         <p><strong>Estatus:</strong> {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}</p>
                         <div class="mt-3">
                             <button onclick="toggleModal('modal-{{ $req->id }}')" 
-                                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
+                                class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
                                 Ver
                             </button>
                         </div>
@@ -144,11 +161,7 @@
 @endsection
 
 @section('scripts')
-<!-- SweetAlert2 -->
-@section('scripts')
-<!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
 <script>
 function toggleModal(id){
     const modal = document.getElementById(id);
@@ -156,20 +169,15 @@ function toggleModal(id){
     modal.classList.toggle('flex');
 }
 
-// Función para aprobar/rechazar
+// Aprobar / Rechazar
 document.querySelectorAll('.status-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const requisicionId = this.dataset.id;
         const estatusId = parseInt(this.dataset.estatus);
         const accion = this.dataset.action;
 
-        console.log('Botón clickeado:', {requisicionId, estatusId, accion});
-
         if (accion === "rechazar") {
-            // Verificar si es área de compras (requiere comentario)
             @if($role === 'Area de compras')
-                console.log('Usuario es Area de compras - solicitando comentario');
-                // Pedir comentario obligatorio solo para área de compras
                 Swal.fire({
                     title: "Motivo de rechazo",
                     input: "textarea",
@@ -184,15 +192,11 @@ document.querySelectorAll('.status-btn').forEach(btn => {
                         if (!value || value.trim() === '') return "Debes escribir un motivo de rechazo";
                     }
                 }).then((result) => {
-                    console.log('Resultado de SweetAlert:', result);
                     if (result.isConfirmed) {
-                        console.log('Comentario ingresado:', result.value);
                         confirmarCambioEstatus(requisicionId, estatusId, result.value);
                     }
                 });
             @else
-                console.log('Usuario es Gerencia/Financiero - confirmación simple');
-                // Para Gerencia y Gerente financiero: solo confirmación
                 Swal.fire({
                     title: `¿Seguro que deseas rechazar la requisición #${requisicionId}?`,
                     icon: "warning",
@@ -208,13 +212,11 @@ document.querySelectorAll('.status-btn').forEach(btn => {
                 });
             @endif
         } else {
-            // aprobar
-            console.log('Acción de aprobar');
             Swal.fire({
-                title: `¿Seguro que deseas ${accion} la requisición #${requisicionId}?`,
+                title: `¿Seguro que deseas aprobar la requisición #${requisicionId}?`,
                 icon: "success",
                 showCancelButton: true,
-                confirmButtonText: `Sí, ${accion}`,
+                confirmButtonText: "Sí, aprobar",
                 cancelButtonText: "Cancelar",
                 confirmButtonColor: "#16a34a",
                 cancelButtonColor: "#6b7280"
@@ -228,20 +230,7 @@ document.querySelectorAll('.status-btn').forEach(btn => {
 });
 
 function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
-    // Crear objeto con los datos a enviar
-    if (!comentario) {
-        const input = document.getElementById(`comentario-${requisicionId}`);
-        if (input) {
-            comentario = input.value.trim();
-        }
-    }
-
-    const data = {
-        estatus_id: estatusId,
-        comentario: comentario
-    };
-
-    console.log('Enviando datos al servidor:', JSON.stringify(data, null, 2));
+    const data = { estatus_id: estatusId, comentario: comentario };
 
     fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
         method: 'POST',
@@ -253,14 +242,10 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         body: JSON.stringify(data)
     })
     .then(response => {
-        console.log('Respuesta del servidor - status:', response.status);
-        if (!response.ok) {
-            throw new Error('Error en la respuesta del servidor: ' + response.status);
-        }
+        if (!response.ok) throw new Error('Error en la respuesta del servidor: ' + response.status);
         return response.json();
     })
     .then(data => {
-        console.log('Respuesta del servidor - data:', data);
         if (data.success) {
             Swal.fire("Éxito", data.message || "Estatus actualizado", "success")
                 .then(() => location.reload());
@@ -269,10 +254,8 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         }
     })
     .catch(error => {
-        console.error('Error en la petición:', error);
         Swal.fire("Error", "No se pudo actualizar el estatus: " + error.message, "error");
     });
 }
-
 </script>
 @endsection
