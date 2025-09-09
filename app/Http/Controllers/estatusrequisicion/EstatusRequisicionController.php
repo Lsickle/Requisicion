@@ -33,14 +33,13 @@ class EstatusRequisicionController extends Controller
             $role = 'Area de compras';
         }
 
-        // Nuevo mapeo de estatus según rol
         $estatusFiltrar = 0;
         if ($role === 'Area de compras') {
-            $estatusFiltrar = 1; // Iniciada
+            $estatusFiltrar = 1;
         } elseif ($role === 'Gerencia') {
-            $estatusFiltrar = 2; // Revisión
+            $estatusFiltrar = 2;
         } elseif ($role === 'Gerente financiero') {
-            $estatusFiltrar = 3; // Aprobación Gerencia
+            $estatusFiltrar = 3;
         }
 
         $requisiciones = Requisicion::with(['ultimoEstatus.estatus', 'productos', 'estatusHistorial.estatus'])
@@ -50,7 +49,6 @@ class EstatusRequisicionController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Opciones de estatus según rol
         $estatusOptions = collect();
         if ($role === 'Area de compras') {
             $estatusOptions = Estatus::whereIn('id', [2, 9])->pluck('status_name', 'id');
@@ -84,7 +82,6 @@ class EstatusRequisicionController extends Controller
             ], 403);
         }
 
-        // Detectar rol
         if (PermissionHelper::hasRole('Gerencia')) {
             $role = 'Gerencia';
         } elseif (PermissionHelper::hasRole('Gerente financiero')) {
@@ -116,7 +113,6 @@ class EstatusRequisicionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus Aprobación Gerencia'], 403);
             }
 
-            // Desactivar todos los estatus anteriores
             Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
             $mensajeAccion = 'aprobada';
@@ -124,20 +120,16 @@ class EstatusRequisicionController extends Controller
 
             Log::info("Comentario procesado: " . ($comentario ?: 'NULL'));
 
-            if ($request->estatus_id == 9) { // Rechazo
+            if ($request->estatus_id == 9) {
                 if ($role === 'Area de compras') {
-                    // SOLO Compras debe escribir comentario
                     if (!$comentario || $comentario == '') {
                         Log::warning("Área de compras intentó rechazar sin comentario");
                         return response()->json(['success' => false, 'message' => 'Debes escribir un motivo de rechazo.'], 422);
                     }
 
-                    Log::info("Enviando a corrección con comentario: $comentario");
-
-                    // Enviar directamente a corrección (activo)
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
-                        'estatus_id' => 11, // Corregir
+                        'estatus_id' => 11,
                         'estatus' => 1,
                         'comentario' => $comentario,
                         'date_update' => now(),
@@ -145,32 +137,25 @@ class EstatusRequisicionController extends Controller
 
                     $mensajeAccion = 'enviada a corrección';
                 } else {
-                    // Gerencia / Financiero → rechazo directo
-                    Log::info("Creando estatus de rechazo definitivo con comentario: " . ($comentario ?: 'NULL'));
-
-                    // Rechazo definitivo (activo)
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
-                        'estatus_id' => 10, // Rechazada definitiva
+                        'estatus_id' => 10,
                         'estatus' => 1,
-                        'comentario' => $comentario, // Opcional
+                        'comentario' => $comentario,
                         'date_update' => now(),
                     ]);
 
-                    // También registrar el rechazo (inactivo) como historial
                     Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
-                        'estatus_id' => 9, // Rechazado
+                        'estatus_id' => 9,
                         'estatus' => 0,
-                        'comentario' => $comentario, // Opcional
+                        'comentario' => $comentario,
                         'date_update' => now(),
                     ]);
 
                     $mensajeAccion = 'rechazada';
                 }
             } else {
-                // Caso de aprobación normal
-                Log::info("Aprobando requisición sin comentario");
                 $nuevoEstatus = Estatus_Requisicion::create([
                     'requisicion_id' => $requisicionId,
                     'estatus_id' => $request->estatus_id,
@@ -178,9 +163,36 @@ class EstatusRequisicionController extends Controller
                     'comentario' => null,
                     'date_update' => now(),
                 ]);
+
+                // Crear la orden de compra SOLO si se aprueba definitivamente
+                if ($request->estatus_id == 4 && $role === 'Gerente financiero') {
+                    Log::info("Creando orden de compra para requisición $requisicionId");
+
+                    $ordenCompraId = DB::table('orden_compras')->insertGetId([
+                        'requisicion_id' => $requisicionId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    Log::info("Orden de compra creada: ID $ordenCompraId para requisición: $requisicionId");
+
+                    // Traer productos de la requisición
+                    $productosReq = DB::table('producto_requisicion')
+                        ->where('id_requisicion', $requisicionId) // 👈 corregido
+                        ->get();
+
+                    foreach ($productosReq as $producto) {
+                        DB::table('ordencompra_producto')->insert([
+                            'producto_id' => $producto->id_producto,
+                            'orden_compras_id' => $ordenCompraId,
+                            'producto_requisicion_id' => $producto->id,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                }
             }
 
-            // Notificación por correo
             $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
             $userEmail = $userInfo['email'] ?? null;
 

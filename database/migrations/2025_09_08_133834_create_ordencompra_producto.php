@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
             $table->foreignId('orden_compras_id')->constrained('orden_compras')->onDelete('cascade'); #id de la orden de compra
             $table->foreignId('producto_requisicion_id')->constrained('producto_requisicion')->onDelete('cascade'); #id de la pivot entre producto y requiscion
-            $table->integer('proveedor_seleccionado'); #proveedor de orden de compra
+            $table->integer('proveedor_seleccionado')->nullable(); #proveedor de orden de compra
             $table->text('observaciones')->nullable(); #observaciones por orden de compra
             $table->date('date_oc')->nullable(); #fecha de orden de compra
             $table->string('methods_oc', 255)->nullable(); #metodos de pago
