@@ -20,14 +20,13 @@
             <div class="flex-1 overflow-y-auto">
                 <!-- Tabla en escritorio -->
                 <div class="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
-                    <table class="min-w-full table-auto border-collapse" id="tablaAprobacion">
+                    <table class="min-w-full table-auto border-collapse">
                         <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
                                 <th class="px-4 py-2 text-left">Detalle</th>
                                 <th class="px-4 py-2 text-left">Prioridad</th>
-                                <th class="px-4 py-2 text-left">Monto</th>
-                                <th class="px-4 py-2 text-left">Estatus</th>
+                                <th class="px-4 py-2 text-left">Solicitante</th>
                                 <th class="px-4 py-2 text-center">Acciones</th>
                             </tr>
                         </thead>
@@ -44,98 +43,32 @@
                                         {{ ucfirst($req->prioridad_requisicion) }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-2 font-semibold">${{ number_format($req->amount_requisicion,2) }}</td>
-                                <td class="px-4 py-2">
-                                    <span class="px-3 py-1 text-xs font-semibold rounded-full
-                                        {{ ($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Aprobado' ? 'bg-green-600 text-white' :
-                                           (($req->ultimoEstatus->estatus->status_name ?? 'Pendiente') === 'Rechazado' ? 'bg-red-600 text-white' :
-                                           'bg-yellow-500 text-white') }}">
-                                        {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}
-                                    </span>
-                                </td>
+                                <td class="px-4 py-2">{{ $req->name_user }}</td>
                                 <td class="px-4 py-2 text-center">
-                                    <button onclick="toggleModal('modal-{{ $req->id }}')" 
+                                    <button onclick="toggleModal('modal-{{ $req->id }}')"
                                         class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
                                         Ver
                                     </button>
                                 </td>
                             </tr>
-
-                            <!-- Modal -->
-                            <div id="modal-{{ $req->id }}" 
-                                 class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-                                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                                    <div class="flex-1 overflow-y-auto p-6 relative">
-                                        <button onclick="toggleModal('modal-{{ $req->id }}')" 
-                                            class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
-
-                                        <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
-
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                            <div class="bg-gray-50 p-4 rounded-lg">
-                                                <h3 class="font-semibold text-gray-700 mb-2">Detalles Generales</h3>
-                                                <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
-                                                <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
-                                                <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
-                                            </div>
-                                            <div class="bg-gray-50 p-4 rounded-lg">
-                                                <h3 class="font-semibold text-gray-700 mb-2">Información Adicional</h3>
-                                                <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                                                <p><strong>Estatus:</strong> {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}</p>
-                                            </div>
-                                        </div>
-
-                                        <h3 class="text-xl font-semibold mt-4 mb-2">Productos</h3>
-                                        <ul class="list-disc pl-5 space-y-1">
-                                            @foreach($req->productos as $prod)
-                                                <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
-                                            @endforeach
-                                        </ul>
-
-                                        <h3 class="text-xl font-semibold mt-4 mb-2">Historial</h3>
-                                        <ul class="list-disc pl-5 space-y-1">
-                                            @foreach($req->estatusHistorial as $hist)
-                                                <li>{{ $hist->estatus->status_name ?? 'Iniciada' }} - {{ $hist->created_at->format('d/m/Y H:i') }}</li>
-                                            @endforeach
-                                        </ul>
-                                    </div>
-
-                                    <!-- Botones Aprobar / Rechazar -->
-                                    <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
-                                        @php
-                                            $estatusAprobar = $estatusOptions->keys()->first();
-                                            $estatusRechazar = 9;
-                                        @endphp
-                                        <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" 
-                                            data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">
-                                            Aprobar
-                                        </button>
-                                        <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" 
-                                            data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}" data-action="rechazar">
-                                            Rechazar
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-gray-500">No hay requisiciones pendientes</td>
+                                <td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones pendientes</td>
                             </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
 
-                <!-- Vista móvil como tarjetas -->
+                <!-- Vista móvil -->
                 <div class="md:hidden space-y-4">
                     @forelse($requisiciones as $req)
                     <div class="bg-white rounded-lg shadow p-4">
                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
+                        <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
                         <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                        <p><strong>Monto:</strong> ${{ number_format($req->amount_requisicion,2) }}</p>
-                        <p><strong>Estatus:</strong> {{ $req->ultimoEstatus->estatus->status_name ?? 'Pendiente' }}</p>
                         <div class="mt-3">
-                            <button onclick="toggleModal('modal-{{ $req->id }}')" 
+                            <button onclick="toggleModal('modal-{{ $req->id }}')"
                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
                                 Ver
                             </button>
@@ -147,17 +80,108 @@
                 </div>
             </div>
 
-            <!-- Botón volver fijo abajo -->
+            <!-- Botón volver -->
             <div class="mt-6 text-center">
-                <a href="{{ route('requisiciones.menu') }}" 
+                <a href="{{ route('requisiciones.menu') }}"
                    class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg shadow transition">
                     ← Volver
                 </a>
             </div>
-
         </div>
     </div>
 </div>
+
+<!-- Modales -->
+@foreach($requisiciones as $req)
+<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div class="flex-1 overflow-y-auto p-6 relative">
+            <button onclick="toggleModal('modal-{{ $req->id }}')"
+                class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
+
+            <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-gray-700 mb-2">Información del Solicitante</h3>
+                    <p><strong>Nombre:</strong> {{ $req->name_user }}</p>
+                    <p><strong>Email:</strong> {{ $req->email_user }}</p>
+                    <p><strong>Operación:</strong> {{ $req->operacion_user }}</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-gray-700 mb-2">Detalles de la Requisición</h3>
+                    <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
+                <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
+            </div>
+
+            <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border border-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Producto</th>
+                            <th class="px-4 py-2 text-left">Cantidad Total</th>
+                            <th class="px-4 py-2 text-left">Distribución por Centros</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($req->productos as $prod)
+                        @php
+                        $distribucion = DB::table('centro_producto')
+                            ->where('requisicion_id', $req->id)
+                            ->where('producto_id', $prod->id)
+                            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                            ->select('centro.name_centro', 'centro_producto.amount')
+                            ->get();
+                        @endphp
+                        <tr>
+                            <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
+                            <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}</td>
+                            <td class="px-4 py-3 border">
+                                @if($distribucion->count() > 0)
+                                <div class="space-y-2">
+                                    @foreach($distribucion as $centro)
+                                    <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+                                        <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
+                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                    </div>
+                                    @endforeach
+                                </div>
+                                @else
+                                <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                @endif
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Botones Aprobar/Rechazar -->
+        <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
+            @php
+                $estatusAprobar = $estatusOptions->keys()->first();
+                $estatusRechazar = 9;
+            @endphp
+            <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" 
+                data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">
+                Aprobar
+            </button>
+            <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" 
+                data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}" data-action="rechazar">
+                Rechazar
+            </button>
+        </div>
+    </div>
+</div>
+@endforeach
+
 @endsection
 
 @section('scripts')
@@ -165,8 +189,15 @@
 <script>
 function toggleModal(id){
     const modal = document.getElementById(id);
-    modal.classList.toggle('hidden');
-    modal.classList.toggle('flex');
+    if(modal.classList.contains('hidden')){
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    } else {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
 }
 
 // Aprobar / Rechazar
