@@ -12,13 +12,18 @@ class OrdenCompraProducto extends Model
     protected $fillable = [
         'producto_id',
         'orden_compras_id',
-        'producto_requisicion_id',
-        'proveedor_seleccionado',
+        'proveedor_id',
         'observaciones',
         'date_oc',
         'methods_oc',
         'plazo_oc',
         'order_oc'
+    ];
+
+    protected $dates = [
+        'date_oc',
+        'created_at',
+        'updated_at'
     ];
 
     public function ordenCompra(): BelongsTo
@@ -29,5 +34,10 @@ class OrdenCompraProducto extends Model
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Producto::class);
+    }
+
+    public function proveedor(): BelongsTo
+    {
+        return $this->belongsTo(Proveedor::class);
     }
 }

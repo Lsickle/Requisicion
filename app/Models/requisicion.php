@@ -41,13 +41,6 @@ class Requisicion extends Model
             ->withTimestamps();
     }
 
-    // En el modelo Requisicion.php
-
-    public function ordenCompra()
-    {
-        return $this->hasOne(OrdenCompra::class);
-    }
-
     public function estatusHistorial()
     {
         return $this->hasMany(Estatus_Requisicion::class, 'requisicion_id')
@@ -63,7 +56,6 @@ class Requisicion extends Model
             ->latest();
     }
 
-    // En el modelo Requisicion.php
     public function ordenesCompra()
     {
         return $this->hasMany(OrdenCompra::class, 'requisicion_id');

@@ -12,6 +12,8 @@ use App\Helpers\PermissionHelper;
 use App\Jobs\EstatusRequisicionActualizadoJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\OrdenCompra;
+use App\Models\OrdenCompraProducto;
 
 class EstatusRequisicionController extends Controller
 {
@@ -90,9 +92,6 @@ class EstatusRequisicionController extends Controller
             $role = 'Area de compras';
         }
 
-        Log::info("Actualizando estatus para requisición $requisicionId por rol: $role");
-        Log::info("Datos recibidos: " . json_encode($request->all()));
-
         $request->validate([
             'estatus_id' => 'required|exists:estatus,id',
         ]);
@@ -113,17 +112,16 @@ class EstatusRequisicionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus Aprobación Gerencia'], 403);
             }
 
+            // Desactivar todos los estatus anteriores
             Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
             $mensajeAccion = 'aprobada';
             $comentario = $request->comentario ? trim($request->comentario) : null;
 
-            Log::info("Comentario procesado: " . ($comentario ?: 'NULL'));
-
             if ($request->estatus_id == 9) {
+                // rechazo
                 if ($role === 'Area de compras') {
-                    if (!$comentario || $comentario == '') {
-                        Log::warning("Área de compras intentó rechazar sin comentario");
+                    if (!$comentario) {
                         return response()->json(['success' => false, 'message' => 'Debes escribir un motivo de rechazo.'], 422);
                     }
 
@@ -164,43 +162,66 @@ class EstatusRequisicionController extends Controller
                     'date_update' => now(),
                 ]);
 
-                // Crear la orden de compra SOLO si se aprueba definitivamente
+                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR ORDEN DE COMPRA + DETALLE
                 if ($request->estatus_id == 4 && $role === 'Gerente financiero') {
-                    Log::info("Creando orden de compra para requisición $requisicionId");
+                    try {
+                        $numeroOrden = 'OC-' . now()->format('YmdHis');
 
-                    $ordenCompraId = DB::table('orden_compras')->insertGetId([
-                        'requisicion_id' => $requisicionId,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                        $requisicionCompleta = Requisicion::with(['productos.proveedor'])->find($requisicionId);
 
-                    Log::info("Orden de compra creada: ID $ordenCompraId para requisición: $requisicionId");
+                        if (!$requisicionCompleta || $requisicionCompleta->productos->isEmpty()) {
+                            throw new \Exception("La requisición no tiene productos válidos");
+                        }
 
-                    // Traer productos de la requisición
-                    $productosReq = DB::table('producto_requisicion')
-                        ->where('id_requisicion', $requisicionId) // 👈 corregido
-                        ->get();
-
-                    foreach ($productosReq as $producto) {
-                        DB::table('ordencompra_producto')->insert([
-                            'producto_id' => $producto->id_producto,
-                            'orden_compras_id' => $ordenCompraId,
-                            'producto_requisicion_id' => $producto->id,
-                            'created_at' => now(),
-                            'updated_at' => now(),
+                        $ordenCompra = OrdenCompra::create([
+                            'requisicion_id' => $requisicionId,
                         ]);
+
+                        foreach ($requisicionCompleta->productos as $producto) {
+                            $cantidad = $producto->pivot->pr_amount ?? 0; // cantidad desde la pivot producto_requisicion
+                            $proveedorId = $producto->proveedor_id;
+
+                            if (!$proveedorId) {
+                                Log::warning("El producto ID: {$producto->id} no tiene proveedor asignado");
+                                continue;
+                            }
+
+                            OrdenCompraProducto::create([
+                                'producto_id' => $producto->id,
+                                'orden_compras_id' => $ordenCompra->id,
+                                'proveedor_id' => $proveedorId,
+                                'producto_requisicion_id' => $producto->pivot->id ?? null, // opcional, si necesitas trazar
+                                'observaciones' => null,
+                                'methods_oc' => null,
+                                'plazo_oc' => null,
+                                'date_oc' => null,
+                                'order_oc' => null,
+                                'costo_unitario' => null,
+                                'costo_total' => null,
+                                'cantidad' => $cantidad,
+                            ]);
+                        }
+
+                        Log::info("Orden de compra {$ordenCompra->id} creada exitosamente para requisición {$requisicionId}");
+                    } catch (\Exception $e) {
+                        Log::error("ERROR al crear orden de compra: " . $e->getMessage());
                     }
                 }
             }
 
-            $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
-            $userEmail = $userInfo['email'] ?? null;
+            // Notificación
+            try {
+                $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
+                $userEmail = $userInfo['email'] ?? null;
 
-            EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
+                if ($userEmail) {
+                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
+                }
+            } catch (\Exception $e) {
+                Log::error("Error en notificación: " . $e->getMessage());
+            }
 
             DB::commit();
-
-            Log::info("Estatus actualizado exitosamente: $mensajeAccion");
 
             return response()->json([
                 'success' => true,
@@ -209,10 +230,11 @@ class EstatusRequisicionController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error("Error al actualizar el estatus: " . $e->getMessage());
+            Log::error("ERROR CRÍTICO al actualizar estatus: " . $e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error al actualizar el estatus: ' . $e->getMessage()
+                'message' => 'Error interno del servidor al actualizar el estatus: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -221,9 +243,7 @@ class EstatusRequisicionController extends Controller
     {
         try {
             $apiToken = session('api_token');
-
             if (!$apiToken) {
-                Log::error("No hay token de API disponible en la sesión");
                 return ['email' => null];
             }
 
@@ -236,12 +256,11 @@ class EstatusRequisicionController extends Controller
             foreach ($possibleEndpoints as $apiUrl) {
                 $response = Http::withoutVerifying()
                     ->withToken($apiToken)
-                    ->timeout(15)
+                    ->timeout(10)
                     ->get($apiUrl);
 
                 if ($response->successful()) {
                     $userData = $response->json();
-
                     $email = $userData['email'] ??
                         $userData['user']['email'] ??
                         ($userData['data']['email'] ?? null);
@@ -252,10 +271,8 @@ class EstatusRequisicionController extends Controller
                 }
             }
 
-            Log::error("Todos los endpoints fallaron para usuario {$userId}");
             return ['email' => null];
         } catch (\Throwable $e) {
-            Log::error("Error obteniendo información del usuario {$userId}: " . $e->getMessage());
             return ['email' => null];
         }
     }

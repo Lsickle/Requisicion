@@ -14,7 +14,7 @@ class OrdenCompra extends Model
     protected $table = 'orden_compras';
 
     protected $fillable = [
-        'requisicion_id'
+        'requisicion_id',
     ];
 
     public function requisicion(): BelongsTo
@@ -22,8 +22,15 @@ class OrdenCompra extends Model
         return $this->belongsTo(Requisicion::class);
     }
 
-    public function productos(): HasMany
+    public function ordencompraProductos(): HasMany
     {
         return $this->hasMany(OrdenCompraProducto::class, 'orden_compras_id');
+    }
+
+    public function productos()
+    {
+        return $this->belongsToMany(Producto::class, 'ordencompra_producto', 'orden_compras_id', 'producto_id')
+            ->withPivot('id', 'proveedor_id', 'observaciones', 'date_oc', 'methods_oc', 'plazo_oc', 'order_oc')
+            ->withTimestamps();
     }
 }
