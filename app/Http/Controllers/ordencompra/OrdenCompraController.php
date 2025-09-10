@@ -14,6 +14,8 @@ use App\Models\Centro;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use ZipArchive;
+use Illuminate\Support\Facades\Response;
 
 class OrdenCompraController extends Controller
 {
@@ -54,10 +56,18 @@ class OrdenCompraController extends Controller
             $requisicion = Requisicion::find($request->requisicion_id);
 
             if ($requisicion) {
+                // Obtener productos que aún no tienen orden de compra
                 $productosDisponibles = Producto::select('productos.*')
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->where('producto_requisicion.id_requisicion', $requisicion->id)
                     ->whereNull('productos.deleted_at')
+                    ->whereNotExists(function ($query) use ($requisicion) {
+                        $query->select(DB::raw(1))
+                            ->from('ordencompra_producto')
+                            ->join('orden_compras', 'ordencompra_producto.orden_compras_id', '=', 'orden_compras.id')
+                            ->whereRaw('ordencompra_producto.producto_id = productos.id')
+                            ->where('orden_compras.requisicion_id', $requisicion->id);
+                    })
                     ->orderBy('productos.id', 'asc')
                     ->get();
             }
@@ -127,12 +137,48 @@ class OrdenCompraController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('ordenes_compra.lista')
+            return redirect()->route('ordenes_compra.create', ['requisicion_id' => $request->requisicion_id])
                 ->with('success', 'Orden de compra ' . $numeroOrden . ' creada exitosamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Descargar ZIP de órdenes
+     */
+    public function downloadZip($requisicionId)
+    {
+        $requisicion = Requisicion::findOrFail($requisicionId);
+        $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
+            ->with(['proveedor', 'ordencompraProductos.producto'])
+            ->get();
+
+        if ($ordenes->isEmpty()) {
+            return redirect()->back()->with('error', 'No hay órdenes de compra para descargar.');
+        }
+
+        $zip = new ZipArchive();
+        $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
+        $zipPath = storage_path('app/temp/' . $zipFileName);
+
+        if (!file_exists(dirname($zipPath))) {
+            mkdir(dirname($zipPath), 0755, true);
+        }
+
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
+            foreach ($ordenes as $orden) {
+                $pdf = Pdf::loadView('ordenes_compra.pdf', ['ordenCompra' => $orden]);
+                $pdfContent = $pdf->output();
+                $zip->addFromString('orden_' . $orden->order_oc . '.pdf', $pdfContent);
+            }
+            $zip->close();
+
+            return Response::download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+        }
+
+        return redirect()->back()->with('error', 'Error al crear el archivo ZIP.');
     }
 
     /**

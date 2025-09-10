@@ -149,6 +149,54 @@
         </form>
 
     </div>
+
+    <!-- Tabla de órdenes creadas -->
+    <div class="border p-4 mt-10 rounded-lg shadow">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
+        <table class="w-full border text-sm" id="ordenes-table">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="p-3">#</th>
+                    <th class="p-3">Número de Orden</th>
+                    <th class="p-3">Proveedor</th>
+                    <th class="p-3">Productos</th>
+                </tr>
+            </thead>
+            <tbody>
+                @php
+                    $ordenesCreadas = \App\Models\OrdenCompra::where('requisicion_id', $requisicion->id)
+                        ->with(['proveedor', 'ordencompraProductos.producto'])
+                        ->get();
+                @endphp
+                @foreach($ordenesCreadas as $index => $orden)
+                <tr>
+                    <td class="p-3">{{ $index + 1 }}</td>
+                    <td class="p-3">{{ $orden->order_oc }}</td>
+                    <td class="p-3">
+                        {{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no disponible' }}
+                    </td>
+                    <td class="p-3">
+                        @foreach($orden->ordencompraProductos as $productoOrden)
+                            @if($productoOrden->producto)
+                                {{ $productoOrden->producto->name_produc }} ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
+                            @else
+                                Producto eliminado ({{ $productoOrden->cantidad }})<br>
+                            @endif
+                        @endforeach
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <!-- Botón descargar ZIP (oculto hasta que ya no queden productos) -->
+        <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
+            <a href="#" 
+               class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+                Descargar ZIP de Órdenes
+            </a>
+        </div>
+    </div>
     @endif
 </div>
 
@@ -238,6 +286,11 @@
             }
         }
         selector.value = "";
+
+        // Verificar si ya no hay productos disponibles
+        if (selector.options.length === 1) {
+            document.getElementById('zip-container').classList.remove('hidden');
+        }
     }
 
     function quitarProducto(productoId) {
@@ -265,6 +318,11 @@
             productoOption.textContent = nombre + ' (' + unidad + ')';
             
             selector.appendChild(productoOption);
+
+            // Ocultar botón ZIP si hay productos disponibles
+            if (selector.options.length > 1) {
+                document.getElementById('zip-container').classList.add('hidden');
+            }
         }
     }
 
