@@ -141,9 +141,6 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('ordenes_compra.createFromRequisicion')
         ->middleware([AuthSession::class]);
 
-    Route::get('/{id}', [OrdenCompraController::class, 'show'])
-        ->name('ordenes_compra.show');
-
     // Generar PDF genérico según tipo y id
     Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
         ->where('tipo', 'orden|requisicion|estatus')

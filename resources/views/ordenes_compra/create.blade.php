@@ -23,7 +23,16 @@
 
     @if($requisicion)
     <!-- ================= Datos de la Requisición ================= -->
-    <div class="mb-8 border rounded-lg bg-gray-50 p-6">
+    <div class="mb-8 border rounded-lg bg-gray-50 p-6 relative">
+        <div class="absolute top-4 right-4">
+            @if($requisicion->ordenCompra?->id)
+            <a href="{{ route('ordenes_compra.edit', $requisicion->ordenCompra->id) }}"
+                class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
+                <i class="fas fa-edit mr-2"></i> Editar Orden de Compra
+            </a>
+            @endif
+        </div>
+
         <h2 class="text-xl font-semibold text-gray-700 mb-4">Detalles de la Requisición #{{ $requisicion->id }}</h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -51,10 +60,6 @@
             <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
             <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
         </div>
-        <a href="{{ route('requisiciones.edit', $requisicion->id) }}"
-            class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-yellow-700 transition">
-            Editar
-        </a>
     </div>
     @endif
 
@@ -81,13 +86,15 @@
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
-                    <input type="text" name="methods_oc" class="w-full border rounded-lg p-2">
+                    <select name="plazo_oc" class="w-full border rounded-lg p-2">
+                        <option value="Contado">Efectivo</option>
+                        <option value="30 días">Transferencia</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Plazo de Pago</label>
                     <select name="plazo_oc" class="w-full border rounded-lg p-2">
                         <option value="Contado">Contado</option>
-                        <option value="15 días">15 días</option>
                         <option value="30 días">30 días</option>
                         <option value="45 días">45 días</option>
                     </select>

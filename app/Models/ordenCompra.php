@@ -33,4 +33,9 @@ class OrdenCompra extends Model
             ->withPivot('id', 'proveedor_id', 'observaciones', 'date_oc', 'methods_oc', 'plazo_oc', 'order_oc')
             ->withTimestamps();
     }
+
+    public function proveedor(): BelongsTo
+    {
+        return $this->belongsTo(Proveedor::class, 'proveedor_id');
+    }
 }

@@ -56,8 +56,8 @@ class Requisicion extends Model
             ->latest();
     }
 
-    public function ordenesCompra()
+    public function ordenCompra()
     {
-        return $this->hasMany(OrdenCompra::class, 'requisicion_id');
+        return $this->hasOne(OrdenCompra::class, 'requisicion_id');
     }
 }
