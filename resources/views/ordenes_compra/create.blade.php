@@ -86,9 +86,9 @@
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
-                    <select name="plazo_oc" class="w-full border rounded-lg p-2">
-                        <option value="Contado">Efectivo</option>
-                        <option value="30 días">Transferencia</option>
+                    <select name="methods_oc" class="w-full border rounded-lg p-2">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transferencia">Transferencia</option>
                     </select>
                 </div>
                 <div>
@@ -112,8 +112,10 @@
                     <select id="producto-selector" class="w-full border rounded-lg p-2">
                         <option value="">Seleccione un producto</option>
                         @foreach($productosDisponibles as $producto)
-                        <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                            data-unidad="{{ $producto->unit_produc }}">
+                        <option value="{{ $producto->id }}" 
+                                data-proveedor="{{ $producto->proveedor_id ?? '' }}"
+                                data-unidad="{{ $producto->unit_produc }}"
+                                data-nombre="{{ $producto->name_produc }}">
                             {{ $producto->name_produc }} ({{ $producto->unit_produc }})
                         </option>
                         @endforeach
@@ -130,7 +132,8 @@
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="p-3">Producto</th>
-                            <th class="p-3">Distribución</th>
+                            <th class="p-3">Cantidad</th>
+                            <th class="p-3">Unidad</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
@@ -146,110 +149,132 @@
         </form>
 
     </div>
-
-    <!-- Tabla de órdenes creadas -->
-    <div class="border p-4 mt-10 rounded-lg shadow">
-        <h2 class="text-xl font-semibold text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
-        <table class="w-full border text-sm" id="ordenes-table">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="p-3">#</th>
-                    <th class="p-3">Proveedor</th>
-                    <th class="p-3">Productos</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-
-        <!-- Botón descargar ZIP (oculto hasta que ya no queden productos) -->
-        <div class="mt-6 text-right hidden" id="zip-container">
-            <a href="#" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
-                Descargar ZIP de Órdenes
-            </a>
-        </div>
-    </div>
     @endif
 </div>
 
 <script>
+    // Almacenar productos añadidos
+    let productosAgregados = [];
+    
     function agregarProducto() {
-    let selector = document.getElementById('producto-selector');
-    let table = document.getElementById('productos-table');
-    let proveedorSelect = document.getElementById('proveedor_id');
+        let selector = document.getElementById('producto-selector');
+        let table = document.getElementById('productos-table');
+        let proveedorSelect = document.getElementById('proveedor_id');
 
-    let productoId = selector.value;
-    let productoNombre = selector.options[selector.selectedIndex]?.text;
-    let proveedorId = selector.options[selector.selectedIndex]?.dataset.proveedor;
-    let unidad = selector.options[selector.selectedIndex]?.dataset.unidad || '';
+        let productoId = selector.value;
+        let productoNombre = selector.options[selector.selectedIndex]?.dataset.nombre;
+        let proveedorId = selector.options[selector.selectedIndex]?.dataset.proveedor;
+        let unidad = selector.options[selector.selectedIndex]?.dataset.unidad || '';
 
-    if (!productoId) {
-        Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
-        return;
+        if (!productoId) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
+            return;
+        }
+
+        // Verificar si el producto ya fue agregado
+        if (productosAgregados.includes(productoId)) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Este producto ya fue agregado'});
+            return;
+        }
+
+        // Verificar si hay productos de otro proveedor
+        let proveedorActual = proveedorSelect.value;
+        if (proveedorActual && proveedorId && proveedorActual != proveedorId) {
+            Swal.fire({
+                icon: 'warning', 
+                title: 'Diferente proveedor', 
+                text: 'Este producto pertenece a un proveedor diferente. ¿Desea cambiar el proveedor seleccionado?',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cambiar',
+                cancelButtonText: 'No, mantener'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    proveedorSelect.value = proveedorId;
+                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector);
+                }
+            });
+        } else {
+            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector);
+        }
     }
 
-    let row = document.createElement('tr');
-    row.innerHTML = `
-        <td class="p-3">
-            ${productoNombre}
-            <input type="hidden" name="productos[${productoId}][id]" value="${productoId}">
-        </td>
-        <td class="p-3">
-            <input type="number" name="productos[${productoId}][cantidad]" min="1" class="w-24 border rounded p-1 text-center" placeholder="0"> ${unidad}
-        </td>
-        <td class="p-3 text-center">
-            <button type="button" onclick="this.closest('tr').remove()" class="bg-red-500 text-white px-3 py-1 rounded-lg">➖ Quitar</button>
-        </td>
-    `;
-    table.appendChild(row);
+    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector) {
+        let table = document.getElementById('productos-table');
+        let proveedorSelect = document.getElementById('proveedor_id');
+        
+        let row = document.createElement('tr');
+        row.id = `producto-${productoId}`;
+        row.innerHTML = `
+            <td class="p-3">
+                ${productoNombre}
+                <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
+                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}">
+            </td>
+            <td class="p-3">
+                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="1" 
+                    class="w-24 border rounded p-1 text-center" required>
+            </td>
+            <td class="p-3">${unidad}</td>
+            <td class="p-3 text-center">
+                <button type="button" onclick="quitarProducto(${productoId})" 
+                    class="bg-red-500 text-white px-3 py-1 rounded-lg">➖ Quitar</button>
+            </td>
+        `;
+        table.appendChild(row);
 
-    if (proveedorId) {
-        proveedorSelect.value = proveedorId;
+        // Actualizar proveedor si es necesario
+        if (proveedorId && !proveedorSelect.value) {
+            proveedorSelect.value = proveedorId;
+        }
+
+        // Agregar a la lista de productos añadidos
+        productosAgregados.push(productoId);
+        
+        // Remover del selector
+        for (let i = 0; i < selector.options.length; i++) {
+            if (selector.options[i].value == productoId) {
+                selector.remove(i);
+                break;
+            }
+        }
+        selector.value = "";
     }
 
-    selector.remove(selector.selectedIndex);
-    selector.value = "";
-}
-
-// Capturar envío del form y actualizar la tabla de órdenes creadas
-document.getElementById('orden-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    let proveedor = document.getElementById('proveedor_id');
-    let productos = document.querySelectorAll('#productos-table tr');
-
-    if (productos.length === 0) {
-        Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
-        return;
+    function quitarProducto(productoId) {
+        let row = document.getElementById(`producto-${productoId}`);
+        let selector = document.getElementById('producto-selector');
+        
+        if (row) {
+            row.remove();
+            
+            // Remover de productos agregados
+            productosAgregados = productosAgregados.filter(id => id != productoId);
+            
+            // Obtener datos del producto
+            const inputHidden = row.querySelector('input[type="hidden"]');
+            const proveedorId = inputHidden.dataset.proveedor;
+            const unidad = inputHidden.dataset.unidad;
+            const nombre = inputHidden.dataset.nombre;
+            
+            // Volver a agregar al selector
+            let productoOption = document.createElement('option');
+            productoOption.value = productoId;
+            productoOption.dataset.proveedor = proveedorId;
+            productoOption.dataset.unidad = unidad;
+            productoOption.dataset.nombre = nombre;
+            productoOption.textContent = nombre + ' (' + unidad + ')';
+            
+            selector.appendChild(productoOption);
+        }
     }
 
-    // Construir listado de productos
-    let productosTexto = Array.from(productos).map(row => {
-        let nombre = row.querySelector('td:first-child').innerText.trim();
-        let cantidad = row.querySelector('input[type="number"]').value;
-        return `${nombre} - ${cantidad}`;
-    }).join('<br>');
-
-    // Simular guardado de la orden
-    let ordenesTable = document.querySelector('#ordenes-table tbody');
-    let row = document.createElement('tr');
-    row.innerHTML = `
-        <td class="p-3">${ordenesTable.rows.length + 1}</td>
-        <td class="p-3">${proveedor.options[proveedor.selectedIndex].text}</td>
-        <td class="p-3">${productosTexto}</td>
-    `;
-    ordenesTable.appendChild(row);
-
-    // Vaciar productos añadidos
-    document.getElementById('productos-table').innerHTML = "";
-    this.reset();
-
-    // Si ya no hay productos disponibles -> mostrar botón ZIP
-    let selector = document.getElementById('producto-selector');
-    if (selector.options.length === 1) {
-        document.getElementById('zip-container').classList.remove('hidden');
-    }
-
-    Swal.fire({icon: 'success', title: 'Orden creada', text: 'La orden de compra fue generada.'});
-});
+    // Validar formulario antes de enviar
+    document.getElementById('orden-form').addEventListener('submit', function(e) {
+        if (productosAgregados.length === 0) {
+            e.preventDefault();
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
+            return;
+        }
+    });
 </script>
 @endsection

@@ -88,7 +88,8 @@ class OrdenCompraController extends Controller
             'observaciones'  => 'nullable|string',
             'requisicion_id' => 'required|exists:requisicion,id',
             'productos'      => 'required|array|min:1',
-            'productos.*'    => 'exists:productos,id',
+            'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.cantidad' => 'required|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -97,6 +98,10 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
+            // Generar número de orden automático
+            $ultimaOrden = OrdenCompra::orderBy('id', 'desc')->first();
+            $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
+
             $orden = OrdenCompra::create([
                 'requisicion_id' => $request->requisicion_id,
                 'proveedor_id'   => $request->proveedor_id,
@@ -104,25 +109,26 @@ class OrdenCompraController extends Controller
                 'methods_oc'     => $request->methods_oc,
                 'plazo_oc'       => $request->plazo_oc,
                 'date_oc'        => now(),
-                'order_oc'       => 'OC-' . now()->format('YmdHis'),
+                'order_oc'       => $numeroOrden,
             ]);
 
-            foreach ($request->productos as $productoId) {
+            foreach ($request->productos as $productoData) {
                 OrdencompraProducto::create([
-                    'producto_id'      => $productoId,
+                    'producto_id'      => $productoData['id'],
                     'orden_compras_id' => $orden->id,
                     'proveedor_id'     => $request->proveedor_id,
+                    'cantidad'         => $productoData['cantidad'],
                     'observaciones'    => $request->observaciones,
                     'methods_oc'       => $request->methods_oc,
                     'plazo_oc'         => $request->plazo_oc,
                     'date_oc'          => now(),
-                    'order_oc'         => $orden->order_oc,
+                    'order_oc'         => $numeroOrden,
                 ]);
             }
 
             DB::commit();
             return redirect()->route('ordenes_compra.lista')
-                ->with('success', 'Orden de compra creada exitosamente.');
+                ->with('success', 'Orden de compra ' . $numeroOrden . ' creada exitosamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
