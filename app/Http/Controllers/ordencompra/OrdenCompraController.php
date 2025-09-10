@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 class OrdenCompraController extends Controller
 {
     /**
-     * Mostrar listado de órdenes de compra
+     * Listado de órdenes de compra
      */
     public function index()
     {
@@ -158,6 +158,7 @@ class OrdenCompraController extends Controller
             $distribucion[$producto->id] = DB::table('centro_producto')
                 ->where('requisicion_id', $requisicion->id)
                 ->where('producto_id', $producto->id)
+                ->whereNull('deleted_at')
                 ->pluck('amount', 'centro_id')
                 ->toArray();
         }
@@ -180,6 +181,7 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
+            // Actualiza datos generales de la orden de compra
             $ordenCompra->update([
                 'date_oc' => now(),
                 'observaciones' => $request->observaciones,
@@ -187,64 +189,92 @@ class OrdenCompraController extends Controller
                 'plazo_oc' => $request->plazo_oc,
             ]);
 
+            // Actualiza productos existentes
             if ($request->has('productos')) {
                 foreach ($request->productos as $productoId => $data) {
-                    if (isset($data['eliminar']) && $data['eliminar'] == 1) {
+                    // Eliminar producto (soft delete)
+                    if (!empty($data['eliminar'])) {
+                        // Soft delete en ordencompra_producto
                         OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)
                             ->where('producto_id', $productoId)
                             ->delete();
 
+                        // Soft delete en producto_requisicion
+                        DB::table('producto_requisicion')
+                            ->where('id_producto', $productoId)
+                            ->where('id_requisicion', $requisicion->id)
+                            ->update(['deleted_at' => now()]);
+
+                        // Soft delete en centro_producto
                         DB::table('centro_producto')
                             ->where('requisicion_id', $requisicion->id)
                             ->where('producto_id', $productoId)
                             ->update(['deleted_at' => now()]);
+
                         continue;
                     }
 
-                    OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)
-                        ->where('producto_id', $productoId)
-                        ->delete();
+                    // Actualizar cantidad total en producto_requisicion
+                    DB::table('producto_requisicion')
+                        ->where('id_producto', $productoId)
+                        ->where('id_requisicion', $requisicion->id)
+                        ->update([
+                            'pr_amount' => $data['cantidad'] ?? 0,
+                            'updated_at' => now(),
+                            'deleted_at' => null, // Reactivar si estaba softdeleted
+                        ]);
 
+                    // Reactivar en ordencompra_producto si estaba softdeleted
+                    OrdencompraProducto::withTrashed()
+                        ->where('orden_compras_id', $ordenCompra->id)
+                        ->where('producto_id', $productoId)
+                        ->restore();
+
+                    // Actualizar distribución: primero softdelete todos los centros de ese producto
                     DB::table('centro_producto')
                         ->where('requisicion_id', $requisicion->id)
                         ->where('producto_id', $productoId)
                         ->update(['deleted_at' => now()]);
 
-                    OrdencompraProducto::create([
-                        'producto_id'      => $productoId,
-                        'orden_compras_id' => $ordenCompra->id,
-                        'proveedor_id'     => $ordenCompra->proveedor_id,
-                        'observaciones'    => $ordenCompra->observaciones,
-                        'methods_oc'       => $ordenCompra->methods_oc,
-                        'plazo_oc'         => $ordenCompra->plazo_oc,
-                        'date_oc'          => now(),
-                        'order_oc'         => $ordenCompra->order_oc,
-                    ]);
+                    // Insertar/actualizar distribución por centro
+                    if (!empty($data['centros'])) {
+                        $totalDistribucion = array_sum($data['centros']);
+                        if ($totalDistribucion != $data['cantidad']) {
+                            throw new \Exception("La suma de la distribución ($totalDistribucion) no coincide con la cantidad total ({$data['cantidad']}) para producto $productoId");
+                        }
 
-                    if (isset($data['centros'])) {
                         foreach ($data['centros'] as $centroId => $cantidad) {
-                            DB::table('centro_producto')->insert([
-                                'requisicion_id' => $requisicion->id,
-                                'producto_id'    => $productoId,
-                                'centro_id'      => $centroId,
-                                'amount'         => $cantidad,
-                                'created_at'     => now(),
-                                'updated_at'     => now(),
-                            ]);
+                            DB::table('centro_producto')->updateOrInsert(
+                                [
+                                    'requisicion_id' => $requisicion->id,
+                                    'producto_id'    => $productoId,
+                                    'centro_id'      => $centroId,
+                                ],
+                                [
+                                    'amount'      => $cantidad,
+                                    'updated_at'  => now(),
+                                    'deleted_at'  => null, // Reactivar si estaba softdeleted
+                                    'created_at'  => now(),
+                                ]
+                            );
                         }
                     }
                 }
             }
 
+            // Agregar nuevos productos
             if ($request->has('nuevos')) {
                 foreach ($request->nuevos as $nuevo) {
+                    if (empty($nuevo['nombre']) || empty($nuevo['cantidad']) || intval($nuevo['cantidad']) < 1) {
+                        continue;
+                    }
                     $producto = Producto::create([
                         'name_produc' => $nuevo['nombre'],
                     ]);
 
                     DB::table('producto_requisicion')->insert([
                         'id_producto'   => $producto->id,
-                        'id_requisicion'=> $requisicion->id,
+                        'id_requisicion' => $requisicion->id,
                         'pr_amount'     => $nuevo['cantidad'],
                         'created_at'    => now(),
                         'updated_at'    => now(),
