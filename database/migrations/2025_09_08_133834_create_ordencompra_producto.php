@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('plazo_oc', 255)->nullable(); #plazos de pago
             $table->string('order_oc')->nullable(); #numero de orden
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

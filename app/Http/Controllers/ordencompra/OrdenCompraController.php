@@ -41,7 +41,7 @@ class OrdenCompraController extends Controller
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->whereColumn('requisicion.id', 'producto_requisicion.id_requisicion')
                     ->whereNull('productos.deleted_at')
-                    ->orderBy('productos.id', 'asc'); //  Corregido
+                    ->orderBy('productos.id', 'asc');
             })
             ->get();
 
@@ -50,7 +50,6 @@ class OrdenCompraController extends Controller
         $productoSeleccionado = null;
         $proveedores = Proveedor::all();
 
-        // Si seleccionó una requisición
         if ($request->has('requisicion_id') && $request->requisicion_id != 0) {
             $requisicion = Requisicion::find($request->requisicion_id);
 
@@ -59,12 +58,11 @@ class OrdenCompraController extends Controller
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->where('producto_requisicion.id_requisicion', $requisicion->id)
                     ->whereNull('productos.deleted_at')
-                    ->orderBy('productos.id', 'asc') //  Corregido
+                    ->orderBy('productos.id', 'asc')
                     ->get();
             }
         }
 
-        // Si seleccionó un producto
         if ($request->has('producto_id') && $request->producto_id != 0) {
             $productoSeleccionado = Producto::with('proveedor')->find($request->producto_id);
         }
@@ -99,7 +97,6 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
-            // Crear la orden de compra
             $orden = OrdenCompra::create([
                 'requisicion_id' => $request->requisicion_id,
                 'proveedor_id'   => $request->proveedor_id,
@@ -110,23 +107,16 @@ class OrdenCompraController extends Controller
                 'order_oc'       => 'OC-' . now()->format('YmdHis'),
             ]);
 
-            // Guardar productos asociados
             foreach ($request->productos as $productoId) {
-                $pivot = DB::table('producto_requisicion')
-                    ->where('id_producto', $productoId)
-                    ->where('id_requisicion', $request->requisicion_id)
-                    ->first();
-
                 OrdencompraProducto::create([
-                    'producto_id'             => $productoId,
-                    'orden_compras_id'        => $orden->id,
-                    'producto_requisicion_id' => $pivot->id ?? null,
-                    'proveedor_id'            => $request->proveedor_id, // ✅ corregido
-                    'observaciones'           => $request->observaciones,
-                    'methods_oc'              => $request->methods_oc,
-                    'plazo_oc'                => $request->plazo_oc,
-                    'date_oc'                 => now(),
-                    'order_oc'                => $orden->order_oc,
+                    'producto_id'      => $productoId,
+                    'orden_compras_id' => $orden->id,
+                    'proveedor_id'     => $request->proveedor_id,
+                    'observaciones'    => $request->observaciones,
+                    'methods_oc'       => $request->methods_oc,
+                    'plazo_oc'         => $request->plazo_oc,
+                    'date_oc'          => now(),
+                    'order_oc'         => $orden->order_oc,
                 ]);
             }
 
@@ -139,16 +129,15 @@ class OrdenCompraController extends Controller
         }
     }
 
-
     /**
-     * Mostrar detalle de una orden
+     * Mostrar detalle
      */
     public function show($id)
     {
         $orden = OrdenCompra::with(['requisicion', 'proveedor', 'ordencompraProductos.producto'])
             ->findOrFail($id);
 
-        return view('ordenes_compra.create', compact('orden'));
+        return view('ordenes_compra.create', ['ordenCompra' => $orden]);
     }
 
     /**
@@ -159,15 +148,11 @@ class OrdenCompraController extends Controller
         Log::info("=== EDIT ORDEN ===");
         Log::info("ID recibido (Orden): " . $id);
 
-        // Buscar la orden de compra con su proveedor y requisición
         $ordenCompra = OrdenCompra::with(['proveedor', 'requisicion'])->findOrFail($id);
-
-        // Traer la requisición asociada
         $requisicion = Requisicion::with('productos')->findOrFail($ordenCompra->requisicion_id);
 
         $centros = Centro::all();
 
-        // Obtener distribución por centro desde la requisición real
         $distribucion = [];
         foreach ($requisicion->productos as $producto) {
             $distribucion[$producto->id] = DB::table('centro_producto')
@@ -177,12 +162,17 @@ class OrdenCompraController extends Controller
                 ->toArray();
         }
 
-        return view('ordenes_compra.edit', compact('ordenCompra', 'requisicion', 'centros', 'distribucion'));
+        return view('ordenes_compra.edit', [
+            'ordenCompra' => $ordenCompra,
+            'requisicion' => $requisicion,
+            'centros' => $centros,
+            'distribucion' => $distribucion,
+        ]);
     }
 
-
-
-
+    /**
+     * Actualizar orden
+     */
     public function update(Request $request, $id)
     {
         $ordenCompra = OrdenCompra::with('requisicion')->findOrFail($id);
@@ -190,54 +180,85 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Actualizar datos generales de la orden
             $ordenCompra->update([
-                'date_oc' => $request->date_oc,
+                'date_oc' => now(),
                 'observaciones' => $request->observaciones,
                 'methods_oc' => $request->methods_oc,
                 'plazo_oc' => $request->plazo_oc,
             ]);
 
-            // 2. Soft delete de productos previos
-            OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)->delete();
+            if ($request->has('productos')) {
+                foreach ($request->productos as $productoId => $data) {
+                    if (isset($data['eliminar']) && $data['eliminar'] == 1) {
+                        OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)
+                            ->where('producto_id', $productoId)
+                            ->delete();
 
-            DB::table('centro_producto')
-                ->where('requisicion_id', $requisicion->id)
-                ->update(['deleted_at' => now()]);
+                        DB::table('centro_producto')
+                            ->where('requisicion_id', $requisicion->id)
+                            ->where('producto_id', $productoId)
+                            ->update(['deleted_at' => now()]);
+                        continue;
+                    }
 
-            // 3. Insertar productos y su distribución
-            foreach ($request->productos as $productoData) {
-                // actualizar cantidad en pivot requisición-producto
-                DB::table('producto_requisicion')
-                    ->where('id_requisicion', $requisicion->id)
-                    ->where('id_producto', $productoData['id'])
-                    ->update(['pr_amount' => $productoData['cantidad']]);
+                    OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)
+                        ->where('producto_id', $productoId)
+                        ->delete();
 
-                // Crear nuevo registro en ordencompra_producto
-                OrdencompraProducto::create([
-                    'producto_id' => $productoData['id'],
-                    'orden_compras_id' => $ordenCompra->id,
-                    'producto_requisicion_id' => DB::table('producto_requisicion')
-                        ->where('id_requisicion', $requisicion->id)
-                        ->where('id_producto', $productoData['id'])
-                        ->value('id'),
-                    'proveedor_id' => $ordenCompra->proveedor_id,
-                    'observaciones' => $ordenCompra->observaciones,
-                    'methods_oc' => $ordenCompra->methods_oc,
-                    'plazo_oc' => $ordenCompra->plazo_oc,
-                    'date_oc' => now(),
-                    'order_oc' => $ordenCompra->order_oc,
-                ]);
+                    DB::table('centro_producto')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->where('producto_id', $productoId)
+                        ->update(['deleted_at' => now()]);
 
-                // Insertar distribuciones nuevas
-                foreach ($productoData['centros'] as $centroId => $cantidad) {
-                    DB::table('centro_producto')->insert([
-                        'requisicion_id' => $requisicion->id,
-                        'producto_id'    => $productoData['id'],
-                        'centro_id'      => $centroId,
-                        'amount'         => $cantidad,
-                        'created_at'     => now(),
-                        'updated_at'     => now(),
+                    OrdencompraProducto::create([
+                        'producto_id'      => $productoId,
+                        'orden_compras_id' => $ordenCompra->id,
+                        'proveedor_id'     => $ordenCompra->proveedor_id,
+                        'observaciones'    => $ordenCompra->observaciones,
+                        'methods_oc'       => $ordenCompra->methods_oc,
+                        'plazo_oc'         => $ordenCompra->plazo_oc,
+                        'date_oc'          => now(),
+                        'order_oc'         => $ordenCompra->order_oc,
+                    ]);
+
+                    if (isset($data['centros'])) {
+                        foreach ($data['centros'] as $centroId => $cantidad) {
+                            DB::table('centro_producto')->insert([
+                                'requisicion_id' => $requisicion->id,
+                                'producto_id'    => $productoId,
+                                'centro_id'      => $centroId,
+                                'amount'         => $cantidad,
+                                'created_at'     => now(),
+                                'updated_at'     => now(),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            if ($request->has('nuevos')) {
+                foreach ($request->nuevos as $nuevo) {
+                    $producto = Producto::create([
+                        'name_produc' => $nuevo['nombre'],
+                    ]);
+
+                    DB::table('producto_requisicion')->insert([
+                        'id_producto'   => $producto->id,
+                        'id_requisicion'=> $requisicion->id,
+                        'pr_amount'     => $nuevo['cantidad'],
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ]);
+
+                    OrdencompraProducto::create([
+                        'producto_id'      => $producto->id,
+                        'orden_compras_id' => $ordenCompra->id,
+                        'proveedor_id'     => $ordenCompra->proveedor_id,
+                        'observaciones'    => $ordenCompra->observaciones,
+                        'methods_oc'       => $ordenCompra->methods_oc,
+                        'plazo_oc'         => $ordenCompra->plazo_oc,
+                        'date_oc'          => now(),
+                        'order_oc'         => $ordenCompra->order_oc,
                     ]);
                 }
             }
@@ -251,28 +272,27 @@ class OrdenCompraController extends Controller
         }
     }
 
-
     /**
-     * Eliminar (borrado permanente)
+     * Eliminar
      */
     public function destroy($id)
     {
         $orden = OrdenCompra::findOrFail($id);
-        $orden->forceDelete(); // Eliminación directa (no soft delete)
+        $orden->forceDelete();
 
         return redirect()->route('ordenes_compra.lista')
             ->with('success', 'Orden de compra eliminada permanentemente.');
     }
 
     /**
-     * Exportar a PDF
+     * Exportar PDF
      */
     public function exportPdf($id)
     {
         $orden = OrdenCompra::with(['requisicion', 'proveedor', 'ordencompraProductos.producto'])
             ->findOrFail($id);
 
-        $pdf = Pdf::loadView('ordenes_compra.pdf', compact('orden'));
+        $pdf = Pdf::loadView('ordenes_compra.pdf', ['ordenCompra' => $orden]);
         return $pdf->download("orden_compra_{$orden->id}.pdf");
     }
 }
