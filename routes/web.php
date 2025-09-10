@@ -171,6 +171,10 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::delete('ordenes_compra/{id}', [OrdenCompraController::class, 'destroy'])
         ->name('ordenes_compra.destroy');
+
+    // Ruta para anular órdenes de compra (usando POST en lugar de DELETE)
+    Route::post('ordenes_compra/{id}/anular', [OrdenCompraController::class, 'anular'])
+        ->name('ordenes_compra.anular');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

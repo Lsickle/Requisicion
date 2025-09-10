@@ -112,10 +112,8 @@
                     <select id="producto-selector" class="w-full border rounded-lg p-2">
                         <option value="">Seleccione un producto</option>
                         @foreach($productosDisponibles as $producto)
-                        <option value="{{ $producto->id }}" 
-                                data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                data-unidad="{{ $producto->unit_produc }}"
-                                data-nombre="{{ $producto->name_produc }}">
+                        <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
+                            data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}">
                             {{ $producto->name_produc }} ({{ $producto->unit_produc }})
                         </option>
                         @endforeach
@@ -160,13 +158,14 @@
                     <th class="p-3">Número de Orden</th>
                     <th class="p-3">Proveedor</th>
                     <th class="p-3">Productos</th>
+                    <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 @php
-                    $ordenesCreadas = \App\Models\OrdenCompra::where('requisicion_id', $requisicion->id)
-                        ->with(['proveedor', 'ordencompraProductos.producto'])
-                        ->get();
+                $ordenesCreadas = \App\Models\OrdenCompra::where('requisicion_id', $requisicion->id)
+                ->with(['proveedor', 'ordencompraProductos.producto'])
+                ->get();
                 @endphp
                 @foreach($ordenesCreadas as $index => $orden)
                 <tr>
@@ -177,12 +176,21 @@
                     </td>
                     <td class="p-3">
                         @foreach($orden->ordencompraProductos as $productoOrden)
-                            @if($productoOrden->producto)
-                                {{ $productoOrden->producto->name_produc }} ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
-                            @else
-                                Producto eliminado ({{ $productoOrden->cantidad }})<br>
-                            @endif
+                        @if($productoOrden->producto)
+                        {{ $productoOrden->producto->name_produc }} ({{ $productoOrden->cantidad }} {{
+                        $productoOrden->producto->unit_produc }})<br>
+                        @else
+                        Producto eliminado ({{ $productoOrden->cantidad }})<br>
+                        @endif
                         @endforeach
+                    </td>
+                    <td class="p-3 text-center">
+                        <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
+                            @csrf
+                            <button type="button" onclick="confirmarAnulacion(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                Anular
+                            </button>
+                        </form>
                     </td>
                 </tr>
                 @endforeach
@@ -191,8 +199,8 @@
 
         <!-- Botón descargar ZIP (oculto hasta que ya no queden productos) -->
         <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
-            <a href="#" 
-               class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+            <a href="#"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
                 Descargar ZIP de Órdenes
             </a>
         </div>
@@ -324,6 +332,24 @@
                 document.getElementById('zip-container').classList.add('hidden');
             }
         }
+    }
+
+    // Confirmar anulación de orden
+    function confirmarAnulacion(button) {
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Esta acción anulará la orden de compra. ¿Deseas continuar?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, anular',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                button.closest('form').submit();
+            }
+        });
     }
 
     // Validar formulario antes de enviar

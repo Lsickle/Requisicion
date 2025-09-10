@@ -66,7 +66,8 @@ class OrdenCompraController extends Controller
                             ->from('ordencompra_producto')
                             ->join('orden_compras', 'ordencompra_producto.orden_compras_id', '=', 'orden_compras.id')
                             ->whereRaw('ordencompra_producto.producto_id = productos.id')
-                            ->where('orden_compras.requisicion_id', $requisicion->id);
+                            ->where('orden_compras.requisicion_id', $requisicion->id)
+                            ->whereNull('ordencompra_producto.deleted_at');
                     })
                     ->orderBy('productos.id', 'asc')
                     ->get();
@@ -142,6 +143,31 @@ class OrdenCompraController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Anular orden (soft delete)
+     */
+    public function anular($id)
+    {
+        DB::beginTransaction();
+        try {
+            $orden = OrdenCompra::findOrFail($id);
+            
+            // Soft delete de los productos relacionados
+            OrdencompraProducto::where('orden_compras_id', $id)->delete();
+            
+            // Soft delete de la orden
+            $orden->delete();
+            
+            DB::commit();
+            
+            return redirect()->back()
+                ->with('success', 'Orden de compra anulada correctamente.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Error al anular la orden: ' . $e->getMessage());
         }
     }
 
@@ -355,7 +381,7 @@ class OrdenCompraController extends Controller
     }
 
     /**
-     * Eliminar
+     * Eliminar permanentemente
      */
     public function destroy($id)
     {
