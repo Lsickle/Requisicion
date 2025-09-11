@@ -13,7 +13,6 @@ use App\Jobs\EstatusRequisicionActualizadoJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\OrdenCompra;
-use App\Models\OrdenCompraProducto;
 
 class EstatusRequisicionController extends Controller
 {
@@ -162,47 +161,17 @@ class EstatusRequisicionController extends Controller
                     'date_update' => now(),
                 ]);
 
-                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR ORDEN DE COMPRA + DETALLE
+                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR ORDEN DE COMPRA (SIN requisicion_id)
                 if ($request->estatus_id == 4 && $role === 'Gerente financiero') {
                     try {
-                        $numeroOrden = 'OC-' . now()->format('YmdHis');
-
-                        $requisicionCompleta = Requisicion::with(['productos.proveedor'])->find($requisicionId);
-
-                        if (!$requisicionCompleta || $requisicionCompleta->productos->isEmpty()) {
-                            throw new \Exception("La requisición no tiene productos válidos");
-                        }
-
-                        $ordenCompra = OrdenCompra::create([
-                            'requisicion_id' => $requisicionId,
+                        OrdenCompra::create([
+                            // Aquí puedes agregar otros campos obligatorios de tu tabla ordenes_compra
+                            // Ejemplo:
+                            // 'numero_oc' => 'OC-' . time(),
+                            // 'fecha' => now(),
                         ]);
 
-                        foreach ($requisicionCompleta->productos as $producto) {
-                            $cantidad = $producto->pivot->pr_amount ?? 0; // cantidad desde la pivot producto_requisicion
-                            $proveedorId = $producto->proveedor_id;
-
-                            if (!$proveedorId) {
-                                Log::warning("El producto ID: {$producto->id} no tiene proveedor asignado");
-                                continue;
-                            }
-
-                            OrdenCompraProducto::create([
-                                'producto_id' => $producto->id,
-                                'orden_compras_id' => $ordenCompra->id,
-                                'proveedor_id' => $proveedorId,
-                                'producto_requisicion_id' => $producto->pivot->id ?? null, // opcional, si necesitas trazar
-                                'observaciones' => null,
-                                'methods_oc' => null,
-                                'plazo_oc' => null,
-                                'date_oc' => null,
-                                'order_oc' => null,
-                                'costo_unitario' => null,
-                                'costo_total' => null,
-                                'cantidad' => $cantidad,
-                            ]);
-                        }
-
-                        Log::info("Orden de compra {$ordenCompra->id} creada exitosamente para requisición {$requisicionId}");
+                        Log::info("Orden de compra creada exitosamente (sin requisicion_id) para requisición {$requisicionId}");
                     } catch (\Exception $e) {
                         Log::error("ERROR al crear orden de compra: " . $e->getMessage());
                     }

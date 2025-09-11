@@ -175,6 +175,18 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para anular órdenes de compra (usando POST en lugar de DELETE)
     Route::post('ordenes_compra/{id}/anular', [OrdenCompraController::class, 'anular'])
         ->name('ordenes_compra.anular');
+
+    // Ruta para descargar ZIP de órdenes
+    Route::get('ordenes_compra/{requisicionId}/download-zip', [OrdenCompraController::class, 'downloadZip'])
+        ->name('ordenes_compra.downloadZip');
+
+    // Ruta para mostrar orden específica
+    Route::get('ordenes_compra/{id}', [OrdenCompraController::class, 'show'])
+        ->name('ordenes_compra.show');
+
+    // Ruta para exportar PDF individual
+    Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
+        ->name('ordenes_compra.pdf');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

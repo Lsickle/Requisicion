@@ -163,22 +163,30 @@
             </thead>
             <tbody>
                 @php
-                $ordenesCreadas = \App\Models\OrdenCompra::where('requisicion_id', $requisicion->id)
-                ->with(['proveedor', 'ordencompraProductos.producto'])
-                ->get();
+                $productosOrdenes = \App\Models\OrdenCompraProducto::whereHas('ordenCompra', function($query) use
+                ($requisicion) {
+                $query->where('requisicion_id', $requisicion->id);
+                })
+                ->with(['ordenCompra.proveedor', 'producto'])
+                ->get()
+                ->groupBy('orden_compra_id');
                 @endphp
-                @foreach($ordenesCreadas as $index => $orden)
+
+                @foreach($productosOrdenes as $ordenId => $productos)
+                @php
+                $orden = $productos->first()->ordenCompra;
+                @endphp
                 <tr>
-                    <td class="p-3">{{ $index + 1 }}</td>
+                    <td class="p-3">{{ $loop->iteration }}</td>
                     <td class="p-3">{{ $orden->order_oc }}</td>
                     <td class="p-3">
                         {{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no disponible' }}
                     </td>
                     <td class="p-3">
-                        @foreach($orden->ordencompraProductos as $productoOrden)
+                        @foreach($productos as $productoOrden)
                         @if($productoOrden->producto)
-                        {{ $productoOrden->producto->name_produc }} ({{ $productoOrden->cantidad }} {{
-                        $productoOrden->producto->unit_produc }})<br>
+                        {{ $productoOrden->producto->name_produc }}
+                        ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
                         @else
                         Producto eliminado ({{ $productoOrden->cantidad }})<br>
                         @endif
@@ -187,7 +195,8 @@
                     <td class="p-3 text-center">
                         <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
                             @csrf
-                            <button type="button" onclick="confirmarAnulacion(this)" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                            <button type="button" onclick="confirmarAnulacion(this)"
+                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
                                 Anular
                             </button>
                         </form>
@@ -199,8 +208,7 @@
 
         <!-- Botón descargar ZIP (oculto hasta que ya no queden productos) -->
         <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
-            <a href="#"
-                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+            <a href="#" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
                 Descargar ZIP de Órdenes
             </a>
         </div>

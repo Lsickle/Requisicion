@@ -58,6 +58,12 @@ class Requisicion extends Model
 
     public function ordenCompra()
     {
-        return $this->hasOne(OrdenCompra::class, 'requisicion_id');
+        return $this->hasOne(\App\Models\OrdenCompra::class, 'requisicion_id');
+    }
+
+    // Y para obtener la última orden (si quieres mostrar el botón de editar para la última)
+    public function ultimaOrdenCompra()
+    {
+        return $this->hasOne(OrdenCompra::class, 'requisicion_id')->latest();
     }
 }
