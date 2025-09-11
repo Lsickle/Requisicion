@@ -147,6 +147,7 @@
                                     <th class="p-3 text-left">Producto</th>
                                     <th class="p-3 text-center">Cantidad</th>
                                     <th class="p-3 text-center">Unidad</th>
+                                    <th class="p-3 text-center">Distribución por Centros</th>
                                     <th class="p-3 text-center">Acciones</th>
                                 </tr>
                             </thead>
@@ -222,7 +223,7 @@
 
                 <!-- Botón descargar ZIP -->
                 <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
-                    <a href="#"
+                    <a href="{{ route('ordenes_compra.downloadZip', $requisicion->id) }}"
                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
                         Descargar ZIP de Órdenes
                     </a>
@@ -235,6 +236,7 @@
 
 <script>
     let productosAgregados = [];
+    let centros = @json($centros);
     
     function agregarProducto() {
         let selector = document.getElementById('producto-selector');
@@ -281,6 +283,20 @@
         
         let row = document.createElement('tr');
         row.id = `producto-${productoId}`;
+        
+        // Generar campos de distribución por centros
+        let centrosHtml = '';
+        centros.forEach(centro => {
+            centrosHtml += `
+                <div class="mb-2">
+                    <label class="block text-sm text-gray-600">${centro.name_centro}:</label>
+                    <input type="number" name="productos[${productoId}][centros][${centro.id}]" 
+                           min="0" value="0" class="w-20 border rounded p-1 text-center distribucion-centro"
+                           data-producto="${productoId}" onchange="actualizarTotal(${productoId})">
+                </div>
+            `;
+        });
+        
         row.innerHTML = `
             <td class="p-3">
                 ${productoNombre}
@@ -289,18 +305,19 @@
             </td>
             <td class="p-3 text-center">
                 <input type="number" name="productos[${productoId}][cantidad]" min="1" value="1" 
-                    class="w-20 border rounded p-1 text-center" required>
+                    class="w-20 border rounded p-1 text-center cantidad-total" 
+                    id="cantidad-total-${productoId}" 
+                    onchange="distribuirAutomaticamente(${productoId})" required>
             </td>
             <td class="p-3 text-center">${unidad}</td>
+            <td class="p-3">
+                <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                    ${centrosHtml}
+                </div>
+            </td>
             <td class="p-3 text-center space-x-2">
                 <button type="button" onclick="quitarProducto(${productoId})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg">Quitar</button>
-                <button type="button" onclick="mostrarCampoStock(${productoId})" 
-                    class="bg-yellow-500 text-white px-3 py-1 rounded-lg">Quitar de Stock</button>
-                <div id="nota-stock-${productoId}" class="mt-2 hidden">
-                    <input type="text" placeholder="Anotar..." 
-                        class="w-full border rounded p-1 text-sm">
-                </div>
             </td>
         `;
         table.appendChild(row);
@@ -324,10 +341,28 @@
         }
     }
 
-    function mostrarCampoStock(productoId) {
-        let campo = document.getElementById(`nota-stock-${productoId}`);
-        if (campo) {
-            campo.classList.toggle('hidden');
+    function actualizarTotal(productoId) {
+        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+        let total = 0;
+        
+        inputs.forEach(input => {
+            total += parseInt(input.value) || 0;
+        });
+        
+        document.getElementById(`cantidad-total-${productoId}`).value = total;
+    }
+
+    function distribuirAutomaticamente(productoId) {
+        const total = parseInt(document.getElementById(`cantidad-total-${productoId}`).value) || 0;
+        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+        
+        if (inputs.length > 0 && total > 0) {
+            const cantidadPorCentro = Math.floor(total / inputs.length);
+            const resto = total % inputs.length;
+            
+            inputs.forEach((input, index) => {
+                input.value = index < resto ? cantidadPorCentro + 1 : cantidadPorCentro;
+            });
         }
     }
 
@@ -381,6 +416,33 @@
             e.preventDefault();
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
             return;
+        }
+
+        // Validar que la distribución coincida con las cantidades
+        let errores = [];
+        productosAgregados.forEach(productoId => {
+            const totalInput = document.getElementById(`cantidad-total-${productoId}`);
+            const total = parseInt(totalInput.value) || 0;
+            
+            const distribucionInputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+            let distribucionTotal = 0;
+            
+            distribucionInputs.forEach(input => {
+                distribucionTotal += parseInt(input.value) || 0;
+            });
+            
+            if (total !== distribucionTotal) {
+                errores.push(`La distribución del producto ${productoId} no coincide con la cantidad total`);
+            }
+        });
+        
+        if (errores.length > 0) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de validación',
+                html: errores.join('<br>')
+            });
         }
     });
 </script>

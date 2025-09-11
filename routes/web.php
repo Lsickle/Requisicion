@@ -189,8 +189,6 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
     
-    Route::get('requisiciones/dashboard', [DashboardController::class])
-        ->name('dashboard');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class OrdenCompra extends Model
 {
@@ -37,5 +38,19 @@ class OrdenCompra extends Model
     public function proveedor(): BelongsTo
     {
         return $this->belongsTo(Proveedor::class, 'proveedor_id');
+    }
+
+    // 🔹 NUEVA RELACIÓN: Distribución de productos por centro de costo para la orden de compra
+    public function centrosProductos(): BelongsToMany
+    {
+        return $this->belongsToMany(Producto::class, 'ordencompra_centro_producto', 'orden_compra_id', 'producto_id')
+            ->withPivot('centro_id', 'amount')
+            ->withTimestamps();
+    }
+
+    // 🔹 RELACIÓN DIRECTA para acceder a la distribución centro-producto
+    public function distribucionCentrosProductos(): HasMany
+    {
+        return $this->hasMany(OrdenCompraCentroProducto::class, 'orden_compra_id');
     }
 }

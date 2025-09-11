@@ -76,7 +76,7 @@
                         case 6: case 9: $nombreEstatus = 'Cancelada/Rechazada'; $colorEstatus = 'bg-red-600'; break;
                         case 7: case 8: $nombreEstatus = 'Recibido'; $colorEstatus = 'bg-indigo-600'; break;
                         case 10: $nombreEstatus = 'Completado'; $colorEstatus = 'bg-green-600'; break;
-                        case 11: $nombreEstatus = 'Corregir'; $colorEstatus = 'bg-orange-500'; break;
+                        case 11: $nombreEstatus = 'Ajustes requeridos'; $colorEstatus = 'bg-orange-500'; break;
                         }
                         }
                         @endphp
