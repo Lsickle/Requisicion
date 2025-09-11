@@ -73,6 +73,52 @@
                     <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
                     <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
                 </div>
+
+                <!-- Mostrar distribución original de la requisición -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Distribución Original por Centros</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border border-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">Producto</th>
+                                    <th class="px-4 py-2 text-center">Cantidad Total</th>
+                                    <th class="px-4 py-2 text-left">Distribución por Centros</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($requisicion->productos as $prod)
+                                @php
+                                $distribucion = DB::table('centro_producto')
+                                    ->where('requisicion_id', $requisicion->id)
+                                    ->where('producto_id', $prod->id)
+                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                    ->select('centro.name_centro', 'centro_producto.amount')
+                                    ->get();
+                                @endphp
+                                <tr>
+                                    <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
+                                    <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}</td>
+                                    <td class="px-4 py-3 border">
+                                        @if($distribucion->count() > 0)
+                                        <div class="space-y-2">
+                                            @foreach($distribucion as $centro)
+                                            <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+                                                <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
+                                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                            </div>
+                                            @endforeach
+                                        </div>
+                                        @else
+                                        <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             @endif
 
@@ -126,7 +172,8 @@
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
                                 <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                    data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}">
+                                    data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}"
+                                    data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }})
                                 </option>
                                 @endforeach
@@ -238,6 +285,18 @@
     let productosAgregados = [];
     let centros = @json($centros);
     
+    // Preparar la distribución original de la requisición
+    let distribucionOriginal = {};
+    @if($requisicion)
+        @foreach($requisicion->productos as $prod)
+            distribucionOriginal[{{ $prod->id }}] = {
+                @foreach(DB::table('centro_producto')->where('requisicion_id', $requisicion->id)->where('producto_id', $prod->id)->get() as $dist)
+                    {{ $dist->centro_id }}: {{ $dist->amount }},
+                @endforeach
+            };
+        @endforeach
+    @endif
+
     function agregarProducto() {
         let selector = document.getElementById('producto-selector');
         let proveedorSelect = document.getElementById('proveedor_id');
@@ -246,6 +305,7 @@
         let productoNombre = selector.options[selector.selectedIndex]?.dataset.nombre;
         let proveedorId = selector.options[selector.selectedIndex]?.dataset.proveedor;
         let unidad = selector.options[selector.selectedIndex]?.dataset.unidad || '';
+        let cantidadOriginal = selector.options[selector.selectedIndex]?.dataset.cantidad || 1;
 
         if (!productoId) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
@@ -269,29 +329,33 @@
             }).then((result) => {
                 if (result.isConfirmed) {
                     proveedorSelect.value = proveedorId;
-                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector);
+                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector);
                 }
             });
         } else {
-            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector);
+            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector);
         }
     }
 
-    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, selector) {
+    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector) {
         let table = document.getElementById('productos-table');
         let proveedorSelect = document.getElementById('proveedor_id');
         
         let row = document.createElement('tr');
         row.id = `producto-${productoId}`;
         
+        // Obtener distribución original para este producto
+        let distribucionProducto = distribucionOriginal[productoId] || {};
+        
         // Generar campos de distribución por centros
         let centrosHtml = '';
         centros.forEach(centro => {
+            let cantidadCentro = distribucionProducto[centro.id] || 0;
             centrosHtml += `
                 <div class="mb-2">
                     <label class="block text-sm text-gray-600">${centro.name_centro}:</label>
                     <input type="number" name="productos[${productoId}][centros][${centro.id}]" 
-                           min="0" value="0" class="w-20 border rounded p-1 text-center distribucion-centro"
+                           min="0" value="${cantidadCentro}" class="w-20 border rounded p-1 text-center distribucion-centro"
                            data-producto="${productoId}" onchange="actualizarTotal(${productoId})">
                 </div>
             `;
@@ -304,7 +368,7 @@
                     data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}">
             </td>
             <td class="p-3 text-center">
-                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="1" 
+                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="${cantidadOriginal}" 
                     class="w-20 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${productoId}" 
                     onchange="distribuirAutomaticamente(${productoId})" required>
@@ -339,10 +403,13 @@
         if (selector.options.length === 1) {
             document.getElementById('zip-container').classList.remove('hidden');
         }
+        
+        // Calcular total inicial
+        actualizarTotal(productoId);
     }
 
     function actualizarTotal(productoId) {
-        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
         let total = 0;
         
         inputs.forEach(input => {
@@ -354,7 +421,7 @@
 
     function distribuirAutomaticamente(productoId) {
         const total = parseInt(document.getElementById(`cantidad-total-${productoId}`).value) || 0;
-        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
         
         if (inputs.length > 0 && total > 0) {
             const cantidadPorCentro = Math.floor(total / inputs.length);
@@ -378,12 +445,14 @@
             const proveedorId = inputHidden.dataset.proveedor;
             const unidad = inputHidden.dataset.unidad;
             const nombre = inputHidden.dataset.nombre;
+            const cantidad = inputHidden.dataset.cantidad;
             
             let productoOption = document.createElement('option');
             productoOption.value = productoId;
             productoOption.dataset.proveedor = proveedorId;
             productoOption.dataset.unidad = unidad;
             productoOption.dataset.nombre = nombre;
+            productoOption.dataset.cantidad = cantidad;
             productoOption.textContent = nombre + ' (' + unidad + ')';
             
             selector.appendChild(productoOption);
@@ -424,7 +493,7 @@
             const totalInput = document.getElementById(`cantidad-total-${productoId}`);
             const total = parseInt(totalInput.value) || 0;
             
-            const distribucionInputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][]"]`);
+            const distribucionInputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
             let distribucionTotal = 0;
             
             distribucionInputs.forEach(input => {

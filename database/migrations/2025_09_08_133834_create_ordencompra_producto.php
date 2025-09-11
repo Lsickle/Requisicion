@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('methods_oc', 255)->nullable(); #metodos de pago
             $table->string('plazo_oc', 255)->nullable(); #plazos de pago
             $table->string('order_oc')->nullable(); #numero de orden
+            $table->string('total')->nullable(); #cantidad de la orden de compra
             $table->timestamps();
             $table->softDeletes();
         });

@@ -43,11 +43,10 @@ class OrdenCompraController extends Controller
                     ->from('productos')
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->whereColumn('requisicion.id', 'producto_requisicion.id_requisicion')
-                    ->whereNull('productos.deleted_at')
-                    ->orderBy('productos.id', 'asc');
+                    ->whereNull('productos.deleted_at');
             })
             ->get();
-
+            
         $requisicion = null;
         $productosDisponibles = collect();
         $productoSeleccionado = null;
@@ -174,18 +173,18 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             $orden = OrdenCompra::findOrFail($id);
-            
+
             // Soft delete de los productos relacionados
             OrdencompraProducto::where('orden_compras_id', $id)->delete();
-            
+
             // Soft delete de la distribución por centros
             OrdenCompraCentroProducto::where('orden_compra_id', $id)->delete();
-            
+
             // Soft delete de la orden
             $orden->delete();
-            
+
             DB::commit();
-            
+
             return redirect()->back()
                 ->with('success', 'Orden de compra anulada correctamente.');
         } catch (\Exception $e) {
@@ -247,12 +246,12 @@ class OrdenCompraController extends Controller
     public function edit($id)
     {
         $ordenCompra = OrdenCompra::with([
-            'proveedor', 
+            'proveedor',
             'requisicion',
             'distribucionCentrosProductos.centro',
             'distribucionCentrosProductos.producto'
         ])->findOrFail($id);
-        
+
         $requisicion = Requisicion::with('productos')->findOrFail($ordenCompra->requisicion_id);
         $centros = Centro::all();
 
@@ -366,8 +365,8 @@ class OrdenCompraController extends Controller
     public function exportPdf($id)
     {
         $orden = OrdenCompra::with([
-            'requisicion', 
-            'proveedor', 
+            'requisicion',
+            'proveedor',
             'ordencompraProductos.producto',
             'distribucionCentrosProductos.centro'
         ])->findOrFail($id);
