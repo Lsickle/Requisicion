@@ -19,6 +19,7 @@ use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
 use App\Http\Controllers\Proveedores\ProveedoresController;
+use App\Http\Controllers\dashboard\DashboardController;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -187,6 +188,9 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
+    
+    Route::get('requisiciones/dashboard', [DashboardController::class])
+        ->name('dashboard');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

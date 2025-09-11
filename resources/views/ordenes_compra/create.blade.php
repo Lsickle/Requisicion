@@ -3,226 +3,241 @@
 @section('title', 'Crear Orden de Compra')
 
 @section('content')
-<x-sidebar />
+<div class="flex pt-20">
+    <!-- Sidebar -->
+    <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-white rounded-lg shadow-md">
-    <h1 class="text-2xl font-bold mb-6 text-gray-800">
-        Crear Orden de Compra
-    </h1>
+    <!-- Contenido principal -->
+    <div class="flex-1 px-4 md:px-8 pb-10">
+        <div class="max-w-7xl mx-auto bg-gray-50 rounded-xl shadow-lg p-6 flex flex-col min-h-[80vh]">
 
-    @if(session('success'))
-    <script>
-        Swal.fire({
-            icon: 'success',
-            title: 'Éxito',
-            text: '{{ session('success') }}',
-            confirmButtonText: 'Aceptar'
-        });
-    </script>
-    @endif
+            <!-- Encabezado -->
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-2xl font-bold text-gray-800">
+                    Crear Orden de Compra
+                </h1>
+                <a href="{{ route('ordenes_compra.lista') }}" 
+                   class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                    ← Volver
+                </a>
+            </div>
 
-    @if($requisicion)
-    <!-- ================= Datos de la Requisición ================= -->
-    <div class="mb-8 border rounded-lg bg-gray-50 p-6 relative">
-        <div class="absolute top-4 right-4">
-            @if($requisicion->ordenCompra?->id)
-            <a href="{{ route('ordenes_compra.edit', $requisicion->ordenCompra->id) }}"
-                class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
-                <i class="fas fa-edit mr-2"></i> Editar Orden de Compra
-            </a>
+            <!-- Mensaje éxito -->
+            @if(session('success'))
+            <script>
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Éxito',
+                    text: '{{ session('success') }}',
+                    confirmButtonText: 'Aceptar'
+                });
+            </script>
             @endif
-        </div>
 
-        <h2 class="text-xl font-semibold text-gray-700 mb-4">Detalles de la Requisición #{{ $requisicion->id }}</h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div class="bg-white p-4 rounded-lg border">
-                <h3 class="font-semibold text-gray-700 mb-2">Información del Solicitante</h3>
-                <p><strong>Nombre:</strong> {{ $requisicion->name_user }}</p>
-                <p><strong>Email:</strong> {{ $requisicion->email_user }}</p>
-                <p><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg border">
-                <h3 class="font-semibold text-gray-700 mb-2">Información General</h3>
-                <p><strong>Prioridad:</strong>
-                    <span class="px-2 py-1 rounded-full text-xs font-semibold
-                        {{ $requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' :
-                           ($requisicion->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' :
-                           'bg-green-100 text-green-800') }}">
-                        {{ ucfirst($requisicion->prioridad_requisicion) }}
-                    </span>
-                </p>
-                <p><strong>Recobrable:</strong> {{ $requisicion->Recobrable }}</p>
-            </div>
-        </div>
-
-        <div class="mb-4">
-            <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
-            <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
-        </div>
-    </div>
-    @endif
-
-    <!-- Formulario para Crear Orden -->
-    @if($requisicion)
-    <div class="border p-4 mb-6 rounded-lg shadow">
-        <h2 class="text-xl font-semibold text-gray-700 mb-4">
-            Crear Orden de Compra
-        </h2>
-
-        <form id="orden-form" action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
-            @csrf
-            <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Proveedor *</label>
-                    <select id="proveedor_id" name="proveedor_id" class="w-full border rounded-lg p-2" required>
-                        <option value="">Seleccione un proveedor</option>
-                        @foreach($proveedores as $proveedor)
-                        <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
-                        @endforeach
-                    </select>
+            <!-- ================= Datos de la Requisición ================= -->
+            @if($requisicion)
+            <div class="mb-8 border rounded-lg bg-white p-6 relative shadow-sm">
+                <div class="absolute top-4 right-4">
+                    @if($requisicion->ordenCompra?->id)
+                    <a href="{{ route('ordenes_compra.edit', $requisicion->ordenCompra->id) }}"
+                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
+                        <i class="fas fa-edit mr-2"></i> Editar Orden de Compra
+                    </a>
+                    @endif
                 </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
-                    <select name="methods_oc" class="w-full border rounded-lg p-2">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Transferencia">Transferencia</option>
-                    </select>
+
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Requisición #{{ $requisicion->id }}</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-gray-50 p-4 rounded-lg border">
+                        <h3 class="font-semibold text-gray-700 mb-2">Solicitante</h3>
+                        <p><strong>Nombre:</strong> {{ $requisicion->name_user }}</p>
+                        <p><strong>Email:</strong> {{ $requisicion->email_user }}</p>
+                        <p><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border">
+                        <h3 class="font-semibold text-gray-700 mb-2">Información General</h3>
+                        <p><strong>Prioridad:</strong>
+                            <span class="px-2 py-1 rounded-full text-xs font-semibold
+                                {{ $requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' :
+                                   ($requisicion->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' :
+                                   'bg-green-100 text-green-800') }}">
+                                {{ ucfirst($requisicion->prioridad_requisicion) }}
+                            </span>
+                        </p>
+                        <p><strong>Recobrable:</strong> {{ $requisicion->Recobrable }}</p>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Plazo de Pago</label>
-                    <select name="plazo_oc" class="w-full border rounded-lg p-2">
-                        <option value="Contado">Contado</option>
-                        <option value="30 días">30 días</option>
-                        <option value="45 días">45 días</option>
-                    </select>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-gray-600 font-semibold mb-1">Observaciones</label>
-                    <textarea name="observaciones" rows="2" class="w-full border rounded-lg p-2"></textarea>
+
+                <div class="mb-4">
+                    <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
+                    <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
                 </div>
             </div>
+            @endif
 
-            <!-- Productos -->
-            <div class="mt-6">
-                <label class="block text-gray-600 font-semibold mb-1">Añadir Producto</label>
-                <div class="flex gap-3">
-                    <select id="producto-selector" class="w-full border rounded-lg p-2">
-                        <option value="">Seleccione un producto</option>
-                        @foreach($productosDisponibles as $producto)
-                        <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                            data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}">
-                            {{ $producto->name_produc }} ({{ $producto->unit_produc }})
-                        </option>
-                        @endforeach
-                    </select>
-                    <button type="button" onclick="agregarProducto()"
-                        class="bg-green-500 text-white px-4 py-2 rounded-lg">➕ Añadir</button>
-                </div>
+            <!-- Formulario para Crear Orden -->
+            @if($requisicion)
+            <div class="border p-6 mb-6 rounded-lg shadow bg-white">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">
+                    Nueva Orden de Compra
+                </h2>
+
+                <form id="orden-form" action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
+                    @csrf
+                    <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-gray-600 font-semibold mb-1">Proveedor *</label>
+                            <select id="proveedor_id" name="proveedor_id" class="w-full border rounded-lg p-2" required>
+                                <option value="">Seleccione un proveedor</option>
+                                @foreach($proveedores as $proveedor)
+                                <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
+                            <select name="methods_oc" class="w-full border rounded-lg p-2">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-600 font-semibold mb-1">Plazo de Pago</label>
+                            <select name="plazo_oc" class="w-full border rounded-lg p-2">
+                                <option value="Contado">Contado</option>
+                                <option value="30 días">30 días</option>
+                                <option value="45 días">45 días</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-gray-600 font-semibold mb-1">Observaciones</label>
+                            <textarea name="observaciones" rows="2" class="w-full border rounded-lg p-2"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Selector de productos -->
+                    <div class="mt-6">
+                        <label class="block text-gray-600 font-semibold mb-1">Añadir Producto</label>
+                        <div class="flex gap-3">
+                            <select id="producto-selector" class="w-full border rounded-lg p-2">
+                                <option value="">Seleccione un producto</option>
+                                @foreach($productosDisponibles as $producto)
+                                <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
+                                    data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}">
+                                    {{ $producto->name_produc }} ({{ $producto->unit_produc }})
+                                </option>
+                                @endforeach
+                            </select>
+                            <button type="button" onclick="agregarProducto()"
+                                class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                                ➕ Añadir
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tabla productos -->
+                    <div class="overflow-x-auto mt-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Productos en la Orden</h3>
+                        <table class="w-full border text-sm rounded-lg overflow-hidden">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="p-3 text-left">Producto</th>
+                                    <th class="p-3 text-center">Cantidad</th>
+                                    <th class="p-3 text-center">Unidad</th>
+                                    <th class="p-3 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productos-table"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Botón submit -->
+                    <div class="flex justify-end gap-4 mt-6">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                            Crear Orden de Compra
+                        </button>
+                    </div>
+                </form>
             </div>
 
-            <!-- Tabla productos -->
-            <div class="overflow-x-auto mt-6">
-                <h3 class="text-lg font-semibold text-gray-700 mb-2">Productos en la Orden</h3>
-                <table class="w-full border text-sm">
+            <!-- Tabla de órdenes creadas -->
+            <div class="border p-6 mt-10 rounded-lg shadow bg-white">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
+                <table class="w-full border text-sm rounded-lg overflow-hidden" id="ordenes-table">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="p-3">Producto</th>
-                            <th class="p-3">Cantidad</th>
-                            <th class="p-3">Unidad</th>
+                            <th class="p-3">#</th>
+                            <th class="p-3">Número</th>
+                            <th class="p-3">Proveedor</th>
+                            <th class="p-3">Productos</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="productos-table"></tbody>
-                </table>
-            </div>
+                    <tbody>
+                        @php
+                        $productosOrdenes = \App\Models\OrdenCompraProducto::whereHas('ordenCompra', function($query) use ($requisicion) {
+                            $query->where('requisicion_id', $requisicion->id);
+                        })
+                        ->with(['ordenCompra.proveedor', 'producto'])
+                        ->get()
+                        ->groupBy('orden_compra_id');
+                        @endphp
 
-            <div class="flex justify-end gap-4 mt-6">
-                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg">
-                    Crear Orden de Compra
-                </button>
-            </div>
-        </form>
-
-    </div>
-
-    <!-- Tabla de órdenes creadas -->
-    <div class="border p-4 mt-10 rounded-lg shadow">
-        <h2 class="text-xl font-semibold text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
-        <table class="w-full border text-sm" id="ordenes-table">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="p-3">#</th>
-                    <th class="p-3">Número de Orden</th>
-                    <th class="p-3">Proveedor</th>
-                    <th class="p-3">Productos</th>
-                    <th class="p-3 text-center">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                @php
-                $productosOrdenes = \App\Models\OrdenCompraProducto::whereHas('ordenCompra', function($query) use
-                ($requisicion) {
-                $query->where('requisicion_id', $requisicion->id);
-                })
-                ->with(['ordenCompra.proveedor', 'producto'])
-                ->get()
-                ->groupBy('orden_compra_id');
-                @endphp
-
-                @foreach($productosOrdenes as $ordenId => $productos)
-                @php
-                $orden = $productos->first()->ordenCompra;
-                @endphp
-                <tr>
-                    <td class="p-3">{{ $loop->iteration }}</td>
-                    <td class="p-3">{{ $orden->order_oc }}</td>
-                    <td class="p-3">
-                        {{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no disponible' }}
-                    </td>
-                    <td class="p-3">
-                        @foreach($productos as $productoOrden)
-                        @if($productoOrden->producto)
-                        {{ $productoOrden->producto->name_produc }}
-                        ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
-                        @else
-                        Producto eliminado ({{ $productoOrden->cantidad }})<br>
-                        @endif
+                        @foreach($productosOrdenes as $ordenId => $productos)
+                        @php
+                        $orden = $productos->first()->ordenCompra;
+                        @endphp
+                        <tr>
+                            <td class="p-3">{{ $loop->iteration }}</td>
+                            <td class="p-3">{{ $orden->order_oc }}</td>
+                            <td class="p-3">
+                                {{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no disponible' }}
+                            </td>
+                            <td class="p-3">
+                                @foreach($productos as $productoOrden)
+                                    @if($productoOrden->producto)
+                                        {{ $productoOrden->producto->name_produc }}
+                                        ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
+                                    @else
+                                        Producto eliminado ({{ $productoOrden->cantidad }})<br>
+                                    @endif
+                                @endforeach
+                            </td>
+                            <td class="p-3 text-center">
+                                <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button type="button" onclick="confirmarAnulacion(this)"
+                                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                        Anular
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
                         @endforeach
-                    </td>
-                    <td class="p-3 text-center">
-                        <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
-                            @csrf
-                            <button type="button" onclick="confirmarAnulacion(this)"
-                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
-                                Anular
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+                    </tbody>
+                </table>
 
-        <!-- Botón descargar ZIP (oculto hasta que ya no queden productos) -->
-        <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
-            <a href="#" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
-                Descargar ZIP de Órdenes
-            </a>
+                <!-- Botón descargar ZIP -->
+                <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
+                    <a href="#"
+                       class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+                        Descargar ZIP de Órdenes
+                    </a>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
-    @endif
 </div>
 
 <script>
-    // Almacenar productos añadidos
     let productosAgregados = [];
     
     function agregarProducto() {
         let selector = document.getElementById('producto-selector');
-        let table = document.getElementById('productos-table');
         let proveedorSelect = document.getElementById('proveedor_id');
 
         let productoId = selector.value;
@@ -235,19 +250,17 @@
             return;
         }
 
-        // Verificar si el producto ya fue agregado
         if (productosAgregados.includes(productoId)) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Este producto ya fue agregado'});
             return;
         }
 
-        // Verificar si hay productos de otro proveedor
         let proveedorActual = proveedorSelect.value;
         if (proveedorActual && proveedorId && proveedorActual != proveedorId) {
             Swal.fire({
                 icon: 'warning', 
                 title: 'Diferente proveedor', 
-                text: 'Este producto pertenece a un proveedor diferente. ¿Desea cambiar el proveedor seleccionado?',
+                text: 'Este producto pertenece a otro proveedor. ¿Desea cambiar el proveedor seleccionado?',
                 showCancelButton: true,
                 confirmButtonText: 'Sí, cambiar',
                 cancelButtonText: 'No, mantener'
@@ -274,27 +287,30 @@
                 <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
                     data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}">
             </td>
-            <td class="p-3">
-                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="1" 
-                    class="w-24 border rounded p-1 text-center" required>
-            </td>
-            <td class="p-3">${unidad}</td>
             <td class="p-3 text-center">
+                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="1" 
+                    class="w-20 border rounded p-1 text-center" required>
+            </td>
+            <td class="p-3 text-center">${unidad}</td>
+            <td class="p-3 text-center space-x-2">
                 <button type="button" onclick="quitarProducto(${productoId})" 
-                    class="bg-red-500 text-white px-3 py-1 rounded-lg">➖ Quitar</button>
+                    class="bg-red-500 text-white px-3 py-1 rounded-lg">Quitar</button>
+                <button type="button" onclick="mostrarCampoStock(${productoId})" 
+                    class="bg-yellow-500 text-white px-3 py-1 rounded-lg">Quitar de Stock</button>
+                <div id="nota-stock-${productoId}" class="mt-2 hidden">
+                    <input type="text" placeholder="Anotar..." 
+                        class="w-full border rounded p-1 text-sm">
+                </div>
             </td>
         `;
         table.appendChild(row);
 
-        // Actualizar proveedor si es necesario
         if (proveedorId && !proveedorSelect.value) {
             proveedorSelect.value = proveedorId;
         }
 
-        // Agregar a la lista de productos añadidos
         productosAgregados.push(productoId);
         
-        // Remover del selector
         for (let i = 0; i < selector.options.length; i++) {
             if (selector.options[i].value == productoId) {
                 selector.remove(i);
@@ -303,9 +319,15 @@
         }
         selector.value = "";
 
-        // Verificar si ya no hay productos disponibles
         if (selector.options.length === 1) {
             document.getElementById('zip-container').classList.remove('hidden');
+        }
+    }
+
+    function mostrarCampoStock(productoId) {
+        let campo = document.getElementById(`nota-stock-${productoId}`);
+        if (campo) {
+            campo.classList.toggle('hidden');
         }
     }
 
@@ -315,17 +337,13 @@
         
         if (row) {
             row.remove();
-            
-            // Remover de productos agregados
             productosAgregados = productosAgregados.filter(id => id != productoId);
             
-            // Obtener datos del producto
             const inputHidden = row.querySelector('input[type="hidden"]');
             const proveedorId = inputHidden.dataset.proveedor;
             const unidad = inputHidden.dataset.unidad;
             const nombre = inputHidden.dataset.nombre;
             
-            // Volver a agregar al selector
             let productoOption = document.createElement('option');
             productoOption.value = productoId;
             productoOption.dataset.proveedor = proveedorId;
@@ -335,18 +353,16 @@
             
             selector.appendChild(productoOption);
 
-            // Ocultar botón ZIP si hay productos disponibles
             if (selector.options.length > 1) {
                 document.getElementById('zip-container').classList.add('hidden');
             }
         }
     }
 
-    // Confirmar anulación de orden
     function confirmarAnulacion(button) {
         Swal.fire({
             title: '¿Estás seguro?',
-            text: "Esta acción anulará la orden de compra. ¿Deseas continuar?",
+            text: "Esta acción anulará la orden de compra.",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -360,7 +376,6 @@
         });
     }
 
-    // Validar formulario antes de enviar
     document.getElementById('orden-form').addEventListener('submit', function(e) {
         if (productosAgregados.length === 0) {
             e.preventDefault();
