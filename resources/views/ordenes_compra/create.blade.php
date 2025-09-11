@@ -37,15 +37,6 @@
             <!-- ================= Datos de la Requisición ================= -->
             @if($requisicion)
             <div class="mb-8 border rounded-lg bg-white p-6 relative shadow-sm">
-                <div class="absolute top-4 right-4">
-                    @if($requisicion->ordenCompra?->id)
-                    <a href="{{ route('ordenes_compra.edit', $requisicion->ordenCompra->id) }}"
-                        class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
-                        <i class="fas fa-edit mr-2"></i> Editar Orden de Compra
-                    </a>
-                    @endif
-                </div>
-
                 <h2 class="text-xl font-semibold text-gray-700 mb-4">Requisición #{{ $requisicion->id }}</h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -347,9 +338,27 @@
         // Obtener distribución original para este producto
         let distribucionProducto = distribucionOriginal[productoId] || {};
         
-        // Generar campos de distribución por centros
+        // Generar campos de distribución por centros - SOLO LOS CENTROS QUE ESTÁN EN LA DISTRIBUCIÓN
         let centrosHtml = '';
-        centros.forEach(centro => {
+        
+        // Obtener solo los centros que tienen distribución para este producto
+        let centrosConDistribucion = [];
+        for (let centroId in distribucionProducto) {
+            if (distribucionProducto[centroId] > 0) {
+                let centro = centros.find(c => c.id == centroId);
+                if (centro) {
+                    centrosConDistribucion.push(centro);
+                }
+            }
+        }
+        
+        // Si no hay centros con distribución, usar todos los centros
+        if (centrosConDistribucion.length === 0) {
+            centrosConDistribucion = centros;
+        }
+        
+        // Generar los campos para los centros con distribución
+        centrosConDistribucion.forEach(centro => {
             let cantidadCentro = distribucionProducto[centro.id] || 0;
             centrosHtml += `
                 <div class="mb-2">
