@@ -66,4 +66,6 @@ class Requisicion extends Model
     {
         return $this->hasOne(OrdenCompra::class, 'requisicion_id')->latest();
     }
+
+    
 }

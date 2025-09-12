@@ -161,17 +161,17 @@ class EstatusRequisicionController extends Controller
                     'date_update' => now(),
                 ]);
 
-                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR ORDEN DE COMPRA (SIN requisicion_id)
+                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR SOLO ORDEN DE COMPRA
                 if ($request->estatus_id == 4 && $role === 'Gerente financiero') {
                     try {
+                        $numeroOrden = 'OC-' . now()->format('YmdHis');
+
                         OrdenCompra::create([
-                            // Aquí puedes agregar otros campos obligatorios de tu tabla ordenes_compra
-                            // Ejemplo:
-                            // 'numero_oc' => 'OC-' . time(),
-                            // 'fecha' => now(),
+                            'requisicion_id' => $requisicionId,
+                            'numero_orden'   => $numeroOrden,
                         ]);
 
-                        Log::info("Orden de compra creada exitosamente (sin requisicion_id) para requisición {$requisicionId}");
+                        Log::info("Orden de compra creada para requisición {$requisicionId}");
                     } catch (\Exception $e) {
                         Log::error("ERROR al crear orden de compra: " . $e->getMessage());
                     }
