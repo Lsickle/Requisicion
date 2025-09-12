@@ -40,7 +40,7 @@ class OrdenCompra extends Model
         return $this->belongsTo(Proveedor::class, 'proveedor_id');
     }
 
-    // 🔹 NUEVA RELACIÓN: Distribución de productos por centro de costo para la orden de compra
+    // NUEVA RELACIÓN: Distribución de productos por centro de costo para la orden de compra
     public function centrosProductos(): BelongsToMany
     {
         return $this->belongsToMany(Producto::class, 'ordencompra_centro_producto', 'orden_compra_id', 'producto_id')
@@ -48,7 +48,7 @@ class OrdenCompra extends Model
             ->withTimestamps();
     }
 
-    // 🔹 RELACIÓN DIRECTA para acceder a la distribución centro-producto
+    // RELACIÓN DIRECTA para acceder a la distribución centro-producto
     public function distribucionCentrosProductos(): HasMany
     {
         return $this->hasMany(OrdenCompraCentroProducto::class, 'orden_compra_id');

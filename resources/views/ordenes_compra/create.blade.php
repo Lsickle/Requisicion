@@ -16,8 +16,8 @@
                 <h1 class="text-2xl font-bold text-gray-800">
                     Crear Orden de Compra
                 </h1>
-                <a href="{{ route('ordenes_compra.lista') }}" 
-                   class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                <a href="{{ route('ordenes_compra.lista') }}"
+                    class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
                     ← Volver
                 </a>
             </div>
@@ -81,22 +81,25 @@
                                 @foreach($requisicion->productos as $prod)
                                 @php
                                 $distribucion = DB::table('centro_producto')
-                                    ->where('requisicion_id', $requisicion->id)
-                                    ->where('producto_id', $prod->id)
-                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                    ->select('centro.name_centro', 'centro_producto.amount')
-                                    ->get();
+                                ->where('requisicion_id', $requisicion->id)
+                                ->where('producto_id', $prod->id)
+                                ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                ->select('centro.name_centro', 'centro_producto.amount')
+                                ->get();
                                 @endphp
                                 <tr>
                                     <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
-                                    <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}</td>
+                                    <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}
+                                    </td>
                                     <td class="px-4 py-3 border">
                                         @if($distribucion->count() > 0)
                                         <div class="space-y-2">
                                             @foreach($distribucion as $centro)
                                             <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
                                                 <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
-                                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                                <span
+                                                    class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{
+                                                    $centro->amount }}</span>
                                             </div>
                                             @endforeach
                                         </div>
@@ -163,7 +166,8 @@
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
                                 <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                    data-unidad="{{ $producto->unit_produc }}" data-nombre="{{ $producto->name_produc }}"
+                                    data-unidad="{{ $producto->unit_produc }}"
+                                    data-nombre="{{ $producto->name_produc }}"
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }})
                                 </option>
@@ -195,7 +199,8 @@
 
                     <!-- Botón submit -->
                     <div class="flex justify-end gap-4 mt-6">
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                        <button type="submit"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
                             Crear Orden de Compra
                         </button>
                     </div>
@@ -209,44 +214,49 @@
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="p-3">#</th>
-                            <th class="p-3">Número</th>
+                            <th class="p-3">Número de Orden</th>
                             <th class="p-3">Proveedor</th>
                             <th class="p-3">Productos</th>
+                            <th class="p-3">Fecha creación</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php
-                        $productosOrdenes = \App\Models\OrdenCompraProducto::whereHas('ordenCompra', function($query) use ($requisicion) {
-                            $query->where('requisicion_id', $requisicion->id);
+                        // 🔹 Traer productos de órdenes que pertenezcan a esta requisición
+                        $ordenes = \App\Models\OrdenCompraProducto::with(['producto', 'proveedor', 'ordenCompra'])
+                        ->whereHas('ordenCompra', function($q) use ($requisicion) {
+                        $q->where('requisicion_id', $requisicion->id);
                         })
-                        ->with(['ordenCompra.proveedor', 'producto'])
                         ->get()
-                        ->groupBy('orden_compra_id');
+                        ->groupBy('order_oc'); // agrupamos por número de orden
                         @endphp
 
-                        @foreach($productosOrdenes as $ordenId => $productos)
+                        @foreach($ordenes as $numeroOrden => $productos)
                         @php
-                        $orden = $productos->first()->ordenCompra;
+                        $orden = $productos->first(); // primer registro del grupo
                         @endphp
                         <tr>
                             <td class="p-3">{{ $loop->iteration }}</td>
-                            <td class="p-3">{{ $orden->order_oc }}</td>
+                            <td class="p-3">{{ $orden->order_oc ?? 'N/A' }}</td>
+                            <td class="p-3">{{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no
+                                disponible' }}</td>
                             <td class="p-3">
-                                {{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no disponible' }}
-                            </td>
-                            <td class="p-3">
-                                @foreach($productos as $productoOrden)
-                                    @if($productoOrden->producto)
-                                        {{ $productoOrden->producto->name_produc }}
-                                        ({{ $productoOrden->cantidad }} {{ $productoOrden->producto->unit_produc }})<br>
-                                    @else
-                                        Producto eliminado ({{ $productoOrden->cantidad }})<br>
-                                    @endif
+                                @foreach($productos as $p)
+                                @if($p->producto)
+                                {{ $p->producto->name_produc }}
+                                ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
+                                @else
+                                Producto eliminado ({{ $p->total }})<br>
+                                @endif
                                 @endforeach
                             </td>
+                            <td class="p-3">
+                                {{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}
+                            </td>
                             <td class="p-3 text-center">
-                                <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
+                                <form action="{{ route('ordenes_compra.anular', $orden->orden_compras_id) }}"
+                                    method="POST" class="inline">
                                     @csrf
                                     <button type="button" onclick="confirmarAnulacion(this)"
                                         class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
@@ -262,7 +272,7 @@
                 <!-- Botón descargar ZIP -->
                 <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
                     <a href="{{ route('ordenes_compra.downloadZip', $requisicion->id) }}"
-                       class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
+                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
                         Descargar ZIP de Órdenes
                     </a>
                 </div>
