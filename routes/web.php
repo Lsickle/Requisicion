@@ -189,6 +189,9 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
     
+    // Ruta para distribuir productos entre proveedores
+    Route::post('ordenes_compra/distribuir-proveedores', [OrdenCompraController::class, 'distribuirProveedores'])
+        ->name('ordenes_compra.distribuirProveedores');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

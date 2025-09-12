@@ -167,17 +167,22 @@
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
-                                <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                    data-unidad="{{ $producto->unit_produc }}"
+                                <option value="{{ $producto->id }}"
+                                    data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                     data-nombre="{{ $producto->name_produc }}"
-                                    data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}">
-                                    {{ $producto->name_produc }} ({{ $producto->unit_produc }})
+                                    data-unidad="{{ $producto->unit_produc }}">
+                                    {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
+                                    $producto->pivot->pr_amount ?? 1 }} - Stock: {{ $producto->stock_produc }}
                                 </option>
                                 @endforeach
                             </select>
                             <button type="button" onclick="agregarProducto()"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
+                            </button>
+                            <button type="button" onclick="abrirModalDistribucion()"
+                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                                📊 Distribuir entre Proveedores
                             </button>
                         </div>
                     </div>
@@ -191,6 +196,7 @@
                                     <th class="p-3 text-left">Producto</th>
                                     <th class="p-3 text-center">Cantidad</th>
                                     <th class="p-3 text-center">Unidad</th>
+                                    <th class="p-3 text-center">Stock Disponible</th>
                                     <th class="p-3 text-center">Distribución por Centros</th>
                                     <th class="p-3 text-center">Acciones</th>
                                 </tr>
@@ -279,9 +285,91 @@
     </div>
 </div>
 
+<!-- Modal para Distribuir entre Proveedores -->
+<div id="modal-distribucion" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg p-6 w-11/12 md:w-3/4 lg:w-2/3 max-h-screen overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-800">Distribuir Producto entre Proveedores</h3>
+            <button type="button" onclick="cerrarModalDistribucion()" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="distribucion-alert"
+            class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 hidden"></div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-600 mb-1">Producto a distribuir</label>
+            <select id="producto-distribuir" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
+                <option value="">Seleccione un producto</option>
+                @foreach($productosDisponibles as $producto)
+                <option value="{{ $producto->id }}" data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
+                    data-nombre="{{ $producto->name_produc }}" data-unidad="{{ $producto->unit_produc }}">
+                    {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
+                    $producto->pivot->pr_amount ?? 1 }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-600 mb-1">Cantidad Total Disponible:
+                <span id="cantidad-total-distribuir" class="font-bold">0</span>
+                <span id="unidad-producto"></span>
+            </label>
+        </div>
+
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full border text-sm rounded-lg">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-3 text-left">Proveedor</th>
+                        <th class="p-3 text-center">Cantidad</th>
+                        <th class="p-3 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-distribucion-body"></tbody>
+                <tfoot>
+                    <tr>
+                        <td class="p-3 font-semibold">Total Distribuido</td>
+                        <td class="p-3 text-center">
+                            <span id="total-distribuido" class="font-bold">0</span> /
+                            <span id="cantidad-maxima" class="font-bold">0</span>
+                            <span id="unidad-distribucion"></span>
+                        </td>
+                        <td class="p-3 text-center">
+                            <button type="button" onclick="agregarFilaProveedor()"
+                                class="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                                + Agregar Proveedor
+                            </button>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+            <button type="button" onclick="cerrarModalDistribucion()"
+                class="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100">
+                Cancelar
+            </button>
+            <button type="button" onclick="guardarDistribucion()"
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Guardar Distribución
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     let productosAgregados = [];
     let centros = @json($centros);
+    let distribucionProveedores = [];
+    let contadorProveedores = 0;
+    let productoSeleccionado = null;
     
     // Preparar la distribución original de la requisición
     let distribucionOriginal = {};
@@ -294,6 +382,207 @@
             };
         @endforeach
     @endif
+
+    // Funciones para el modal de distribución
+    function abrirModalDistribucion() {
+        document.getElementById('modal-distribucion').classList.remove('hidden');
+        document.getElementById('distribucion-alert').classList.add('hidden');
+        document.getElementById('tabla-distribucion-body').innerHTML = '';
+        distribucionProveedores = [];
+        contadorProveedores = 0;
+        document.getElementById('total-distribuido').textContent = '0';
+        document.getElementById('cantidad-maxima').textContent = '0';
+        document.getElementById('cantidad-total-distribuir').textContent = '0';
+        document.getElementById('unidad-producto').textContent = '';
+        document.getElementById('unidad-distribucion').textContent = '';
+        productoSeleccionado = null;
+    }
+
+    function cerrarModalDistribucion() {
+        document.getElementById('modal-distribucion').classList.add('hidden');
+    }
+
+    function agregarFilaProveedor() {
+        const index = contadorProveedores++;
+        const html = `
+            <tr id="fila-proveedor-${index}">
+                <td class="p-3">
+                    <select class="w-full border rounded p-1 proveedor-select" onchange="actualizarDistribucion(${index})">
+                        <option value="">Seleccione proveedor</option>
+                        @foreach($proveedores as $proveedor)
+                        <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                        @endforeach
+                    </select>
+                </td>
+                <td class="p-3">
+                    <input type="number" min="0" value="0" 
+                           class="w-full border rounded p-1 text-center cantidad-proveedor"
+                           onchange="actualizarDistribucion(${index})"
+                           oninput="validarCantidadProveedor(this, ${index})">
+                </td>
+                <td class="p-3 text-center">
+                    <button type="button" onclick="eliminarFilaProveedor(${index})"
+                        class="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                        ✕
+                    </button>
+                </td>
+            </tr>
+        `;
+        document.getElementById('tabla-distribucion-body').insertAdjacentHTML('beforeend', html);
+        distribucionProveedores.push({proveedor_id: null, cantidad: 0});
+    }
+
+    function validarCantidadProveedor(input, index) {
+        const cantidad = parseInt(input.value) || 0;
+        const cantidadMaxima = parseInt(document.getElementById('cantidad-maxima').textContent) || 0;
+        const totalDistribuido = parseInt(document.getElementById('total-distribuido').textContent) || 0;
+        
+        if (cantidad > cantidadMaxima) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cantidad excedida',
+                text: `No puede asignar más de ${cantidadMaxima} unidades a un solo proveedor`
+            });
+            input.value = cantidadMaxima;
+            actualizarDistribucion(index);
+        }
+    }
+
+    function eliminarFilaProveedor(index) {
+        document.getElementById(`fila-proveedor-${index}`).remove();
+        distribucionProveedores.splice(index, 1);
+        actualizarTotalDistribuido();
+    }
+
+    function actualizarDistribucion(index) {
+        const select = document.querySelector(`#fila-proveedor-${index} .proveedor-select`);
+        const input = document.querySelector(`#fila-proveedor-${index} .cantidad-proveedor`);
+        
+        distribucionProveedores[index] = {
+            proveedor_id: select.value,
+            cantidad: parseInt(input.value) || 0
+        };
+        
+        actualizarTotalDistribuido();
+    }
+
+    function actualizarTotalDistribuido() {
+        let total = 0;
+        distribucionProveedores.forEach(dist => {
+            total += dist.cantidad || 0;
+        });
+        
+        document.getElementById('total-distribuido').textContent = total;
+        
+        const cantidadMaxima = parseInt(document.getElementById('cantidad-maxima').textContent) || 0;
+        const alerta = document.getElementById('distribucion-alert');
+        
+        if (total > cantidadMaxima) {
+            alerta.classList.remove('hidden');
+            alerta.textContent = `La distribución total (${total}) excede la cantidad disponible (${cantidadMaxima})`;
+        } else {
+            alerta.classList.add('hidden');
+        }
+    }
+
+    function guardarDistribucion() {
+        const productoId = document.getElementById('producto-distribuir').value;
+        const cantidadMaxima = parseInt(document.getElementById('cantidad-maxima').textContent) || 0;
+        const totalDistribuido = parseInt(document.getElementById('total-distribuido').textContent) || 0;
+        
+        if (!productoId) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto para distribuir'});
+            return;
+        }
+        
+        if (totalDistribuido !== cantidadMaxima) {
+            Swal.fire({
+                icon: 'error', 
+                title: 'Error', 
+                text: `La distribución total (${totalDistribuido}) debe ser igual a la cantidad disponible (${cantidadMaxima})`
+            });
+            return;
+        }
+        
+        // Filtrar distribuciones válidas
+        const distribucionesValidas = distribucionProveedores.filter(dist => 
+            dist.proveedor_id && dist.cantidad > 0
+        );
+        
+        if (distribucionesValidas.length === 0) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Agregue al menos un proveedor con cantidad'});
+            return;
+        }
+        
+        // Verificar que no haya proveedores duplicados
+        const proveedoresIds = distribucionesValidas.map(dist => dist.proveedor_id);
+        const proveedoresUnicos = new Set(proveedoresIds);
+        
+        if (proveedoresIds.length !== proveedoresUnicos.size) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'No puede asignar el mismo proveedor múltiples veces'});
+            return;
+        }
+        
+        // Enviar datos al servidor
+        fetch('{{ route("ordenes_compra.distribuirProveedores") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                producto_id: productoId,
+                requisicion_id: {{ $requisicion->id }},
+                distribucion: distribucionesValidas
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({icon: 'success', title: 'Éxito', text: data.message});
+                cerrarModalDistribucion();
+                // Recargar la página para actualizar los productos disponibles
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                Swal.fire({icon: 'error', title: 'Error', text: data.message});
+            }
+        })
+        .catch(error => {
+            Swal.fire({icon: 'error', title: 'Error', text: 'Error al guardar la distribución'});
+        });
+    }
+
+    // Event listener para cambiar el producto en el modal
+    document.getElementById('producto-distribuir').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const cantidad = selectedOption ? parseInt(selectedOption.dataset.cantidad) || 0 : 0;
+        const nombre = selectedOption ? selectedOption.dataset.nombre : '';
+        const unidad = selectedOption ? selectedOption.dataset.unidad : '';
+        
+        productoSeleccionado = {
+            id: this.value,
+            nombre: nombre,
+            cantidad: cantidad,
+            unidad: unidad
+        };
+        
+        document.getElementById('cantidad-total-distribuir').textContent = cantidad;
+        document.getElementById('cantidad-maxima').textContent = cantidad;
+        document.getElementById('unidad-producto').textContent = unidad;
+        document.getElementById('unidad-distribucion').textContent = unidad;
+        
+        // Reiniciar la tabla de distribución
+        document.getElementById('tabla-distribucion-body').innerHTML = '';
+        distribucionProveedores = [];
+        contadorProveedores = 0;
+        document.getElementById('total-distribuido').textContent = '0';
+        document.getElementById('distribucion-alert').classList.add('hidden');
+        
+        // Agregar primera fila automáticamente
+        if (cantidad > 0) {
+            agregarFilaProveedor();
+        }
+    });
 
     function agregarProducto() {
         let selector = document.getElementById('producto-selector');
@@ -308,6 +597,7 @@
         let proveedorId = selectedOption.dataset.proveedor;
         let unidad = selectedOption.dataset.unidad || '';
         let cantidadOriginal = selectedOption.dataset.cantidad || 1;
+        let stockDisponible = selectedOption.dataset.stock || 0;
 
         if (!productoId) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
@@ -331,15 +621,15 @@
             }).then((result) => {
                 if (result.isConfirmed) {
                     proveedorSelect.value = proveedorId;
-                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector);
+                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector);
                 }
             });
         } else {
-            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector);
+            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector);
         }
     }
 
-    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, selector) {
+    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector) {
         let table = document.getElementById('productos-table');
         let proveedorSelect = document.getElementById('proveedor_id');
         
@@ -385,7 +675,7 @@
             <td class="p-3">
                 ${productoNombre}
                 <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}">
+                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}">
             </td>
             <td class="p-3 text-center">
                 <input type="number" name="productos[${productoId}][cantidad]" min="1" value="${cantidadOriginal}" 
@@ -394,6 +684,7 @@
                     onchange="distribuirAutomaticamente(${productoId})" required>
             </td>
             <td class="p-3 text-center">${unidad}</td>
+            <td class="p-3 text-center" id="stock-disponible-${productoId}">${stockDisponible}</td>
             <td class="p-3">
                 <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                     ${centrosHtml}
@@ -401,7 +692,17 @@
             </td>
             <td class="p-3 text-center space-x-2">
                 <button type="button" onclick="quitarProducto(${productoId})" 
-                    class="bg-red-500 text-white px-3 py-1 rounded-lg">Quitar</button>
+                    class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
+                <button type="button" onclick="mostrarCampoStock(${productoId})" 
+                    class="bg-yellow-600 text-white px-3 py-1 rounded-lg mb-1">Quitar de stock</button>
+                <div id="stock-campo-${productoId}" class="mt-2 hidden">
+                    <label class="block text-sm text-gray-600">Cantidad a retirar de stock:</label>
+                    <input type="number" name="productos[${productoId}][quitar_stock]" 
+                           min="0" max="${stockDisponible}" value="0" 
+                           class="w-24 border rounded p-1 text-center quitar-stock"
+                           onchange="actualizarCantidadOrden(${productoId})" 
+                           placeholder="Cantidad a retirar">
+                </div>
             </td>
         `;
         table.appendChild(row);
@@ -439,6 +740,45 @@
         document.getElementById(`cantidad-total-${productoId}`).value = total;
     }
 
+    function actualizarCantidadOrden(productoId) {
+        const quitarStockInput = document.querySelector(`input[name="productos[${productoId}][quitar_stock]"]`);
+        const cantidadTotalInput = document.getElementById(`cantidad-total-${productoId}`);
+        const stockDisponible = parseInt(document.getElementById(`stock-disponible-${productoId}`).textContent);
+        
+        const quitarStock = parseInt(quitarStockInput.value) || 0;
+        
+        if (quitarStock > stockDisponible) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: `No puede retirar más de ${stockDisponible} unidades del stock`,
+                confirmButtonText: 'Aceptar'
+            });
+            quitarStockInput.value = stockDisponible;
+            return;
+        }
+        
+        // La cantidad a ordenar es la cantidad original menos lo que se retira del stock
+        const cantidadOrden = parseInt(cantidadTotalInput.dataset.original || cantidadTotalInput.value) - quitarStock;
+        
+        if (cantidadOrden < 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'La cantidad a ordenar no puede ser negativa',
+                confirmButtonText: 'Aceptar'
+            });
+            quitarStockInput.value = 0;
+            cantidadTotalInput.value = cantidadTotalInput.dataset.original || cantidadTotalInput.value;
+            return;
+        }
+        
+        cantidadTotalInput.value = cantidadOrden;
+        
+        // Actualizar la distribución automáticamente
+        distribuirAutomaticamente(productoId);
+    }
+
     function distribuirAutomaticamente(productoId) {
         const total = parseInt(document.getElementById(`cantidad-total-${productoId}`).value) || 0;
         const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
@@ -466,6 +806,7 @@
             const unidad = inputHidden.dataset.unidad;
             const nombre = inputHidden.dataset.nombre;
             const cantidad = inputHidden.dataset.cantidad;
+            const stock = inputHidden.dataset.stock;
             
             let productoOption = document.createElement('option');
             productoOption.value = productoId;
@@ -473,13 +814,21 @@
             productoOption.dataset.unidad = unidad;
             productoOption.dataset.nombre = nombre;
             productoOption.dataset.cantidad = cantidad;
-            productoOption.textContent = nombre + ' (' + unidad + ')';
+            productoOption.dataset.stock = stock;
+            productoOption.textContent = nombre + ' (' + unidad + ') - Cantidad: ' + cantidad + ' - Stock: ' + stock;
             
             selector.appendChild(productoOption);
 
             if (selector.options.length > 1) {
                 document.getElementById('zip-container').classList.add('hidden');
             }
+        }
+    }
+
+    function mostrarCampoStock(productoId) {
+        const campo = document.getElementById(`stock-campo-${productoId}`);
+        if (campo) {
+            campo.classList.toggle('hidden');
         }
     }
 
@@ -533,36 +882,36 @@
                 html: errores.join('<br>')
             });
         }
-        
     });
+    
     document.getElementById('orden-form').addEventListener('submit', function (e) {
-    let valid = true;
-    let mensajes = [];
+        let valid = true;
+        let mensajes = [];
 
-    document.querySelectorAll('#productos-table tr').forEach(row => {
-        let productoId = row.id.replace('producto-', '');
-        let cantidad = parseInt(row.querySelector('input[name="productos['+productoId+'][cantidad]"]').value) || 0;
+        document.querySelectorAll('#productos-table tr').forEach(row => {
+            let productoId = row.id.replace('producto-', '');
+            let cantidad = parseInt(row.querySelector('input[name="productos['+productoId+'][cantidad]"]').value) || 0;
 
-        let sumDistribucion = 0;
-        row.querySelectorAll('input[name^="productos['+productoId+'][centros]"]').forEach(input => {
-            sumDistribucion += parseInt(input.value) || 0;
+            let sumDistribucion = 0;
+            row.querySelectorAll('input[name^="productos['+productoId+'][centros]"]').forEach(input => {
+                sumDistribucion += parseInt(input.value) || 0;
+            });
+
+            if (cantidad !== sumDistribucion) {
+                valid = false;
+                mensajes.push(`El producto ID ${productoId}: la cantidad (${cantidad}) no coincide con la distribución (${sumDistribucion}).`);
+            }
         });
 
-        if (cantidad !== sumDistribucion) {
-            valid = false;
-            mensajes.push(`El producto ID ${productoId}: la cantidad (${cantidad}) no coincide con la distribución (${sumDistribucion}).`);
+        if (!valid) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'Error en la validación',
+                html: mensajes.join('<br>'),
+                confirmButtonText: 'Corregir'
+            });
         }
     });
-
-    if (!valid) {
-        e.preventDefault();
-        Swal.fire({
-            icon: 'error',
-            title: 'Error en la validación',
-            html: mensajes.join('<br>'),
-            confirmButtonText: 'Corregir'
-        });
-    }
-});
 </script>
 @endsection
