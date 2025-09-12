@@ -9,16 +9,14 @@
 
     <!-- Contenido principal -->
     <div class="flex-1 px-4 md:px-8 pb-10">
-        <div class="max-w-7xl mx-auto bg-gray-50 rounded-xl shadow-lg p-6 flex flex-col min-h-[80vh]">
+        <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 flex flex-col min-h-[80vh]">
 
             <!-- Encabezado -->
             <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-gray-800">
-                    Crear Orden de Compra
-                </h1>
+                <h1 class="text-2xl font-semibold text-gray-800">Crear Orden de Compra</h1>
                 <a href="{{ route('ordenes_compra.lista') }}"
-                    class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
-                    ← Volver
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100">
+                    Volver
                 </a>
             </div>
 
@@ -36,23 +34,24 @@
 
             <!-- ================= Datos de la Requisición ================= -->
             @if($requisicion)
-            <div class="mb-8 border rounded-lg bg-white p-6 relative shadow-sm">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Requisición #{{ $requisicion->id }}</h2>
+            <div class="mb-8 border rounded-lg bg-gray-50 p-6 shadow-sm">
+                <h2 class="text-xl font-medium text-gray-700 mb-4">Requisición #{{ $requisicion->id }}</h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div class="bg-gray-50 p-4 rounded-lg border">
-                        <h3 class="font-semibold text-gray-700 mb-2">Solicitante</h3>
+                    <div class="p-4 rounded-lg border bg-white">
+                        <h3 class="font-medium text-gray-700 mb-2">Solicitante</h3>
                         <p><strong>Nombre:</strong> {{ $requisicion->name_user }}</p>
                         <p><strong>Email:</strong> {{ $requisicion->email_user }}</p>
                         <p><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
                     </div>
-                    <div class="bg-gray-50 p-4 rounded-lg border">
-                        <h3 class="font-semibold text-gray-700 mb-2">Información General</h3>
-                        <p><strong>Prioridad:</strong>
-                            <span class="px-2 py-1 rounded-full text-xs font-semibold
-                                {{ $requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' :
-                                   ($requisicion->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' :
-                                   'bg-green-100 text-green-800') }}">
+                    <div class="p-4 rounded-lg border bg-white">
+                        <h3 class="font-medium text-gray-700 mb-2">Información General</h3>
+                        <p>
+                            <strong>Prioridad:</strong>
+                            <span class="px-2 py-1 rounded-full text-xs font-medium
+                                {{ $requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-700' :
+                                   ($requisicion->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-700' :
+                                   'bg-green-100 text-green-700') }}">
                                 {{ ucfirst($requisicion->prioridad_requisicion) }}
                             </span>
                         </p>
@@ -60,21 +59,21 @@
                     </div>
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-4 text-sm text-gray-700">
                     <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
                     <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
                 </div>
 
-                <!-- Mostrar distribución original de la requisición -->
+                <!-- Distribución -->
                 <div class="mt-6">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Distribución Original por Centros</h3>
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Distribución Original por Centros</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full border border-gray-200">
+                        <table class="min-w-full border border-gray-200 text-sm">
                             <thead class="bg-gray-100">
                                 <tr>
                                     <th class="px-4 py-2 text-left">Producto</th>
                                     <th class="px-4 py-2 text-center">Cantidad Total</th>
-                                    <th class="px-4 py-2 text-left">Distribución por Centros</th>
+                                    <th class="px-4 py-2 text-left">Distribución</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -87,19 +86,19 @@
                                 ->select('centro.name_centro', 'centro_producto.amount')
                                 ->get();
                                 @endphp
-                                <tr>
-                                    <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
-                                    <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}
-                                    </td>
-                                    <td class="px-4 py-3 border">
+                                <tr class="border-t">
+                                    <td class="px-4 py-3">{{ $prod->name_produc }}</td>
+                                    <td class="px-4 py-3 text-center font-medium">{{ $prod->pivot->pr_amount }}</td>
+                                    <td class="px-4 py-3">
                                         @if($distribucion->count() > 0)
-                                        <div class="space-y-2">
+                                        <div class="space-y-1">
                                             @foreach($distribucion as $centro)
-                                            <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
-                                                <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
+                                            <div class="flex justify-between items-center bg-gray-50 px-3 py-1 rounded">
+                                                <span>{{ $centro->name_centro }}</span>
                                                 <span
-                                                    class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{
-                                                    $centro->amount }}</span>
+                                                    class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
+                                                    {{ $centro->amount }}
+                                                </span>
                                             </div>
                                             @endforeach
                                         </div>
@@ -118,10 +117,8 @@
 
             <!-- Formulario para Crear Orden -->
             @if($requisicion)
-            <div class="border p-6 mb-6 rounded-lg shadow bg-white">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">
-                    Nueva Orden de Compra
-                </h2>
+            <div class="border p-6 mb-6 rounded-lg shadow bg-gray-50">
+                <h2 class="text-xl font-medium text-gray-700 mb-4">Nueva Orden de Compra</h2>
 
                 <form id="orden-form" action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
                     @csrf
@@ -129,8 +126,9 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-gray-600 font-semibold mb-1">Proveedor *</label>
-                            <select id="proveedor_id" name="proveedor_id" class="w-full border rounded-lg p-2" required>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Proveedor *</label>
+                            <select id="proveedor_id" name="proveedor_id"
+                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
                                 <option value="">Seleccione un proveedor</option>
                                 @foreach($proveedores as $proveedor)
                                 <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
@@ -138,31 +136,35 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-gray-600 font-semibold mb-1">Método de Pago</label>
-                            <select name="methods_oc" class="w-full border rounded-lg p-2">
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Método de Pago</label>
+                            <select name="methods_oc"
+                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="Efectivo">Efectivo</option>
                                 <option value="Transferencia">Transferencia</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-gray-600 font-semibold mb-1">Plazo de Pago</label>
-                            <select name="plazo_oc" class="w-full border rounded-lg p-2">
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Plazo de Pago</label>
+                            <select name="plazo_oc"
+                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="Contado">Contado</option>
                                 <option value="30 días">30 días</option>
                                 <option value="45 días">45 días</option>
                             </select>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="block text-gray-600 font-semibold mb-1">Observaciones</label>
-                            <textarea name="observaciones" rows="2" class="w-full border rounded-lg p-2"></textarea>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Observaciones</label>
+                            <textarea name="observaciones" rows="2"
+                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"></textarea>
                         </div>
                     </div>
 
                     <!-- Selector de productos -->
                     <div class="mt-6">
-                        <label class="block text-gray-600 font-semibold mb-1">Añadir Producto</label>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Añadir Producto</label>
                         <div class="flex gap-3">
-                            <select id="producto-selector" class="w-full border rounded-lg p-2">
+                            <select id="producto-selector"
+                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
                                 <option value="{{ $producto->id }}" data-proveedor="{{ $producto->proveedor_id ?? '' }}"
@@ -174,7 +176,7 @@
                                 @endforeach
                             </select>
                             <button type="button" onclick="agregarProducto()"
-                                class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
                             </button>
                         </div>
@@ -182,8 +184,8 @@
 
                     <!-- Tabla productos -->
                     <div class="overflow-x-auto mt-6">
-                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Productos en la Orden</h3>
-                        <table class="w-full border text-sm rounded-lg overflow-hidden">
+                        <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
+                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white">
                             <thead class="bg-gray-100">
                                 <tr>
                                     <th class="p-3 text-left">Producto</th>
@@ -198,9 +200,9 @@
                     </div>
 
                     <!-- Botón submit -->
-                    <div class="flex justify-end gap-4 mt-6">
+                    <div class="flex justify-end">
                         <button type="submit"
-                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow">
                             Crear Orden de Compra
                         </button>
                     </div>
@@ -208,35 +210,32 @@
             </div>
 
             <!-- Tabla de órdenes creadas -->
-            <div class="border p-6 mt-10 rounded-lg shadow bg-white">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
-                <table class="w-full border text-sm rounded-lg overflow-hidden" id="ordenes-table">
+            <div class="border p-6 mt-10 rounded-lg shadow bg-gray-50">
+                <h2 class="text-xl font-medium text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
+                <table class="w-full border text-sm rounded-lg overflow-hidden bg-white" id="ordenes-table">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="p-3">#</th>
-                            <th class="p-3">Número de Orden</th>
+                            <th class="p-3">Número</th>
                             <th class="p-3">Proveedor</th>
                             <th class="p-3">Productos</th>
-                            <th class="p-3">Fecha creación</th>
+                            <th class="p-3">Fecha</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php
-                        // 🔹 Traer productos de órdenes que pertenezcan a esta requisición
                         $ordenes = \App\Models\OrdenCompraProducto::with(['producto', 'proveedor', 'ordenCompra'])
                         ->whereHas('ordenCompra', function($q) use ($requisicion) {
                         $q->where('requisicion_id', $requisicion->id);
                         })
                         ->get()
-                        ->groupBy('order_oc'); // agrupamos por número de orden
+                        ->groupBy('order_oc');
                         @endphp
 
                         @foreach($ordenes as $numeroOrden => $productos)
-                        @php
-                        $orden = $productos->first(); // primer registro del grupo
-                        @endphp
-                        <tr>
+                        @php $orden = $productos->first(); @endphp
+                        <tr class="border-t">
                             <td class="p-3">{{ $loop->iteration }}</td>
                             <td class="p-3">{{ $orden->order_oc ?? 'N/A' }}</td>
                             <td class="p-3">{{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no
@@ -244,22 +243,20 @@
                             <td class="p-3">
                                 @foreach($productos as $p)
                                 @if($p->producto)
-                                {{ $p->producto->name_produc }}
-                                ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
+                                {{ $p->producto->name_produc }} ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
                                 @else
                                 Producto eliminado ({{ $p->total }})<br>
                                 @endif
                                 @endforeach
                             </td>
-                            <td class="p-3">
-                                {{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}
+                            <td class="p-3">{{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}
                             </td>
                             <td class="p-3 text-center">
                                 <form action="{{ route('ordenes_compra.anular', $orden->orden_compras_id) }}"
                                     method="POST" class="inline">
                                     @csrf
                                     <button type="button" onclick="confirmarAnulacion(this)"
-                                        class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                        class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm">
                                         Anular
                                     </button>
                                 </form>
@@ -272,8 +269,8 @@
                 <!-- Botón descargar ZIP -->
                 <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
                     <a href="{{ route('ordenes_compra.downloadZip', $requisicion->id) }}"
-                        class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow">
-                        Descargar ZIP de Órdenes
+                        class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
+                        Descargar ZIP
                     </a>
                 </div>
             </div>
@@ -536,6 +533,36 @@
                 html: errores.join('<br>')
             });
         }
+        
     });
+    document.getElementById('orden-form').addEventListener('submit', function (e) {
+    let valid = true;
+    let mensajes = [];
+
+    document.querySelectorAll('#productos-table tr').forEach(row => {
+        let productoId = row.id.replace('producto-', '');
+        let cantidad = parseInt(row.querySelector('input[name="productos['+productoId+'][cantidad]"]').value) || 0;
+
+        let sumDistribucion = 0;
+        row.querySelectorAll('input[name^="productos['+productoId+'][centros]"]').forEach(input => {
+            sumDistribucion += parseInt(input.value) || 0;
+        });
+
+        if (cantidad !== sumDistribucion) {
+            valid = false;
+            mensajes.push(`El producto ID ${productoId}: la cantidad (${cantidad}) no coincide con la distribución (${sumDistribucion}).`);
+        }
+    });
+
+    if (!valid) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'error',
+            title: 'Error en la validación',
+            html: mensajes.join('<br>'),
+            confirmButtonText: 'Corregir'
+        });
+    }
+});
 </script>
 @endsection
