@@ -46,7 +46,7 @@ class OrdenCompraController extends Controller
                     ->whereNull('productos.deleted_at');
             })
             ->get();
-            
+
         $requisicion = null;
         $productosDisponibles = collect();
         $productoSeleccionado = null;
@@ -58,7 +58,8 @@ class OrdenCompraController extends Controller
 
             if ($requisicion) {
                 // Obtener productos que aún no tienen orden de compra
-                $productosDisponibles = Producto::select('productos.*')
+                // incluimos pr_amount si existe en pivot
+                $productosDisponibles = Producto::select('productos.*', 'producto_requisicion.pr_amount')
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->where('producto_requisicion.id_requisicion', $requisicion->id)
                     ->whereNull('productos.deleted_at')
@@ -102,9 +103,9 @@ class OrdenCompraController extends Controller
             'requisicion_id' => 'required|exists:requisicion,id',
             'productos'      => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
-            'productos.*.cantidad' => 'required|integer|min:1',
-            'productos.*.centros' => 'required|array',
-            'productos.*.centros.*' => 'required|integer|min:0',
+            'productos.*.cantidad' => 'nullable|integer|min:0',
+            'productos.*.centros' => 'nullable|array',
+            'productos.*.centros.*' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -128,12 +129,44 @@ class OrdenCompraController extends Controller
             ]);
 
             foreach ($request->productos as $productoData) {
+                // Asegurarnos de tener el id del producto
+                $productoId = $productoData['id'] ?? null;
+                if (!$productoId) {
+                    continue;
+                }
+
+                // 1) Obtener pr_amount (cantidad solicitada en la requisición) si existe
+                $prAmount = (int) DB::table('producto_requisicion')
+                    ->where('id_requisicion', $request->requisicion_id)
+                    ->where('id_producto', $productoId)
+                    ->value('pr_amount') ?? 0;
+
+                // 2) Sumar la distribución por centros (si viene)
+                $sumCentros = 0;
+                if (!empty($productoData['centros']) && is_array($productoData['centros'])) {
+                    foreach ($productoData['centros'] as $centroId => $cantidadCentro) {
+                        $sumCentros += (int)$cantidadCentro;
+                    }
+                }
+
+                // 3) Determinar total a guardar en la columna `total` (de tu migración)
+                // Prioridad: suma centros > cantidad enviada en formulario > prAmount
+                $totalToSave = 0;
+                if ($sumCentros > 0) {
+                    $totalToSave = $sumCentros;
+                } elseif (isset($productoData['cantidad']) && $productoData['cantidad'] !== null) {
+                    $totalToSave = (int) $productoData['cantidad'];
+                } else {
+                    $totalToSave = $prAmount;
+                }
+
                 // Crear registro en ordencompra_producto
+                // IMPORTANT: tu migración tiene la columna `total` (no `cantidad`), por eso guardamos en 'total'
                 $ordenProducto = OrdencompraProducto::create([
-                    'producto_id'      => $productoData['id'],
+                    'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,
                     'proveedor_id'     => $request->proveedor_id,
-                    'cantidad'         => $productoData['cantidad'],
+                    'total'            => $totalToSave, // <- guardamos en la columna que existe
                     'observaciones'    => $request->observaciones,
                     'methods_oc'       => $request->methods_oc,
                     'plazo_oc'         => $request->plazo_oc,
@@ -142,12 +175,13 @@ class OrdenCompraController extends Controller
                 ]);
 
                 // Crear distribución por centros de costo para la orden de compra
-                if (!empty($productoData['centros'])) {
+                if (!empty($productoData['centros']) && is_array($productoData['centros'])) {
                     foreach ($productoData['centros'] as $centroId => $cantidad) {
+                        $cantidad = (int)$cantidad;
                         if ($cantidad > 0) {
                             OrdenCompraCentroProducto::create([
                                 'orden_compra_id' => $orden->id,
-                                'producto_id'     => $productoData['id'],
+                                'producto_id'     => $productoId,
                                 'centro_id'       => $centroId,
                                 'amount'          => $cantidad,
                             ]);
@@ -161,6 +195,7 @@ class OrdenCompraController extends Controller
                 ->with('success', 'Orden de compra ' . $numeroOrden . ' creada exitosamente.');
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Error creando orden de compra: '.$e->getMessage());
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
@@ -285,9 +320,9 @@ class OrdenCompraController extends Controller
             'plazo_oc'       => 'nullable|string|max:255',
             'observaciones'  => 'nullable|string',
             'productos'      => 'required|array|min:1',
-            'productos.*.cantidad' => 'required|integer|min:1',
-            'productos.*.centros' => 'required|array',
-            'productos.*.centros.*' => 'required|integer|min:0',
+            'productos.*.cantidad' => 'nullable|integer|min:0',
+            'productos.*.centros' => 'nullable|array',
+            'productos.*.centros.*' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -308,11 +343,21 @@ class OrdenCompraController extends Controller
             // Actualizar productos y distribución
             if ($request->has('productos')) {
                 foreach ($request->productos as $productoId => $data) {
-                    // Actualizar cantidad en ordencompra_producto
+                    // Recalcular total desde centros o desde la cantidad enviada
+                    $sumCentros = 0;
+                    if (!empty($data['centros']) && is_array($data['centros'])) {
+                        foreach ($data['centros'] as $centroId => $cantidadCentro) {
+                            $sumCentros += (int)$cantidadCentro;
+                        }
+                    }
+
+                    $totalToSave = $sumCentros > 0 ? $sumCentros : (isset($data['cantidad']) ? (int)$data['cantidad'] : 0);
+
+                    // Actualizar total en ordencompra_producto (nota: columna 'total' en migración)
                     OrdencompraProducto::where('orden_compras_id', $ordenCompra->id)
                         ->where('producto_id', $productoId)
                         ->update([
-                            'cantidad' => $data['cantidad'],
+                            'total' => $totalToSave,
                             'proveedor_id' => $request->proveedor_id,
                             'updated_at' => now()
                         ]);
@@ -323,8 +368,9 @@ class OrdenCompraController extends Controller
                         ->delete();
 
                     // Crear nueva distribución por centros
-                    if (!empty($data['centros'])) {
+                    if (!empty($data['centros']) && is_array($data['centros'])) {
                         foreach ($data['centros'] as $centroId => $cantidad) {
+                            $cantidad = (int)$cantidad;
                             if ($cantidad > 0) {
                                 OrdenCompraCentroProducto::create([
                                     'orden_compra_id' => $ordenCompra->id,

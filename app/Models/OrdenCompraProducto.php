@@ -20,7 +20,8 @@ class OrdenCompraProducto extends Model
         'date_oc',
         'methods_oc',
         'plazo_oc',
-        'order_oc'
+        'order_oc',
+        'total'
     ];
 
     protected $dates = [
