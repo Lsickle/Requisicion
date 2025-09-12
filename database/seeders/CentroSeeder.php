@@ -16,8 +16,8 @@ class CentroSeeder extends Seeder
             'SONY', 'TRANSPORTES', 'SEGURIDAD', 'MAC MILLAN', 'TECNOLOGIA',
             'INNOVACION Y DESARROLLO', 'MULTICLIENTE', 'KW COLOMBIA', 'LAFAZENDA',
             'MC MILLAN', 'HSEQ', 'TODOS COMEMOS', 'KIKES', 'MEJORAMIENTO CONTINUO',
-            'CALIDAD', 'FRIO', 'ORIFALME', 'COMPRAS', 'ORTOPEDICOS FUTURO',
-            'AGROFRUT', 'TALENTO HUMANO', 'SULFOQUIMICA', 'OVERHED'
+            'CALIDAD', 'FRIO', 'COMPRAS', 'ORTOPEDICOS FUTURO',
+            'AGROFRUT', 'TALENTO HUMANO', 'SULFOQUIMICA'
         ];
 
         foreach ($centros as $centro) {

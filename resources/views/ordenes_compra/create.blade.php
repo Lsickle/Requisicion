@@ -293,10 +293,14 @@
         let proveedorSelect = document.getElementById('proveedor_id');
 
         let productoId = selector.value;
-        let productoNombre = selector.options[selector.selectedIndex]?.dataset.nombre;
-        let proveedorId = selector.options[selector.selectedIndex]?.dataset.proveedor;
-        let unidad = selector.options[selector.selectedIndex]?.dataset.unidad || '';
-        let cantidadOriginal = selector.options[selector.selectedIndex]?.dataset.cantidad || 1;
+        let selectedOption = selector.options[selector.selectedIndex];
+        
+        if (!selectedOption) return;
+        
+        let productoNombre = selectedOption.dataset.nombre;
+        let proveedorId = selectedOption.dataset.proveedor;
+        let unidad = selectedOption.dataset.unidad || '';
+        let cantidadOriginal = selectedOption.dataset.cantidad || 1;
 
         if (!productoId) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
@@ -374,7 +378,7 @@
             <td class="p-3">
                 ${productoNombre}
                 <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}">
+                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}">
             </td>
             <td class="p-3 text-center">
                 <input type="number" name="productos[${productoId}][cantidad]" min="1" value="${cantidadOriginal}" 
@@ -418,7 +422,7 @@
     }
 
     function actualizarTotal(productoId) {
-        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
+        const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
         let total = 0;
         
         inputs.forEach(input => {
@@ -430,7 +434,7 @@
 
     function distribuirAutomaticamente(productoId) {
         const total = parseInt(document.getElementById(`cantidad-total-${productoId}`).value) || 0;
-        const inputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
+        const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
         
         if (inputs.length > 0 && total > 0) {
             const cantidadPorCentro = Math.floor(total / inputs.length);
@@ -502,7 +506,7 @@
             const totalInput = document.getElementById(`cantidad-total-${productoId}`);
             const total = parseInt(totalInput.value) || 0;
             
-            const distribucionInputs = document.querySelectorAll(`input[name="productos[${productoId}][centros][${centro.id}]"]`);
+            const distribucionInputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
             let distribucionTotal = 0;
             
             distribucionInputs.forEach(input => {
