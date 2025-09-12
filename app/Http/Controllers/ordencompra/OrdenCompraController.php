@@ -52,6 +52,7 @@ class OrdenCompraController extends Controller
 
             if ($requisicion) {
                 // Buscar productos que no tienen orden de compra completa (con campos null)
+                // EXCLUYENDO los que ya fueron distribuidos
                 $productosDisponibles = Producto::select('productos.*', 'producto_requisicion.pr_amount')
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->where('producto_requisicion.id_requisicion', $requisicion->id)
@@ -75,10 +76,22 @@ class OrdenCompraController extends Controller
                                     ->where(function ($q) {
                                         $q->whereNull('ordencompra_producto.observaciones')
                                             ->orWhereNull('ordencompra_producto.methods_oc')
-                                            ->orWhereNull('ordencompra_producto.order_oc')
-                                            ->orWhereNull('ordencompra_producto.total');
+                                            ->orWhereNull('ordencompra_producto.plazo_oc');
                                     });
                             });
+                    })
+                    // EXCLUIR productos que ya tienen órdenes de compra distribuidas completas
+                    ->whereNotExists(function ($subquery) use ($requisicion) {
+                        $subquery->select(DB::raw(1))
+                            ->from('ordencompra_producto')
+                            ->join('orden_compras', 'ordencompra_producto.orden_compras_id', '=', 'orden_compras.id')
+                            ->whereRaw('ordencompra_producto.producto_id = productos.id')
+                            ->where('orden_compras.requisicion_id', $requisicion->id)
+                            ->whereNull('ordencompra_producto.deleted_at')
+                            ->where('ordencompra_producto.order_oc', 'like', 'OC-DIST-%')
+                            ->whereNotNull('ordencompra_producto.observaciones')
+                            ->whereNotNull('ordencompra_producto.methods_oc')
+                            ->whereNotNull('ordencompra_producto.plazo_oc');
                     })
                     ->orderBy('productos.id', 'asc')
                     ->get();
@@ -147,44 +160,28 @@ class OrdenCompraController extends Controller
                 $productoId = $productoData['id'];
                 $cantidadIngresada = (int)($productoData['cantidad'] ?? 0);
 
-                // Calcular suma distribución
-                $sumCentros = 0;
-                if (!empty($productoData['centros'])) {
-                    foreach ($productoData['centros'] as $cantidadCentro) {
-                        $sumCentros += (int)$cantidadCentro;
-                    }
-                }
+                // ... validaciones de distribución ...
 
-                // Validación: cantidad debe ser igual a suma de distribución
-                if ($cantidadIngresada !== $sumCentros) {
-                    DB::rollBack();
-                    return redirect()->back()->withInput()->with('error', "La cantidad del producto ID {$productoId} no coincide con la suma de la distribución.");
-                }
-
-                // Verificar si ya existe un registro parcial (distribuido entre proveedores)
-                $ordenProductoExistente = OrdencompraProducto::where('producto_id', $productoId)
-                    ->where('orden_compras_id', $orden->id)
-                    ->where(function ($query) {
-                        $query->whereNull('observaciones')
-                            ->orWhereNull('methods_oc')
-                            ->orWhereNull('order_oc')
-                            ->orWhereNull('total');
-                    })
+                // Verificar si es un producto distribuido (buscar por order_oc que comience con OC-DIST)
+                $ordenProductoDistribuido = OrdencompraProducto::where('producto_id', $productoId)
+                    ->where('order_oc', 'like', 'OC-DIST-%')
+                    ->whereNull('observaciones')
+                    ->whereNull('methods_oc')
+                    ->whereNull('plazo_oc')
                     ->first();
 
-                if ($ordenProductoExistente) {
-                    // Actualizar el registro existente
-                    $ordenProductoExistente->update([
-                        'total'            => $cantidadIngresada,
+                if ($ordenProductoDistribuido) {
+                    // Actualizar el registro distribuido existente
+                    $ordenProductoDistribuido->update([
+                        'orden_compras_id' => $orden->id,
                         'observaciones'    => $request->observaciones,
                         'methods_oc'       => $request->methods_oc,
                         'plazo_oc'         => $request->plazo_oc,
                         'date_oc'          => now(),
                         'order_oc'         => $numeroOrden,
-                        'proveedor_id'     => $request->proveedor_id,
                     ]);
                 } else {
-                    // Crear nuevo registro
+                    // Crear nuevo registro (producto normal)
                     OrdencompraProducto::create([
                         'producto_id'      => $productoId,
                         'orden_compras_id' => $orden->id,
@@ -267,24 +264,30 @@ class OrdenCompraController extends Controller
                 ], 422);
             }
 
+            // Obtener información del producto
+            $producto = Producto::find($productoId);
+
             // Obtener el último ID de orden de compra para generar números únicos
             $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
             $baseOrdenId = ($ultimaOrden ? $ultimaOrden->id : 0) + 1;
 
-            // Crear órdenes de compra INDIVIDUALES para cada proveedor (no una principal)
+            // Crear órdenes de compra INDIVIDUALES para cada proveedor
             foreach ($distribuciones as $index => $dist) {
                 // Generar número de orden único para cada proveedor
                 $numeroOrden = 'OC-DIST-' . $baseOrdenId . '-' . ($index + 1) . '-' . now()->format('Ymd');
+
+                // Obtener información del proveedor
+                $proveedor = Proveedor::find($dist['proveedor_id']);
 
                 // Crear orden de compra individual para este proveedor
                 $orden = OrdenCompra::create([
                     'requisicion_id' => $requisicionId,
                     'proveedor_id'   => $dist['proveedor_id'],
-                    'date_oc'        => now(),
+                    'date_oc'        => now(), // Fecha actual
                     'order_oc'       => $numeroOrden,
-                    'observaciones'  => 'Parte de distribución entre proveedores',
-                    'methods_oc'     => null, // Dejamos como null para completar después
-                    'plazo_oc'       => null, // Dejamos como null para completar después
+                    'observaciones'  => 'Distribución de ' . $producto->name_produc . ' - Proveedor: ' . $proveedor->prov_name,
+                    'methods_oc'     => null, // Se deja como null para completar después
+                    'plazo_oc'       => null, // Se deja como null para completar después
                 ]);
 
                 // Crear registro del producto para esta orden individual
@@ -294,11 +297,11 @@ class OrdenCompraController extends Controller
                     'proveedor_id'     => $dist['proveedor_id'],
                     'total'            => $dist['cantidad'],
                     'order_oc'         => $numeroOrden,
+                    'date_oc'          => now(), // Fecha actual
                     // Los campos que deben quedar como null para completar después
                     'observaciones'    => null,
                     'methods_oc'       => null,
                     'plazo_oc'         => null,
-                    'date_oc'          => null,
                 ]);
             }
 

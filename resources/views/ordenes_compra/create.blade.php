@@ -167,12 +167,35 @@
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
+                                @php
+                                // Determinar si es un producto distribuido (tiene order_oc que comienza con OC-DIST)
+                                $esDistribuido = false;
+                                $proveedorId = '';
+
+                                if ($producto->ordencompraProductos) {
+                                foreach ($producto->ordencompraProductos as $op) {
+                                if (strpos($op->order_oc, 'OC-DIST-') === 0 &&
+                                is_null($op->observaciones) &&
+                                is_null($op->methods_oc) &&
+                                is_null($op->plazo_oc)) {
+                                $esDistribuido = true;
+                                $proveedorId = $op->proveedor_id;
+                                break;
+                                }
+                                }
+                                }
+                                @endphp
                                 <option value="{{ $producto->id }}"
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                     data-nombre="{{ $producto->name_produc }}"
-                                    data-unidad="{{ $producto->unit_produc }}">
+                                    data-unidad="{{ $producto->unit_produc }}"
+                                    data-proveedor="{{ $esDistribuido ? $proveedorId : ($producto->proveedor_id ?? '') }}"
+                                    data-distribuido="{{ $esDistribuido ? '1' : '0' }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
-                                    $producto->pivot->pr_amount ?? 1 }} - Stock: {{ $producto->stock_produc }}
+                                    $producto->pivot->pr_amount ?? 1 }}
+                                    @if($esDistribuido)
+                                    - [Distribuido - Por completar]
+                                    @endif
                                 </option>
                                 @endforeach
                             </select>
@@ -912,6 +935,23 @@
                 confirmButtonText: 'Corregir'
             });
         }
+    });
+
+    function configurarAutoCargaProveedor() {
+        const productoSelector = document.getElementById('producto-selector');
+        const proveedorSelect = document.getElementById('proveedor_id');
+        
+        productoSelector.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset.proveedor) {
+                proveedorSelect.value = selectedOption.dataset.proveedor;
+            }
+        });
+    }
+
+    // Llamar a la función cuando el documento esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+        configurarAutoCargaProveedor();
     });
 </script>
 @endsection
