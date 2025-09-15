@@ -232,6 +232,9 @@ class OrdenCompraController extends Controller
             'distribucion' => 'required|array|min:1',
             'distribucion.*.proveedor_id' => 'required|exists:proveedores,id',
             'distribucion.*.cantidad' => 'required|integer|min:1',
+            'distribucion.*.methods_oc' => 'required|string',
+            'distribucion.*.plazo_oc' => 'required|string',
+            'distribucion.*.observaciones' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -285,9 +288,9 @@ class OrdenCompraController extends Controller
                     'proveedor_id'   => $dist['proveedor_id'],
                     'date_oc'        => now(), // Fecha actual
                     'order_oc'       => $numeroOrden,
-                    'observaciones'  => 'Distribución de ' . $producto->name_produc . ' - Proveedor: ' . $proveedor->prov_name,
-                    'methods_oc'     => null, // Se deja como null para completar después
-                    'plazo_oc'       => null, // Se deja como null para completar después
+                    'observaciones'  => $dist['observaciones'] ?? ('Distribución de ' . $producto->name_produc . ' - Proveedor: ' . $proveedor->prov_name),
+                    'methods_oc'     => $dist['methods_oc'] ?? null,
+                    'plazo_oc'       => $dist['plazo_oc'] ?? null,
                 ]);
 
                 // Crear registro del producto para esta orden individual
@@ -298,10 +301,9 @@ class OrdenCompraController extends Controller
                     'total'            => $dist['cantidad'],
                     'order_oc'         => $numeroOrden,
                     'date_oc'          => now(), // Fecha actual
-                    // Los campos que deben quedar como null para completar después
-                    'observaciones'    => null,
-                    'methods_oc'       => null,
-                    'plazo_oc'         => null,
+                    'observaciones'    => $dist['observaciones'] ?? null,
+                    'methods_oc'       => $dist['methods_oc'] ?? null,
+                    'plazo_oc'         => $dist['plazo_oc'] ?? null,
                 ]);
             }
 

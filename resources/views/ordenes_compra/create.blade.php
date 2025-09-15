@@ -248,7 +248,7 @@
                             <th class="p-3">Número</th>
                             <th class="p-3">Proveedor</th>
                             <th class="p-3">Productos</th>
-                            <th class="p-3">Fecha</th>
+                            <th class="p-3">Fecha de creación</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
@@ -351,6 +351,9 @@
                     <tr>
                         <th class="p-3 text-left">Proveedor</th>
                         <th class="p-3 text-center">Cantidad</th>
+                        <th class="p-3 text-center">Método de Pago</th>
+                        <th class="p-3 text-center">Plazo de Pago</th>
+                        <th class="p-3 text-center">Observaciones</th>
                         <th class="p-3 text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -363,7 +366,7 @@
                             <span id="cantidad-maxima" class="font-bold">0</span>
                             <span id="unidad-distribucion"></span>
                         </td>
-                        <td class="p-3 text-center">
+                        <td colspan="4" class="p-3 text-center">
                             <button type="button" onclick="agregarFilaProveedor()"
                                 class="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
                                 + Agregar Proveedor
@@ -443,6 +446,24 @@
                            onchange="actualizarDistribucion(${index})"
                            oninput="validarCantidadProveedor(this, ${index})">
                 </td>
+                <td class="p-3">
+                    <select class="w-full border rounded p-1 metodo-pago-proveedor" onchange="actualizarDistribucion(${index})">
+                        <option value="">Seleccione</option>
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transferencia">Transferencia</option>
+                    </select>
+                </td>
+                <td class="p-3">
+                    <select class="w-full border rounded p-1 plazo-pago-proveedor" onchange="actualizarDistribucion(${index})">
+                        <option value="">Seleccione</option>
+                        <option value="Contado">Contado</option>
+                        <option value="30 días">30 días</option>
+                        <option value="45 días">45 días</option>
+                    </select>
+                </td>
+                <td class="p-3">
+                    <input type="text" class="w-full border rounded p-1 observaciones-proveedor" placeholder="Observaciones" onchange="actualizarDistribucion(${index})">
+                </td>
                 <td class="p-3 text-center">
                     <button type="button" onclick="eliminarFilaProveedor(${index})"
                         class="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
@@ -452,7 +473,7 @@
             </tr>
         `;
         document.getElementById('tabla-distribucion-body').insertAdjacentHTML('beforeend', html);
-        distribucionProveedores.push({proveedor_id: null, cantidad: 0});
+        distribucionProveedores.push({proveedor_id: null, cantidad: 0, methods_oc: '', plazo_oc: '', observaciones: ''});
     }
 
     function validarCantidadProveedor(input, index) {
@@ -478,14 +499,20 @@
     }
 
     function actualizarDistribucion(index) {
-        const select = document.querySelector(`#fila-proveedor-${index} .proveedor-select`);
-        const input = document.querySelector(`#fila-proveedor-${index} .cantidad-proveedor`);
-        
+        const row = document.getElementById(`fila-proveedor-${index}`);
+        if (!row) return;
+        const select = row.querySelector('.proveedor-select');
+        const input = row.querySelector('.cantidad-proveedor');
+        const metodo = row.querySelector('.metodo-pago-proveedor');
+        const plazo = row.querySelector('.plazo-pago-proveedor');
+        const obs = row.querySelector('.observaciones-proveedor');
         distribucionProveedores[index] = {
             proveedor_id: select.value,
-            cantidad: parseInt(input.value) || 0
+            cantidad: parseInt(input.value) || 0,
+            methods_oc: metodo.value,
+            plazo_oc: plazo.value,
+            observaciones: obs.value
         };
-        
         actualizarTotalDistribuido();
     }
 
@@ -544,6 +571,14 @@
         if (proveedoresIds.length !== proveedoresUnicos.size) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'No puede asignar el mismo proveedor múltiples veces'});
             return;
+        }
+        
+        // Verificar que todos tengan método, plazo y observaciones (opcional)
+        for (const dist of distribucionesValidas) {
+            if (!dist.methods_oc || !dist.plazo_oc) {
+                Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe seleccionar método y plazo de pago para cada proveedor'});
+                return;
+            }
         }
         
         // Enviar datos al servidor
