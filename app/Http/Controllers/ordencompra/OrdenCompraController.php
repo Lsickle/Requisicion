@@ -238,7 +238,7 @@ class OrdenCompraController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
         DB::beginTransaction();
@@ -261,10 +261,8 @@ class OrdenCompraController extends Controller
 
             // Validar que la distribución sea igual a la cantidad original
             if ($totalDistribucion != $cantidadOriginal) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'La distribución total (' . $totalDistribucion . ') debe ser igual a la cantidad original (' . $cantidadOriginal . ')'
-                ], 422);
+                return redirect()->back()->with('error', 
+                    'La distribución total (' . $totalDistribucion . ') debe ser igual a la cantidad original (' . $cantidadOriginal . ')');
             }
 
             // Obtener información del producto
@@ -286,7 +284,7 @@ class OrdenCompraController extends Controller
                 $orden = OrdenCompra::create([
                     'requisicion_id' => $requisicionId,
                     'proveedor_id'   => $dist['proveedor_id'],
-                    'date_oc'        => now(), // Fecha actual
+                    'date_oc'        => now(),
                     'order_oc'       => $numeroOrden,
                     'observaciones'  => $dist['observaciones'] ?? ('Distribución de ' . $producto->name_produc . ' - Proveedor: ' . $proveedor->prov_name),
                     'methods_oc'     => $dist['methods_oc'] ?? null,
@@ -300,7 +298,7 @@ class OrdenCompraController extends Controller
                     'proveedor_id'     => $dist['proveedor_id'],
                     'total'            => $dist['cantidad'],
                     'order_oc'         => $numeroOrden,
-                    'date_oc'          => now(), // Fecha actual
+                    'date_oc'          => now(),
                     'observaciones'    => $dist['observaciones'] ?? null,
                     'methods_oc'       => $dist['methods_oc'] ?? null,
                     'plazo_oc'         => $dist['plazo_oc'] ?? null,
@@ -308,14 +306,12 @@ class OrdenCompraController extends Controller
             }
 
             DB::commit();
-            return response()->json([
-                'success' => true,
-                'message' => 'Distribución guardada correctamente. Se crearon ' . count($distribuciones) . ' órdenes individuales para cada proveedor.'
-            ]);
+            return redirect()->route('ordenes_compra.create', ['requisicion_id' => $requisicionId])
+                ->with('success', 'Distribución guardada correctamente. Se crearon ' . count($distribuciones) . ' órdenes individuales para cada proveedor.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error distribuyendo producto: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
+            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
 
@@ -491,5 +487,32 @@ class OrdenCompraController extends Controller
             Log::error('Error actualizando orden de compra: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    public function vistaDistribucionProveedores(Request $request, $requisicion_id = null)
+    {
+        $reqId = $request->query('requisicion_id', $requisicion_id);
+        if (!$reqId) {
+            abort(404, 'Requisición no especificada');
+        }
+
+        $requisicion = Requisicion::findOrFail($reqId);
+
+        $productosDisponibles = Producto::select('productos.*', 'producto_requisicion.pr_amount')
+            ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
+            ->where('producto_requisicion.id_requisicion', $requisicion->id)
+            ->whereNull('productos.deleted_at')
+            ->orderBy('productos.id', 'asc')
+            ->get();
+
+        foreach ($productosDisponibles as $producto) {
+            $producto->setRelation('pivot', (object)[
+                'pr_amount' => $producto->pr_amount ?? 0
+            ]);
+        }
+
+        $proveedores = Proveedor::all();
+
+        return view('ordenes_compra.distribucion_proveedores', compact('requisicion', 'productosDisponibles', 'proveedores'));
     }
 }

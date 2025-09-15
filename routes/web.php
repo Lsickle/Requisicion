@@ -181,6 +181,13 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('ordenes_compra/{requisicionId}/download-zip', [OrdenCompraController::class, 'downloadZip'])
         ->name('ordenes_compra.downloadZip');
 
+    // Ruta para mostrar la vista de distribución de proveedores (acepta requisicion_id por query)
+    Route::get('ordenes_compra/distribucion_proveedores', [OrdenCompraController::class, 'vistaDistribucionProveedores'])
+        ->name('ordenes_compra.distribucionProveedores');
+
+    // Ruta alternativa que acepta el id en la URL (sin nombre para no duplicar nombres de ruta)
+    Route::get('ordenes_compra/{requisicion_id}/distribucion_proveedores', [OrdenCompraController::class, 'vistaDistribucionProveedores']);
+
     // Ruta para mostrar orden específica
     Route::get('ordenes_compra/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
