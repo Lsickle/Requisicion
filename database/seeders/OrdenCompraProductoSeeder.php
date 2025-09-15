@@ -58,41 +58,19 @@ class OrdenCompraProductoSeeder extends Seeder
                     ->exists();
 
                 if (!$existeRegistro) {
-                    // Insertar en la tabla pivot
+                    // Insertar en la tabla pivot (solo columnas existentes en la migración)
                     DB::table('ordencompra_producto')->insert([
-                        'producto_id' => $productoId,
+                        'producto_id'      => $productoId,
                         'orden_compras_id' => $ordenCompra->id,
-                        'proveedor_id' => $proveedorId,
-                        'observaciones' => rand(0, 1) ? 'Producto urgente' : null,
-                        'date_oc' => now()->subDays(rand(1, 30)),
-                        'methods_oc' => $this->getRandomPaymentMethod(),
-                        'plazo_oc' => $this->getRandomPaymentTerm(),
-                        'order_oc' => 'OC-' . str_pad($ordenCompra->id, 6, '0', STR_PAD_LEFT) . '-P' . str_pad($producto->id, 3, '0', STR_PAD_LEFT),
-                        'created_at' => now(),
-                        'updated_at' => now()
+                        'proveedor_id'     => $proveedorId,
+                        'total'            => (int)($productoReq->pr_amount ?? 1),
+                        'created_at'       => now(),
+                        'updated_at'       => now(),
                     ]);
                 }
             }
         }
 
         $this->command->info('¡Tabla ordencompra_producto poblada exitosamente!');
-    }
-
-    /**
-     * Obtener un método de pago aleatorio
-     */
-    private function getRandomPaymentMethod(): string
-    {
-        $methods = ['Transferencia', 'Cheque', 'Efectivo', 'Tarjeta de Crédito', 'Tarjeta de Débito'];
-        return $methods[array_rand($methods)];
-    }
-
-    /**
-     * Obtener un plazo de pago aleatorio
-     */
-    private function getRandomPaymentTerm(): string
-    {
-        $terms = ['Contado', '15 días', '30 días', '45 días', '60 días', '90 días'];
-        return $terms[array_rand($terms)];
     }
 }

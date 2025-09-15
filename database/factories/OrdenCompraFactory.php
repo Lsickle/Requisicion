@@ -13,11 +13,17 @@ class OrdenCompraFactory extends Factory
     {
         // Obtener una requisición existente o crear una nueva
         $requisicion = Requisicion::inRandomOrder()->first() ?? Requisicion::factory()->create();
+        $date = $this->faker->dateTimeBetween('-6 months', 'now');
 
         return [
             'requisicion_id' => $requisicion->id,
-            'created_at' => $requisicion->created_at ?? now(),
-            'updated_at' => $requisicion->updated_at ?? now(),
+            'observaciones'  => $this->faker->optional()->sentence(8),
+            'date_oc'        => $date->format('Y-m-d'),
+            'methods_oc'     => $this->faker->optional()->randomElement(['Efectivo', 'Transferencia']),
+            'plazo_oc'       => $this->faker->optional()->randomElement(['Contado', '30 días', '45 días']),
+            'order_oc'       => 'OC-' . $this->faker->unique()->numerify('#####'),
+            'created_at'     => $date,
+            'updated_at'     => $date,
         ];
     }
 }

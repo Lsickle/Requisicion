@@ -10,7 +10,12 @@ return new class extends Migration
     {
         Schema::create('orden_compras', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade');
+            $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
+            $table->text('observaciones')->nullable(); #observaciones por orden de compra
+            $table->date('date_oc')->nullable(); #fecha de orden de compra
+            $table->string('methods_oc', 255)->nullable(); #metodos de pago
+            $table->string('plazo_oc', 255)->nullable(); #plazos de pago
+            $table->string('order_oc')->nullable(); #numero de orden
             $table->timestamps();
             $table->softDeletes();
         });

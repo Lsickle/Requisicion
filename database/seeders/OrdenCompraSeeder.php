@@ -22,10 +22,8 @@ class OrdenCompraSeeder extends Seeder
             $existeOrden = OrdenCompra::where('requisicion_id', $requisicion->id)->exists();
             
             if (!$existeOrden) {
-                OrdenCompra::create([
+                OrdenCompra::factory()->create([
                     'requisicion_id' => $requisicion->id,
-                    'created_at' => $requisicion->created_at ?? now(),
-                    'updated_at' => $requisicion->updated_at ?? now()
                 ]);
             }
         }

@@ -7,15 +7,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class OrdenCompra extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'orden_compras';
 
     protected $fillable = [
         'requisicion_id',
+        'observaciones',
+        'date_oc',
+        'methods_oc',
+        'plazo_oc',
+        'order_oc',
     ];
 
     public function requisicion(): BelongsTo
@@ -28,23 +34,10 @@ class OrdenCompra extends Model
         return $this->hasMany(OrdenCompraProducto::class, 'orden_compras_id');
     }
 
-    public function productos()
+    public function productos(): BelongsToMany
     {
         return $this->belongsToMany(Producto::class, 'ordencompra_producto', 'orden_compras_id', 'producto_id')
-            ->withPivot('id', 'proveedor_id', 'observaciones', 'date_oc', 'methods_oc', 'plazo_oc', 'order_oc')
-            ->withTimestamps();
-    }
-
-    public function proveedor(): BelongsTo
-    {
-        return $this->belongsTo(Proveedor::class, 'proveedor_id');
-    }
-
-    // NUEVA RELACIÓN: Distribución de productos por centro de costo para la orden de compra
-    public function centrosProductos(): BelongsToMany
-    {
-        return $this->belongsToMany(Producto::class, 'ordencompra_centro_producto', 'orden_compra_id', 'producto_id')
-            ->withPivot('centro_id', 'amount')
+            ->withPivot('id', 'proveedor_id', 'total')
             ->withTimestamps();
     }
 

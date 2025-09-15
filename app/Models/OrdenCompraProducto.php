@@ -16,19 +16,13 @@ class OrdenCompraProducto extends Model
         'producto_id',
         'orden_compras_id',
         'proveedor_id',
-        'observaciones',
-        'date_oc',
-        'methods_oc',
-        'plazo_oc',
-        'order_oc',
-        'total'
+        'total',
     ];
 
     protected $dates = [
-        'date_oc',
         'created_at',
         'updated_at',
-        'deleted_at'
+        'deleted_at',
     ];
 
     public function ordenCompra(): BelongsTo

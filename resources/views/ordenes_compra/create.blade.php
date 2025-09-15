@@ -167,36 +167,14 @@
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
                                 @foreach($productosDisponibles as $producto)
-                                @php
-                                // Determinar si es un producto distribuido (tiene order_oc que comienza con OC-DIST)
-                                $esDistribuido = false;
-                                $proveedorId = '';
-
-                                if ($producto->ordencompraProductos) {
-                                foreach ($producto->ordencompraProductos as $op) {
-                                if (strpos($op->order_oc, 'OC-DIST-') === 0 &&
-                                is_null($op->observaciones) &&
-                                is_null($op->methods_oc) &&
-                                is_null($op->plazo_oc)) {
-                                $esDistribuido = true;
-                                $proveedorId = $op->proveedor_id;
-                                break;
-                                }
-                                }
-                                }
-                                @endphp
                                 <option value="{{ $producto->id }}"
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                     data-nombre="{{ $producto->name_produc }}"
                                     data-unidad="{{ $producto->unit_produc }}"
                                     data-stock="{{ $producto->stock_produc }}"
-                                    data-proveedor="{{ $esDistribuido ? $proveedorId : ($producto->proveedor_id ?? '') }}"
-                                    data-distribuido="{{ $esDistribuido ? '1' : '0' }}">
+                                    data-proveedor="{{ $producto->proveedor_id ?? '' }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
                                     $producto->pivot->pr_amount ?? 1 }}
-                                    @if($esDistribuido)
-                                    - [Distribuido - Por completar]
-                                    @endif
                                 </option>
                                 @endforeach
                             </select>
@@ -255,35 +233,31 @@
                     </thead>
                     <tbody>
                         @php
-                        $ordenes = \App\Models\OrdenCompraProducto::with(['producto', 'proveedor', 'ordenCompra'])
-                        ->whereHas('ordenCompra', function($q) use ($requisicion) {
-                        $q->where('requisicion_id', $requisicion->id);
-                        })
-                        ->get()
-                        ->groupBy('order_oc');
+                        $ordenes = \App\Models\OrdenCompra::with('ordencompraProductos.producto', 'ordencompraProductos.proveedor')
+                            ->where('requisicion_id', $requisicion->id)
+                            ->get();
                         @endphp
 
-                        @foreach($ordenes as $numeroOrden => $productos)
-                        @php $orden = $productos->first(); @endphp
+                        @foreach($ordenes as $orden)
                         <tr class="border-t">
                             <td class="p-3">{{ $loop->iteration }}</td>
                             <td class="p-3">{{ $orden->order_oc ?? 'N/A' }}</td>
-                            <td class="p-3">{{ $orden->proveedor ? $orden->proveedor->prov_name : 'Proveedor no
-                                disponible' }}</td>
                             <td class="p-3">
-                                @foreach($productos as $p)
-                                @if($p->producto)
-                                {{ $p->producto->name_produc }} ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
-                                @else
-                                Producto eliminado ({{ $p->total }})<br>
-                                @endif
+                                @php $prov = optional($orden->ordencompraProductos->first())->proveedor; @endphp
+                                {{ $prov ? $prov->prov_name : 'Proveedor no disponible' }}
+                            </td>
+                            <td class="p-3">
+                                @foreach($orden->ordencompraProductos as $p)
+                                    @if($p->producto)
+                                        {{ $p->producto->name_produc }} ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
+                                    @else
+                                        Producto eliminado ({{ $p->total }})<br>
+                                    @endif
                                 @endforeach
                             </td>
-                            <td class="p-3">{{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}
-                            </td>
+                            <td class="p-3">{{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}</td>
                             <td class="p-3 text-center">
-                                <form action="{{ route('ordenes_compra.anular', $orden->orden_compras_id) }}"
-                                    method="POST" class="inline">
+                                <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
                                     @csrf
                                     <button type="button" onclick="confirmarAnulacion(this)"
                                         class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm">

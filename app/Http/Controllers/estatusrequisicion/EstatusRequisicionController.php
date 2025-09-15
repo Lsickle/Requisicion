@@ -161,20 +161,9 @@ class EstatusRequisicionController extends Controller
                     'date_update' => now(),
                 ]);
 
-                // ✅ SI ES FINANCIERO Y APRUEBA → CREAR SOLO ORDEN DE COMPRA
+                // Al aprobar por financiero (estatus 4) NO crear orden de compra automáticamente
                 if ($request->estatus_id == 4 && $role === 'Gerente financiero') {
-                    try {
-                        $numeroOrden = 'OC-' . now()->format('YmdHis');
-
-                        OrdenCompra::create([
-                            'requisicion_id' => $requisicionId,
-                            'numero_orden'   => $numeroOrden,
-                        ]);
-
-                        Log::info("Orden de compra creada para requisición {$requisicionId}");
-                    } catch (\Exception $e) {
-                        Log::error("ERROR al crear orden de compra: " . $e->getMessage());
-                    }
+                    Log::info("Aprobación financiera para requisición {$requisicionId}; no se crea orden de compra automáticamente.");
                 }
             }
 

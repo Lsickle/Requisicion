@@ -16,11 +16,6 @@ return new class extends Migration
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
             $table->foreignId('orden_compras_id')->constrained('orden_compras')->onDelete('cascade'); #id de la orden de compra
             $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade')->nullable(); #id de proveedores
-            $table->text('observaciones')->nullable(); #observaciones por orden de compra
-            $table->date('date_oc')->nullable(); #fecha de orden de compra
-            $table->string('methods_oc', 255)->nullable(); #metodos de pago
-            $table->string('plazo_oc', 255)->nullable(); #plazos de pago
-            $table->string('order_oc')->nullable(); #numero de orden
             $table->integer('total')->nullable(); #cantidad de la orden de compra
             $table->timestamps();
             $table->softDeletes();
