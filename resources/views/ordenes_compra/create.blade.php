@@ -189,6 +189,7 @@
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                     data-nombre="{{ $producto->name_produc }}"
                                     data-unidad="{{ $producto->unit_produc }}"
+                                    data-stock="{{ $producto->stock_produc }}"
                                     data-proveedor="{{ $esDistribuido ? $proveedorId : ($producto->proveedor_id ?? '') }}"
                                     data-distribuido="{{ $esDistribuido ? '1' : '0' }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
@@ -337,7 +338,7 @@
         let proveedorId = selectedOption.dataset.proveedor;
         let unidad = selectedOption.dataset.unidad || '';
         let cantidadOriginal = selectedOption.dataset.cantidad || 1;
-        let stockDisponible = selectedOption.dataset.stock || 0;
+        let stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
 
         if (!productoId) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});

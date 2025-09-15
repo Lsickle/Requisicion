@@ -1,21 +1,21 @@
 <div class="relative">
     <!-- Navbar -->
     <nav
-        class="bg-orange-500 text-white px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
-        <button class="text-white text-xl" onclick="toggleSidebar()">☰</button>
+        class="bg-slate-200 text-blue-900 border-b border-slate-300 px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
+        <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
-            <img src="{{ asset('images/logo_fondo_blanco.png') }}" alt="Vigía Plus Logistics"
+            <img src="{{ asset('images/logo.png') }}" alt="Vigía Plus Logistics"
                 class="mx-auto h-9 w-auto object-contain">
         </div>
     </nav>
 
     <!-- Sidebar -->
     <div id="sidebar"
-        class="fixed top-14 left-0 w-64 h-[calc(100%-3.5rem)] bg-blue-900 text-white pt-6 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col">
+        class="fixed top-14 left-0 w-64 h-[calc(100%-3.5rem)] bg-blue-950 text-white pt-6 transform -translate-x-full transition-transform duration-300 z-40 shadow-xl flex flex-col">
 
 
         <!-- Opciones -->
-        <ul class="list-none p-0 m-0 flex-grow text-sm">
+        <ul class="list-none p-0 m-0 flex-grow text-sm overflow-y-auto pr-1">
             @php
             $permissions = Session::get('user_permissions', []);
             $hasPermission = fn($perm) => in_array($perm, $permissions);
@@ -23,7 +23,7 @@
 
             <li>
                 <a href="{{ route('requisiciones.menu') }}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Menú
                 </a>
             </li>
@@ -31,7 +31,7 @@
             @if($hasPermission('crear requisicion'))
             <li>
                 <a href="{{ route('requisiciones.create') }}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Crear Requisición
                 </a>
             </li>
@@ -40,7 +40,7 @@
             @if($hasPermission('aprobar requisicion'))
             <li>
                 <a href="{{ route('requisiciones.aprobacion') }}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     requisiciones por aprobar
                 </a>
             </li>
@@ -49,7 +49,7 @@
             @if($hasPermission('ver requisicion'))
             <li>
                 <a href="{{ route('requisiciones.historial') }}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Historial de Requisiciones
                 </a>
             </li>
@@ -58,7 +58,7 @@
             @if($hasPermission('solicitar producto'))
             <li>
                 <a href="{{ route('productos.nuevoproducto')}}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Solicitar nuevo producto
                 </a>
             </li>
@@ -67,7 +67,7 @@
             @if($hasPermission('crear oc'))
             <li>
                 <a href="{{ route('ordenes_compra.lista') }}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Generar Orden de Compra
                 </a>
             </li>
@@ -76,7 +76,7 @@
             @if($hasPermission('ver oc'))
             <li>
                 <a href="#"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Historial de Órdenes de Compra
                 </a>
             </li>
@@ -85,7 +85,7 @@
             @if($hasPermission('ver producto'))
             <li>
                 <a href="{{ route('productos.gestor')}}"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Ver productos
                 </a>
             </li>
@@ -94,7 +94,7 @@
             @if($hasPermission('Dashboard'))
             <li>
                 <a href="#"
-                    class="block px-6 py-3 hover:bg-blue-600 hover:text-yellow-200 hover:no-underline transition">
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
                     Dashboard
                 </a>
             </li>
@@ -102,11 +102,11 @@
         </ul>
 
         <!-- Información del usuario -->
-        <div class="px-4 py-4 border-t border-blue-700 bg-blue-800 text-sm">
+        <div class="px-4 py-4 border-t border-blue-800 bg-blue-900 text-sm">
             @if(Session::has('user'))
             <div>
                 <p class="font-semibold text-white">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
-                <p class="text-blue-300 text-xs">{{ Session::get('user')['email'] ?? '' }}</p>
+                <p class="text-blue-200 text-xs">{{ Session::get('user')['email'] ?? '' }}</p>
             </div>
             @endif
 
