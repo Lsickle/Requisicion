@@ -44,6 +44,7 @@ class Requisicion extends Model
     public function estatusHistorial()
     {
         return $this->hasMany(Estatus_Requisicion::class, 'requisicion_id')
+            ->with('estatusRelation')
             ->orderBy('created_at', 'desc');
     }
 
@@ -52,7 +53,7 @@ class Requisicion extends Model
     {
         return $this->hasOne(Estatus_Requisicion::class, 'requisicion_id')
             ->where('estatus', 1)
-            ->with('estatus')
+            ->with('estatusRelation')
             ->latest();
     }
 

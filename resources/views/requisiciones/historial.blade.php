@@ -34,7 +34,7 @@
                 <tr class="border-b hover:bg-gray-50 transition">
 
                     <!-- Fecha -->
-                    <td class="p-3">{{ $req->created_at->format('d/m/Y H:i') }}</td>
+                    <td class="p-3">{{ $req->created_at->format('d/m/Y') }}</td>
 
                     <!-- Prioridad -->
                     <td class="p-3">
@@ -61,28 +61,23 @@
                     <!-- Estatus -->
                     <td class="p-3">
                         @php
-                        $nombreEstatus = 'Pendiente';
-                        $colorEstatus = 'bg-gray-500';
-                        $ultimoEstatusId = null;
-
-                        if ($req->estatusHistorial && $req->estatusHistorial->count() > 0) {
-                        $ultimoEstatus = $req->estatusHistorial->sortByDesc('created_at')->first();
-                        $ultimoEstatusId = $ultimoEstatus->estatus_id;
-
-                        switch($ultimoEstatusId) {
-                        case 1: $nombreEstatus = 'Requisición creada'; $colorEstatus = 'bg-blue-600'; break;
-                        case 2: case 3: case 4: $nombreEstatus = 'En revisión'; $colorEstatus = 'bg-yellow-500'; break;
-                        case 5: $nombreEstatus = 'Orden generada'; $colorEstatus = 'bg-purple-600'; break;
-                        case 6: case 9: $nombreEstatus = 'Cancelada/Rechazada'; $colorEstatus = 'bg-red-600'; break;
-                        case 7: case 8: $nombreEstatus = 'Recibido'; $colorEstatus = 'bg-indigo-600'; break;
-                        case 10: $nombreEstatus = 'Completado'; $colorEstatus = 'bg-green-600'; break;
-                        case 11: $nombreEstatus = 'Ajustes requeridos'; $colorEstatus = 'bg-orange-500'; break;
-                        }
-                        }
+                            $colorEstatus = 'bg-gray-500';
+                            $ultimoEstatus = ($req->estatusHistorial && $req->estatusHistorial->count() > 0)
+                                ? $req->estatusHistorial->sortByDesc('created_at')->first()
+                                : null;
+                            $ultimoEstatusId = $ultimoEstatus->estatus_id ?? null;
+                            $nombreEstatus = $ultimoEstatus && $ultimoEstatus->estatusRelation ? $ultimoEstatus->estatusRelation->status_name : 'Pendiente';
+                            switch($ultimoEstatusId) {
+                                case 1: $colorEstatus = 'bg-blue-600'; break;
+                                case 2: case 3: case 4: $colorEstatus = 'bg-yellow-500'; break;
+                                case 5: $colorEstatus = 'bg-purple-600'; break;
+                                case 6: case 9: $colorEstatus = 'bg-red-600'; break;
+                                case 7: case 8: $colorEstatus = 'bg-indigo-600'; break;
+                                case 10: $colorEstatus = 'bg-green-600'; break;
+                                case 11: $colorEstatus = 'bg-orange-500'; break;
+                            }
                         @endphp
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }}">
-                            {{ $nombreEstatus }}
-                        </span>
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }}">{{ $nombreEstatus }}</span>
                     </td>
 
                     <!-- Acciones -->
@@ -151,10 +146,30 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
                         <div><span class="font-medium">Solicitante:</span> {{ $req->name_user ?? $req->user->name ??
                             'Desconocido' }}</div>
-                        <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y H:i') }}</div>
+                        <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y') }}</div>
                         <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}
                         </div>
                         <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
+                        @php
+                            $hist = $req->estatusHistorial;
+                            $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
+                            $estatusActualId = $ultimoActivo->estatus_id ?? null;
+                            $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
+                            $colorActual = 'bg-gray-500';
+                            switch($estatusActualId) {
+                                case 1: $colorActual = 'bg-blue-600'; break;
+                                case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
+                                case 5: $colorActual = 'bg-purple-600'; break;
+                                case 6: case 9: $colorActual = 'bg-red-600'; break;
+                                case 7: case 8: $colorActual = 'bg-indigo-600'; break;
+                                case 10: $colorActual = 'bg-green-600'; break;
+                                case 11: $colorActual = 'bg-orange-500'; break;
+                            }
+                        @endphp
+                        <div>
+                            <span class="font-medium">Estatus actual:</span>
+                            <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }}">{{ $estatusActualNombre }}</span>
+                        </div>
                     </div>
                 </section>
 

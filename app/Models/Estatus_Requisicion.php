@@ -25,7 +25,7 @@ class Estatus_Requisicion extends Model
         'updated_at'
     ];
 
-    public function estatus()
+    public function estatusRelation()
     {
         return $this->belongsTo(Estatus::class, 'estatus_id');
     }

@@ -43,7 +43,7 @@ class EstatusRequisicionController extends Controller
             $estatusFiltrar = 3;
         }
 
-        $requisiciones = Requisicion::with(['ultimoEstatus.estatus', 'productos', 'estatusHistorial.estatus'])
+        $requisiciones = Requisicion::with(['ultimoEstatus.estatusRelation', 'productos', 'estatusHistorial.estatusRelation'])
             ->whereHas('ultimoEstatus', function ($q) use ($estatusFiltrar) {
                 $q->where('estatus_id', $estatusFiltrar);
             })
