@@ -182,6 +182,8 @@
                             <select id="producto-selector"
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
+                                @if($productosDisponibles->count())
+                                <optgroup label="Productos sin distribuir">
                                 @foreach($productosDisponibles as $producto)
                                 <option value="{{ $producto->id }}"
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
@@ -193,12 +195,16 @@
                                     $producto->pivot->pr_amount ?? 1 }}
                                 </option>
                                 @endforeach
+                                </optgroup>
+                                @endif
                                 @if(isset($lineasDistribuidas) && $lineasDistribuidas->count())
+                                <optgroup label="Líneas distribuidas pendientes">
                                     @foreach($lineasDistribuidas as $ld)
                                         <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}">
                                             {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
                                         </option>
                                     @endforeach
+                                </optgroup>
                                 @endif
                             </select>
                             <button type="button" onclick="agregarProducto()"
@@ -469,16 +475,9 @@
 
         // Quitar opción usada del selector
         if (esDistribuido && ocpId) {
-            const opts = Array.from(selector.options);
-            const idx = opts.findIndex(o => o.value == String(productoId) && (o.dataset.ocpId || '') == String(ocpId));
-            if (idx > -1) selector.remove(idx);
+            // No remover; mantener visible hasta guardar definitivamente
         } else {
-            for (let i = 0; i < selector.options.length; i++) {
-                if (selector.options[i].value == productoId && !selector.options[i].dataset.distribuido) {
-                    selector.remove(i);
-                    break;
-                }
-            }
+            // No remover para productos sin distribuir; pueden agregarse varias líneas si es requerido
         }
         selector.value = "";
     }

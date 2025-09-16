@@ -67,6 +67,15 @@ class OrdenCompraController extends Controller
                             ->where('orden_compras.requisicion_id', $requisicion->id)
                             ->whereNull('ordencompra_producto.deleted_at');
                     })
+                    ->whereNotExists(function ($subquery) use ($requisicion) {
+                        // Excluir si el producto tiene líneas distribuidas pendientes para esta requisición
+                        $subquery->select(DB::raw(1))
+                            ->from('ordencompra_producto as ocp0')
+                            ->whereColumn('ocp0.producto_id', 'productos.id')
+                            ->where('ocp0.requisicion_id', $requisicion->id)
+                            ->whereNull('ocp0.orden_compras_id')
+                            ->whereNull('ocp0.deleted_at');
+                    })
                     ->orderBy('productos.id', 'asc')
                     ->get();
 
@@ -95,22 +104,7 @@ class OrdenCompraController extends Controller
                     )
                     ->get();
 
-                // Ocultar líneas distribuidas si ya existe una OC principal para ese producto
-                $productoIdsEnOCPrincipal = DB::table('ordencompra_producto as ocp2')
-                    ->join('orden_compras as oc2', 'ocp2.orden_compras_id', '=', 'oc2.id')
-                    ->where('oc2.requisicion_id', $requisicion->id)
-                    ->whereNull('oc2.deleted_at')
-                    ->whereNull('ocp2.deleted_at')
-                    ->where(function($q){
-                        $q->whereNull('oc2.order_oc')
-                          ->orWhere('oc2.order_oc', 'not like', 'OC-DIST-%');
-                    })
-                    ->pluck('ocp2.producto_id')
-                    ->unique();
-
-                $lineasDistribuidas = $lineasDistribuidas->reject(function($ld) use ($productoIdsEnOCPrincipal){
-                    return $productoIdsEnOCPrincipal->contains($ld->producto_id);
-                });
+                // Ya no ocultar líneas distribuidas por existir OC principal; se mostrarán hasta asociarlas
 
                 // Órdenes principales (no OC-DIST)
                 $ordenes = OrdenCompra::with('ordencompraProductos.producto', 'ordencompraProductos.proveedor')
