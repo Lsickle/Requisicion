@@ -182,10 +182,60 @@
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
                             </button>
-                            <a href="{{ route('ordenes_compra.distribucionProveedores', ['requisicion_id' => $requisicion->id]) }}"
+                            <button type="button" id="btn-abrir-modal"
                                 class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
                                 📊 Distribuir entre Proveedores
-                            </a>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Modal Distribución -->
+                    <div id="modal-distribucion" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+                        <div class="bg-white max-w-3xl mx-auto mt-20 rounded-lg shadow-lg overflow-hidden">
+                            <div class="flex justify-between items-center px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">Distribuir producto entre Proveedores</h3>
+                                <button type="button" id="btn-cerrar-modal" class="text-gray-600 hover:text-gray-800">✕</button>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-600 mb-1">Producto a distribuir</label>
+                                    <select id="dist-producto-id" class="w-full border rounded-lg p-2">
+                                        <option value="">Seleccione un producto</option>
+                                        @foreach($productosDisponibles as $producto)
+                                        <option value="{{ $producto->id }}" data-max="{{ $producto->pivot->pr_amount ?? 1 }}" data-nombre="{{ $producto->name_produc }}" data-unidad="{{ $producto->unit_produc }}">
+                                            {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{ $producto->pivot->pr_amount ?? 1 }}
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                    <small class="text-gray-500">Cantidad total disponible: <span id="dist-max">0</span> <span id="dist-unidad"></span></small>
+                                </div>
+
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border text-sm rounded-lg bg-white">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="p-2 text-left">Proveedor</th>
+                                                <th class="p-2 text-center">Cantidad</th>
+                                                <th class="p-2 text-center">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabla-items-dist"></tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td class="p-2 font-semibold">Total distribuido</td>
+                                                <td class="p-2 text-center"><span id="dist-total">0</span> / <span id="dist-total-max">0</span></td>
+                                                <td class="p-2 text-center">
+                                                    <button type="button" id="btn-add-fila" class="px-3 py-1 bg-green-600 text-white rounded text-sm">+ Agregar</button>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-3 px-6 py-4 border-t">
+                                <button type="button" id="btn-cancelar-modal" class="px-4 py-2 border rounded">Cancelar</button>
+                                <button type="button" id="btn-guardar-dist" class="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                            </div>
                         </div>
                     </div>
 
@@ -284,9 +334,10 @@
 </div>
 
 <script>
+    // Cambiar a llave compuesta para permitir líneas distribuidas del mismo producto
     let productosAgregados = [];
     let centros = @json($centros);
-    
+
     // Preparar la distribución original de la requisición
     let distribucionOriginal = {};
     @if($requisicion)
@@ -300,80 +351,51 @@
     @endif
 
     function agregarProducto() {
-        let selector = document.getElementById('producto-selector');
-        let proveedorSelect = document.getElementById('proveedor_id');
-
-        let productoId = selector.value;
-        let selectedOption = selector.options[selector.selectedIndex];
-        
-        if (!selectedOption) return;
-        
-        let productoNombre = selectedOption.dataset.nombre;
-        let proveedorId = selectedOption.dataset.proveedor;
-        let unidad = selectedOption.dataset.unidad || '';
-        let cantidadOriginal = selectedOption.dataset.cantidad || 1;
-        let stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
-
-        if (!productoId) {
+        const selector = document.getElementById('producto-selector');
+        const proveedorSelect = document.getElementById('proveedor_id');
+        const selectedOption = selector.options[selector.selectedIndex];
+        const productoId = selector.value;
+        if (!selectedOption || !productoId) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
             return;
         }
 
-        if (productosAgregados.includes(productoId)) {
-            Swal.fire({icon: 'warning', title: 'Atención', text: 'Este producto ya fue agregado'});
+        const productoNombre = selectedOption.dataset.nombre;
+        const proveedorId = selectedOption.dataset.proveedor;
+        const unidad = selectedOption.dataset.unidad || '';
+        const cantidadOriginal = selectedOption.dataset.cantidad || 1;
+        const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
+        const ocpId = selectedOption.dataset.ocpId || null;
+        const key = `${productoId}-${ocpId||'0'}`;
+
+        if (productosAgregados.includes(key)) {
+            Swal.fire({icon: 'warning', title: 'Atención', text: 'Esta línea ya fue agregada'});
             return;
         }
 
-        let proveedorActual = proveedorSelect.value;
-        if (proveedorActual && proveedorId && proveedorActual != proveedorId) {
-            Swal.fire({
-                icon: 'warning', 
-                title: 'Diferente proveedor', 
-                text: 'Este producto pertenece a otro proveedor. ¿Desea cambiar el proveedor seleccionado?',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, cambiar',
-                cancelButtonText: 'No, mantener'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    proveedorSelect.value = proveedorId;
-                    agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector);
-                }
-            });
-        } else {
-            agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector);
+        // Si es distribuido, fijar proveedor
+        if (selectedOption.dataset.distribuido === '1' && proveedorId) {
+            proveedorSelect.value = proveedorId;
         }
+
+        agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1');
     }
 
-    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector) {
-        let table = document.getElementById('productos-table');
-        let proveedorSelect = document.getElementById('proveedor_id');
-        
-        let row = document.createElement('tr');
-        row.id = `producto-${productoId}`;
-        
-        // Obtener distribución original para este producto
+    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false) {
+        const table = document.getElementById('productos-table');
+        const rowId = `producto-${productoId}-${ocpId||'0'}`;
+        if (document.getElementById(rowId)) return;
+
         let distribucionProducto = distribucionOriginal[productoId] || {};
-        
-        // Generar campos de distribución por centros - SOLO LOS CENTROS QUE ESTÁN EN LA DISTRIBUCIÓN
         let centrosHtml = '';
-        
-        // Obtener solo los centros que tienen distribución para este producto
         let centrosConDistribucion = [];
         for (let centroId in distribucionProducto) {
             if (distribucionProducto[centroId] > 0) {
                 let centro = centros.find(c => c.id == centroId);
-                if (centro) {
-                    centrosConDistribucion.push(centro);
-                }
+                if (centro) centrosConDistribucion.push(centro);
             }
         }
-        
-        // Si no hay centros con distribución, usar todos los centros
-        if (centrosConDistribucion.length === 0) {
-            centrosConDistribucion = centros;
-        }
-        
-        // Generar los campos para los centros con distribución
+        if (centrosConDistribucion.length === 0) centrosConDistribucion = centros;
         centrosConDistribucion.forEach(centro => {
             let cantidadCentro = distribucionProducto[centro.id] || 0;
             centrosHtml += `
@@ -385,12 +407,15 @@
                 </div>
             `;
         });
-        
+
+        const row = document.createElement('tr');
+        row.id = rowId;
         row.innerHTML = `
             <td class="p-3">
-                ${productoNombre}
+                ${productoNombre} ${esDistribuido && proveedorId ? `<span class="text-xs text-gray-500">(Distribuido)</span>`:''}
                 <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}">
+                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}">
+                ${ocpId ? `<input type="hidden" name="productos[${productoId}][ocp_id]" value="${ocpId}">` : ``}
             </td>
             <td class="p-3 text-center">
                 <input type="number" name="productos[${productoId}][cantidad]" min="1" value="${cantidadOriginal}" 
@@ -406,144 +431,72 @@
                 </div>
             </td>
             <td class="p-3 text-center space-x-2">
-                <button type="button" onclick="quitarProducto(${productoId})" 
+                <button type="button" onclick="quitarProducto('${rowId}', ${productoId}, ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
-                <button type="button" onclick="mostrarCampoStock(${productoId})" 
-                    class="bg-yellow-600 text-white px-3 py-1 rounded-lg mb-1">Quitar de stock</button>
-                <div id="stock-campo-${productoId}" class="mt-2 hidden">
-                    <label class="block text-sm text-gray-600">Cantidad a retirar de stock:</label>
-                    <input type="number" name="productos[${productoId}][quitar_stock]" 
-                           min="0" max="${stockDisponible}" value="0" 
-                           class="w-24 border rounded p-1 text-center quitar-stock"
-                           onchange="actualizarCantidadOrden(${productoId})" 
-                           placeholder="Cantidad a retirar">
-                </div>
             </td>
         `;
         table.appendChild(row);
 
-        if (proveedorId && !proveedorSelect.value) {
-            proveedorSelect.value = proveedorId;
-        }
+        productosAgregados.push(`${productoId}-${ocpId||'0'}`);
 
-        productosAgregados.push(productoId);
-        
-        for (let i = 0; i < selector.options.length; i++) {
-            if (selector.options[i].value == productoId) {
-                selector.remove(i);
-                break;
+        if (!esDistribuido) {
+            for (let i = 0; i < selector.options.length; i++) {
+                if (selector.options[i].value == productoId && !selector.options[i].dataset.distribuido) {
+                    selector.remove(i);
+                    break;
+                }
             }
         }
         selector.value = "";
-
-        if (selector.options.length === 1) {
-            document.getElementById('zip-container').classList.remove('hidden');
-        }
-        
-        // Calcular total inicial
         actualizarTotal(productoId);
     }
 
     function actualizarTotal(productoId) {
         const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
         let total = 0;
-        
-        inputs.forEach(input => {
-            total += parseInt(input.value) || 0;
-        });
-        
-        document.getElementById(`cantidad-total-${productoId}`).value = total;
-    }
-
-    function actualizarCantidadOrden(productoId) {
-        const quitarStockInput = document.querySelector(`input[name="productos[${productoId}][quitar_stock]"]`);
-        const cantidadTotalInput = document.getElementById(`cantidad-total-${productoId}`);
-        const stockDisponible = parseInt(document.getElementById(`stock-disponible-${productoId}`).textContent);
-        
-        const quitarStock = parseInt(quitarStockInput.value) || 0;
-        
-        if (quitarStock > stockDisponible) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: `No puede retirar más de ${stockDisponible} unidades del stock`,
-                confirmButtonText: 'Aceptar'
-            });
-            quitarStockInput.value = stockDisponible;
-            return;
-        }
-        
-        // La cantidad a ordenar es la cantidad original menos lo que se retira del stock
-        const cantidadOrden = parseInt(cantidadTotalInput.dataset.original || cantidadTotalInput.value) - quitarStock;
-        
-        if (cantidadOrden < 0) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'La cantidad a ordenar no puede ser negativa',
-                confirmButtonText: 'Aceptar'
-            });
-            quitarStockInput.value = 0;
-            cantidadTotalInput.value = cantidadTotalInput.dataset.original || cantidadTotalInput.value;
-            return;
-        }
-        
-        cantidadTotalInput.value = cantidadOrden;
-        
-        // Actualizar la distribución automáticamente
-        distribuirAutomaticamente(productoId);
+        inputs.forEach(input => { total += parseInt(input.value) || 0; });
+        const totalInput = document.getElementById(`cantidad-total-${productoId}`);
+        if (totalInput) totalInput.value = total;
     }
 
     function distribuirAutomaticamente(productoId) {
-        const total = parseInt(document.getElementById(`cantidad-total-${productoId}`).value) || 0;
+        const total = parseInt(document.getElementById(`cantidad-total-${productoId}`)?.value) || 0;
         const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
-        
         if (inputs.length > 0 && total > 0) {
             const cantidadPorCentro = Math.floor(total / inputs.length);
             const resto = total % inputs.length;
-            
             inputs.forEach((input, index) => {
                 input.value = index < resto ? cantidadPorCentro + 1 : cantidadPorCentro;
             });
         }
     }
 
-    function quitarProducto(productoId) {
-        let row = document.getElementById(`producto-${productoId}`);
-        let selector = document.getElementById('producto-selector');
-        
+    function quitarProducto(rowId, productoId, ocpId = null) {
+        const row = document.getElementById(rowId);
+        const selector = document.getElementById('producto-selector');
         if (row) {
-            row.remove();
-            productosAgregados = productosAgregados.filter(id => id != productoId);
-            
             const inputHidden = row.querySelector('input[type="hidden"]');
-            const proveedorId = inputHidden.dataset.proveedor;
-            const unidad = inputHidden.dataset.unidad;
-            const nombre = inputHidden.dataset.nombre;
-            const cantidad = inputHidden.dataset.cantidad;
-            const stock = inputHidden.dataset.stock;
-            
-            let productoOption = document.createElement('option');
-            productoOption.value = productoId;
-            productoOption.dataset.proveedor = proveedorId;
-            productoOption.dataset.unidad = unidad;
-            productoOption.dataset.nombre = nombre;
-            productoOption.dataset.cantidad = cantidad;
-            productoOption.dataset.stock = stock;
-            productoOption.textContent = nombre + ' (' + unidad + ') - Cantidad: ' + cantidad + ' - Stock: ' + stock;
-            
-            selector.appendChild(productoOption);
+            const proveedorId = inputHidden?.dataset?.proveedor || '';
+            const unidad = inputHidden?.dataset?.unidad || '';
+            const nombre = inputHidden?.dataset?.nombre || '';
+            const cantidad = inputHidden?.dataset?.cantidad || 0;
+            const stock = inputHidden?.dataset?.stock || 0;
+            const esDistribuido = !!ocpId;
 
-            if (selector.options.length > 1) {
-                document.getElementById('zip-container').classList.add('hidden');
+            row.remove();
+            productosAgregados = productosAgregados.filter(k => k !== `${productoId}-${ocpId||'0'}`);
+
+            if (!esDistribuido) {
+                let productoOption = document.createElement('option');
+                productoOption.value = productoId;
+                productoOption.dataset.proveedor = proveedorId;
+                productoOption.dataset.unidad = unidad;
+                productoOption.dataset.nombre = nombre;
+                productoOption.dataset.cantidad = cantidad;
+                productoOption.dataset.stock = stock;
+                productoOption.textContent = `${nombre} (${unidad}) - Cantidad: ${cantidad} - Stock: ${stock}`;
+                selector.appendChild(productoOption);
             }
-        }
-    }
-
-    function mostrarCampoStock(productoId) {
-        const campo = document.getElementById(`stock-campo-${productoId}`);
-        if (campo) {
-            campo.classList.toggle('hidden');
         }
     }
 
@@ -570,39 +523,29 @@
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
             return;
         }
-
-        // Validar que la distribución coincida con las cantidades
         let errores = [];
-        productosAgregados.forEach(productoId => {
+        productosAgregados.forEach(key => {
+            const [productoId] = key.split('-');
             const totalInput = document.getElementById(`cantidad-total-${productoId}`);
-            const total = parseInt(totalInput.value) || 0;
-            
+            const total = parseInt(totalInput?.value) || 0;
             const distribucionInputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
             let distribucionTotal = 0;
-            
             distribucionInputs.forEach(input => {
                 distribucionTotal += parseInt(input.value) || 0;
             });
-            
             if (total !== distribucionTotal) {
                 errores.push(`La distribución del producto ${productoId} no coincide con la cantidad total`);
             }
         });
-        
         if (errores.length > 0) {
             e.preventDefault();
-            Swal.fire({
-                icon: 'error',
-                title: 'Error de validación',
-                html: errores.join('<br>')
-            });
+            Swal.fire({ icon: 'error', title: 'Error de validación', html: errores.join('<br>') });
         }
     });
 
     function configurarAutoCargaProveedor() {
         const productoSelector = document.getElementById('producto-selector');
         const proveedorSelect = document.getElementById('proveedor_id');
-        
         productoSelector.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             if (selectedOption && selectedOption.dataset.proveedor) {
@@ -611,9 +554,149 @@
         });
     }
 
-    // Llamar a la función cuando el documento esté listo
+    // Modal: abrir, cerrar, validar y guardar por AJAX
     document.addEventListener('DOMContentLoaded', function() {
         configurarAutoCargaProveedor();
+        const modal = document.getElementById('modal-distribucion');
+        const btnAbrir = document.getElementById('btn-abrir-modal');
+        const btnCerrar = document.getElementById('btn-cerrar-modal');
+        const btnCancelar = document.getElementById('btn-cancelar-modal');
+        const selectProd = document.getElementById('dist-producto-id');
+        const spanMax = document.getElementById('dist-max');
+        const spanTotalMax = document.getElementById('dist-total-max');
+        const spanUnidad = document.getElementById('dist-unidad');
+        const tbody = document.getElementById('tabla-items-dist');
+        const spanTotal = document.getElementById('dist-total');
+        const btnAddFila = document.getElementById('btn-add-fila');
+        const btnGuardar = document.getElementById('btn-guardar-dist');
+
+        function abrirModal() { modal.classList.remove('hidden'); }
+        function cerrarModal() { modal.classList.add('hidden'); limpiarModal(); }
+
+        btnAbrir?.addEventListener('click', abrirModal);
+        btnCerrar?.addEventListener('click', cerrarModal);
+        btnCancelar?.addEventListener('click', cerrarModal);
+
+        selectProd.addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            const max = parseInt(opt?.dataset?.max || '0', 10);
+            spanMax.textContent = max;
+            spanTotalMax.textContent = max;
+            spanUnidad.textContent = opt?.dataset?.unidad || '';
+            calcularTotal();
+        });
+
+        btnAddFila.addEventListener('click', function() {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+                <td class="p-2">
+                    <select class="w-full border rounded p-1 prov-item">
+                        <option value="">Seleccione</option>
+                        @foreach($proveedores as $proveedor)
+                        <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
+                        @endforeach
+                    </select>
+                </td>
+                <td class="p-2 text-center">
+                    <input type="number" min="1" value="1" class="w-24 border rounded p-1 cant-item" />
+                </td>
+                <td class="p-2 text-center">
+                    <button type="button" class="px-2 py-1 bg-red-500 text-white rounded text-sm btn-del-fila">✕</button>
+                </td>
+            `;
+            tbody.appendChild(fila);
+            fila.querySelector('.btn-del-fila').addEventListener('click', function(){ fila.remove(); calcularTotal(); });
+            fila.querySelector('.cant-item').addEventListener('input', calcularTotal);
+        });
+
+        function calcularTotal(){
+            let total = 0;
+            tbody.querySelectorAll('.cant-item').forEach(inp => total += (parseInt(inp.value)||0));
+            spanTotal.textContent = total;
+        }
+
+        function limpiarModal(){
+            selectProd.value = '';
+            spanMax.textContent = '0';
+            spanTotalMax.textContent = '0';
+            spanUnidad.textContent = '';
+            tbody.innerHTML = '';
+            spanTotal.textContent = '0';
+        }
+
+        btnGuardar.addEventListener('click', async function(){
+            const prodId = selectProd.value;
+            const max = parseInt(spanTotalMax.textContent || '0', 10);
+            let total = 0;
+            const filas = Array.from(tbody.querySelectorAll('tr'));
+
+            if (!prodId) {
+                Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
+                return;
+            }
+            if (filas.length < 2) {
+                Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe distribuir al menos en 2 proveedores'});
+                return;
+            }
+
+            const proveedoresElegidos = [];
+            const distribucionData = [];
+            for (const tr of filas){
+                const prov = tr.querySelector('.prov-item').value;
+                const cant = parseInt(tr.querySelector('.cant-item').value||'0', 10);
+                if (!prov || cant <= 0){
+                    Swal.fire({icon: 'warning', title: 'Atención', text: 'Complete proveedor y cantidad válidos'});
+                    return;
+                }
+                proveedoresElegidos.push(prov);
+                total += cant;
+                distribucionData.push({proveedor_id: prov, cantidad: cant});
+            }
+            const setProv = new Set(proveedoresElegidos);
+            if (setProv.size !== proveedoresElegidos.length){
+                Swal.fire({icon: 'error', title: 'Error', text: 'No puede repetir el mismo proveedor en la distribución'});
+                return;
+            }
+
+            if (total !== max){
+                Swal.fire({icon: 'error', title: 'Error', text: 'El total distribuido debe ser igual a la cantidad disponible'});
+                return;
+            }
+
+            try {
+                const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
+
+                // Quitar opción principal del producto completo
+                const mainSel = document.getElementById('producto-selector');
+                Array.from(mainSel.options).forEach(opt => { if (opt.value == prodId && !opt.dataset.distribuido) opt.remove(); });
+
+                // Agregar opciones por cada línea creada
+                (data.lineas || []).forEach(l => {
+                    const opt = document.createElement('option');
+                    opt.value = l.producto_id;
+                    opt.dataset.distribuido = '1';
+                    opt.dataset.ocpId = l.ocp_id;
+                    opt.dataset.proveedor = l.proveedor_id;
+                    opt.dataset.nombre = l.producto_nombre;
+                    opt.dataset.unidad = l.unidad || '';
+                    opt.dataset.stock = l.stock ?? 0;
+                    opt.dataset.cantidad = l.cantidad;
+                    opt.textContent = `${l.producto_nombre} - ${l.proveedor_nombre} - Cant: ${l.cantidad}`;
+                    mainSel.appendChild(opt);
+                });
+
+                cerrarModal();
+                Swal.fire({icon:'success', title:'Distribución guardada', timer:1500, showConfirmButton:false});
+            } catch (e) {
+                Swal.fire({icon:'error', title:'Error', text: e.message});
+            }
+        });
     });
 </script>
 @endsection

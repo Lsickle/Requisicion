@@ -98,6 +98,7 @@ class OrdenCompraController extends Controller
             'requisicion_id' => 'required|exists:requisicion,id',
             'productos'      => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.ocp_id' => 'nullable|integer|exists:ordencompra_producto,id',
             'productos.*.cantidad' => 'required|integer|min:1',
             'productos.*.centros' => 'nullable|array',
             'productos.*.centros.*' => 'nullable|integer|min:0',
@@ -109,43 +110,88 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
-            // Buscar una orden existente para esta requisición (no distribuida)
-            $orden = OrdenCompra::where('requisicion_id', $request->requisicion_id)
-                ->whereNull('deleted_at')
-                ->where(function ($q) {
-                    $q->whereNull('order_oc')
-                      ->orWhere('order_oc', 'not like', 'OC-DIST-%');
-                })
-                ->latest('id')
-                ->first();
+            foreach ($request->productos as $productoData) {
+                if (empty($productoData['id'])) continue;
 
-            if (!$orden) {
-                // No existe: crear nueva orden para la requisición
-                $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
-                $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
+                $productoId = (int) $productoData['id'];
+                $cantidadIngresada = (int) ($productoData['cantidad'] ?? 0);
+                $ocpId = $productoData['ocp_id'] ?? null;
 
-                $orden = OrdenCompra::create([
-                    'requisicion_id' => $request->requisicion_id,
-                    'observaciones'  => $request->observaciones,
-                    'methods_oc'     => $request->methods_oc,
-                    'plazo_oc'       => $request->plazo_oc,
-                    'date_oc'        => now(),
-                    'order_oc'       => $numeroOrden,
-                ]);
-            } else {
-                // Existe: actualizar campos si vienen en la solicitud, mantener número y fecha
-                $orden->update([
-                    'observaciones' => $request->observaciones ?? $orden->observaciones,
-                    'methods_oc'    => $request->methods_oc ?? $orden->methods_oc,
-                    'plazo_oc'      => $request->plazo_oc ?? $orden->plazo_oc,
-                ]);
-            }
+                if ($ocpId) {
+                    // Actualizar línea distribuida existente
+                    $ocp = OrdenCompraProducto::findOrFail($ocpId);
+                    $ordenDist = OrdenCompra::findOrFail($ocp->orden_compras_id);
 
-            foreach ($request->productos as $productoId => $productoData) {
-                if (!isset($productoData['id']) || !$productoData['id']) continue;
+                    if ((int)$ordenDist->requisicion_id !== (int)$request->requisicion_id) {
+                        throw new \Exception('La línea distribuida no pertenece a esta requisición.');
+                    }
+                    // Enforzar coherencia de proveedor
+                    if ((int)$request->proveedor_id !== (int)$ocp->proveedor_id) {
+                        throw new \Exception('El proveedor seleccionado no coincide con el de la distribución.');
+                    }
 
-                $productoId = $productoData['id'];
-                $cantidadIngresada = (int)($productoData['cantidad'] ?? 0);
+                    if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
+                        $ocp->update(['total' => $cantidadIngresada]);
+                    }
+
+                    // Actualizar encabezado de la OC-DIST
+                    $ordenDist->update([
+                        'observaciones' => $request->observaciones ?? $ordenDist->observaciones,
+                        'methods_oc'    => $request->methods_oc ?? $ordenDist->methods_oc,
+                        'plazo_oc'      => $request->plazo_oc ?? $ordenDist->plazo_oc,
+                        'date_oc'       => $ordenDist->date_oc ?? now(),
+                    ]);
+
+                    // Reemplazar distribución por centros
+                    OrdenCompraCentroProducto::where('orden_compra_id', $ordenDist->id)
+                        ->where('producto_id', $productoId)
+                        ->delete();
+
+                    if (!empty($productoData['centros'])) {
+                        foreach ($productoData['centros'] as $centroId => $cantidad) {
+                            if ((int)$cantidad > 0) {
+                                OrdenCompraCentroProducto::create([
+                                    'orden_compra_id' => $ordenDist->id,
+                                    'producto_id'     => $productoId,
+                                    'centro_id'       => $centroId,
+                                    'amount'          => (int)$cantidad,
+                                ]);
+                            }
+                        }
+                    }
+
+                    continue; // procesada línea distribuida
+                }
+
+                // Flujo normal (sin distribución previa)
+                $orden = OrdenCompra::where('requisicion_id', $request->requisicion_id)
+                    ->whereNull('deleted_at')
+                    ->where(function ($q) {
+                        $q->whereNull('order_oc')
+                          ->orWhere('order_oc', 'not like', 'OC-DIST-%');
+                    })
+                    ->latest('id')
+                    ->first();
+
+                if (!$orden) {
+                    $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
+                    $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
+
+                    $orden = OrdenCompra::create([
+                        'requisicion_id' => $request->requisicion_id,
+                        'observaciones'  => $request->observaciones,
+                        'methods_oc'     => $request->methods_oc,
+                        'plazo_oc'       => $request->plazo_oc,
+                        'date_oc'        => now(),
+                        'order_oc'       => $numeroOrden,
+                    ]);
+                } else {
+                    $orden->update([
+                        'observaciones' => $request->observaciones ?? $orden->observaciones,
+                        'methods_oc'    => $request->methods_oc ?? $orden->methods_oc,
+                        'plazo_oc'      => $request->plazo_oc ?? $orden->plazo_oc,
+                    ]);
+                }
 
                 OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
@@ -174,7 +220,7 @@ class OrdenCompraController extends Controller
 
             DB::commit();
             return redirect()->route('ordenes_compra.create', ['requisicion_id' => $request->requisicion_id])
-                ->with('success', 'Orden de compra ' . ($orden->order_oc ?? $orden->id) . ' actualizada/creada exitosamente.');
+                ->with('success', 'Orden guardada correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creando orden de compra: ' . $e->getMessage());
@@ -187,44 +233,57 @@ class OrdenCompraController extends Controller
         $validator = Validator::make($request->all(), [
             'producto_id' => 'required|exists:productos,id',
             'requisicion_id' => 'required|exists:requisicion,id',
-            'distribucion' => 'required|array|min:1',
+            'distribucion' => 'required|array|min:2', // mínimo 2 proveedores
             'distribucion.*.proveedor_id' => 'required|exists:proveedores,id',
             'distribucion.*.cantidad' => 'required|integer|min:1',
-            'distribucion.*.methods_oc' => 'required|string',
-            'distribucion.*.plazo_oc' => 'required|string',
+            'distribucion.*.methods_oc' => 'nullable|string',
+            'distribucion.*.plazo_oc' => 'nullable|string',
             'distribucion.*.observaciones' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
         DB::beginTransaction();
         try {
-            $productoId = $request->producto_id;
-            $requisicionId = $request->requisicion_id;
+            $productoId = (int)$request->producto_id;
+            $requisicionId = (int)$request->requisicion_id;
             $distribuciones = $request->distribucion;
 
-            $totalDistribucion = 0;
-            foreach ($distribuciones as $dist) {
-                $totalDistribucion += (int)$dist['cantidad'];
-            }
-
-            $cantidadOriginal = DB::table('producto_requisicion')
+            // Validar suma exacta
+            $cantidadOriginal = (int) DB::table('producto_requisicion')
                 ->where('id_requisicion', $requisicionId)
                 ->where('id_producto', $productoId)
                 ->value('pr_amount');
 
-            if ($totalDistribucion != $cantidadOriginal) {
-                return redirect()->back()->with('error', 
-                    'La distribución total (' . $totalDistribucion . ') debe ser igual a la cantidad original (' . $cantidadOriginal . ')');
+            $totalDistribucion = collect($distribuciones)->sum(function($d){ return (int)$d['cantidad']; });
+            if ($totalDistribucion !== $cantidadOriginal) {
+                $msg = 'La distribución total ('.$totalDistribucion.') debe ser igual a la cantidad original ('.$cantidadOriginal.').';
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $msg], 422);
+                }
+                return redirect()->back()->with('error', $msg);
             }
 
-            $producto = Producto::find($productoId);
+            // Evitar proveedores duplicados
+            $provIds = array_map(fn($d) => (int)$d['proveedor_id'], $distribuciones);
+            if (count($provIds) !== count(array_unique($provIds))) {
+                $msg = 'No se permite repetir proveedores en la distribución.';
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $msg], 422);
+                }
+                return redirect()->back()->with('error', $msg);
+            }
 
+            $producto = Producto::findOrFail($productoId);
             $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
             $baseOrdenId = ($ultimaOrden ? $ultimaOrden->id : 0) + 1;
 
+            $lineas = [];
             foreach ($distribuciones as $index => $dist) {
                 $numeroOrden = 'OC-DIST-' . $baseOrdenId . '-' . ($index + 1) . '-' . now()->format('Ymd');
 
@@ -232,25 +291,47 @@ class OrdenCompraController extends Controller
                     'requisicion_id' => $requisicionId,
                     'date_oc'        => now(),
                     'order_oc'       => $numeroOrden,
-                    'observaciones'  => $dist['observaciones'] ?? ('Distribución de ' . $producto->name_produc),
+                    'observaciones'  => $dist['observaciones'] ?? null,
                     'methods_oc'     => $dist['methods_oc'] ?? null,
                     'plazo_oc'       => $dist['plazo_oc'] ?? null,
                 ]);
 
-                OrdenCompraProducto::create([
+                $ocp = OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,
-                    'proveedor_id'     => $dist['proveedor_id'],
-                    'total'            => $dist['cantidad'],
+                    'proveedor_id'     => (int)$dist['proveedor_id'],
+                    'total'            => (int)$dist['cantidad'],
                 ]);
+
+                $prov = Proveedor::find($dist['proveedor_id']);
+
+                $lineas[] = [
+                    'oc_id' => $orden->id,
+                    'ocp_id' => $ocp->id,
+                    'producto_id' => $productoId,
+                    'producto_nombre' => $producto->name_produc,
+                    'unidad' => $producto->unit_produc,
+                    'stock' => $producto->stock_produc,
+                    'cantidad' => (int)$dist['cantidad'],
+                    'proveedor_id' => (int)$dist['proveedor_id'],
+                    'proveedor_nombre' => $prov?->prov_name ?? 'Proveedor',
+                ];
             }
 
             DB::commit();
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => true, 'lineas' => $lineas], 200);
+            }
+
             return redirect()->route('ordenes_compra.create', ['requisicion_id' => $requisicionId])
-                ->with('success', 'Distribución guardada correctamente. Se crearon ' . count($distribuciones) . ' órdenes.');
+                ->with('success', 'Distribución guardada correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error distribuyendo producto: ' . $e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 500);
+            }
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
