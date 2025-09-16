@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('orden_compras_id')->nullable()->constrained('orden_compras')->onDelete('set null'); #id de la orden de compra (nullable)
             $table->foreignId('proveedor_id')->nullable()->constrained('proveedores')->onDelete('cascade'); #id de proveedores (nullable)
             $table->integer('total')->nullable(); #cantidad de la orden de compra
+            $table->string('stock_e')->nullable(); #salido de stock
             $table->timestamps();
             $table->softDeletes();
         });

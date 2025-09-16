@@ -64,6 +64,7 @@ class OrdenCompraProductoSeeder extends Seeder
                         'orden_compras_id' => $ordenCompra->id,
                         'proveedor_id'     => $proveedorId,
                         'total'            => (int)($productoReq->pr_amount ?? 1),
+                        'stock_e'          => null,
                         'created_at'       => now(),
                         'updated_at'       => now(),
                     ]);

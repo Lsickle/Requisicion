@@ -23,7 +23,6 @@ class RequisicionSeeder extends Seeder
                     'id_producto' => $producto->id,
                     'id_requisicion' => $requisicion->id,
                     'pr_amount' => rand(1, 20),
-                    'stock_e' => rand(0, 10), // Nuevo campo añadido
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);

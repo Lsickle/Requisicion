@@ -18,6 +18,7 @@ class OrdenCompraProducto extends Model
         'orden_compras_id',
         'proveedor_id',
         'total',
+        'stock_e',
     ];
 
     protected $dates = [

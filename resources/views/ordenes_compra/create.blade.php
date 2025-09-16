@@ -319,11 +319,11 @@
                         <table class="w-full border text-sm rounded-lg overflow-hidden bg-white">
                             <thead class="bg-gray-100 sticky top-0 z-10">
                                 <tr>
-                                    <th class="p-3 text-left">Producto</th>
-                                    <th class="p-3 text-center">Cantidad</th>
-                                    <th class="p-3 text-center">Unidad</th>
-                                    <th class="p-3 text-center">Stock Disponible</th>
-                                    <th class="p-3 text-center">Distribución por Centros</th>
+                                    <th class="p-3">Producto</th>
+                                    <th class="p-3">Cantidad</th>
+                                    <th class="p-3">Unidad</th>
+                                    <th class="p-3">Stock Disponible</th>
+                                    <th class="p-3">Distribución por Centros</th>
                                     <th class="p-3 text-center">Acciones</th>
                                 </tr>
                             </thead>
@@ -489,7 +489,8 @@
                 <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadOriginal}" 
                     class="w-20 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${rowKey}" 
-                    onchange="distribuirAutomaticamente('${rowKey}')" required>
+                    onchange="onCantidadTotalChange('${rowKey}')" required>
+                <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadOriginal}">
             </td>
             <td class="p-3 text-center">${unidad}</td>
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
@@ -499,8 +500,12 @@
                 </div>
             </td>
             <td class="p-3 text-center space-x-2">
+                <button type="button" onclick="toggleSacarStock('${rowKey}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button>
                 <button type="button" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
+                <div id="sacar-stock-container-${rowKey}" class="mt-2 hidden">
+                    <input type="number" min="0" id="sacar-stock-${rowKey}" class="w-24 border rounded p-1 text-center" placeholder="0" oninput="aplicarSacarStock('${rowKey}')">
+                </div>
             </td>
         `;
         table.appendChild(row);
@@ -897,5 +902,48 @@
             }
         });
     });
+
+    function onCantidadTotalChange(rowKey) {
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        const baseCantidadInput = document.getElementById(`base-cantidad-${rowKey}`);
+        const cantidadBase = parseInt(baseCantidadInput.value) || 0;
+        const nuevaCantidad = parseInt(totalInput.value) || 0;
+
+        if (nuevaCantidad > cantidadBase) {
+            totalInput.value = cantidadBase;
+            return;
+        }
+
+        // Actualizar distribución si la cantidad total cambia
+        distribuirAutomaticamente(rowKey);
+    }
+
+    function toggleSacarStock(rowKey) {
+        const container = document.getElementById(`sacar-stock-container-${rowKey}`);
+        container.classList.toggle('hidden');
+        const inputStock = document.getElementById(`sacar-stock-${rowKey}`);
+        if (!container.classList.contains('hidden')) {
+            inputStock.focus();
+        }
+    }
+
+    function aplicarSacarStock(rowKey) {
+        const inputStock = document.getElementById(`sacar-stock-${rowKey}`);
+        const cantidadASacar = parseInt(inputStock.value) || 0;
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        const cantidadBase = parseInt(totalInput.dataset.baseCantidad) || 0;
+
+        if (cantidadASacar > cantidadBase) {
+            inputStock.value = cantidadBase;
+            return;
+        }
+
+        // Calcular nueva cantidad total
+        const nuevaCantidadTotal = cantidadBase - cantidadASacar;
+        totalInput.value = nuevaCantidadTotal;
+
+        // Actualizar distribución
+        distribuirAutomaticamente(rowKey);
+    }
 </script>
 @endsection
