@@ -157,35 +157,18 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
-            // Crear/obtener OC principal una vez por requisición
-            $orden = OrdenCompra::where('requisicion_id', $request->requisicion_id)
-                ->whereNull('deleted_at')
-                ->where(function ($q) {
-                    $q->whereNull('order_oc')
-                      ->orWhere('order_oc', 'not like', 'OC-DIST-%');
-                })
-                ->latest('id')
-                ->first();
+            // Crear SIEMPRE una nueva OC con el proveedor seleccionado
+            $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
+            $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
 
-            if (!$orden) {
-                $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
-                $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
-
-                $orden = OrdenCompra::create([
-                    'requisicion_id' => $request->requisicion_id,
-                    'observaciones'  => $request->observaciones,
-                    'methods_oc'     => $request->methods_oc,
-                    'plazo_oc'       => $request->plazo_oc,
-                    'date_oc'        => now(),
-                    'order_oc'       => $numeroOrden,
-                ]);
-            } else {
-                $orden->update([
-                    'observaciones' => $request->observaciones ?? $orden->observaciones,
-                    'methods_oc'    => $request->methods_oc ?? $orden->methods_oc,
-                    'plazo_oc'      => $request->plazo_oc ?? $orden->plazo_oc,
-                ]);
-            }
+            $orden = OrdenCompra::create([
+                'requisicion_id' => $request->requisicion_id,
+                'observaciones'  => $request->observaciones,
+                'methods_oc'     => $request->methods_oc,
+                'plazo_oc'       => $request->plazo_oc,
+                'date_oc'        => now(),
+                'order_oc'       => $numeroOrden,
+            ]);
 
             foreach ($request->productos as $rowKey => $productoData) {
                 if (empty($productoData['id'])) continue;
@@ -195,15 +178,14 @@ class OrdenCompraController extends Controller
                 $ocpId = $productoData['ocp_id'] ?? null;
 
                 if ($ocpId) {
-                    // Asociar línea pre-distribuida a la OC recién creada y validar proveedor
+                    // Asociar línea pre-distribuida y forzar proveedor del formulario
                     $ocp = OrdenCompraProducto::where('id', $ocpId)
                         ->whereNull('orden_compras_id')
                         ->where('requisicion_id', $request->requisicion_id)
                         ->firstOrFail();
 
-                    if ((int)$request->proveedor_id !== (int)$ocp->proveedor_id) {
-                        throw new \Exception('El proveedor seleccionado no coincide con el de la distribución.');
-                    }
+                    // Forzar proveedor al seleccionado por el usuario
+                    $ocp->proveedor_id = (int)$request->proveedor_id;
 
                     // Actualizar cantidad si el usuario la editó
                     if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
@@ -212,7 +194,7 @@ class OrdenCompraController extends Controller
                     $ocp->orden_compras_id = $orden->id;
                     $ocp->save();
 
-                    // Limpiar distribución por centros previa y re-crear
+                    // Distribución por centros (recrear)
                     OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
                         ->where('producto_id', $productoId)
                         ->delete();
@@ -233,7 +215,7 @@ class OrdenCompraController extends Controller
                     continue;
                 }
 
-                // Flujo normal (sin distribución previa): crear línea nueva ligada a la OC
+                // Línea normal: usar el proveedor del formulario
                 OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,

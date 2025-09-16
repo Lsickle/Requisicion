@@ -475,9 +475,17 @@
 
         // Quitar opción usada del selector
         if (esDistribuido && ocpId) {
-            // No remover; mantener visible hasta guardar definitivamente
+            const opts = Array.from(selector.options);
+            const idx = opts.findIndex(o => o.value == String(productoId) && (o.dataset.ocpId || '') == String(ocpId));
+            if (idx > -1) selector.remove(idx);
         } else {
-            // No remover para productos sin distribuir; pueden agregarse varias líneas si es requerido
+            for (let i = 0; i < selector.options.length; i++) {
+                const o = selector.options[i];
+                if (o.value == String(productoId) && !o.dataset.distribuido) {
+                    selector.remove(i);
+                    break;
+                }
+            }
         }
         selector.value = "";
     }
