@@ -149,6 +149,7 @@ class OrdenCompraController extends Controller
             'productos.*.cantidad' => 'required|integer|min:1',
             'productos.*.centros' => 'nullable|array',
             'productos.*.centros.*' => 'nullable|integer|min:0',
+            'productos.*.stock_e' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -176,6 +177,7 @@ class OrdenCompraController extends Controller
                 $productoId = (int) $productoData['id'];
                 $cantidadIngresada = (int) ($productoData['cantidad'] ?? 0);
                 $ocpId = $productoData['ocp_id'] ?? null;
+                $stockE = isset($productoData['stock_e']) && $productoData['stock_e'] !== '' ? (int)$productoData['stock_e'] : null;
 
                 if ($ocpId) {
                     // Asociar línea pre-distribuida y forzar proveedor del formulario
@@ -192,7 +194,14 @@ class OrdenCompraController extends Controller
                         $ocp->total = $cantidadIngresada;
                     }
                     $ocp->orden_compras_id = $orden->id;
+                    if ($stockE !== null) { $ocp->stock_e = $stockE; }
                     $ocp->save();
+
+                    if ($stockE !== null && $stockE > 0) {
+                        $producto = Producto::lockForUpdate()->findOrFail($productoId);
+                        $producto->stock_produc = max(0, (int)$producto->stock_produc - $stockE);
+                        $producto->save();
+                    }
 
                     // Distribución por centros (recrear)
                     OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
@@ -222,7 +231,14 @@ class OrdenCompraController extends Controller
                     'requisicion_id'   => $request->requisicion_id,
                     'proveedor_id'     => $request->proveedor_id,
                     'total'            => $cantidadIngresada,
+                    'stock_e'          => $stockE,
                 ]);
+
+                if ($stockE !== null && $stockE > 0) {
+                    $producto = Producto::lockForUpdate()->findOrFail($productoId);
+                    $producto->stock_produc = max(0, (int)$producto->stock_produc - $stockE);
+                    $producto->save();
+                }
 
                 if (!empty($productoData['centros'])) {
                     foreach ($productoData['centros'] as $centroId => $cantidad) {

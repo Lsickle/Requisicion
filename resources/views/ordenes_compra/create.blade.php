@@ -491,6 +491,7 @@
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
                 <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadOriginal}">
+                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="">
             </td>
             <td class="p-3 text-center">${unidad}</td>
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
@@ -504,7 +505,10 @@
                 <button type="button" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
                 <div id="sacar-stock-container-${rowKey}" class="mt-2 hidden">
-                    <input type="number" min="0" id="sacar-stock-${rowKey}" class="w-24 border rounded p-1 text-center" placeholder="0" oninput="aplicarSacarStock('${rowKey}')">
+                    <div class="flex items-center gap-2">
+                        <input type="number" min="0" id="sacar-stock-${rowKey}" class="w-24 border rounded p-1 text-center" placeholder="" oninput="sanearSacarStock('${rowKey}')">
+                        <button type="button" class="px-2 py-1 bg-blue-600 text-white rounded text-sm" onclick="confirmarSacarStock('${rowKey}')">Confirmar</button>
+                    </div>
                 </div>
             </td>
         `;
@@ -906,15 +910,76 @@
     function onCantidadTotalChange(rowKey) {
         const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
         const baseCantidadInput = document.getElementById(`base-cantidad-${rowKey}`);
-        const cantidadBase = parseInt(baseCantidadInput.value) || 0;
-        const nuevaCantidad = parseInt(totalInput.value) || 0;
+        const cantidadBase = parseInt(baseCantidadInput?.value) || 0;
+        let nuevaCantidad = parseInt(totalInput?.value) || 0;
 
-        if (nuevaCantidad > cantidadBase) {
-            totalInput.value = cantidadBase;
-            return;
+        if (nuevaCantidad > cantidadBase) nuevaCantidad = cantidadBase;
+        if (nuevaCantidad < 1) nuevaCantidad = 1;
+        totalInput.value = nuevaCantidad;
+
+        const sacarField = document.getElementById(`sacar-stock-${rowKey}`);
+        const hiddenStockE = document.getElementById(`stock-e-hidden-${rowKey}`);
+        const row = document.getElementById(`producto-${rowKey}`);
+        const baseStock = parseInt(row?.querySelector('input[type="hidden"][name$="[id]"]')?.dataset?.stock || '0', 10);
+        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
+
+        if (sacarField) {
+            const sacar = Math.max(0, cantidadBase - nuevaCantidad);
+            sacarField.value = sacar === 0 ? '' : sacar;
+            if (hiddenStockE) hiddenStockE.value = sacar > 0 ? sacar : '';
+            if (stockCell) stockCell.textContent = Math.max(0, baseStock - sacar);
         }
 
-        // Actualizar distribución si la cantidad total cambia
+        distribuirAutomaticamente(rowKey);
+    }
+
+    function sanearSacarStock(rowKey){
+        const baseCantidad = parseInt(document.getElementById(`base-cantidad-${rowKey}`)?.value || '0', 10);
+        const input = document.getElementById(`sacar-stock-${rowKey}`);
+        if (!input) return;
+        let val = input.value.trim();
+        if (val === '') return; // permitir vacío
+        let n = parseInt(val, 10);
+        if (isNaN(n) || n < 0) n = 0;
+        const maxASacar = Math.max(0, baseCantidad - 1);
+        if (n > maxASacar) n = maxASacar;
+        if (String(n) !== val) input.value = n;
+    }
+
+    async function confirmarSacarStock(rowKey){
+        const baseCantidad = parseInt(document.getElementById(`base-cantidad-${rowKey}`)?.value || '0', 10);
+        const input = document.getElementById(`sacar-stock-${rowKey}`);
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        const hiddenStockE = document.getElementById(`stock-e-hidden-${rowKey}`);
+        const row = document.getElementById(`producto-${rowKey}`);
+        const baseStock = parseInt(row?.querySelector('input[type="hidden"][name$="[id]"]')?.dataset?.stock || '0', 10);
+        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
+
+        if (!input) return;
+        let val = input.value.trim();
+        let n = val === '' ? 0 : parseInt(val, 10);
+        if (isNaN(n) || n < 0) n = 0;
+        const maxASacar = Math.max(0, baseCantidad - 1);
+        if (n > maxASacar) n = maxASacar;
+
+        const res = await Swal.fire({
+            title: 'Confirmar salida de stock',
+            text: `¿Desea sacar ${n} unidad(es) del stock para esta línea?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, confirmar',
+            cancelButtonText: 'Cancelar'
+        });
+        if (!res.isConfirmed) return;
+
+        // Aplicar cambios
+        input.value = n === 0 ? '' : n;
+        if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
+        const nuevaCantidad = Math.max(1, baseCantidad - n);
+        totalInput.value = nuevaCantidad;
+        if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
         distribuirAutomaticamente(rowKey);
     }
 
@@ -925,25 +990,6 @@
         if (!container.classList.contains('hidden')) {
             inputStock.focus();
         }
-    }
-
-    function aplicarSacarStock(rowKey) {
-        const inputStock = document.getElementById(`sacar-stock-${rowKey}`);
-        const cantidadASacar = parseInt(inputStock.value) || 0;
-        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
-        const cantidadBase = parseInt(totalInput.dataset.baseCantidad) || 0;
-
-        if (cantidadASacar > cantidadBase) {
-            inputStock.value = cantidadBase;
-            return;
-        }
-
-        // Calcular nueva cantidad total
-        const nuevaCantidadTotal = cantidadBase - cantidadASacar;
-        totalInput.value = nuevaCantidadTotal;
-
-        // Actualizar distribución
-        distribuirAutomaticamente(rowKey);
     }
 </script>
 @endsection
