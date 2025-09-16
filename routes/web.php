@@ -203,6 +203,10 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para deshacer distribución de proveedores (soft delete de líneas distribuidas)
     Route::post('ordenes_compra/undo-distribucion', [OrdenCompraController::class, 'undoDistribucion'])
         ->name('ordenes_compra.undoDistribucion');
+
+    // Descargar PDF único o ZIP según cantidad de órdenes
+    Route::get('ordenes_compra/{requisicionId}/download', [OrdenCompraController::class, 'download'])
+        ->name('ordenes_compra.download');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

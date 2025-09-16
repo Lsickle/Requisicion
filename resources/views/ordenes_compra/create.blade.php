@@ -388,11 +388,11 @@
                     </tbody>
                 </table>
 
-                <!-- Botón descargar ZIP -->
-                <div class="mt-6 text-right {{ count($productosDisponibles) > 0 ? 'hidden' : '' }}" id="zip-container">
-                    <a href="{{ route('ordenes_compra.downloadZip', $requisicion->id) }}"
+                <!-- Botón descargar PDF/ZIP (siempre visible) -->
+                <div class="mt-6 text-right" id="zip-container">
+                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
                         class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
-                        Descargar ZIP
+                        Descargar PDF/ZIP
                     </a>
                 </div>
             </div>
