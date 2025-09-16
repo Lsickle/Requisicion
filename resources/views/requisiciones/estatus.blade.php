@@ -12,8 +12,9 @@
 
     <div class="relative border-l-2 border-blue-400 ml-4">
         @php
+        $estatusOrdenados = $estatusOrdenados ?? collect();
         $estatusIds = $estatusOrdenados->pluck('id')->toArray();
-        $currentId = $estatusActual->id;
+        $currentId = optional($estatusActual)->id ?? 0;
 
             // Filtrar "Iniciado": solo conservar el último
             $ultimoIniciadoIndex = $estatusOrdenados->keys()->filter(function($i) use ($estatusOrdenados) {
@@ -65,10 +66,10 @@
 
         // Texto especial para rechazo
         $textoRechazo = 'Rechazado';
-        $indexRechazo = $estatusFiltrados->search(fn($item) => $item->id === 9);
+        $indexRechazo = $estatusFiltrados->search(function($item){ return $item->id === 9; });
 
         if ($indexRechazo !== false && $indexRechazo > 0) {
-            $anterior = $estatusFiltrados[$indexRechazo - 2] ?? null;
+            $anterior = $estatusFiltrados[$indexRechazo - 1] ?? null;
             if ($anterior && $anterior->id == 3) {
                 $textoRechazo = 'Rechazado por Gerencia';
             } elseif ($anterior && $anterior->id == 2) {
@@ -136,7 +137,7 @@
                                     @elseif($isCurrent) text-blue-600
                                     @endif mt-1">
                                     <i class="far fa-clock mr-1"></i>
-                                    {{ $item->pivot->created_at->format('d/m/Y H:i') }}
+                                    {{ optional($item->pivot->created_at)->format('d/m/Y H:i') }}
                                 </p>
                             @endif
 
@@ -174,7 +175,7 @@
         @endif
 
         {{-- ✅ Proceso finalizado con éxito (estatus 10) --}}
-        @if($estatusActual->id === 10)
+        @if(optional($estatusActual)->id === 10)
         <div class="mb-6 ml-6 relative">
             <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-700 text-white shadow-md">
                 <i class="fas fa-flag-checkered text-xs"></i>
@@ -220,13 +221,15 @@
                 <div class="p-4 rounded-lg shadow-sm border bg-gray-100 border-gray-400">
                     <div class="flex justify-between items-start">
                         <div>
-                            <h3 class="font-semibold text-gray-700">
-                                {{ $estatusOrdenados->firstWhere('id', $siguiente)->status_name ?? 'Pendiente siguiente' }}
-                            </h3>
-                            <p class="text-sm text-gray-500 mt-1">
+                            @php
+                                $sigNombre = optional($estatusOrdenados->firstWhere('id', $siguiente))->status_name
+                                    ?? (DB::table('estatus')->where('id', $siguiente)->value('status_name') ?? 'Pendiente siguiente');
+                            @endphp
+                            <h3 class="font-semibold text-gray-700">{{ $sigNombre }}</h3>
+                             <p class="text-sm text-gray-500 mt-1">
                                 <i class="far fa-clock mr-1"></i>
                                 En espera de que avance el proceso
-                            </p>
+                             </p>
                         </div>
                     </div>
                 </div>
