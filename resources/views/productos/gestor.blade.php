@@ -354,10 +354,32 @@
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
-                            <div>
+                            <div class="relative mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
-                                <input type="text" id="unit_produc" name="unit_produc"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <div class="relative">
+                                    <input type="text" id="unit_input" name="unit_input"
+                                        placeholder="Selecciona una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly>
+                                    <div id="unit_dropdown"
+                                        class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Unidad">Unidad</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Pieza">Pieza</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Docena">Docena</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Caja">Caja</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Paquete">Paquete</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Rollo">Rollo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Juego">Juego</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Litro">Litro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Mililitro">Mililitro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Kilogramo">Kilogramo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Gramo">Gramo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Metro">Metro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Centímetro">Centímetro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Galón">Galón</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Otro">Otro</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="unit_produc" name="unit_produc">
                                 <span id="unit_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                         </div>
@@ -588,10 +610,32 @@
                             </div>
 
                             <!-- Unidad de medida -->
-                            <div>
+                            <div class="relative mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida *</label>
-                                <input type="text" id="solicitud_unit_produc" name="unit_produc" value="Unidad"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <div class="relative">
+                                    <input type="text" id="solicitud_unit_input" name="unit_input"
+                                        placeholder="Selecciona una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly value="Unidad">
+                                    <div id="solicitud_unit_dropdown"
+                                        class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Unidad">Unidad</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Pieza">Pieza</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Docena">Docena</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Caja">Caja</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Paquete">Paquete</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Rollo">Rollo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Juego">Juego</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Litro">Litro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Mililitro">Mililitro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Kilogramo">Kilogramo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Gramo">Gramo</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Metro">Metro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Centímetro">Centímetro</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Galón">Galón</div>
+                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Otro">Otro</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="solicitud_unit_produc" name="unit_produc" value="Unidad">
                                 <span id="solicitud_unit_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                         </div>
@@ -694,6 +738,10 @@
             // Limpiar campos de búsqueda
             document.getElementById('proveedor_input').value = '';
             document.getElementById('categoria_input').value = '';
+            const uIn = document.getElementById('unit_input');
+            const uHidden = document.getElementById('unit_produc');
+            if (uIn) uIn.value = '';
+            if (uHidden) uHidden.value = '';
             // Limpiar mensajes de error
             clearErrorMessages();
         } else if (type === 'proveedor') {
@@ -725,7 +773,10 @@
         document.getElementById('name_produc').value = nombre;
         document.getElementById('stock_produc').value = stock;
         document.getElementById('price_produc').value = precio;
-        document.getElementById('unit_produc').value = unidad;
+        const uIn = document.getElementById('unit_input');
+        const uHidden = document.getElementById('unit_produc');
+        if (uIn) uIn.value = unidad;
+        if (uHidden) uHidden.value = unidad;
         document.getElementById('description_produc').value = descripcion;
         
         // Para el proveedor, buscar el nombre correspondiente al ID
@@ -1139,28 +1190,47 @@
             document.getElementById('solicitud_proveedor_id')
         ];
 
+        // Actualizar los dropdowns visuales
+        const proveedorDropdowns = [
+            document.getElementById('proveedor_dropdown'),
+            document.getElementById('solicitud_proveedor_dropdown')
+        ];
+
         selectElements.forEach(select => {
             if (select) {
-                // Guardar el valor seleccionado actual
                 const currentValue = select.value;
-                
-                // Limpiar opciones excepto la primera
+
                 while (select.options.length > 1) {
                     select.remove(1);
                 }
-                
-                // Agregar nuevos proveedores
+
                 proveedores.forEach(proveedor => {
                     const option = document.createElement('option');
                     option.value = proveedor.id;
                     option.textContent = proveedor.prov_name;
                     select.appendChild(option);
                 });
-                
-                // Restaurar el valor seleccionado si aún existe
+
                 if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
                     select.value = currentValue;
                 }
+            }
+        });
+
+        // Actualizar los dropdowns visuales
+        proveedorDropdowns.forEach(dropdown => {
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                
+                proveedores.forEach(proveedor => {
+                    const div = document.createElement('div');
+                    div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
+                                    (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
+                    div.setAttribute('data-id', proveedor.id);
+                    div.setAttribute('data-name', proveedor.prov_name);
+                    div.textContent = proveedor.prov_name;
+                    dropdown.appendChild(div);
+                });
             }
         });
     }
@@ -1321,6 +1391,37 @@
         const categoriaHidden = document.getElementById('categoria_produc');
         const categoriaError = document.getElementById('categoria_produc_error');
         
+        // ===== FUNCIONALIDAD PARA UNIDADES (Producto) =====
+        const unitInput = document.getElementById('unit_input');
+        const unitDropdown = document.getElementById('unit_dropdown');
+        const unitHidden = document.getElementById('unit_produc');
+        const unitError = document.getElementById('unit_produc_error');
+
+        function filterUnitOptions() { /* sin escritura, mostrar todas */ }
+
+        if (unitInput) {
+            unitInput.addEventListener('focus', function() {
+                if (unitDropdown) unitDropdown.classList.remove('hidden');
+                // sin filtrado por escritura
+            });
+            unitInput.addEventListener('blur', function() {
+                setTimeout(() => unitDropdown && unitDropdown.classList.add('hidden'), 200);
+            });
+            unitInput.addEventListener('click', function(){ if (unitDropdown) unitDropdown.classList.remove('hidden'); });
+        }
+
+        if (unitDropdown) {
+            unitDropdown.addEventListener('click', function(e) {
+                const target = e.target.closest('[data-value]');
+                if (!target) return;
+                const val = target.getAttribute('data-value');
+                if (unitInput) unitInput.value = val;
+                if (unitHidden) unitHidden.value = val;
+                unitDropdown.classList.add('hidden');
+                if (unitError) unitError.classList.add('hidden');
+            });
+        }
+        
         // ===== FUNCIONALIDAD PARA PROVEEDORES =====
         // Mostrar dropdown al enfocar el input
         if (proveedorInput) {
@@ -1452,96 +1553,38 @@ document.addEventListener('DOMContentLoaded', function() {
     const solicitudCategoriaSelect = document.getElementById('solicitud_categoria_produc');
     const solicitudCategoriaError = document.getElementById('solicitud_categoria_produc_error');
 
-    // ===== FUNCIONALIDAD PARA PROVEEDORES EN SOLICITUD =====
-    if (solicitudProveedorInput) {
-        solicitudProveedorInput.addEventListener('input', function() {
-            const searchTerm = solicitudProveedorInput.value.toLowerCase();
-            solicitudProveedorDropdown.innerHTML = '';
+    // ===== FUNCIONALIDAD PARA UNIDADES (Solicitud) =====
+    const sUnitInput = document.getElementById('solicitud_unit_input');
+    const sUnitDropdown = document.getElementById('solicitud_unit_dropdown');
+    const sUnitHidden = document.getElementById('solicitud_unit_produc');
+    const sUnitError = document.getElementById('solicitud_unit_produc_error');
 
-            let hasResults = false;
+    function filterSolicitudUnitOptions() { /* sin escritura, mostrar todas */ }
 
-            for (let i = 0; i < solicitudProveedorSelect.options.length; i++) {
-                const option = solicitudProveedorSelect.options[i];
-                if (option.text.toLowerCase().includes(searchTerm) && option.value !== '') {
-                    const div = document.createElement('div');
-                    div.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
-                    div.textContent = option.text;
-                    div.onclick = function() {
-                        solicitudProveedorSelect.value = option.value;
-                        solicitudProveedorInput.value = option.text;
-                        solicitudProveedorDropdown.classList.add('hidden');
-                        if (solicitudProveedorError) solicitudProveedorError.classList.add('hidden');
-                    };
-                    solicitudProveedorDropdown.appendChild(div);
-                    hasResults = true;
-                }
-            }
-
-            solicitudProveedorDropdown.classList.toggle('hidden', !hasResults);
+    if (sUnitInput) {
+        sUnitInput.addEventListener('focus', function() {
+            if (sUnitDropdown) sUnitDropdown.classList.remove('hidden');
+            // sin filtrado por escritura
         });
+        sUnitInput.addEventListener('blur', function() {
+                       setTimeout(() => sUnitDropdown && sUnitDropdown.classList.add('hidden'), 200);
+       
+        });
+        sUnitInput.addEventListener('click', function(){ if (sUnitDropdown) sUnitDropdown.classList.remove('hidden'); });
+    }
 
-        // Ocultar resultados al perder foco
-        solicitudProveedorInput.addEventListener('blur', function() {
-            setTimeout(() => {
-                solicitudProveedorDropdown.classList.add('hidden');
-            }, 200);
+    if (sUnitDropdown) {
+        sUnitDropdown.addEventListener('click', function(e) {
+            const target = e.target.closest('[data-value]');
+            if (!target) return;
+            const val = target.getAttribute('data-value');
+            if (sUnitInput) sUnitInput.value = val;
+            if (sUnitHidden) sUnitHidden.value = val;
+            sUnitDropdown.classList.add('hidden');
+            if (sUnitError) sUnitError.classList.add('hidden');
         });
     }
 
-    // ===== FUNCIONALIDAD PARA CATEGORÍA EN SOLICITUD =====
-    if (solicitudCategoriaSelect) {
-        // No usamos input aparte, así que solo validamos que haya seleccionado
-        solicitudCategoriaSelect.addEventListener('change', function() {
-            if (solicitudCategoriaSelect.value) {
-                solicitudCategoriaError.classList.add('hidden');
-                }
-            });
-        }
-    });
-
-    // ===== ACTUALIZAR PROVEEDORES EN EL MODAL DE SOLICITUD =====
-    function updateProveedoresSelect(proveedores) {
-        const selectElements = [
-            document.getElementById('proveedor_id'),
-            document.getElementById('solicitud_proveedor_id')
-        ];
-
-        selectElements.forEach(select => {
-            if (select) {
-                const currentValue = select.value;
-
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-
-                proveedores.forEach(proveedor => {
-                    const option = document.createElement('option');
-                    option.value = proveedor.id;
-                    option.textContent = proveedor.prov_name;
-                    select.appendChild(option);
-                });
-
-                if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                    select.value = currentValue;
-                }
-            }
-        });
-    }
-
-    // ===== FUNCIONALIDAD PARA EL MODAL "Añadir desde Solicitud" =====
-document.addEventListener('DOMContentLoaded', function() {
-    // Configuración para proveedores en modal de solicitud
-    const solicitudProveedorInput = document.getElementById('solicitud_proveedor_input');
-    const solicitudProveedorDropdown = document.getElementById('solicitud_proveedor_dropdown');
-    const solicitudProveedorId = document.getElementById('solicitud_proveedor_id');
-    const solicitudProveedorError = document.getElementById('solicitud_proveedor_id_error');
-    
-    // Configuración para categorías en modal de solicitud
-    const solicitudCategoriaInput = document.getElementById('solicitud_categoria_input');
-    const solicitudCategoriaDropdown = document.getElementById('solicitud_categoria_dropdown');
-    const solicitudCategoriaHidden = document.getElementById('solicitud_categoria_produc');
-    const solicitudCategoriaError = document.getElementById('solicitud_categoria_produc_error');
-    
     // ===== FUNCIONALIDAD PARA PROVEEDORES EN SOLICITUD =====
     if (solicitudProveedorInput) {
         // Mostrar dropdown al enfocar el input
@@ -1587,134 +1630,68 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ===== FUNCIONALIDAD PARA CATEGORÍAS EN SOLICITUD =====
-    // Mostrar dropdown al enfocar el input
-    if (solicitudCategoriaInput) {
-        solicitudCategoriaInput.addEventListener('focus', function() {
-            solicitudCategoriaDropdown.classList.remove('hidden');
-            filterSolicitudCategoriaOptions();
-        });
-        
-        // Ocultar dropdown al perder el foco
-        solicitudCategoriaInput.addEventListener('blur', function() {
-            setTimeout(() => {
-                solicitudCategoriaDropdown.classList.add('hidden');
-            }, 200);
-        });
-        
-        // Filtrar opciones al escribir
-        solicitudCategoriaInput.addEventListener('input', filterSolicitudCategoriaOptions);
-    }
-    
-    // Seleccionar opción del dropdown de categorías
-    if (solicitudCategoriaDropdown) {
-        solicitudCategoriaDropdown.addEventListener('click', function(e) {
-            if (e.target.classList.contains('option-item-cat-solicitud')) {
-                solicitudCategoriaInput.value = e.target.getAttribute('data-value');
-                solicitudCategoriaHidden.value = e.target.getAttribute('data-value');
-                solicitudCategoriaDropdown.classList.add('hidden');
-                if (solicitudCategoriaError) solicitudCategoriaError.classList.add('hidden');
-            }
-        });
-    }
-    
-    function filterSolicitudCategoriaOptions() {
-        const filter = solicitudCategoriaInput.value.toLowerCase();
-        const options = solicitudCategoriaDropdown.querySelectorAll('.option-item-cat-solicitud');
-        
-        options.forEach(option => {
-            const text = option.getAttribute('data-value').toLowerCase();
-            if (text.includes(filter)) {
-                option.style.display = 'block';
-            } else {
-                option.style.display = 'none';
-            }
-        });
-    }
-    
-    // Validar que se haya seleccionado un proveedor y categoría al enviar el formulario
-    const solicitudForm = document.getElementById('addFromSolicitudForm');
-    if (solicitudForm) {
-        solicitudForm.addEventListener('submit', function(e) {
-            let hasError = false;
-            
-            if (solicitudProveedorId && !solicitudProveedorId.value) {
-                if (solicitudProveedorError) {
-                    solicitudProveedorError.textContent = 'Por favor, selecciona un proveedor de la lista';
-                    solicitudProveedorError.classList.remove('hidden');
+    // ===== FUNCIONALIDAD PARA CATEGORÍA EN SOLICITUD =====
+    if (solicitudCategoriaSelect) {
+        // No usamos input aparte, así que solo validamos que haya seleccionado
+        solicitudCategoriaSelect.addEventListener('change', function() {
+            if (solicitudCategoriaSelect.value) {
+                solicitudCategoriaError.classList.add('hidden');
                 }
-                if (solicitudProveedorDropdown) solicitudProveedorDropdown.classList.remove('hidden');
-                hasError = true;
-            }
-            
-            if (solicitudCategoriaHidden && !solicitudCategoriaHidden.value) {
-                if (solicitudCategoriaError) {
-                    solicitudCategoriaError.textContent = 'Por favor, selecciona una categoría de la lista';
-                    solicitudCategoriaError.classList.remove('hidden');
-                }
-                if (solicitudCategoriaDropdown) solicitudCategoriaDropdown.classList.remove('hidden');
-                hasError = true;
-            }
-            
-            if (hasError) {
-                e.preventDefault();
-            }
-        });
-    }
-});
-
-// ===== ACTUALIZAR PROVEEDORES EN EL MODAL DE SOLICITUD =====
-function updateProveedoresSelect(proveedores) {
-    const selectElements = [
-        document.getElementById('proveedor_id'),
-        document.getElementById('solicitud_proveedor_id')
-    ];
-
-    // Actualizar los dropdowns visuales
-    const proveedorDropdowns = [
-        document.getElementById('proveedor_dropdown'),
-        document.getElementById('solicitud_proveedor_dropdown')
-    ];
-
-    selectElements.forEach(select => {
-        if (select) {
-            const currentValue = select.value;
-
-            while (select.options.length > 1) {
-                select.remove(1);
-            }
-
-            proveedores.forEach(proveedor => {
-                const option = document.createElement('option');
-                option.value = proveedor.id;
-                option.textContent = proveedor.prov_name;
-                select.appendChild(option);
-            });
-
-            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                select.value = currentValue;
-            }
-        }
-    });
-
-    // Actualizar los dropdowns visuales
-    proveedorDropdowns.forEach(dropdown => {
-        if (dropdown) {
-            dropdown.innerHTML = '';
-            
-            proveedores.forEach(proveedor => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
-                                (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
-                div.setAttribute('data-id', proveedor.id);
-                div.setAttribute('data-name', proveedor.prov_name);
-                div.textContent = proveedor.prov_name;
-                dropdown.appendChild(div);
             });
         }
     });
-}
 
+    // ===== ACTUALIZAR PROVEEDORES EN EL MODAL DE SOLICITUD =====
+    function updateProveedoresSelect(proveedores) {
+        const selectElements = [
+            document.getElementById('proveedor_id'),
+            document.getElementById('solicitud_proveedor_id')
+        ];
+
+        // Actualizar los dropdowns visuales
+        const proveedorDropdowns = [
+            document.getElementById('proveedor_dropdown'),
+            document.getElementById('solicitud_proveedor_dropdown')
+        ];
+
+        selectElements.forEach(select => {
+            if (select) {
+                const currentValue = select.value;
+
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+
+                proveedores.forEach(proveedor => {
+                    const option = document.createElement('option');
+                    option.value = proveedor.id;
+                    option.textContent = proveedor.prov_name;
+                    select.appendChild(option);
+                });
+
+                if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                    select.value = currentValue;
+                }
+            }
+        });
+
+        // Actualizar los dropdowns visuales
+        proveedorDropdowns.forEach(dropdown => {
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                
+                proveedores.forEach(proveedor => {
+                    const div = document.createElement('div');
+                    div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
+                                    (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
+                    div.setAttribute('data-id', proveedor.id);
+                    div.setAttribute('data-name', proveedor.prov_name);
+                    div.textContent = proveedor.prov_name;
+                    dropdown.appendChild(div);
+                });
+            }
+        });
+    }
         </script>
 
         <style>
