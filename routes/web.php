@@ -199,6 +199,10 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para distribuir productos entre proveedores
     Route::post('ordenes_compra/distribuir-proveedores', [OrdenCompraController::class, 'distribuirProveedores'])
         ->name('ordenes_compra.distribuirProveedores');
+
+    // Ruta para deshacer distribución de proveedores (soft delete de líneas distribuidas)
+    Route::post('ordenes_compra/undo-distribucion', [OrdenCompraController::class, 'undoDistribucion'])
+        ->name('ordenes_compra.undoDistribucion');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

@@ -556,4 +556,48 @@ class OrdenCompraController extends Controller
 
         return view('ordenes_compra.distribucion_proveedores', compact('requisicion', 'productosDisponibles', 'proveedores'));
     }
+
+    public function undoDistribucion(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'requisicion_id' => 'required|exists:requisicion,id',
+            'ocp_ids' => 'required|array|min:1',
+            'ocp_ids.*' => 'integer|exists:ordencompra_producto,id',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        DB::beginTransaction();
+        try {
+            $requisicionId = (int) $request->requisicion_id;
+            $ids = array_map('intval', $request->ocp_ids);
+
+            $lineas = OrdenCompraProducto::whereIn('id', $ids)
+                ->where('requisicion_id', $requisicionId)
+                ->whereNull('orden_compras_id')
+                ->get();
+
+            foreach ($lineas as $l) {
+                $l->delete();
+            }
+
+            DB::commit();
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => true, 'count' => $lineas->count()], 200);
+            }
+            return redirect()->back()->with('success', 'Distribución deshecha correctamente.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al deshacer distribución: ' . $e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 500);
+            }
+            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
 }

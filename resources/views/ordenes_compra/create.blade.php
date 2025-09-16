@@ -215,6 +215,9 @@
                                 class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
                                 📊 Distribuir entre Proveedores
                             </button>
+                            <button type="button" id="btn-abrir-undo-dist" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition">
+                                ↩️ Deshacer distribución
+                            </button>
                         </div>
                     </div>
 
@@ -264,6 +267,48 @@
                             <div class="flex justify-end gap-3 px-6 py-4 border-t">
                                 <button type="button" id="btn-cancelar-modal" class="px-4 py-2 border rounded">Cancelar</button>
                                 <button type="button" id="btn-guardar-dist" class="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Deshacer Distribución -->
+                    <div id="modal-undo-distribucion" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center overflow-y-auto">
+                        <div class="bg-white w-11/12 sm:max-w-3xl my-10 rounded-lg shadow-lg overflow-hidden max-h-[85vh] flex flex-col">
+                            <div class="flex justify-between items-center px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">Deshacer distribución</h3>
+                                <button type="button" id="btn-cerrar-undo" class="text-gray-600 hover:text-gray-800">✕</button>
+                            </div>
+                            <div class="p-6 space-y-4 grow overflow-y-auto">
+                                @if(($lineasDistribuidas ?? collect())->count() > 0)
+                                <table class="w-full border text-sm rounded bg-white">
+                                    <thead class="bg-gray-100">
+                                        <tr>
+                                            <th class="p-2 text-center"><input type="checkbox" id="chk-undo-all"></th>
+                                            <th class="p-2 text-left">Producto</th>
+                                            <th class="p-2 text-left">Proveedor</th>
+                                            <th class="p-2 text-center">Cantidad</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($lineasDistribuidas as $ld)
+                                        <tr class="border-t">
+                                            <td class="p-2 text-center">
+                                                <input type="checkbox" class="chk-undo-item" value="{{ $ld->ocp_id }}">
+                                            </td>
+                                            <td class="p-2">{{ $ld->name_produc }}</td>
+                                            <td class="p-2">{{ $ld->prov_name ?? 'Proveedor' }}</td>
+                                            <td class="p-2 text-center">{{ $ld->cantidad }}</td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                @else
+                                <div class="text-gray-600 text-sm">No hay líneas distribuidas pendientes.</div>
+                                @endif
+                            </div>
+                            <div class="flex justify-end gap-3 px-6 py-4 border-t">
+                                <button type="button" id="btn-cancelar-undo" class="px-4 py-2 border rounded">Cancelar</button>
+                                <button type="button" id="btn-confirmar-undo" class="px-4 py-2 bg-orange-600 text-white rounded">Deshacer seleccionados</button>
                             </div>
                         </div>
                     </div>
@@ -779,6 +824,76 @@
                 });
             } catch (e) {
                 Swal.fire({icon:'error', title:'Error', text: e.message});
+            }
+        });
+
+        // Modal Deshacer Distribución
+        const modalUndo = document.getElementById('modal-undo-distribucion');
+        const btnAbrirUndo = document.getElementById('btn-abrir-undo-dist');
+        const btnCerrarUndo = document.getElementById('btn-cerrar-undo');
+        const btnCancelarUndo = document.getElementById('btn-cancelar-undo');
+        const btnConfirmarUndo = document.getElementById('btn-confirmar-undo');
+
+        btnAbrirUndo.addEventListener('click', function() {
+            modalUndo.classList.remove('hidden');
+        });
+
+        btnCerrarUndo.addEventListener('click', function() {
+            modalUndo.classList.add('hidden');
+        });
+
+        btnCancelarUndo.addEventListener('click', function() {
+            modalUndo.classList.add('hidden');
+        });
+
+        // Seleccionar/Deseleccionar todos
+        const chkAll = document.getElementById('chk-undo-all');
+        chkAll.addEventListener('change', function() {
+            const checked = this.checked;
+            document.querySelectorAll('.chk-undo-item').forEach(chk => {
+                chk.checked = checked;
+            });
+        });
+
+        btnConfirmarUndo.addEventListener('click', async function() {
+            const idsSeleccionados = Array.from(document.querySelectorAll('.chk-undo-item:checked')).map(chk => chk.value);
+            if (idsSeleccionados.length === 0) {
+                Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione al menos una línea para deshacer'});
+                return;
+            }
+
+            const confirm = await Swal.fire({
+                title: 'Confirmar deshacer',
+                text: "Esto deshará la distribución seleccionada(s) y actualizará la orden.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, deshacer',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (confirm.isConfirmed) {
+                try {
+                    const resp = await fetch(`{{ route('ordenes_compra.undoDistribucion') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, ocp_ids: idsSeleccionados })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al deshacer distribución');
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Éxito',
+                        text: 'La distribución se deshizo correctamente.',
+                        confirmButtonText: 'Aceptar'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } catch (e) {
+                    Swal.fire({icon:'error', title:'Error', text: e.message});
+                }
             }
         });
     });
