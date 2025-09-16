@@ -392,9 +392,18 @@ class OrdenCompraController extends Controller
         try {
             $orden = OrdenCompra::findOrFail($id);
 
-            // Desasociar líneas para que reaparezcan en el selector
-            OrdenCompraProducto::where('orden_compras_id', $id)
-                ->update(['orden_compras_id' => null]);
+            // Procesar líneas: si se originaron antes que la OC (fueron distribuidas), volver a pendientes; si no, eliminar lógicamente
+            $lineas = OrdenCompraProducto::where('orden_compras_id', $id)->get();
+            foreach ($lineas as $linea) {
+                if ($linea->created_at && $orden->created_at && $linea->created_at->lt($orden->created_at)) {
+                    // Línea proveniente de distribución previa: volver a pendiente
+                    $linea->orden_compras_id = null;
+                    $linea->save();
+                } else {
+                    // Línea normal creada con la OC: soft delete
+                    $linea->delete();
+                }
+            }
 
             // Borrar distribución por centros
             OrdenCompraCentroProducto::where('orden_compra_id', $id)->delete();
