@@ -611,60 +611,9 @@ class OrdenCompraController extends Controller
             return redirect()->back()->with('error', 'No hay órdenes de compra para descargar.');
         }
 
-        // Helper para armar data del PDF
-        $buildPdfData = function (OrdenCompra $orden) {
-            $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
-
-            // Items: agrupar por producto y sumar total
-            $items = [];
-            $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
-            foreach ($porProducto as $productoId => $lineas) {
-                $producto = optional($lineas->first())->producto;
-                $cantidad = (int) $lineas->sum('total');
-                if ($producto) {
-                    $items[] = [
-                        'producto_id' => $producto->id,
-                        'name_produc' => $producto->name_produc,
-                        'description_produc' => $producto->description_produc ?? '',
-                        'unit_produc' => $producto->unit_produc ?? '',
-                        'po_amount' => $cantidad,
-                        'precio_unitario' => 0, // No hay precio en el esquema actual
-                    ];
-                }
-            }
-
-            // Distribución por centros por producto
-            $distRows = DB::table('ordencompra_centro_producto as ocp')
-                ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
-                ->select('ocp.producto_id', 'c.name_centro', 'ocp.amount')
-                ->where('ocp.orden_compra_id', $orden->id)
-                ->get();
-            $distribucion = [];
-            foreach ($distRows as $r) {
-                $distribucion[$r->producto_id][] = [
-                    'name_centro' => $r->name_centro,
-                    'amount' => (int)$r->amount,
-                ];
-            }
-
-            return [
-                'orden' => $orden,
-                'proveedor' => $proveedor,
-                'items' => $items,
-                'distribucion' => $distribucion,
-                'subtotal' => collect($items)->sum(fn($i) => ($i['po_amount'] * $i['precio_unitario'])),
-                'observaciones' => $orden->observaciones,
-                'fecha_actual' => now()->format('d/m/Y H:i'),
-                'logo' => null,
-                'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
-                'methods_oc' => $orden->methods_oc,
-                'plazo_oc' => $orden->plazo_oc,
-            ];
-        };
-
         if ($ordenes->count() === 1) {
             $orden = $ordenes->first();
-            $data = $buildPdfData($orden);
+            $data = $this->buildPdfData($orden);
             $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
             return $pdf->download($fileName);
@@ -684,13 +633,68 @@ class OrdenCompraController extends Controller
         }
 
         foreach ($ordenes as $orden) {
-            $data = $buildPdfData($orden);
+            $data = $this->buildPdfData($orden);
             $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
-            $pdfContent = $pdf->output();
-            $zip->addFromString('orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf', $pdfContent);
+            $zip->addFromString('orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf', $pdf->output());
         }
         $zip->close();
 
         return Response::download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+    }
+
+    private function buildPdfData(OrdenCompra $orden): array
+    {
+        $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
+
+        // Items por producto (suma cantidades) y precio desde productos.price_produc
+        $items = [];
+        $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
+        foreach ($porProducto as $productoId => $lineas) {
+            $producto = optional($lineas->first())->producto;
+            $cantidad = (int) $lineas->sum('total');
+            if ($producto) {
+                $items[] = [
+                    'producto_id' => $producto->id,
+                    'name_produc' => $producto->name_produc,
+                    'description_produc' => $producto->description_produc ?? '',
+                    'unit_produc' => $producto->unit_produc ?? '',
+                    'po_amount' => $cantidad,
+                    'precio_unitario' => (float) ($producto->price_produc ?? 0),
+                ];
+            }
+        }
+
+        // Distribución por centros
+        $distRows = DB::table('ordencompra_centro_producto as ocp')
+            ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
+            ->select('ocp.producto_id', 'c.name_centro', 'ocp.amount')
+            ->where('ocp.orden_compra_id', $orden->id)
+            ->get();
+        $distribucion = [];
+        foreach ($distRows as $r) {
+            $distribucion[$r->producto_id][] = [
+                'name_centro' => $r->name_centro,
+                'amount' => (int)$r->amount,
+            ];
+        }
+
+        $subtotal = 0;
+        foreach ($items as $i) {
+            $subtotal += ($i['po_amount'] * $i['precio_unitario']);
+        }
+
+        return [
+            'orden' => $orden,
+            'proveedor' => $proveedor,
+            'items' => $items,
+            'distribucion' => $distribucion,
+            'subtotal' => $subtotal,
+            'observaciones' => $orden->observaciones,
+            'fecha_actual' => now()->format('d/m/Y H:i'),
+            'logo' => null,
+            'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
+            'methods_oc' => $orden->methods_oc,
+            'plazo_oc' => $orden->plazo_oc,
+        ];
     }
 }

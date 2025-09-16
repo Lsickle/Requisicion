@@ -104,7 +104,7 @@
             <div class="total-value">$0.00</div>
         </div>
         <div class="total-row">
-            <div class="total-label">TOTAL:</div>
+            <div class="total-label">TOTAL A PAGAR:</div>
             <div class="total-value">${{ number_format($subtotal, 2) }}</div>
         </div>
     </div>
