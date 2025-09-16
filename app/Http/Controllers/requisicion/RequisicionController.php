@@ -20,7 +20,7 @@ class RequisicionController extends Controller
 {
     public function index()
     {
-        $requisiciones = Requisicion::with('productos', 'estatusHistorial.estatus')->get();
+        $requisiciones = Requisicion::with('productos', 'estatusHistorial.estatusRelation')->get();
         return view('index', compact('requisiciones'));
     }
 
@@ -45,7 +45,7 @@ class RequisicionController extends Controller
                     $q->wherePivot('requisicion_id', $id);
                 }]);
             },
-            'estatusHistorial.estatus'
+            'estatusHistorial.estatusRelation'
         ])->findOrFail($id);
 
         // Verificar que la requisición está en estatus "Corregir"
@@ -258,7 +258,7 @@ class RequisicionController extends Controller
         $requisicion = Requisicion::with([
             'productos',
             'productos.centros',
-            'estatusHistorial.estatus'
+            'estatusHistorial.estatusRelation'
         ])->findOrFail($id);
 
         return view('requisiciones.show', compact('requisicion'));
@@ -269,7 +269,7 @@ class RequisicionController extends Controller
         $requisicion = Requisicion::with([
             'productos',
             'productos.centros',
-            'estatusHistorial.estatus'
+            'estatusHistorial.estatusRelation'
         ])->findOrFail($id);
 
         // Usar los datos guardados en la requisición en lugar de hacer una nueva consulta
@@ -319,45 +319,12 @@ class RequisicionController extends Controller
         return view('requisiciones.historial', compact('requisiciones'));
     }
 
-    private function obtenerInformacionUsuario($userId)
-    {
-        try {
-            $apiUrl = env('VPL_CORE') . "/api/users/{$userId}";
-            $response = Http::withoutVerifying()->get($apiUrl);
-
-            if ($response->ok()) {
-                $userData = $response->json();
-                return [
-                    'name' => $userData['user']['name'] ?? $userData['user']['email'] ?? 'Usuario Desconocido',
-                    'email' => $userData['user']['email'] ?? 'email@desconocido.com',
-                    'operaciones' => $userData['user']['operaciones'] ?? 'Operación no definida'
-                ];
-            }
-        } catch (\Throwable $e) {
-            Log::error("Error obteniendo información del usuario {$userId}: {$e->getMessage()}");
-        }
-
-        return [
-            'name' => 'Usuario Desconocido',
-            'email' => 'email@desconocido.com',
-            'operaciones' => 'Operación no definida'
-        ];
-    }
-
-    private function obtenerNombreUsuario($userId)
-    {
-        $userInfo = $this->obtenerInformacionUsuario($userId);
-        return $userInfo['name'];
-    }
-
-    // Agrega este método al final de la clase RequisicionController
     public function listaAprobadas()
     {
-        // Obtener requisiciones con estatus 4 (Aprobadas)
         $requisiciones = Requisicion::with([
             'productos',
-            'ultimoEstatus.estatus',
-            'estatusHistorial.estatus'
+            'ultimoEstatus.estatusRelation',
+            'estatusHistorial.estatusRelation'
         ])
             ->whereHas('ultimoEstatus', function ($query) {
                 $query->where('estatus_id', 4); // 4 = Aprobado
