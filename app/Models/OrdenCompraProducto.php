@@ -13,6 +13,7 @@ class OrdenCompraProducto extends Model
     protected $table = 'ordencompra_producto';
 
     protected $fillable = [
+        'requisicion_id',
         'producto_id',
         'orden_compras_id',
         'proveedor_id',

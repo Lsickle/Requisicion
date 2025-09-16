@@ -115,6 +115,22 @@
             </div>
             @endif
 
+            <!-- Mensajes de error -->
+            @if($errors->any())
+            <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
+                <ul class="list-disc ml-5 text-sm">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+            @if(session('error'))
+            <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
+                {{ session('error') }}
+            </div>
+            @endif
+
             <!-- Formulario para Crear Orden -->
             @if($requisicion)
             <div class="border p-6 mb-6 rounded-lg shadow bg-gray-50">
@@ -177,6 +193,13 @@
                                     $producto->pivot->pr_amount ?? 1 }}
                                 </option>
                                 @endforeach
+                                @if(isset($lineasDistribuidas) && $lineasDistribuidas->count())
+                                    @foreach($lineasDistribuidas as $ld)
+                                        <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}">
+                                            {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
+                                        </option>
+                                    @endforeach
+                                @endif
                             </select>
                             <button type="button" onclick="agregarProducto()"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
@@ -190,13 +213,13 @@
                     </div>
 
                     <!-- Modal Distribución -->
-                    <div id="modal-distribucion" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
-                        <div class="bg-white max-w-3xl mx-auto mt-20 rounded-lg shadow-lg overflow-hidden">
+                    <div id="modal-distribucion" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center overflow-y-auto">
+                        <div class="bg-white w-11/12 sm:max-w-3xl my-10 rounded-lg shadow-lg overflow-hidden max-h-[85vh] flex flex-col">
                             <div class="flex justify-between items-center px-6 py-4 border-b">
                                 <h3 class="text-lg font-semibold">Distribuir producto entre Proveedores</h3>
                                 <button type="button" id="btn-cerrar-modal" class="text-gray-600 hover:text-gray-800">✕</button>
                             </div>
-                            <div class="p-6 space-y-4">
+                            <div class="p-6 space-y-4 grow overflow-y-auto">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-600 mb-1">Producto a distribuir</label>
                                     <select id="dist-producto-id" class="w-full border rounded-lg p-2">
@@ -210,9 +233,9 @@
                                     <small class="text-gray-500">Cantidad total disponible: <span id="dist-max">0</span> <span id="dist-unidad"></span></small>
                                 </div>
 
-                                <div class="overflow-x-auto">
+                                <div class="overflow-x-auto max-h-[50vh] overflow-y-auto">
                                     <table class="w-full border text-sm rounded-lg bg-white">
-                                        <thead class="bg-gray-100">
+                                        <thead class="bg-gray-100 sticky top-0 z-10">
                                             <tr>
                                                 <th class="p-2 text-left">Proveedor</th>
                                                 <th class="p-2 text-center">Cantidad</th>
@@ -240,10 +263,10 @@
                     </div>
 
                     <!-- Tabla productos -->
-                    <div class="overflow-x-auto mt-6">
+                    <div class="overflow-x-auto mt-6 max-h-[60vh] overflow-y-auto">
                         <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
                         <table class="w-full border text-sm rounded-lg overflow-hidden bg-white">
-                            <thead class="bg-gray-100">
+                            <thead class="bg-gray-100 sticky top-0 z-10">
                                 <tr>
                                     <th class="p-3 text-left">Producto</th>
                                     <th class="p-3 text-center">Cantidad</th>
@@ -282,13 +305,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @php
-                        $ordenes = \App\Models\OrdenCompra::with('ordencompraProductos.producto', 'ordencompraProductos.proveedor')
-                            ->where('requisicion_id', $requisicion->id)
-                            ->get();
-                        @endphp
-
-                        @foreach($ordenes as $orden)
+                        @foreach(($ordenes ?? collect()) as $orden)
                         <tr class="border-t">
                             <td class="p-3">{{ $loop->iteration }}</td>
                             <td class="p-3">{{ $orden->order_oc ?? 'N/A' }}</td>
@@ -337,6 +354,7 @@
     // Cambiar a llave compuesta para permitir líneas distribuidas del mismo producto
     let productosAgregados = [];
     let centros = @json($centros);
+    let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
 
     // Preparar la distribución original de la requisición
     let distribucionOriginal = {};
@@ -363,27 +381,26 @@
         const productoNombre = selectedOption.dataset.nombre;
         const proveedorId = selectedOption.dataset.proveedor;
         const unidad = selectedOption.dataset.unidad || '';
-        const cantidadOriginal = selectedOption.dataset.cantidad || 1;
+        const cantidadOriginal = parseInt(selectedOption.dataset.cantidad || '1', 10);
         const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
         const ocpId = selectedOption.dataset.ocpId || null;
-        const key = `${productoId}-${ocpId||'0'}`;
+        const rowKey = `${productoId}-${ocpId||'0'}`;
 
-        if (productosAgregados.includes(key)) {
+        if (productosAgregados.includes(rowKey)) {
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Esta línea ya fue agregada'});
             return;
         }
 
-        // Si es distribuido, fijar proveedor
         if (selectedOption.dataset.distribuido === '1' && proveedorId) {
             proveedorSelect.value = proveedorId;
         }
 
-        agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1');
+        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1');
     }
 
-    function agregarProductoFinal(productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false) {
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false) {
         const table = document.getElementById('productos-table');
-        const rowId = `producto-${productoId}-${ocpId||'0'}`;
+        const rowId = `producto-${rowKey}`;
         if (document.getElementById(rowId)) return;
 
         let distribucionProducto = distribucionOriginal[productoId] || {};
@@ -401,9 +418,9 @@
             centrosHtml += `
                 <div class="mb-2">
                     <label class="block text-sm text-gray-600">${centro.name_centro}:</label>
-                    <input type="number" name="productos[${productoId}][centros][${centro.id}]" 
+                    <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
                            min="0" value="${cantidadCentro}" class="w-20 border rounded p-1 text-center distribucion-centro"
-                           data-producto="${productoId}" onchange="actualizarTotal(${productoId})">
+                           data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}')">
                 </div>
             `;
         });
@@ -413,33 +430,49 @@
         row.innerHTML = `
             <td class="p-3">
                 ${productoNombre} ${esDistribuido && proveedorId ? `<span class="text-xs text-gray-500">(Distribuido)</span>`:''}
-                <input type="hidden" name="productos[${productoId}][id]" value="${productoId}" 
+                <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
                     data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}">
-                ${ocpId ? `<input type="hidden" name="productos[${productoId}][ocp_id]" value="${ocpId}">` : ``}
+                ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
             </td>
             <td class="p-3 text-center">
-                <input type="number" name="productos[${productoId}][cantidad]" min="1" value="${cantidadOriginal}" 
+                <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadOriginal}" 
                     class="w-20 border rounded p-1 text-center cantidad-total" 
-                    id="cantidad-total-${productoId}" 
-                    onchange="distribuirAutomaticamente(${productoId})" required>
+                    id="cantidad-total-${rowKey}" 
+                    onchange="distribuirAutomaticamente('${rowKey}')" required>
             </td>
             <td class="p-3 text-center">${unidad}</td>
-            <td class="p-3 text-center" id="stock-disponible-${productoId}">${stockDisponible}</td>
+            <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
             <td class="p-3">
                 <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                     ${centrosHtml}
                 </div>
             </td>
             <td class="p-3 text-center space-x-2">
-                <button type="button" onclick="quitarProducto('${rowId}', ${productoId}, ${ocpId?`'${ocpId}'`:'null'})" 
+                <button type="button" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
             </td>
         `;
         table.appendChild(row);
 
-        productosAgregados.push(`${productoId}-${ocpId||'0'}`);
+        productosAgregados.push(rowKey);
 
-        if (!esDistribuido) {
+        if (esDistribuido) {
+            const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+            totalInput.value = cantidadOriginal;
+            distribuirAutomaticamente(rowKey);
+        } else {
+            // Inicializar automáticamente la distribución con la cantidad original
+            const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+            totalInput.value = cantidadOriginal;
+            distribuirAutomaticamente(rowKey);
+        }
+
+        // Quitar opción usada del selector
+        if (esDistribuido && ocpId) {
+            const opts = Array.from(selector.options);
+            const idx = opts.findIndex(o => o.value == String(productoId) && (o.dataset.ocpId || '') == String(ocpId));
+            if (idx > -1) selector.remove(idx);
+        } else {
             for (let i = 0; i < selector.options.length; i++) {
                 if (selector.options[i].value == productoId && !selector.options[i].dataset.distribuido) {
                     selector.remove(i);
@@ -448,55 +481,74 @@
             }
         }
         selector.value = "";
-        actualizarTotal(productoId);
     }
 
-    function actualizarTotal(productoId) {
-        const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
+    function actualizarTotal(rowKey) {
+        const inputs = document.querySelectorAll(`input[name^="productos[${rowKey}][centros]"]`);
         let total = 0;
         inputs.forEach(input => { total += parseInt(input.value) || 0; });
-        const totalInput = document.getElementById(`cantidad-total-${productoId}`);
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
         if (totalInput) totalInput.value = total;
     }
 
-    function distribuirAutomaticamente(productoId) {
-        const total = parseInt(document.getElementById(`cantidad-total-${productoId}`)?.value) || 0;
-        const inputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
-        if (inputs.length > 0 && total > 0) {
-            const cantidadPorCentro = Math.floor(total / inputs.length);
-            const resto = total % inputs.length;
-            inputs.forEach((input, index) => {
-                input.value = index < resto ? cantidadPorCentro + 1 : cantidadPorCentro;
-            });
+    function distribuirAutomaticamente(rowKey) {
+        const total = parseInt(document.getElementById(`cantidad-total-${rowKey}`)?.value) || 0;
+        const inputs = Array.from(document.querySelectorAll(`input[name^="productos[${rowKey}][centros]"]`));
+        if (inputs.length > 0 && total >= 0) {
+            // distribuir proporcionalmente si hay valores base; si no, uniforme
+            const base = inputs.map(i => parseInt(i.value)||0);
+            const baseSum = base.reduce((a,b)=>a+b,0);
+            let asignaciones = new Array(inputs.length).fill(0);
+            if (baseSum > 0) {
+                let asignado = 0;
+                for (let i=0;i<inputs.length;i++) {
+                    asignaciones[i] = Math.floor((base[i] / baseSum) * total);
+                    asignado += asignaciones[i];
+                }
+                let resto = total - asignado;
+                for (let i=0; i<inputs.length && resto>0; i++, resto--) asignaciones[i]++;
+            } else {
+                const porCentro = Math.floor(total / inputs.length);
+                let resto = total % inputs.length;
+                asignaciones = inputs.map((_, idx) => idx < resto ? porCentro + 1 : porCentro);
+            }
+            inputs.forEach((input,i)=> input.value = asignaciones[i]);
         }
     }
 
-    function quitarProducto(rowId, productoId, ocpId = null) {
+    function quitarProducto(rowId, rowKey, ocpId = null) {
         const row = document.getElementById(rowId);
         const selector = document.getElementById('producto-selector');
         if (row) {
-            const inputHidden = row.querySelector('input[type="hidden"]');
+            const inputHidden = row.querySelector('input[type="hidden"][name$="[id]"]');
             const proveedorId = inputHidden?.dataset?.proveedor || '';
             const unidad = inputHidden?.dataset?.unidad || '';
             const nombre = inputHidden?.dataset?.nombre || '';
             const cantidad = inputHidden?.dataset?.cantidad || 0;
             const stock = inputHidden?.dataset?.stock || 0;
             const esDistribuido = !!ocpId;
+            const productoId = inputHidden?.value;
 
             row.remove();
-            productosAgregados = productosAgregados.filter(k => k !== `${productoId}-${ocpId||'0'}`);
+            productosAgregados = productosAgregados.filter(k => k !== rowKey);
 
-            if (!esDistribuido) {
-                let productoOption = document.createElement('option');
-                productoOption.value = productoId;
-                productoOption.dataset.proveedor = proveedorId;
-                productoOption.dataset.unidad = unidad;
-                productoOption.dataset.nombre = nombre;
-                productoOption.dataset.cantidad = cantidad;
-                productoOption.dataset.stock = stock;
-                productoOption.textContent = `${nombre} (${unidad}) - Cantidad: ${cantidad} - Stock: ${stock}`;
-                selector.appendChild(productoOption);
+            // Volver a agregar la opción al selector
+            const opt = document.createElement('option');
+            opt.value = productoId;
+            opt.dataset.proveedor = proveedorId;
+            opt.dataset.unidad = unidad;
+            opt.dataset.nombre = nombre;
+            opt.dataset.cantidad = cantidad;
+            opt.dataset.stock = stock;
+            if (esDistribuido) {
+                opt.dataset.distribuido = '1';
+                opt.dataset.ocpId = ocpId;
+                const provName = proveedoresMap?.[proveedorId] || 'Proveedor';
+                opt.textContent = `${nombre} - ${provName} - Cant: ${cantidad}`;
+            } else {
+                opt.textContent = `${nombre} (${unidad}) - Cantidad: ${cantidad}`;
             }
+            selector.appendChild(opt);
         }
     }
 
@@ -517,7 +569,9 @@
         });
     }
 
-    document.getElementById('orden-form').addEventListener('submit', function(e) {
+    // Validación al enviar con rowKey
+    const ordenForm = document.getElementById('orden-form');
+    ordenForm.addEventListener('submit', function(e) {
         if (productosAgregados.length === 0) {
             e.preventDefault();
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
@@ -525,16 +579,16 @@
         }
         let errores = [];
         productosAgregados.forEach(key => {
-            const [productoId] = key.split('-');
-            const totalInput = document.getElementById(`cantidad-total-${productoId}`);
+            const totalInput = document.getElementById(`cantidad-total-${key}`);
             const total = parseInt(totalInput?.value) || 0;
-            const distribucionInputs = document.querySelectorAll(`input[name^="productos[${productoId}][centros]"]`);
+            const distribucionInputs = document.querySelectorAll(`input[name^="productos[${key}][centros]"]`);
             let distribucionTotal = 0;
-            distribucionInputs.forEach(input => {
-                distribucionTotal += parseInt(input.value) || 0;
-            });
+            distribucionInputs.forEach(input => { distribucionTotal += parseInt(input.value) || 0; });
             if (total !== distribucionTotal) {
-                errores.push(`La distribución del producto ${productoId} no coincide con la cantidad total`);
+                errores.push(`La distribución de la línea ${key} no coincide con la cantidad total`);
+            }
+            if (total < 1) {
+                errores.push(`La cantidad de la línea ${key} debe ser mayor a cero`);
             }
         });
         if (errores.length > 0) {
@@ -577,6 +631,9 @@
         btnCerrar?.addEventListener('click', cerrarModal);
         btnCancelar?.addEventListener('click', cerrarModal);
 
+        // Deshabilitar "+ Agregar" hasta seleccionar producto
+        if (btnAddFila) btnAddFila.disabled = true;
+
         selectProd.addEventListener('change', function() {
             const opt = this.options[this.selectedIndex];
             const max = parseInt(opt?.dataset?.max || '0', 10);
@@ -584,9 +641,21 @@
             spanTotalMax.textContent = max;
             spanUnidad.textContent = opt?.dataset?.unidad || '';
             calcularTotal();
+            if (btnAddFila) btnAddFila.disabled = !this.value || (parseInt(spanTotal.textContent||'0',10) >= max);
         });
 
         btnAddFila.addEventListener('click', function() {
+            const max = parseInt(spanTotalMax.textContent || '0', 10);
+            const totalActual = parseInt(spanTotal.textContent || '0', 10);
+            const restante = max - totalActual;
+            if (!selectProd.value) {
+                Swal.fire({icon: 'info', title: 'Seleccione un producto', text: 'Debe elegir un producto antes de añadir proveedores', confirmButtonText: 'Cerrar'});
+                return;
+            }
+            if (restante <= 0) {
+                Swal.fire({icon: 'info', title: 'Cantidad completa', text: 'Ya alcanzó la cantidad total, no puede añadir más proveedores.', confirmButtonText: 'Cerrar'});
+                return;
+            }
             const fila = document.createElement('tr');
             fila.innerHTML = `
                 <td class="p-2">
@@ -598,7 +667,7 @@
                     </select>
                 </td>
                 <td class="p-2 text-center">
-                    <input type="number" min="1" value="1" class="w-24 border rounded p-1 cant-item" />
+                    <input type="number" min="1" max="${restante}" value="${Math.min(1, restante)}" class="w-24 border rounded p-1 cant-item" />
                 </td>
                 <td class="p-2 text-center">
                     <button type="button" class="px-2 py-1 bg-red-500 text-white rounded text-sm btn-del-fila">✕</button>
@@ -606,13 +675,35 @@
             `;
             tbody.appendChild(fila);
             fila.querySelector('.btn-del-fila').addEventListener('click', function(){ fila.remove(); calcularTotal(); });
-            fila.querySelector('.cant-item').addEventListener('input', calcularTotal);
+            fila.querySelector('.cant-item').addEventListener('input', function(e){ onCantInput(e.target); });
+            calcularTotal();
         });
 
+        function onCantInput(inp){
+            const max = parseInt(spanTotalMax.textContent || '0', 10);
+            let totalOtros = 0;
+            tbody.querySelectorAll('.cant-item').forEach(el => { if (el !== inp) totalOtros += (parseInt(el.value)||0); });
+            const permitido = Math.max(0, max - totalOtros);
+            let val = parseInt(inp.value)||0;
+            if (val < 1 && permitido > 0) val = 1; // mínimo 1 si hay remanente
+            if (val > permitido) val = permitido;
+            inp.value = val;
+            calcularTotal();
+        }
+
         function calcularTotal(){
+            const max = parseInt(spanTotalMax.textContent || '0', 10);
             let total = 0;
             tbody.querySelectorAll('.cant-item').forEach(inp => total += (parseInt(inp.value)||0));
             spanTotal.textContent = total;
+            // Alternar estado del botón agregar según remanente
+            if (btnAddFila) btnAddFila.disabled = !selectProd.value || total >= max;
+            // Actualizar max de cada input según remanente
+            const restante = Math.max(0, max - total);
+            tbody.querySelectorAll('.cant-item').forEach(inp => {
+                const actual = parseInt(inp.value)||0;
+                inp.max = actual + restante; // permite aumentar hasta cubrir remanente
+            });
         }
 
         function limpiarModal(){
@@ -622,6 +713,7 @@
             spanUnidad.textContent = '';
             tbody.innerHTML = '';
             spanTotal.textContent = '0';
+            if (btnAddFila) btnAddFila.disabled = true;
         }
 
         btnGuardar.addEventListener('click', async function(){
@@ -672,27 +764,12 @@
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
 
-                // Quitar opción principal del producto completo
-                const mainSel = document.getElementById('producto-selector');
-                Array.from(mainSel.options).forEach(opt => { if (opt.value == prodId && !opt.dataset.distribuido) opt.remove(); });
-
-                // Agregar opciones por cada línea creada
-                (data.lineas || []).forEach(l => {
-                    const opt = document.createElement('option');
-                    opt.value = l.producto_id;
-                    opt.dataset.distribuido = '1';
-                    opt.dataset.ocpId = l.ocp_id;
-                    opt.dataset.proveedor = l.proveedor_id;
-                    opt.dataset.nombre = l.producto_nombre;
-                    opt.dataset.unidad = l.unidad || '';
-                    opt.dataset.stock = l.stock ?? 0;
-                    opt.dataset.cantidad = l.cantidad;
-                    opt.textContent = `${l.producto_nombre} - ${l.proveedor_nombre} - Cant: ${l.cantidad}`;
-                    mainSel.appendChild(opt);
-                });
-
+                // No insertar las opciones distribuidas en el selector de la página actual
+                // para evitar que se agreguen a la tabla antes de crear la orden principal.
                 cerrarModal();
-                Swal.fire({icon:'success', title:'Distribución guardada', timer:1500, showConfirmButton:false});
+                Swal.fire({icon:'success', title:'Producto(s) añadidos', text:'La distribución se guardó. Se actualizará la página para mostrar las líneas distribuidas.', confirmButtonText:'Aceptar'}).then(()=> {
+                    location.reload();
+                });
             } catch (e) {
                 Swal.fire({icon:'error', title:'Error', text: e.message});
             }

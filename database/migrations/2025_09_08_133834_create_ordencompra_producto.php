@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('ordencompra_producto', function (Blueprint $table) {
             $table->id();
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
-            $table->foreignId('orden_compras_id')->constrained('orden_compras')->onDelete('cascade'); #id de la orden de compra
-            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade')->nullable(); #id de proveedores
+            $table->foreignId('orden_compras_id')->nullable()->constrained('orden_compras')->onDelete('set null'); #id de la orden de compra (nullable)
+            $table->foreignId('proveedor_id')->nullable()->constrained('proveedores')->onDelete('cascade'); #id de proveedores (nullable)
             $table->integer('total')->nullable(); #cantidad de la orden de compra
             $table->timestamps();
             $table->softDeletes();

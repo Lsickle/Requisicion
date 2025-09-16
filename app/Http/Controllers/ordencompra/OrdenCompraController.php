@@ -29,8 +29,9 @@ class OrdenCompraController extends Controller
         return view('ordenes_compra.lista', compact('ordenes'));
     }
 
-    public function create(Request $request)
+    public function create(Request $request, $requisicion_id = null)
     {
+        $reqId = $requisicion_id ?? $request->query('requisicion_id');
         $requisiciones = Requisicion::select('requisicion.*')
             ->whereExists(function ($query) {
                 $query->select(DB::raw(1))
@@ -46,11 +47,14 @@ class OrdenCompraController extends Controller
         $productoSeleccionado = null;
         $proveedores = Proveedor::all();
         $centros = Centro::all();
+        $lineasDistribuidas = collect();
+        $ordenes = collect();
 
-        if ($request->has('requisicion_id') && $request->requisicion_id != 0) {
-            $requisicion = Requisicion::find($request->requisicion_id);
+        if ($reqId) {
+            $requisicion = Requisicion::find($reqId);
 
             if ($requisicion) {
+                // Productos disponibles: excluir solo si ya existen en OCs principales (no OC-DIST)
                 $productosDisponibles = Producto::select('productos.*', 'producto_requisicion.pr_amount')
                     ->join('producto_requisicion', 'productos.id', '=', 'producto_requisicion.id_producto')
                     ->where('producto_requisicion.id_requisicion', $requisicion->id)
@@ -71,6 +75,53 @@ class OrdenCompraController extends Controller
                         'pr_amount' => $producto->pr_amount
                     ]);
                 }
+
+                // Líneas distribuidas (pendientes, sin OC): orden_compras_id IS NULL
+                $lineasDistribuidas = DB::table('ordencompra_producto as ocp')
+                    ->join('productos as p', 'ocp.producto_id', '=', 'p.id')
+                    ->leftJoin('proveedores as prov', 'ocp.proveedor_id', '=', 'prov.id')
+                    ->whereNull('ocp.deleted_at')
+                    ->whereNull('ocp.orden_compras_id')
+                    ->where('ocp.requisicion_id', $requisicion->id)
+                    ->select(
+                        'ocp.id as ocp_id',
+                        'ocp.producto_id',
+                        'ocp.proveedor_id',
+                        'ocp.total as cantidad',
+                        'p.name_produc',
+                        'p.unit_produc',
+                        'p.stock_produc',
+                        'prov.prov_name'
+                    )
+                    ->get();
+
+                // Ocultar líneas distribuidas si ya existe una OC principal para ese producto
+                $productoIdsEnOCPrincipal = DB::table('ordencompra_producto as ocp2')
+                    ->join('orden_compras as oc2', 'ocp2.orden_compras_id', '=', 'oc2.id')
+                    ->where('oc2.requisicion_id', $requisicion->id)
+                    ->whereNull('oc2.deleted_at')
+                    ->whereNull('ocp2.deleted_at')
+                    ->where(function($q){
+                        $q->whereNull('oc2.order_oc')
+                          ->orWhere('oc2.order_oc', 'not like', 'OC-DIST-%');
+                    })
+                    ->pluck('ocp2.producto_id')
+                    ->unique();
+
+                $lineasDistribuidas = $lineasDistribuidas->reject(function($ld) use ($productoIdsEnOCPrincipal){
+                    return $productoIdsEnOCPrincipal->contains($ld->producto_id);
+                });
+
+                // Órdenes principales (no OC-DIST)
+                $ordenes = OrdenCompra::with('ordencompraProductos.producto', 'ordencompraProductos.proveedor')
+                    ->where('requisicion_id', $requisicion->id)
+                    ->whereNull('deleted_at')
+                    ->where(function ($q) {
+                        $q->whereNull('order_oc')
+                          ->orWhere('order_oc', 'not like', 'OC-DIST-%');
+                    })
+                    ->orderBy('id', 'desc')
+                    ->get();
             }
         }
 
@@ -84,7 +135,9 @@ class OrdenCompraController extends Controller
             'productosDisponibles',
             'productoSeleccionado',
             'proveedores',
-            'centros'
+            'centros',
+            'lineasDistribuidas',
+            'ordenes'
         ));
     }
 
@@ -110,7 +163,37 @@ class OrdenCompraController extends Controller
 
         DB::beginTransaction();
         try {
-            foreach ($request->productos as $productoData) {
+            // Crear/obtener OC principal una vez por requisición
+            $orden = OrdenCompra::where('requisicion_id', $request->requisicion_id)
+                ->whereNull('deleted_at')
+                ->where(function ($q) {
+                    $q->whereNull('order_oc')
+                      ->orWhere('order_oc', 'not like', 'OC-DIST-%');
+                })
+                ->latest('id')
+                ->first();
+
+            if (!$orden) {
+                $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
+                $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
+
+                $orden = OrdenCompra::create([
+                    'requisicion_id' => $request->requisicion_id,
+                    'observaciones'  => $request->observaciones,
+                    'methods_oc'     => $request->methods_oc,
+                    'plazo_oc'       => $request->plazo_oc,
+                    'date_oc'        => now(),
+                    'order_oc'       => $numeroOrden,
+                ]);
+            } else {
+                $orden->update([
+                    'observaciones' => $request->observaciones ?? $orden->observaciones,
+                    'methods_oc'    => $request->methods_oc ?? $orden->methods_oc,
+                    'plazo_oc'      => $request->plazo_oc ?? $orden->plazo_oc,
+                ]);
+            }
+
+            foreach ($request->productos as $rowKey => $productoData) {
                 if (empty($productoData['id'])) continue;
 
                 $productoId = (int) $productoData['id'];
@@ -118,32 +201,25 @@ class OrdenCompraController extends Controller
                 $ocpId = $productoData['ocp_id'] ?? null;
 
                 if ($ocpId) {
-                    // Actualizar línea distribuida existente
-                    $ocp = OrdenCompraProducto::findOrFail($ocpId);
-                    $ordenDist = OrdenCompra::findOrFail($ocp->orden_compras_id);
+                    // Asociar línea pre-distribuida a la OC recién creada y validar proveedor
+                    $ocp = OrdenCompraProducto::where('id', $ocpId)
+                        ->whereNull('orden_compras_id')
+                        ->where('requisicion_id', $request->requisicion_id)
+                        ->firstOrFail();
 
-                    if ((int)$ordenDist->requisicion_id !== (int)$request->requisicion_id) {
-                        throw new \Exception('La línea distribuida no pertenece a esta requisición.');
-                    }
-                    // Enforzar coherencia de proveedor
                     if ((int)$request->proveedor_id !== (int)$ocp->proveedor_id) {
                         throw new \Exception('El proveedor seleccionado no coincide con el de la distribución.');
                     }
 
+                    // Actualizar cantidad si el usuario la editó
                     if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
-                        $ocp->update(['total' => $cantidadIngresada]);
+                        $ocp->total = $cantidadIngresada;
                     }
+                    $ocp->orden_compras_id = $orden->id;
+                    $ocp->save();
 
-                    // Actualizar encabezado de la OC-DIST
-                    $ordenDist->update([
-                        'observaciones' => $request->observaciones ?? $ordenDist->observaciones,
-                        'methods_oc'    => $request->methods_oc ?? $ordenDist->methods_oc,
-                        'plazo_oc'      => $request->plazo_oc ?? $ordenDist->plazo_oc,
-                        'date_oc'       => $ordenDist->date_oc ?? now(),
-                    ]);
-
-                    // Reemplazar distribución por centros
-                    OrdenCompraCentroProducto::where('orden_compra_id', $ordenDist->id)
+                    // Limpiar distribución por centros previa y re-crear
+                    OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
                         ->where('producto_id', $productoId)
                         ->delete();
 
@@ -151,7 +227,7 @@ class OrdenCompraController extends Controller
                         foreach ($productoData['centros'] as $centroId => $cantidad) {
                             if ((int)$cantidad > 0) {
                                 OrdenCompraCentroProducto::create([
-                                    'orden_compra_id' => $ordenDist->id,
+                                    'orden_compra_id' => $orden->id,
                                     'producto_id'     => $productoId,
                                     'centro_id'       => $centroId,
                                     'amount'          => (int)$cantidad,
@@ -160,42 +236,14 @@ class OrdenCompraController extends Controller
                         }
                     }
 
-                    continue; // procesada línea distribuida
+                    continue;
                 }
 
-                // Flujo normal (sin distribución previa)
-                $orden = OrdenCompra::where('requisicion_id', $request->requisicion_id)
-                    ->whereNull('deleted_at')
-                    ->where(function ($q) {
-                        $q->whereNull('order_oc')
-                          ->orWhere('order_oc', 'not like', 'OC-DIST-%');
-                    })
-                    ->latest('id')
-                    ->first();
-
-                if (!$orden) {
-                    $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
-                    $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
-
-                    $orden = OrdenCompra::create([
-                        'requisicion_id' => $request->requisicion_id,
-                        'observaciones'  => $request->observaciones,
-                        'methods_oc'     => $request->methods_oc,
-                        'plazo_oc'       => $request->plazo_oc,
-                        'date_oc'        => now(),
-                        'order_oc'       => $numeroOrden,
-                    ]);
-                } else {
-                    $orden->update([
-                        'observaciones' => $request->observaciones ?? $orden->observaciones,
-                        'methods_oc'    => $request->methods_oc ?? $orden->methods_oc,
-                        'plazo_oc'      => $request->plazo_oc ?? $orden->plazo_oc,
-                    ]);
-                }
-
+                // Flujo normal (sin distribución previa): crear línea nueva ligada a la OC
                 OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,
+                    'requisicion_id'   => $request->requisicion_id,
                     'proveedor_id'     => $request->proveedor_id,
                     'total'            => $cantidadIngresada,
                 ]);
@@ -233,7 +281,7 @@ class OrdenCompraController extends Controller
         $validator = Validator::make($request->all(), [
             'producto_id' => 'required|exists:productos,id',
             'requisicion_id' => 'required|exists:requisicion,id',
-            'distribucion' => 'required|array|min:2', // mínimo 2 proveedores
+            'distribucion' => 'required|array|min:2',
             'distribucion.*.proveedor_id' => 'required|exists:proveedores,id',
             'distribucion.*.cantidad' => 'required|integer|min:1',
             'distribucion.*.methods_oc' => 'nullable|string',
@@ -280,25 +328,13 @@ class OrdenCompraController extends Controller
             }
 
             $producto = Producto::findOrFail($productoId);
-            $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
-            $baseOrdenId = ($ultimaOrden ? $ultimaOrden->id : 0) + 1;
 
             $lineas = [];
-            foreach ($distribuciones as $index => $dist) {
-                $numeroOrden = 'OC-DIST-' . $baseOrdenId . '-' . ($index + 1) . '-' . now()->format('Ymd');
-
-                $orden = OrdenCompra::create([
-                    'requisicion_id' => $requisicionId,
-                    'date_oc'        => now(),
-                    'order_oc'       => $numeroOrden,
-                    'observaciones'  => $dist['observaciones'] ?? null,
-                    'methods_oc'     => $dist['methods_oc'] ?? null,
-                    'plazo_oc'       => $dist['plazo_oc'] ?? null,
-                ]);
-
+            foreach ($distribuciones as $dist) {
                 $ocp = OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
-                    'orden_compras_id' => $orden->id,
+                    // No establecer orden_compras_id aquí; quedará NULL por defecto
+                    'requisicion_id'   => $requisicionId,
                     'proveedor_id'     => (int)$dist['proveedor_id'],
                     'total'            => (int)$dist['cantidad'],
                 ]);
@@ -306,7 +342,6 @@ class OrdenCompraController extends Controller
                 $prov = Proveedor::find($dist['proveedor_id']);
 
                 $lineas[] = [
-                    'oc_id' => $orden->id,
                     'ocp_id' => $ocp->id,
                     'producto_id' => $productoId,
                     'producto_nombre' => $producto->name_produc,
@@ -381,10 +416,11 @@ class OrdenCompraController extends Controller
         try {
             $orden = OrdenCompra::findOrFail($id);
 
-            // Soft delete de productos vinculados
-            OrdenCompraProducto::where('orden_compras_id', $id)->delete();
+            // Desasociar líneas para que reaparezcan en el selector
+            OrdenCompraProducto::where('orden_compras_id', $id)
+                ->update(['orden_compras_id' => null]);
 
-            // Soft delete de distribución por centros
+            // Borrar distribución por centros
             OrdenCompraCentroProducto::where('orden_compra_id', $id)->delete();
 
             // Soft delete del encabezado

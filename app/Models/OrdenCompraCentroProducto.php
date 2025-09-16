@@ -16,7 +16,7 @@ class OrdenCompraCentroProducto extends Model
         'orden_compra_id',
         'producto_id',
         'centro_id',
-        'amount'
+        'amount',
     ];
 
     public function ordenCompra(): BelongsTo
