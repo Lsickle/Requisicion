@@ -263,6 +263,14 @@ document.querySelectorAll('.status-btn').forEach(btn => {
 function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
     const data = { estatus_id: estatusId, comentario: comentario };
 
+    // Mostrar alerta de carga mientras se procesa la solicitud
+    Swal.fire({
+        title: 'Procesando...',
+        html: 'Enviando solicitud, por favor espere.',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
     fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
         method: 'POST',
         headers: {

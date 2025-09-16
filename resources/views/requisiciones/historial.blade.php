@@ -6,7 +6,7 @@
 <x-sidebar />
 
 <div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de Requisiciones</h1>
+    <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de mis Requisiciones</h1>
 
     <!-- 🔍 Barra de búsqueda -->
     <div class="mb-6 flex justify-between items-center">
@@ -21,6 +21,7 @@
         <table id="tablaRequisiciones" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
             <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
                 <tr>
+                    <th class="p-3 text-left">ID</th>
                     <th class="p-3 text-left">Fecha</th>
                     <th class="p-3 text-left">Prioridad</th>
                     <th class="p-3 text-left">Recobrable</th>
@@ -33,6 +34,8 @@
                 @foreach($requisiciones as $req)
                 <tr class="border-b hover:bg-gray-50 transition">
 
+                    <!-- ID -->
+                    <td class="p-3">#{{ $req->id }}</td>
                     <!-- Fecha -->
                     <td class="p-3">{{ $req->created_at->format('d/m/Y') }}</td>
 
@@ -76,8 +79,25 @@
                                 case 10: $colorEstatus = 'bg-green-600'; break;
                                 case 11: $colorEstatus = 'bg-orange-500'; break;
                             }
+                            // Descripciones por estatus (IDs 1 a 13 en el orden del seeder)
+                            $descripcionesEstatus = [
+                                1 => 'Requisición creada por el solicitante.',
+                                2 => 'Revisado por compras; en espera de aprobación.',
+                                3 => 'Aprobado por Gerencia; pasa a financiera.',
+                                4 => 'Aprobado por Financiera; listo para generar OC.',
+                                5 => 'Orden de compra generada.',
+                                6 => 'Requisición cancelada.',
+                                7 => 'Material recibido en bodega.',
+                                8 => 'Material recibido por coordinador.',
+                                9 => 'Rechazado por financiera.',
+                                10 => 'Proceso completado.',
+                                11 => 'Corregir la requisición.',
+                                12 => 'Solo se ha entregado una parte de la requisición.',
+                                13 => 'Rechazado por gerencia.',
+                            ];
+                            $tooltip = $descripcionesEstatus[$ultimoEstatusId] ?? 'Pendiente por gestión.';
                         @endphp
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }}">{{ $nombreEstatus }}</span>
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">{{ $nombreEstatus }}</span>
                     </td>
 
                     <!-- Acciones -->
@@ -120,133 +140,182 @@
         </table>
     </div>
 
-    <!-- ===== Modales fuera de la tabla para evitar desbordes y HTML inválido ===== -->
-    @foreach($requisiciones as $req)
-    <div id="modal-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <!-- Fondo -->
-        <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $req->id }}')"></div>
-
-        <!-- Contenido -->
-        <div class="relative w-full max-w-4xl">
-            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
-
-                <!-- Botón cerrar -->
-                <button onclick="toggleModal('modal-{{ $req->id }}')"
-                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"
-                    aria-label="Cerrar modal">&times;</button>
-
-                <!-- Título -->
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
-                    Requisición #{{ $req->id }}
-                </h2>
-
-                <!-- Información general -->
-                <section class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
-                        <div><span class="font-medium">Solicitante:</span> {{ $req->name_user ?? $req->user->name ??
-                            'Desconocido' }}</div>
-                        <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y') }}</div>
-                        <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}
-                        </div>
-                        <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
-                        @php
-                            $hist = $req->estatusHistorial;
-                            $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
-                            $estatusActualId = $ultimoActivo->estatus_id ?? null;
-                            $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
-                            $colorActual = 'bg-gray-500';
-                            switch($estatusActualId) {
-                                case 1: $colorActual = 'bg-blue-600'; break;
-                                case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
-                                case 5: $colorActual = 'bg-purple-600'; break;
-                                case 6: case 9: $colorActual = 'bg-red-600'; break;
-                                case 7: case 8: $colorActual = 'bg-indigo-600'; break;
-                                case 10: $colorActual = 'bg-green-600'; break;
-                                case 11: $colorActual = 'bg-orange-500'; break;
-                            }
-                        @endphp
-                        <div>
-                            <span class="font-medium">Estatus actual:</span>
-                            <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }}">{{ $estatusActualNombre }}</span>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Detalle y Justificación lado a lado -->
-                <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Detalle -->
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Detalle</h3>
-                        <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
-                            {{ $req->detail_requisicion }}
-                        </div>
-                    </div>
-
-                    <!-- Justificación -->
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Justificación</h3>
-                        <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
-                            {{ $req->justify_requisicion }}
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Productos (tabla dentro del modal, sin desbordes) -->
-                <section class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
-                    <div class="border rounded-lg overflow-hidden">
-                        <div class="max-h-80 overflow-y-auto">
-                            <table class="w-full text-sm bg-white">
-                                <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
-                                    <tr class="border-b">
-                                        <th class="p-3 text-left">Producto</th>
-                                        <th class="p-3 text-center">Cantidad Total</th>
-                                        <th class="p-3 text-left">Distribución por Centro</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($req->productos as $prod)
-                                    <tr class="border-b">
-                                        <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}
-                                        </td>
-                                        <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
-                                        <td class="p-3 align-top">
-                                            <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                                                @php
-                                                $distribucion = DB::table('centro_producto')
-                                                ->where('requisicion_id', $req->id)
-                                                ->where('producto_id', $prod->id)
-                                                ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                                ->select('centro.name_centro', 'centro_producto.amount')
-                                                ->get();
-                                                @endphp
-                                                @forelse($distribucion as $centro)
-                                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
-                                                @empty
-                                                <li>No hay centros asignados</li>
-                                                @endforelse
-                                            </ul>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Estatus -->
-                <section class="mt-6">
-                    <a href="{{ route('requisiciones.estatus', $req->id) }}"
-                        class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
-                        Ver Estatus
-                    </a>
-                </section>
-            </div>
+    <!-- Paginación -->
+    <div class="flex items-center justify-between mt-4" id="paginationBar">
+        <div class="text-sm text-gray-600">
+            Mostrar
+            <select id="pageSizeSelect" class="border rounded px-2 py-1">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </select>
+            por página
         </div>
+        <div class="flex flex-wrap gap-1" id="paginationControls"></div>
     </div>
-    @endforeach
+ 
+     <!-- ===== Modales fuera de la tabla para evitar desbordes y HTML inválido ===== -->
+     @foreach($requisiciones as $req)
+         <div id="modal-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+         <!-- Fondo -->
+         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $req->id }}')"></div>
+
+         <!-- Contenido -->
+         <div class="relative w-full max-w-4xl">
+             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
+
+                 <!-- Botón cerrar -->
+                 <button onclick="toggleModal('modal-{{ $req->id }}')"
+                     class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"
+                     aria-label="Cerrar modal">&times;</button>
+
+                 <!-- Título -->
+                 <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
+                     Requisición #{{ $req->id }}
+                 </h2>
+
+                 <!-- Información general -->
+                 <section class="mb-8">
+                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
+                         <div><span class="font-medium">Solicitante:</span> {{ $req->name_user ?? $req->user->name ??
+                             'Desconocido' }}</div>
+                         <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y') }}</div>
+                         <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}
+                         </div>
+                         <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
+                         @php
+                             $hist = $req->estatusHistorial;
+                             $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
+                             $estatusActualId = $ultimoActivo->estatus_id ?? null;
+                             $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
+                             $colorActual = 'bg-gray-500';
+                             switch($estatusActualId) {
+                                 case 1: $colorActual = 'bg-blue-600'; break;
+                                 case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
+                                 case 5: $colorActual = 'bg-purple-600'; break;
+                                 case 6: case 9: $colorActual = 'bg-red-600'; break;
+                                 case 7: case 8: $colorActual = 'bg-indigo-600'; break;
+                                 case 10: $colorActual = 'bg-green-600'; break;
+                                 case 11: $colorActual = 'bg-orange-500'; break;
+                             }
+                             // Descripciones iguales a la tabla (IDs 1-13)
+                             $descripcionesEstatusModal = [
+                                 1 => 'Requisición creada por el solicitante.',
+                                 2 => 'Revisado por compras; en espera de aprobación.',
+                                 3 => 'Aprobado por Gerencia; pasa a financiera.',
+                                 4 => 'Aprobado por Financiera; listo para generar OC.',
+                                 5 => 'Orden de compra generada.',
+                                 6 => 'Requisición cancelada.',
+                                 7 => 'Material recibido en bodega.',
+                                 8 => 'Material recibido por coordinador.',
+                                 9 => 'Rechazado por financiera.',
+                                 10 => 'Proceso completado.',
+                                 11 => 'Corregir la requisición.',
+                                 12 => 'Solo se ha entregado una parte de la requisición.',
+                                 13 => 'Rechazado por gerencia.',
+                             ];
+                             $tooltipModal = $descripcionesEstatusModal[$estatusActualId] ?? 'Pendiente por gestión.';
+                         @endphp
+                         <div>
+                             <span class="font-medium">Estatus actual:</span>
+                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
+                         </div>
+                         @php
+                             $registroComentarioModal = null;
+                             if ($req->estatusHistorial && $req->estatusHistorial->count()) {
+                                 $registroComentarioModal = $req->estatusHistorial->whereIn('estatus_id', [11, 9, 13])->sortByDesc('created_at')->first();
+                             }
+                             $boxClasses = '';
+                             if ($registroComentarioModal) {
+                                 $boxClasses = in_array($registroComentarioModal->estatus_id, [9,13])
+                                     ? 'bg-red-50 border border-red-200 text-red-800'
+                                     : 'bg-amber-50 border border-amber-200 text-amber-800';
+                             }
+                         @endphp
+                         @if(!empty($registroComentarioModal?->comentario))
+                             <div class="col-span-1 md:col-span-2 mt-2 rounded-lg p-3 text-sm {{ $boxClasses }}">
+                                 <strong>Motivo:</strong> {{ $registroComentarioModal->comentario }}
+                             </div>
+                         @endif
+                     </div>
+                 </section>
+
+                 <!-- Detalle y Justificación lado a lado -->
+                 <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <!-- Detalle -->
+                     <div>
+                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Detalle</h3>
+                         <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
+                             {{ $req->detail_requisicion }}
+                         </div>
+                     </div>
+
+                     <!-- Justificación -->
+                     <div>
+                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Justificación</h3>
+                         <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
+                             {{ $req->justify_requisicion }}
+                         </div>
+                     </div>
+                 </section>
+
+                 <!-- Productos (tabla dentro del modal, sin desbordes) -->
+                 <section class="mb-8">
+                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
+                     <div class="border rounded-lg overflow-hidden">
+                         <div class="max-h-80 overflow-y-auto">
+                             <table class="w-full text-sm bg-white">
+                                 <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                     <tr class="border-b">
+                                         <th class="p-3 text-left">Producto</th>
+                                         <th class="p-3 text-center">Cantidad Total</th>
+                                         <th class="p-3 text-left">Distribución por Centro</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                                     @foreach($req->productos as $prod)
+                                     <tr class="border-b">
+                                         <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}
+                                         </td>
+                                         <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
+                                         <td class="p-3 align-top">
+                                             <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                                 @php
+                                                 $distribucion = DB::table('centro_producto')
+                                                 ->where('requisicion_id', $req->id)
+                                                 ->where('producto_id', $prod->id)
+                                                 ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                                 ->select('centro.name_centro', 'centro_producto.amount')
+                                                 ->get();
+                                                 @endphp
+                                                 @forelse($distribucion as $centro)
+                                                 <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                                                 @empty
+                                                 <li>No hay centros asignados</li>
+                                                 @endforelse
+                                             </ul>
+                                         </td>
+                                     </tr>
+                                     @endforeach
+                                 </tbody>
+                             </table>
+                         </div>
+                     </div>
+                 </section>
+
+                 <!-- Estatus -->
+                 <section class="mt-6">
+                     <a href="{{ route('requisiciones.estatus', $req->id) }}"
+                         class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
+                         Ver Estatus
+                     </a>
+                 </section>
+             </div>
+         </div>
+     </div>
+     @endforeach
     @endif
 </div>
 
@@ -275,10 +344,79 @@
 
     // Filtro búsqueda
     document.getElementById('busqueda').addEventListener('keyup', function() {
-        let filtro = this.value.toLowerCase();
+        const filtro = this.value.toLowerCase();
         document.querySelectorAll('#tablaRequisiciones tbody tr').forEach(row => {
-            row.style.display = row.textContent.toLowerCase().includes(filtro) ? '' : 'none';
+            row.dataset.match = row.textContent.toLowerCase().includes(filtro) ? '1' : '0';
         });
+        showPage(1);
+    });
+
+    // Paginación
+    let currentPage = 1;
+    let pageSize = 10;
+
+    function getMatchedRows(){
+        return Array.from(document.querySelectorAll('#tablaRequisiciones tbody tr'))
+            .filter(r => (r.dataset.match ?? '1') !== '0');
+    }
+
+    function showPage(page = 1){
+        const rows = getMatchedRows();
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        currentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+
+        // Ocultar todas y mostrar solo las de la página
+        const allRows = Array.from(document.querySelectorAll('#tablaRequisiciones tbody tr'));
+        allRows.forEach(r => r.style.display = 'none');
+        rows.slice(start, end).forEach(r => r.style.display = '');
+
+        renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages){
+        const container = document.getElementById('paginationControls');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Anterior';
+        btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnPrev.disabled = currentPage === 1;
+        btnPrev.onclick = () => showPage(currentPage - 1);
+        container.appendChild(btnPrev);
+
+        const start = Math.max(1, currentPage - 2);
+        const end = Math.min(totalPages, currentPage + 2);
+        for (let p = start; p <= end; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'px-3 py-1 rounded text-sm ' + (p === currentPage ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100');
+            btn.onclick = () => showPage(p);
+            container.appendChild(btn);
+        }
+
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Siguiente';
+        btnNext.className = 'px-3 py-1 border rounded text-sm ' + (currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnNext.disabled = currentPage === totalPages;
+        btnNext.onclick = () => showPage(currentPage + 1);
+        container.appendChild(btnNext);
+    }
+
+    // Inicializar paginación
+    document.addEventListener('DOMContentLoaded', function(){
+        document.querySelectorAll('#tablaRequisiciones tbody tr').forEach(r => r.dataset.match = '1');
+        const sel = document.getElementById('pageSizeSelect');
+        if (sel) {
+            pageSize = parseInt(sel.value, 10) || 10;
+            sel.addEventListener('change', (e) => {
+                pageSize = parseInt(e.target.value, 10) || 10;
+                showPage(1);
+            });
+        }
+        showPage(1);
     });
 
     // Función para cancelar requisición

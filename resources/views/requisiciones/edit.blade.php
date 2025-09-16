@@ -341,11 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const stock = parseInt(selectedOption.dataset.stock) || 0;
             
             unidadMedidaSpan.textContent = `Unidad: ${unidadMedida}`;
-            
-            // Validar si el producto tiene stock
-            if (stock > 0) {
-                mostrarAlertaStock(stock, unidadMedida);
-            }
+            // Alerta de verificación de stock deshabilitada
         } else {
             unidadMedida = '';
             unidadMedidaSpan.textContent = 'Unidad: -';
@@ -433,24 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function mostrarAlertaStock(stock, unidad) {
-        Swal.fire({
-            icon: 'info',
-            title: 'Producto con stock disponible',
-            html: `Este producto tiene <b>${stock} ${unidad}</b> disponibles en inventario.<br><br>¿Desea continuar con la requisición?`,
-            showCancelButton: true,
-            confirmButtonText: 'Continuar',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-        }).then((result) => {
-            if (result.isDismissed) {
-                // Si el usuario cancela, limpiar la selección
-                productoSelect.value = '';
-                unidadMedidaSpan.textContent = 'Unidad: -';
-            }
-        });
-    }
+    function mostrarAlertaStock(stock, unidad) { /* alerta deshabilitada */ }
     
     function mostrarCarga() {
         cargandoAlert.classList.remove('hidden');
