@@ -16,6 +16,16 @@
                 <h1 class="text-2xl font-bold text-gray-800">Requisiciones Aprobadas para Orden de Compra</h1>
             </div>
 
+            @php
+                $permitidos = [4,5,7,8,12];
+                $requisicionesFiltradas = ($requisiciones ?? collect())->filter(function($r) use ($permitidos) {
+                    $hist = $r->estatusHistorial ?? collect();
+                    $ultimo = $hist->sortByDesc('created_at')->first();
+                    $ultimoId = $ultimo->estatus_id ?? null;
+                    return in_array($ultimoId, $permitidos, true);
+                });
+            @endphp
+
             <!-- Contenedor scrollable -->
             <div class="flex-1 overflow-y-auto">
                 <!-- Tabla en escritorio -->
@@ -31,7 +41,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($requisiciones as $req)
+                            @forelse($requisicionesFiltradas as $req)
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
                                 <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
@@ -62,7 +72,7 @@
 
                 <!-- Vista móvil como tarjetas -->
                 <div class="md:hidden space-y-4">
-                    @forelse($requisiciones as $req)
+                    @forelse($requisicionesFiltradas as $req)
                     <div class="bg-white rounded-lg shadow p-4">
                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
                         <div class="grid grid-cols-2 gap-2 mb-2">
@@ -103,7 +113,7 @@
 </div>
 
 <!-- Modales para cada requisición -->
-@foreach($requisiciones as $req)
+@foreach($requisicionesFiltradas as $req)
 <div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div class="flex-1 overflow-y-auto p-6 relative">

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('requisicion_id')->constrained('requisicion')->onDelete('cascade');
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
             $table->integer('cantidad');
-            $table->integer('cantidad_recibido')->default(0);
+            $table->integer('cantidad_recibido')->default(0)->nullable();
             $table->date('fecha');
             $table->timestamps();
             $table->softDeletes();

@@ -390,10 +390,67 @@
 
                 <!-- Botón descargar PDF/ZIP (siempre visible) -->
                 <div class="mt-6 text-right" id="zip-container">
-                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
-                        class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
-                        Descargar PDF/ZIP
-                    </a>
+                    @php
+                        $estatusActual = DB::table('estatus_requisicion')
+                            ->where('requisicion_id', $requisicion->id)
+                            ->whereNull('deleted_at')
+                            ->where('estatus', 1)
+                            ->value('estatus_id');
+                    @endphp
+                    @if($estatusActual == 5)
+                        <a href="{{ url('recepciones/create?requisicion_id='.$requisicion->id) }}"
+                           class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow mr-2">
+                            Recibir productos
+                        </a>
+                        <button type="button" id="btn-abrir-entrega-parcial"
+                           class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
+                           Realizar entrega parcial de stock
+                        </button>
+                    @endif
+                     <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
+                         class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
+                         Descargar PDF/ZIP
+                     </a>
+                </div>
+
+                <!-- Modal Entrega Parcial (funcional) -->
+                <div id="modal-entrega-parcial" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-lg rounded-lg shadow-lg overflow-hidden">
+                        <div class="flex justify-between items-center px-6 py-4 border-b">
+                            <h3 class="text-lg font-semibold">Entrega parcial de stock</h3>
+                            <button type="button" id="ep-close" class="text-gray-600 hover:text-gray-800">✕</button>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Producto</label>
+                                <select id="ep-producto-id" class="w-full border rounded-lg p-2">
+                                    <option value="">Seleccione un producto</option>
+                                    @foreach($requisicion->productos as $prod)
+                                        <option value="{{ $prod->id }}" data-pr="{{ $prod->pivot->pr_amount }}" data-stock="{{ $prod->stock_produc }}">{{ $prod->name_produc }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <div class="text-xs text-gray-500">Cantidad solicitada</div>
+                                    <div class="text-lg font-semibold" id="ep-cantidad">0</div>
+                                </div>
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <div class="text-xs text-gray-500">Stock disponible</div>
+                                    <div class="text-lg font-semibold" id="ep-stock">0</div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600 mb-1">Cantidad a retirar de stock</label>
+                                <input type="number" min="1" id="ep-cant-retirar" class="w-full border rounded-lg p-2" placeholder="Ingrese cantidad" />
+                                <small class="text-gray-500">Se registrará como entrega parcial para esta requisición.</small>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                            <button type="button" id="ep-cancel" class="px-4 py-2 border rounded">Cancelar</button>
+                            <button type="button" id="ep-save" class="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             @endif
@@ -905,6 +962,58 @@
                 }
             }
         });
+
+        // Modal Entrega Parcial
+        (function(){
+            const modal = document.getElementById('modal-entrega-parcial');
+            const btnOpen = document.getElementById('btn-abrir-entrega-parcial');
+            const btnClose = document.getElementById('ep-close');
+            const btnCancel = document.getElementById('ep-cancel');
+            const btnSave = document.getElementById('ep-save');
+            const selProd = document.getElementById('ep-producto-id');
+            const spanCant = document.getElementById('ep-cantidad');
+            const spanStock = document.getElementById('ep-stock');
+            const inpCant = document.getElementById('ep-cant-retirar');
+
+            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
+            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); reset(); } }
+            function reset(){ if (selProd) selProd.value=''; if (spanCant) spanCant.textContent='0'; if (spanStock) spanStock.textContent='0'; if (inpCant) inpCant.value=''; }
+
+            if (btnOpen) btnOpen.addEventListener('click', open);
+            if (btnClose) btnClose.addEventListener('click', close);
+            if (btnCancel) btnCancel.addEventListener('click', close);
+            if (modal) modal.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+
+            if (selProd) selProd.addEventListener('change', function(){
+                const opt = this.options[this.selectedIndex];
+                const pr = parseInt(opt?.dataset?.pr || '0', 10);
+                const st = parseInt(opt?.dataset?.stock || '0', 10);
+                if (spanCant) spanCant.textContent = pr;
+                if (spanStock) spanStock.textContent = st;
+                if (inpCant) { inpCant.max = Math.max(0, Math.min(pr, st)); inpCant.value = inpCant.max > 0 ? 1 : 0; }
+            });
+
+            if (btnSave) btnSave.addEventListener('click', async function(){
+                const productoId = selProd?.value;
+                const cantidad = parseInt(inpCant?.value || '0', 10);
+                if (!productoId) return Swal.fire({icon:'warning', title:'Atención', text:'Seleccione un producto'});
+                if (!cantidad || cantidad < 1) return Swal.fire({icon:'warning', title:'Atención', text:'Ingrese una cantidad válida'});
+
+                try {
+                    const resp = await fetch(`{{ route('recepciones.storeEntregaParcial') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, producto_id: productoId, cantidad })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al registrar la entrega parcial');
+                    close();
+                    Swal.fire({icon:'success', title:'Éxito', text:'Entrega parcial registrada.'}).then(()=> location.reload());
+                } catch (e) {
+                    Swal.fire({icon:'error', title:'Error', text: e.message});
+                }
+            });
+        })();
     });
 
     function onCantidadTotalChange(rowKey) {
@@ -917,18 +1026,8 @@
         if (nuevaCantidad < 1) nuevaCantidad = 1;
         totalInput.value = nuevaCantidad;
 
-        const sacarField = document.getElementById(`sacar-stock-${rowKey}`);
-        const hiddenStockE = document.getElementById(`stock-e-hidden-${rowKey}`);
-        const row = document.getElementById(`producto-${rowKey}`);
-        const baseStock = parseInt(row?.querySelector('input[type="hidden"][name$="[id]"]')?.dataset?.stock || '0', 10);
-        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
-
-        if (sacarField) {
-            const sacar = Math.max(0, cantidadBase - nuevaCantidad);
-            sacarField.value = sacar === 0 ? '' : sacar;
-            if (hiddenStockE) hiddenStockE.value = sacar > 0 ? sacar : '';
-            if (stockCell) stockCell.textContent = Math.max(0, baseStock - sacar);
-        }
+        // Ya no sincronizamos automáticamente "sacar de stock" con la cantidad
+        // ni ajustamos el stock visible aquí.
 
         distribuirAutomaticamente(rowKey);
     }
@@ -974,12 +1073,12 @@
         });
         if (!res.isConfirmed) return;
 
-        // Aplicar cambios
+        // Aplicar cambios: solo marcar stock_e y actualizar visual del stock.
         input.value = n === 0 ? '' : n;
         if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
-        const nuevaCantidad = Math.max(1, baseCantidad - n);
-        totalInput.value = nuevaCantidad;
         if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
+
+        // No cambiar la cantidad total. Mantener distribución según el total actual.
         distribuirAutomaticamente(rowKey);
     }
 

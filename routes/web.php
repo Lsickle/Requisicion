@@ -224,6 +224,9 @@ Route::middleware([AuthSession::class])->group(function () {
     // Descargar PDF único o ZIP según cantidad de órdenes
     Route::get('ordenes_compra/{requisicionId}/download', [OrdenCompraController::class, 'download'])
         ->name('ordenes_compra.download');
+
+    // Ruta para recibir entrega parcial de productos
+    Route::post('/recepciones/entrega-parcial', [OrdenCompraController::class, 'storeEntregaParcial'])->name('recepciones.storeEntregaParcial');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

@@ -327,7 +327,7 @@ class RequisicionController extends Controller
             'estatusHistorial.estatusRelation'
         ])
             ->whereHas('ultimoEstatus', function ($query) {
-                $query->where('estatus_id', 4); // 4 = Aprobado
+                $query->whereIn('estatus_id', [4, 5, 7, 8, 12]); // incluir 4,5,7,8,12
             })
             ->orderBy('created_at', 'desc')
             ->get();

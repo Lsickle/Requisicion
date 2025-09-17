@@ -17,6 +17,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use ZipArchive;
 use Illuminate\Support\Facades\Response;
+use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
 
 class OrdenCompraController extends Controller
 {
@@ -377,6 +378,15 @@ class OrdenCompraController extends Controller
             return redirect()->back()->with('error', 'No hay órdenes de compra para descargar.');
         }
 
+        // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
+        try {
+            $statusRequest = new \Illuminate\Http\Request();
+            $statusRequest->replace(['estatus_id' => 5, 'comentario' => 'Cambio automático al descargar OC']);
+            app(EstatusRequisicionController::class)->updateStatus($statusRequest, $requisicionId);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo actualizar estatus a 5 al descargar: ' . $e->getMessage());
+        }
+
         $zip = new ZipArchive();
         $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
         $zipPath = storage_path('app/temp/' . $zipFileName);
@@ -619,6 +629,15 @@ class OrdenCompraController extends Controller
 
     public function download($requisicionId)
     {
+        // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
+        try {
+            $statusRequest = new \Illuminate\Http\Request();
+            $statusRequest->replace(['estatus_id' => 5, 'comentario' => 'Cambio automático al descargar OC']);
+            app(EstatusRequisicionController::class)->updateStatus($statusRequest, $requisicionId);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo actualizar estatus a 5 al descargar: ' . $e->getMessage());
+        }
+
         $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
             ->with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
             ->get();
