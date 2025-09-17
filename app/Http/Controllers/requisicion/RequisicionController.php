@@ -447,4 +447,17 @@ class RequisicionController extends Controller
             ], 500);
         }
     }
+
+    public function todas()
+    {
+        $requisiciones = Requisicion::with([
+            'productos',
+            'ultimoEstatus.estatusRelation',
+            'estatusHistorial.estatusRelation'
+        ])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return view('requisiciones.todas', compact('requisiciones'));
+    }
 }

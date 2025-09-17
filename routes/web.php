@@ -73,13 +73,20 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('requisiciones.historial')
         ->middleware(CheckPermission::class . ':ver requisicion');
 
+    // Ver todas las requisiciones (permiso: total requisiciones)
+    Route::get('/requisiciones/todas', [RequisicionController::class, 'todas'])
+        ->name('requisiciones.todas')
+        ->middleware(CheckPermission::class . ':total requisiciones');
+
     // VER requisición específica 
     Route::get('/requisiciones/{id}', [RequisicionController::class, 'show'])
+        ->whereNumber('id')
         ->name('requisiciones.show')
         ->middleware(CheckPermission::class . ':ver requisicion');
 
     // Generar PDF genérico según tipo y id
     Route::get('/requisiciones/{id}/pdf', [RequisicionController::class, 'pdf'])
+        ->whereNumber('id')
         ->name('requisiciones.pdf');
 
 
@@ -90,14 +97,17 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Estatus de la requisición
     Route::get('/requisiciones/{requisicion}/estatus', [EstatusRequisicionController::class, 'show'])
+        ->whereNumber('requisicion')
         ->name('requisiciones.estatus')
-        ->middleware(CheckPermission::class . ':ver requisicion');
+        ->middleware(CheckPermission::class . ':ver requisicion|total requisiciones');
 
     // Asegúrate de tener estas rutas definidas
     Route::get('/requisiciones/{id}/edit', [RequisicionController::class, 'edit'])
+        ->whereNumber('id')
         ->name('requisiciones.edit');
 
     Route::put('/requisiciones/{id}', [RequisicionController::class, 'update'])
+        ->whereNumber('id')
         ->name('requisiciones.update');
 
     // Rutas para productos
@@ -144,7 +154,7 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Generar PDF genérico según tipo y id
     Route::get('/pdf/{tipo}/{id}', [PdfController::class, 'generar'])
-        ->where('tipo', 'orden|requisicion|estatus')
+        ->where('tipo', 'orden|requisicion')
         ->name('pdf.generar');
 
     // Dentro del grupo de rutas de órdenes de compra
@@ -153,9 +163,11 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Rutas para cancelar y reenviar requisiciones
     Route::post('/requisiciones/{id}/cancelar', [RequisicionController::class, 'cancelar'])
+        ->whereNumber('id')
         ->name('requisiciones.cancelar');
 
     Route::post('/requisiciones/{id}/reenviar', [RequisicionController::class, 'reenviar'])
+        ->whereNumber('id')
         ->name('requisiciones.reenviar');
 
     Route::get('ordenes_compra/create', [OrdenCompraController::class, 'create'])

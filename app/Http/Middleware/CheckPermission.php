@@ -3,36 +3,68 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session;
-use Symfony\Component\HttpFoundation\Response;
-use Illuminate\Support\Facades\Log;
 
-class CheckPermission extends Middleware
+class CheckPermission
 {
-    public function handle(Request $request, Closure $next, $permission): Response
+    public function handle(Request $request, Closure $next, ...$permissions)
     {
-        $userPermissions = Session::get('user_permissions', []);
-        $userRoles = Session::get('user_roles', []);
-        
-        Log::info('Checking permission: ' . $permission);
-        Log::info('User permissions: ' . json_encode($userPermissions));
-        Log::info('User roles: ' . json_encode($userRoles));
+        $raw = session('user_permissions', []);
+        $userPermissions = [];
 
-        // Si no tiene permisos, redirigir
-        if (empty($userPermissions)) {
-            Log::warning('No permissions found for user');
-            return redirect('/')->with('error', 'Acceso no autorizado. No tienes permisos asignados.');
+        if (!is_array($raw)) {
+            $raw = [$raw];
         }
 
-        // Verificar si el usuario tiene el permiso requerido
-        if (!in_array($permission, $userPermissions)) {
-            Log::warning('Permission denied: ' . $permission);
-            return back()->with('error', 'No tienes permisos para acceder a esta sección. Permiso requerido: ' . $permission);
+        foreach ($raw as $item) {
+            $perm = '';
+
+            if (is_string($item)) {
+                $perm = $item;
+            } elseif (is_array($item)) {
+                $perm = $item['name']
+                    ?? $item['permission']
+                    ?? $item['permiso']
+                    ?? $item['permission_name']
+                    ?? $item['slug']
+                    ?? '';
+            } elseif (is_object($item)) {
+                $perm = $item->name
+                    ?? ($item->permission ?? null)
+                    ?? ($item->permiso ?? null)
+                    ?? ($item->permission_name ?? null)
+                    ?? ($item->slug ?? null)
+                    ?? '';
+            }
+
+            if (is_string($perm)) {
+                $perm = trim(mb_strtolower($perm, 'UTF-8'));
+                if ($perm !== '') {
+                    $userPermissions[] = $perm;
+                }
+            }
         }
 
-        Log::info('Permission granted: ' . $permission);
+        // Permisos requeridos: aceptar separados por "|" o múltiples argumentos
+        $required = [];
+        foreach ($permissions as $perm) {
+            foreach (explode('|', (string) $perm) as $p) {
+                $p = trim($p);
+                if ($p !== '') {
+                    $required[] = mb_strtolower($p, 'UTF-8');
+                }
+            }
+        }
+
+        if (empty($required)) {
+            return $next($request);
+        }
+
+        $authorized = count(array_intersect($required, $userPermissions)) > 0;
+        if (!$authorized) {
+            return redirect()->route('index')->with('error', 'No tienes permisos para acceder a esta sección.');
+        }
+
         return $next($request);
     }
 }

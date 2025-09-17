@@ -99,6 +99,15 @@
                 </a>
             </li>
             @endif
+
+            @if($hasPermission('total requisiciones'))
+            <li>
+                <a href="{{ route('requisiciones.todas') }}"
+                    class="block px-6 py-3 hover:bg-blue-800 hover:text-orange-400 hover:no-underline transition">
+                    Ver requisiciones
+                </a>
+            </li>
+            @endif
         </ul>
 
         <!-- Información del usuario -->
