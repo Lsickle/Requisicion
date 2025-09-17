@@ -140,6 +140,11 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::delete('nuevo_producto/{id}/force-delete', [NuevoProductoController::class, 'forceDelete'])
         ->name('nuevo_producto.forceDelete');
 
+    // Historial de órdenes de compra
+    Route::get('/ordenes_compra/historial', [OrdenCompraController::class, 'historial'])
+        ->name('ordenes_compra.historial')
+        ->middleware(CheckPermission::class . ':ver oc');
+
     // Para mostrar la lista de requisiciones aprobadas estatus 4
     Route::get('/ordenes_compra/lista-aprobadas', [RequisicionController::class, 'listaAprobadas'])
         ->name('ordenes_compra.lista');

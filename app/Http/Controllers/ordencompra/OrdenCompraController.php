@@ -713,4 +713,26 @@ class OrdenCompraController extends Controller
             'plazo_oc' => $orden->plazo_oc,
         ];
     }
+
+    public function historial()
+    {
+        $ordenes = OrdenCompra::with([
+            'requisicion',
+            'ordencompraProductos.producto',
+            'ordencompraProductos.proveedor'
+        ])->orderBy('id', 'desc')->get();
+
+        return view('ordenes_compra.historial', compact('ordenes'));
+    }
+
+    public function exportPDF($id)
+    {
+        $orden = OrdenCompra::with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
+            ->findOrFail($id);
+
+        $data = $this->buildPdfData($orden);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
+        $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
+        return $pdf->download($fileName);
+    }
 }

@@ -15,10 +15,10 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center mt-11">Sistema de Requisiciones</h1>
         
-        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-center max-w-7xl mx-auto">
+        <div class="grid gap-6 grid-cols-[repeat(auto-fit,minmax(260px,1fr))] place-items-center max-w-7xl mx-auto">
             @php
-                $permissions = Session::get('user_permissions', []);
-                $hasPermission = fn($perm) => in_array($perm, $permissions);
+                $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+                $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
             @endphp
 
             @if($hasPermission('crear requisicion'))
@@ -31,6 +31,20 @@
                 <p class="text-gray-600 mb-4">Genera nuevas solicitudes de materiales o servicios</p>
                 <a href="{{ route('requisiciones.create') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Crear Nueva
+                </a>
+            </div>
+            @endif
+
+            @if($hasPermission('aprobar requisicion'))
+            <!-- Aprobación de Requisiciones -->
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-amber-500 text-center">
+                <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-circle-check text-amber-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Aprobación de Requisiciones</h3>
+                <p class="text-gray-600 mb-4">Revisa y aprueba requisiciones pendientes</p>
+                <a href="{{ route('requisiciones.aprobacion') }}" class="inline-block bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ir al panel
                 </a>
             </div>
             @endif
@@ -63,6 +77,20 @@
             </div>
             @endif
 
+            @if($hasPermission('total requisiciones'))
+            <!-- Ver todas las requisiciones -->
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-sky-500 text-center">
+                <div class="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-layer-group text-sky-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Todas las Requisiciones</h3>
+                <p class="text-gray-600 mb-4">Visualiza todas las requisiciones del sistema</p>
+                <a href="{{ route('requisiciones.todas') }}" class="inline-block bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ver Todas
+                </a>
+            </div>
+            @endif
+
             @if($hasPermission('crear oc'))
             <!-- Generar Orden de Compra -->
             <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-yellow-500 text-center">
@@ -71,7 +99,7 @@
                 </div>
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Generar Orden de Compra</h3>
                 <p class="text-gray-600 mb-4">Crea nuevas órdenes de compra</p>
-                <a href="#" class="inline-block bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('ordenes_compra.lista') }}" class="inline-block bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Crear OC
                 </a>
             </div>
@@ -83,9 +111,9 @@
                 <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-clipboard-list text-orange-600 text-2xl"></i>
                 </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Ordenes de Compra</h3>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Órdenes de Compra</h3>
                 <p class="text-gray-600 mb-4">Consulta todas las órdenes de compra generadas</p>
-                <a href="#" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="{{ route('ordenes_compra.historial') }}" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Ver Listado
                 </a>
             </div>
@@ -105,7 +133,7 @@
             </div>
             @endif
 
-            @if($hasPermission('Dashboard'))
+            @if($hasPermission('dashboard'))
             <!-- Dashboard -->
             <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 text-center">
                 <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -120,5 +148,5 @@
             @endif
 
         </div>
-    </div>
+        </div>
 @endsection

@@ -54,7 +54,7 @@
 
              @if($hasPermission('ver oc'))
              <li>
-                <a href="#" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de Órdenes de Compra</a>
+                <a href="{{ route('ordenes_compra.historial') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de Órdenes de Compra</a>
              </li>
              @endif
 
@@ -68,13 +68,12 @@
              <li>
                 <a href="{{ route('requisiciones.todas') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Ver requisiciones</a>
              </li>
+             @endif
              
              @if($hasPermission('dashboard'))
              <li>
                 <a href="#" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Dashboard</a>
              </li>
-             @endif
-             
              @endif
         </ul>
 
