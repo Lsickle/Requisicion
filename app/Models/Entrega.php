@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Entrega extends Model
 {
@@ -25,13 +26,13 @@ class Entrega extends Model
     ];
 
     // Relaciones
-    public function requisicion()
+    public function requisicion(): BelongsTo
     {
-        return $this->belongsTo(Requisicion::class, 'requisicion_id');
+        return $this->belongsTo(Requisicion::class);
     }
 
-    public function producto()
+    public function producto(): BelongsTo
     {
-        return $this->belongsTo(Producto::class, 'producto_id');
+        return $this->belongsTo(Producto::class);
     }
 }

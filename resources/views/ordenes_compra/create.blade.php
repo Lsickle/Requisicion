@@ -914,12 +914,14 @@
 
         // Seleccionar/Deseleccionar todos
         const chkAll = document.getElementById('chk-undo-all');
-        chkAll.addEventListener('change', function() {
-            const checked = this.checked;
-            document.querySelectorAll('.chk-undo-item').forEach(chk => {
-                chk.checked = checked;
+        if (chkAll) {
+            chkAll.addEventListener('change', function() {
+                const checked = this.checked;
+                document.querySelectorAll('.chk-undo-item').forEach(chk => {
+                    chk.checked = checked;
+                });
             });
-        });
+        }
 
         btnConfirmarUndo.addEventListener('click', async function() {
             const idsSeleccionados = Array.from(document.querySelectorAll('.chk-undo-item:checked')).map(chk => chk.value);
@@ -1090,5 +1092,22 @@
             inputStock.focus();
         }
     }
+
+    // Fallback de eventos delegados para el modal de entrega parcial
+    document.addEventListener('click', function(e){
+        const overlay = document.getElementById('modal-entrega-parcial');
+        if (!overlay) return;
+        const openBtn = e.target.closest('#btn-abrir-entrega-parcial');
+        const closeBtn = e.target.closest('#ep-close');
+        const cancelBtn = e.target.closest('#ep-cancel');
+        if (openBtn) {
+            e.preventDefault();
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+        } else if (closeBtn || cancelBtn || e.target === overlay) {
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+        }
+    });
 </script>
 @endsection
