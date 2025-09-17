@@ -32,13 +32,13 @@
     <x-navbar />
 
     <!-- Contenido principal -->
-    <div class="flex-grow flex items-center justify-center p-4">
-        <div class="login w-full max-w-md">
-            <div class="bg-white rounded-2xl shadow-xl p-8 w-full">
+    <div class="flex-grow flex items-start justify-center px-4 pt-24 pb-6">
+        <div class="login w-full max-w-[17rem] sm:max-w-[20rem] md:max-w-[26rem]">
+            <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
-                <div class="mb-8">
+                <div class="mb-6 md:mb-7">
                     <img src="{{ asset('images/logo.jpg') }}" alt="Vigía Plus Logistics"
-                        class="mx-auto h-14 rounded-2xl">
+                        class="mx-auto h-10 md:h-12 rounded-lg">
                 </div>
 
                 <!-- Formulario de login -->
@@ -70,15 +70,15 @@
                         </div>
                     </div>
 
-                    <div class="mb-6 text-right">
+                    <div class="mb-5 text-right">
                         <a href="#" id="forgotPasswordLink"
-                            class="text-sm text-primary hover:text-secondary transition duration-200 hover:underline">
+                            class="text-xs md:text-sm text-primary hover:text-secondary transition duration-200 hover:underline">
                             ¿Olvidaste tu contraseña?
                         </a>
                     </div>
 
                     <button type="submit"
-                        class="w-full bg-blue-900 text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-md">
+                        class="w-full bg-blue-900 text-white py-2 md:py-2.5 px-4 rounded-lg font-medium text-sm md:text-base hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow">
                         Iniciar sesión
                     </button>
                 </form>
@@ -106,7 +106,7 @@
                         electrónico</label>
                     <div class="relative">
                         <input id="recoveryEmail" type="email" name="email" placeholder="tu.correo@ejemplo.com"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
+                            class="w-full px-3 py-2 md:px-4 md:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200 text-sm md:text-base"
                             required>
                         <span class="absolute inset-y-0 right-3 flex items-center text-gray-400">
                             <i class="far fa-envelope"></i>
@@ -115,7 +115,7 @@
                 </div>
 
                 <button type="submit"
-                    class="w-full bg-blue-900 text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-md">
+                    class="w-full bg-blue-900 text-white py-2 md:py-2.5 px-4 rounded-lg font-medium text-sm md:text-base hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow">
                     Enviar enlace de recuperación
                 </button>
             </form>
