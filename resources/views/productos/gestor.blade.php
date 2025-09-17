@@ -33,8 +33,6 @@
         <!-- Sección de Productos Registrados -->
         <div id="productos-section" class="bg-white rounded-lg shadow mb-6">
             <div class="p-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <h2 class="text-xl font-semibold">Productos Registrados</h2>
-
                 <!-- Barra de búsqueda y filtros -->
                 <div class="flex flex-col md:flex-row gap-2 md:items-center">
                     <button onclick="openModal('producto')"
@@ -59,6 +57,15 @@
                         <option value="Financiera">Financiera</option>
                         <option value="Mantenimiento">Mantenimiento</option>
                         <option value="Otros">Otros</option>
+                    </select>
+
+                    <!-- Filtro de Proveedor -->
+                    <select id="filterProveedor" onchange="filterTable()"
+                        class="px-3 py-2 border rounded-md w-full md:w-60">
+                        <option value="">Todos los Proveedores</option>
+                        @foreach($proveedores as $prov)
+                            <option value="{{ $prov->prov_name }}">{{ $prov->prov_name }}</option>
+                        @endforeach
                     </select>
 
                     <select id="filterEstado" onchange="filterTable()"
@@ -141,6 +148,20 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Paginación Productos -->
+            <div class="flex items-center justify-between mt-4 px-4" id="prodPaginationBar">
+                <div class="text-sm text-gray-600">
+                    Mostrar
+                    <select id="prodPageSizeSelect" class="border rounded px-2 py-1">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                    por página
+                </div>
+                <div class="flex flex-wrap gap-1" id="prodPaginationControls"></div>
+            </div>
         </div>
 
         <!-- Sección de Productos Solicitados (oculta inicialmente) -->
@@ -148,9 +169,10 @@
             @if($solicitudes->isEmpty())
             <p class="text-gray-500">No hay productos solicitados.</p>
             @else
-            <table class="w-full table-auto">
+            <table id="solicitudesTable" class="w-full table-auto">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-4 py-2 text-left">Fecha</th>
                         <th class="px-4 py-2 text-left">Solicitado por</th>
                         <th class="px-4 py-2 text-left">Producto</th>
                         <th class="px-4 py-2 text-left">Descripción</th>
@@ -160,6 +182,7 @@
                 <tbody>
                     @foreach($solicitudes as $solicitud)
                     <tr class="border-b hover:bg-gray-50">
+                        <td class="px-4 py-2">{{ $solicitud->created_at ? $solicitud->created_at->format('d/m/Y') : '' }}</td>
                         <td class="px-4 py-2">{{ $solicitud->name_user }}</td>
                         <td class="px-4 py-2">{{ $solicitud->nombre }}</td>
                         <td class="px-4 py-2">{{ $solicitud->descripcion }}</td>
@@ -184,31 +207,27 @@
                                     </button>
                                 </form>
                                 @else
-                                <!-- Botón Añadir producto -->
+                                <!-- Botón Añadir producto (icono minimalista) -->
                                 <button type="button" onclick="openAddFromSolicitudModal({{ $solicitud->id }})"
-                                    class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                                    title="Añadir producto">
-                                    <i class="fas fa-plus"></i> Añadir
+                                    class="text-green-600 hover:text-green-800" title="Añadir producto">
+                                    <i class="fas fa-plus"></i>
                                 </button>
 
-                                <!-- Botón Rechazar solicitud -->
+                                <!-- Botón Rechazar solicitud (icono minimalista) -->
                                 <form action="{{ route('nuevo_producto.destroy', $solicitud->id) }}" method="POST"
                                     onsubmit="return confirmDelete(event)" class="inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit"
-                                        class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                                        title="Rechazar solicitud">
-                                        <i class="fas fa-times"></i> Rechazar
+                                    <button type="submit" class="text-red-600 hover:text-red-800" title="Rechazar solicitud">
+                                        <i class="fas fa-times"></i>
                                     </button>
                                 </form>
 
-                                <!-- Botón Ver solicitud -->
+                                <!-- Botón Ver solicitud (icono minimalista) -->
                                 <button type="button"
                                     onclick="openSolicitudModal('{{ $solicitud->nombre }}', `{{ $solicitud->descripcion }}`, '{{ $solicitud->name_user }}')"
-                                    class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                                    title="Ver solicitud">
-                                    <i class="fas fa-eye"></i> Ver
+                                    class="text-blue-600 hover:text-blue-800" title="Ver solicitud">
+                                    <i class="fas fa-eye"></i>
                                 </button>
                                 @endif
                             </div>
@@ -217,6 +236,20 @@
                     @endforeach
                 </tbody>
             </table>
+            <!-- Paginación Solicitudes -->
+            <div class="flex items-center justify-between mt-4 px-4" id="solPaginationBar">
+                <div class="text-sm text-gray-600">
+                    Mostrar
+                    <select id="solPageSizeSelect" class="border rounded px-2 py-1">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                    por página
+                </div>
+                <div class="flex flex-wrap gap-1" id="solPaginationControls"></div>
+            </div>
             @endif
         </div>
 
@@ -742,6 +775,10 @@
             const uHidden = document.getElementById('unit_produc');
             if (uIn) uIn.value = '';
             if (uHidden) uHidden.value = '';
+            const provHidden = document.getElementById('proveedor_id');
+            const catHidden = document.getElementById('categoria_produc');
+            if (provHidden) provHidden.value = '';
+            if (catHidden) catHidden.value = '';
             // Limpiar mensajes de error
             clearErrorMessages();
         } else if (type === 'proveedor') {
@@ -814,6 +851,12 @@
             // Desactivar tab solicitudes
             tabSolicitudes.classList.remove('bg-white', 'shadow', 'text-gray-700');
             tabSolicitudes.classList.add('text-gray-600');
+
+            // Recalcular paginación de productos al mostrar la pestaña
+            if (typeof prodShowPage === 'function') {
+                const page = (typeof prodCurrentPage === 'number' && prodCurrentPage > 0) ? prodCurrentPage : 1;
+                setTimeout(() => prodShowPage(page), 0);
+            }
         } else {
             productosSection.classList.add('hidden');
             solicitudesSection.classList.remove('hidden');
@@ -825,6 +868,12 @@
             // Desactivar tab productos
             tabProductos.classList.remove('bg-white', 'shadow', 'text-gray-700');
             tabProductos.classList.add('text-gray-600');
+
+            // Recalcular paginación de solicitudes al mostrar la pestaña
+            if (typeof solShowPage === 'function') {
+                const page = (typeof solCurrentPage === 'number' && solCurrentPage > 0) ? solCurrentPage : 1;
+                setTimeout(() => solShowPage(page), 0);
+            }
         }
     }
 
@@ -1264,434 +1313,310 @@
     @endif
 
     function filterTable() {
-        const searchInput = document.getElementById("searchInput").value.toLowerCase().trim();
-        const filterCategoria = document.getElementById("filterCategoria").value;
-        const filterEstado = document.getElementById("filterEstado").value;
-        const table = document.getElementById("productosTable");
-        const rows = table.getElementsByTagName("tr");
+        const searchInput = document.getElementById('searchInput').value.toLowerCase().trim();
+        const filterCategoria = document.getElementById('filterCategoria').value;
+        const filterProveedor = document.getElementById('filterProveedor').value;
+        const filterEstado = document.getElementById('filterEstado').value;
+        const rows = document.querySelectorAll('#productosTable tbody tr');
 
-        for (let i = 1; i < rows.length; i++) {
-            let cells = rows[i].getElementsByTagName("td");
-            if (cells.length < 6) continue; // Menos celdas de las esperadas
+        rows.forEach(row => {
+            const cells = row.getElementsByTagName('td');
+            if (cells.length < 6) return;
+            const nombre = cells[0].textContent.toLowerCase();
+            const categoria = cells[1].textContent;
+            const proveedor = cells[2].textContent;
+            const estadoElement = cells[5].querySelector('span');
+            let estado = estadoElement ? estadoElement.textContent.trim() : '';
 
-            const nombre = cells[0].textContent.toLowerCase(); // Columna 0: Producto
-            const categoria = cells[1].textContent; // Columna 1: Categoría
-            const estadoElement = cells[5].querySelector('span'); // Columna 5: Estado (buscar el span)
-            
-            // Obtener el texto del estado
-            let estado = "";
-            if (estadoElement) {
-                estado = estadoElement.textContent.trim();
-            }
+            const matchesSearch = !searchInput || nombre.includes(searchInput);
+            const matchesCategoria = !filterCategoria || categoria === filterCategoria;
+            const matchesProveedor = !filterProveedor || proveedor === filterProveedor;
+            const matchesEstado = !filterEstado || estado === filterEstado;
 
-            // Lógica de filtrado
-            const matchesSearch = searchInput === "" || 
-                                nombre.includes(searchInput);
-            
-            const matchesCategoria = filterCategoria === "" || 
-                                categoria === filterCategoria;
-            
-            const matchesEstado = filterEstado === "" || 
-                                estado === filterEstado;
-
-            rows[i].style.display = (matchesSearch && matchesCategoria && matchesEstado) 
-                ? "" : "none";
-        }
-    }
-
-    // Validar formulario de añadir desde solicitud
-    function validateAddFromSolicitudForm() {
-        clearSolicitudErrorMessages();
-        let isValid = true;
-        
-        const name_produc = document.getElementById('solicitud_name_produc');
-        const categoria_produc = document.getElementById('solicitud_categoria_produc');
-        const proveedor_id = document.getElementById('solicitud_proveedor_id');
-        const stock_produc = document.getElementById('solicitud_stock_produc');
-        const price_produc = document.getElementById('solicitud_price_produc');
-        const unit_produc = document.getElementById('solicitud_unit_produc');
-        const description_produc = document.getElementById('solicitud_description_produc');
-        
-        if (!name_produc.value.trim()) {
-            document.getElementById('solicitud_name_produc_error').textContent = 'El nombre del producto es requerido';
-            document.getElementById('solicitud_name_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!categoria_produc.value) {
-            document.getElementById('solicitud_categoria_produc_error').textContent = 'La categoría es requerida';
-            document.getElementById('solicitud_categoria_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!proveedor_id.value) {
-            document.getElementById('solicitud_proveedor_id_error').textContent = 'El proveedor es requerido';
-            document.getElementById('solicitud_proveedor_id_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!stock_produc.value || stock_produc.value < 0) {
-            document.getElementById('solicitud_stock_produc_error').textContent = 'El stock debe ser un número válido mayor o igual a 0';
-            document.getElementById('solicitud_stock_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!price_produc.value || price_produc.value < 0) {
-            document.getElementById('solicitud_price_produc_error').textContent = 'El precio debe ser un número válido mayor o igual a 0';
-            document.getElementById('solicitud_price_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!unit_produc.value.trim()) {
-            document.getElementById('solicitud_unit_produc_error').textContent = 'La unidad de medida es requerida';
-            document.getElementById('solicitud_unit_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!description_produc.value.trim()) {
-            document.getElementById('solicitud_description_produc_error').textContent = 'La descripción es requerida';
-            document.getElementById('solicitud_description_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (isValid) {
-            showLoading();
-        }
-        
-        return isValid;
-    }
-
-    // Limpiar mensajes de error del formulario de solicitud
-    function clearSolicitudErrorMessages() {
-        const errorElements = document.querySelectorAll('[id^="solicitud_"][id$="_error"]');
-        errorElements.forEach(element => {
-            element.classList.add('hidden');
-            element.textContent = '';
+            row.dataset.match = (matchesSearch && matchesCategoria && matchesProveedor && matchesEstado) ? '1' : '0';
         });
+
+        // Reiniciar a la primera página tras filtrar
+        prodShowPage(1);
     }
 
-    // Enviar formulario de añadir desde solicitud
-    function submitAddFromSolicitudForm() {
-        if (validateAddFromSolicitudForm()) {
-            document.getElementById('addFromSolicitudForm').submit();
-        }
+    // ===== Paginación Productos =====
+    let prodCurrentPage = 1;
+    let prodPageSize = 10;
+
+    function getProdMatchedRows() {
+        return Array.from(document.querySelectorAll('#productosTable tbody tr'))
+            .filter(r => (r.dataset.match ?? '1') !== '0');
     }
 
-    // Inicialización cuando el DOM está listo
-    document.addEventListener('DOMContentLoaded', function() {
-        // Configuración para proveedores
-        const proveedorInput = document.getElementById('proveedor_input');
-        const proveedorDropdown = document.getElementById('proveedor_dropdown');
-        const proveedorId = document.getElementById('proveedor_id');
-        const proveedorError = document.getElementById('proveedor_id_error');
-        
-        // Configuración para categorías
-        const categoriaInput = document.getElementById('categoria_input');
-        const categoriaDropdown = document.getElementById('categoria_dropdown');
-        const categoriaHidden = document.getElementById('categoria_produc');
-        const categoriaError = document.getElementById('categoria_produc_error');
-        
-        // ===== FUNCIONALIDAD PARA UNIDADES (Producto) =====
-        const unitInput = document.getElementById('unit_input');
-        const unitDropdown = document.getElementById('unit_dropdown');
-        const unitHidden = document.getElementById('unit_produc');
-        const unitError = document.getElementById('unit_produc_error');
+    function prodShowPage(page = 1) {
+        const rows = getProdMatchedRows();
+        const totalPages = Math.max(1, Math.ceil(rows.length / prodPageSize));
+        prodCurrentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (prodCurrentPage - 1) * prodPageSize;
+        const end = start + prodPageSize;
 
-        function filterUnitOptions() { /* sin escritura, mostrar todas */ }
+        const allRows = Array.from(document.querySelectorAll('#productosTable tbody tr'));
+        allRows.forEach(r => r.style.display = 'none');
+        rows.slice(start, end).forEach(r => r.style.display = '');
 
-        if (unitInput) {
-            unitInput.addEventListener('focus', function() {
-                if (unitDropdown) unitDropdown.classList.remove('hidden');
-                // sin filtrado por escritura
-            });
-            unitInput.addEventListener('blur', function() {
-                setTimeout(() => unitDropdown && unitDropdown.classList.add('hidden'), 200);
-            });
-            unitInput.addEventListener('click', function(){ if (unitDropdown) unitDropdown.classList.remove('hidden'); });
+        renderProdPagination(totalPages);
+    }
+
+    function renderProdPagination(totalPages) {
+        const container = document.getElementById('prodPaginationControls');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Anterior';
+        btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (prodCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnPrev.disabled = prodCurrentPage === 1;
+        btnPrev.onclick = () => prodShowPage(prodCurrentPage - 1);
+        container.appendChild(btnPrev);
+
+        const start = Math.max(1, prodCurrentPage - 2);
+        const end = Math.min(totalPages, prodCurrentPage + 2);
+        for (let p = start; p <= end; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'px-3 py-1 rounded text-sm ' + (p === prodCurrentPage ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100');
+            btn.onclick = () => prodShowPage(p);
+            container.appendChild(btn);
         }
 
-        if (unitDropdown) {
-            unitDropdown.addEventListener('click', function(e) {
-                const target = e.target.closest('[data-value]');
-                if (!target) return;
-                const val = target.getAttribute('data-value');
-                if (unitInput) unitInput.value = val;
-                if (unitHidden) unitHidden.value = val;
-                unitDropdown.classList.add('hidden');
-                if (unitError) unitError.classList.add('hidden');
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Siguiente';
+        btnNext.className = 'px-3 py-1 border rounded text-sm ' + (prodCurrentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnNext.disabled = prodCurrentPage === totalPages;
+        btnNext.onclick = () => prodShowPage(prodCurrentPage + 1);
+        container.appendChild(btnNext);
+    }
+
+    // ===== Paginación Solicitudes =====
+    let solCurrentPage = 1;
+    let solPageSize = 10;
+
+    function solGetAllRows(){
+        return Array.from(document.querySelectorAll('#solicitudesTable tbody tr'));
+    }
+
+    function solShowPage(page = 1){
+        const rows = solGetAllRows();
+        const totalPages = Math.max(1, Math.ceil(rows.length / solPageSize));
+        solCurrentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (solCurrentPage - 1) * solPageSize;
+        const end = start + solPageSize;
+
+        rows.forEach(r => r.style.display = 'none');
+        rows.slice(start, end).forEach(r => r.style.display = '');
+
+        renderSolPagination(totalPages);
+    }
+
+    function renderSolPagination(totalPages){
+        const container = document.getElementById('solPaginationControls');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Anterior';
+        btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (solCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnPrev.disabled = solCurrentPage === 1;
+        btnPrev.onclick = () => solShowPage(solCurrentPage - 1);
+        container.appendChild(btnPrev);
+
+        const start = Math.max(1, solCurrentPage - 2);
+        const end = Math.min(totalPages, solCurrentPage + 2);
+        for (let p = start; p <= end; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'px-3 py-1 rounded text-sm ' + (p === solCurrentPage ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100');
+            btn.onclick = () => solShowPage(p);
+            container.appendChild(btn);
+        }
+
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Siguiente';
+        btnNext.className = 'px-3 py-1 border rounded text-sm ' + (solCurrentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnNext.disabled = solCurrentPage === totalPages;
+        btnNext.onclick = () => solShowPage(solCurrentPage + 1);
+        container.appendChild(btnNext);
+    }
+
+    // Inicializar paginación
+    document.addEventListener('DOMContentLoaded', function(){
+        // Productos: marcar todo como coincidente y configurar selector
+        document.querySelectorAll('#productosTable tbody tr').forEach(r => r.dataset.match = '1');
+        const prodSel = document.getElementById('prodPageSizeSelect');
+        if (prodSel) {
+            prodPageSize = parseInt(prodSel.value, 10) || 10;
+            prodSel.addEventListener('change', (e) => {
+                prodPageSize = parseInt(e.target.value, 10) || 10;
+                prodShowPage(1);
             });
         }
-        
-        // ===== FUNCIONALIDAD PARA PROVEEDORES =====
-        // Mostrar dropdown al enfocar el input
-        if (proveedorInput) {
-            proveedorInput.addEventListener('focus', function() {
-                proveedorDropdown.classList.remove('hidden');
-                filterProveedorOptions();
+        prodShowPage(1);
+
+        // Solicitudes: configurar selector si existe
+        const solSel = document.getElementById('solPageSizeSelect');
+        if (solSel) {
+            solPageSize = parseInt(solSel.value, 10) || 10;
+            solSel.addEventListener('change', (e) => {
+                solPageSize = parseInt(e.target.value, 10) || 10;
+                solShowPage(1);
             });
-            
-            // Ocultar dropdown al perder el foco
-            proveedorInput.addEventListener('blur', function() {
-                setTimeout(() => {
-                    proveedorDropdown.classList.add('hidden');
-                }, 200);
-            });
-            
-            // Filtrar opciones al escribir
-            proveedorInput.addEventListener('input', filterProveedorOptions);
+            solShowPage(1);
         }
-        
-        // Seleccionar opción del dropdown
-        if (proveedorDropdown) {
-            proveedorDropdown.addEventListener('click', function(e) {
-                if (e.target.classList.contains('option-item')) {
-                    proveedorInput.value = e.target.getAttribute('data-name');
-                    proveedorId.value = e.target.getAttribute('data-id');
-                    proveedorDropdown.classList.add('hidden');
-                    if (proveedorError) proveedorError.classList.add('hidden');
-                }
-            });
-        }
-        
-        function filterProveedorOptions() {
-            const filter = proveedorInput.value.toLowerCase();
-            const options = proveedorDropdown.querySelectorAll('.option-item');
-            
-            options.forEach(option => {
-                const text = option.getAttribute('data-name').toLowerCase();
-                if (text.includes(filter)) {
-                    option.style.display = 'block';
-                } else {
-                    option.style.display = 'none';
-                }
+    });
+    // ===== Inicializar selects personalizados (Producto y Solicitud) =====
+    document.addEventListener('DOMContentLoaded', function(){
+        // Producto - Proveedor
+        const provIn = document.getElementById('proveedor_input');
+        const provDrop = document.getElementById('proveedor_dropdown');
+        const provId = document.getElementById('proveedor_id');
+        const provErr = document.getElementById('proveedor_id_error');
+        if (provIn && provDrop) {
+            const filterProv = () => {
+                const q = (provIn.value || '').toLowerCase();
+                provDrop.querySelectorAll('.option-item').forEach(opt => {
+                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
+                    opt.style.display = name.includes(q) ? '' : 'none';
+                });
+            };
+            provIn.addEventListener('focus', () => provDrop.classList.remove('hidden'));
+            provIn.addEventListener('input', filterProv);
+            provIn.addEventListener('blur', () => setTimeout(() => provDrop.classList.add('hidden'), 150));
+            provDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('.option-item');
+                if (!el) return;
+                provIn.value = el.getAttribute('data-name') || '';
+                if (provId) provId.value = el.getAttribute('data-id') || '';
+                provDrop.classList.add('hidden');
+                if (provErr) provErr.classList.add('hidden');
             });
         }
-        
-        // ===== FUNCIONALIDAD PARA CATEGORÍAS =====
-        // Mostrar dropdown al enfocar el input
-        if (categoriaInput) {
-            categoriaInput.addEventListener('focus', function() {
-                categoriaDropdown.classList.remove('hidden');
-                filterCategoriaOptions();
-            });
-            
-            // Ocultar dropdown al perder el foco
-            categoriaInput.addEventListener('blur', function() {
-                setTimeout(() => {
-                    categoriaDropdown.classList.add('hidden');
-                }, 200);
-            });
-            
-            // Filtrar opciones al escribir
-            categoriaInput.addEventListener('input', filterCategoriaOptions);
-        }
-        
-        // Seleccionar opción del dropdown
-        if (categoriaDropdown) {
-            categoriaDropdown.addEventListener('click', function(e) {
-                if (e.target.classList.contains('option-item-cat')) {
-                    categoriaInput.value = e.target.getAttribute('data-value');
-                    categoriaHidden.value = e.target.getAttribute('data-value');
-                    categoriaDropdown.classList.add('hidden');
-                    if (categoriaError) categoriaError.classList.add('hidden');
-                }
+
+        // Producto - Categoría
+        const catIn = document.getElementById('categoria_input');
+        const catDrop = document.getElementById('categoria_dropdown');
+        const catHidden = document.getElementById('categoria_produc');
+        const catErr = document.getElementById('categoria_produc_error');
+        if (catIn && catDrop) {
+            const filterCat = () => {
+                const q = (catIn.value || '').toLowerCase();
+                catDrop.querySelectorAll('.option-item-cat').forEach(opt => {
+                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
+                    opt.style.display = val.includes(q) ? '' : 'none';
+                });
+            };
+            catIn.addEventListener('focus', () => catDrop.classList.remove('hidden'));
+            catIn.addEventListener('input', filterCat);
+            catIn.addEventListener('blur', () => setTimeout(() => catDrop.classList.add('hidden'), 150));
+            catDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('.option-item-cat');
+                if (!el) return;
+                const val = el.getAttribute('data-value') || '';
+                catIn.value = val;
+                if (catHidden) catHidden.value = val;
+                catDrop.classList.add('hidden');
+                if (catErr) catErr.classList.add('hidden');
             });
         }
-        
-        function filterCategoriaOptions() {
-            const filter = categoriaInput.value.toLowerCase();
-            const options = categoriaDropdown.querySelectorAll('.option-item-cat');
-            
-            options.forEach(option => {
-                const text = option.getAttribute('data-value').toLowerCase();
-                if (text.includes(filter)) {
-                    option.style.display = 'block';
-                } else {
-                    option.style.display = 'none';
-                }
+
+        // Producto - Unidad
+        const uIn = document.getElementById('unit_input');
+        const uDrop = document.getElementById('unit_dropdown');
+        const uHidden = document.getElementById('unit_produc');
+        const uErr = document.getElementById('unit_produc_error');
+        if (uIn && uDrop) {
+            uIn.addEventListener('focus', () => uDrop.classList.remove('hidden'));
+            uIn.addEventListener('click', () => uDrop.classList.remove('hidden'));
+            uIn.addEventListener('blur', () => setTimeout(() => uDrop.classList.add('hidden'), 150));
+            uDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('[data-value]');
+                if (!el) return;
+                const val = el.getAttribute('data-value') || '';
+                uIn.value = val;
+                if (uHidden) uHidden.value = val;
+                uDrop.classList.add('hidden');
+                if (uErr) uErr.classList.add('hidden');
             });
         }
-        
-        // Validar que se haya seleccionado un proveedor y categoría al enviar el formulario
-        const productForm = document.getElementById('productForm');
-        if (productForm) {
-            productForm.addEventListener('submit', function(e) {
-                let hasError = false;
-                
-                if (proveedorId && !proveedorId.value) {
-                    if (proveedorError) {
-                        proveedorError.textContent = 'Por favor, selecciona un proveedor de la lista';
-                        proveedorError.classList.remove('hidden');
-                    }
-                    if (proveedorDropdown) proveedorDropdown.classList.remove('hidden');
-                    hasError = true;
-                }
-                
-                if (categoriaHidden && !categoriaHidden.value) {
-                    if (categoriaError) {
-                        categoriaError.textContent = 'Por favor, selecciona una categoría de la lista';
-                        categoriaError.classList.remove('hidden');
-                    }
-                    if (categoriaDropdown) categoriaDropdown.classList.remove('hidden');
-                    hasError = true;
-                }
-                
-                if (hasError) {
-                    e.preventDefault();
-                }
+
+        // Solicitud - Proveedor
+        const sProvIn = document.getElementById('solicitud_proveedor_input');
+        const sProvDrop = document.getElementById('solicitud_proveedor_dropdown');
+        const sProvId = document.getElementById('solicitud_proveedor_id');
+        const sProvErr = document.getElementById('solicitud_proveedor_id_error');
+        if (sProvIn && sProvDrop) {
+            const filterSProv = () => {
+                const q = (sProvIn.value || '').toLowerCase();
+                sProvDrop.querySelectorAll('.option-item-solicitud').forEach(opt => {
+                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
+                    opt.style.display = name.includes(q) ? '' : 'none';
+                });
+            };
+            sProvIn.addEventListener('focus', () => sProvDrop.classList.remove('hidden'));
+            sProvIn.addEventListener('input', filterSProv);
+            sProvIn.addEventListener('blur', () => setTimeout(() => sProvDrop.classList.add('hidden'), 150));
+            sProvDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('.option-item-solicitud');
+                if (!el) return;
+                sProvIn.value = el.getAttribute('data-name') || '';
+                if (sProvId) sProvId.value = el.getAttribute('data-id') || '';
+                sProvDrop.classList.add('hidden');
+                if (sProvErr) sProvErr.classList.add('hidden');
+            });
+        }
+
+        // Solicitud - Categoría
+        const sCatIn = document.getElementById('solicitud_categoria_input');
+        const sCatDrop = document.getElementById('solicitud_categoria_dropdown');
+        const sCatHidden = document.getElementById('solicitud_categoria_produc');
+        const sCatErr = document.getElementById('solicitud_categoria_produc_error');
+        if (sCatIn && sCatDrop) {
+            const filterSCat = () => {
+                const q = (sCatIn.value || '').toLowerCase();
+                sCatDrop.querySelectorAll('.option-item-cat-solicitud').forEach(opt => {
+                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
+                    opt.style.display = val.includes(q) ? '' : 'none';
+                });
+            };
+            sCatIn.addEventListener('focus', () => sCatDrop.classList.remove('hidden'));
+            sCatIn.addEventListener('input', filterSCat);
+            sCatIn.addEventListener('blur', () => setTimeout(() => sCatDrop.classList.add('hidden'), 150));
+            sCatDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('.option-item-cat-solicitud');
+                if (!el) return;
+                const val = el.getAttribute('data-value') || '';
+                sCatIn.value = val;
+                if (sCatHidden) sCatHidden.value = val;
+                sCatDrop.classList.add('hidden');
+                if (sCatErr) sCatErr.classList.add('hidden');
+            });
+        }
+
+        // Solicitud - Unidad
+        const suIn = document.getElementById('solicitud_unit_input');
+        const suDrop = document.getElementById('solicitud_unit_dropdown');
+        const suHidden = document.getElementById('solicitud_unit_produc');
+        const suErr = document.getElementById('solicitud_unit_produc_error');
+        if (suIn && suDrop) {
+            suIn.addEventListener('focus', () => suDrop.classList.remove('hidden'));
+            suIn.addEventListener('click', () => suDrop.classList.remove('hidden'));
+            suIn.addEventListener('blur', () => setTimeout(() => suDrop.classList.add('hidden'), 150));
+            suDrop.addEventListener('click', (e) => {
+                const el = e.target.closest('[data-value]');
+                if (!el) return;
+                const val = el.getAttribute('data-value') || '';
+                suIn.value = val;
+                if (suHidden) suHidden.value = val;
+                suDrop.classList.add('hidden');
+                if (suErr) suErr.classList.add('hidden');
             });
         }
     });
-
-    // ===== FUNCIONALIDAD PARA EL MODAL "Añadir desde Solicitud" =====
-document.addEventListener('DOMContentLoaded', function() {
-    const solicitudProveedorInput = document.getElementById('solicitud_proveedor_search');
-    const solicitudProveedorDropdown = document.getElementById('solicitud_proveedor_results');
-    const solicitudProveedorSelect = document.getElementById('solicitud_proveedor_id');
-    const solicitudProveedorError = document.getElementById('solicitud_proveedor_id_error');
-
-    const solicitudCategoriaSelect = document.getElementById('solicitud_categoria_produc');
-    const solicitudCategoriaError = document.getElementById('solicitud_categoria_produc_error');
-
-    // ===== FUNCIONALIDAD PARA UNIDADES (Solicitud) =====
-    const sUnitInput = document.getElementById('solicitud_unit_input');
-    const sUnitDropdown = document.getElementById('solicitud_unit_dropdown');
-    const sUnitHidden = document.getElementById('solicitud_unit_produc');
-    const sUnitError = document.getElementById('solicitud_unit_produc_error');
-
-    function filterSolicitudUnitOptions() { /* sin escritura, mostrar todas */ }
-
-    if (sUnitInput) {
-        sUnitInput.addEventListener('focus', function() {
-            if (sUnitDropdown) sUnitDropdown.classList.remove('hidden');
-            // sin filtrado por escritura
-        });
-        sUnitInput.addEventListener('blur', function() {
-                       setTimeout(() => sUnitDropdown && sUnitDropdown.classList.add('hidden'), 200);
-       
-        });
-        sUnitInput.addEventListener('click', function(){ if (sUnitDropdown) sUnitDropdown.classList.remove('hidden'); });
-    }
-
-    if (sUnitDropdown) {
-        sUnitDropdown.addEventListener('click', function(e) {
-            const target = e.target.closest('[data-value]');
-            if (!target) return;
-            const val = target.getAttribute('data-value');
-            if (sUnitInput) sUnitInput.value = val;
-            if (sUnitHidden) sUnitHidden.value = val;
-            sUnitDropdown.classList.add('hidden');
-            if (sUnitError) sUnitError.classList.add('hidden');
-        });
-    }
-
-    // ===== FUNCIONALIDAD PARA PROVEEDORES EN SOLICITUD =====
-    if (solicitudProveedorInput) {
-        // Mostrar dropdown al enfocar el input
-        solicitudProveedorInput.addEventListener('focus', function() {
-            solicitudProveedorDropdown.classList.remove('hidden');
-            filterSolicitudProveedorOptions();
-        });
-        
-        // Ocultar dropdown al perder el foco
-        solicitudProveedorInput.addEventListener('blur', function() {
-            setTimeout(() => {
-                solicitudProveedorDropdown.classList.add('hidden');
-            }, 200);
-        });
-        
-        // Filtrar opciones al escribir
-        solicitudProveedorInput.addEventListener('input', filterSolicitudProveedorOptions);
-    }
-    
-    // Seleccionar opción del dropdown de proveedores
-    if (solicitudProveedorDropdown) {
-        solicitudProveedorDropdown.addEventListener('click', function(e) {
-            if (e.target.classList.contains('option-item-solicitud')) {
-                solicitudProveedorInput.value = e.target.getAttribute('data-name');
-                solicitudProveedorId.value = e.target.getAttribute('data-id');
-                solicitudProveedorDropdown.classList.add('hidden');
-                if (solicitudProveedorError) solicitudProveedorError.classList.add('hidden');
-            }
-        });
-    }
-    
-    function filterSolicitudProveedorOptions() {
-        const filter = solicitudProveedorInput.value.toLowerCase();
-        const options = solicitudProveedorDropdown.querySelectorAll('.option-item-solicitud');
-        
-        options.forEach(option => {
-            const text = option.getAttribute('data-name').toLowerCase();
-            if (text.includes(filter)) {
-                option.style.display = 'block';
-            } else {
-                option.style.display = 'none';
-            }
-        });
-    }
-    
-    // ===== FUNCIONALIDAD PARA CATEGORÍA EN SOLICITUD =====
-    if (solicitudCategoriaSelect) {
-        // No usamos input aparte, así que solo validamos que haya seleccionado
-        solicitudCategoriaSelect.addEventListener('change', function() {
-            if (solicitudCategoriaSelect.value) {
-                solicitudCategoriaError.classList.add('hidden');
-                }
-            });
-        }
-    });
-
-    // ===== ACTUALIZAR PROVEEDORES EN EL MODAL DE SOLICITUD =====
-    function updateProveedoresSelect(proveedores) {
-        const selectElements = [
-            document.getElementById('proveedor_id'),
-            document.getElementById('solicitud_proveedor_id')
-        ];
-
-        // Actualizar los dropdowns visuales
-        const proveedorDropdowns = [
-            document.getElementById('proveedor_dropdown'),
-            document.getElementById('solicitud_proveedor_dropdown')
-        ];
-
-        selectElements.forEach(select => {
-            if (select) {
-                const currentValue = select.value;
-
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-
-                proveedores.forEach(proveedor => {
-                    const option = document.createElement('option');
-                    option.value = proveedor.id;
-                    option.textContent = proveedor.prov_name;
-                    select.appendChild(option);
-                });
-
-                if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                    select.value = currentValue;
-                }
-            }
-        });
-
-        // Actualizar los dropdowns visuales
-        proveedorDropdowns.forEach(dropdown => {
-            if (dropdown) {
-                dropdown.innerHTML = '';
-                
-                proveedores.forEach(proveedor => {
-                    const div = document.createElement('div');
-                    div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
-                                    (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
-                    div.setAttribute('data-id', proveedor.id);
-                    div.setAttribute('data-name', proveedor.prov_name);
-                    div.textContent = proveedor.prov_name;
-                    dropdown.appendChild(div);
-                });
-            }
-        });
-    }
         </script>
 
         <style>
@@ -1770,7 +1695,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             #proveedor_dropdown,
             #categoria_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0.06);
             }
 
             .option-item,
