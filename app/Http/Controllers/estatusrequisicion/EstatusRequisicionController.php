@@ -120,10 +120,7 @@ class EstatusRequisicionController extends Controller
             if ($request->estatus_id == 9) {
                 // rechazo
                 if ($role === 'Area de compras') {
-                    if (!$comentario) {
-                        return response()->json(['success' => false, 'message' => 'Debes escribir un motivo de rechazo.'], 422);
-                    }
-
+                    // Envía a corrección (11). Comentario opcional.
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 11,
@@ -131,17 +128,26 @@ class EstatusRequisicionController extends Controller
                         'comentario' => $comentario,
                         'date_update' => now(),
                     ]);
-
                     $mensajeAccion = 'enviada a corrección';
-                } else {
+                } elseif ($role === 'Gerencia') {
+                    // Rechazo por Gerencia -> registrar 13 (histórico) y completar (10)
+                    Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicionId,
+                        'estatus_id' => 13,
+                        'estatus' => 0,
+                        'comentario' => $comentario,
+                        'date_update' => now(),
+                    ]);
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 10,
                         'estatus' => 1,
-                        'comentario' => $comentario,
+                        'comentario' => null,
                         'date_update' => now(),
                     ]);
-
+                    $mensajeAccion = 'rechazada por gerencia';
+                } elseif ($role === 'Gerente financiero') {
+                    // Rechazo por Financiera -> registrar 9 (histórico) y completar (10)
                     Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
                         'estatus_id' => 9,
@@ -149,7 +155,30 @@ class EstatusRequisicionController extends Controller
                         'comentario' => $comentario,
                         'date_update' => now(),
                     ]);
-
+                    $nuevoEstatus = Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicionId,
+                        'estatus_id' => 10,
+                        'estatus' => 1,
+                        'comentario' => null,
+                        'date_update' => now(),
+                    ]);
+                    $mensajeAccion = 'rechazada';
+                } else {
+                    // Fallback: marcar rechazado (9) como histórico y completar (10)
+                    Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicionId,
+                        'estatus_id' => 9,
+                        'estatus' => 0,
+                        'comentario' => $comentario,
+                        'date_update' => now(),
+                    ]);
+                    $nuevoEstatus = Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicionId,
+                        'estatus_id' => 10,
+                        'estatus' => 1,
+                        'comentario' => null,
+                        'date_update' => now(),
+                    ]);
                     $mensajeAccion = 'rechazada';
                 }
             } else {

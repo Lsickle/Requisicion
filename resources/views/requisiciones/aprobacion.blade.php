@@ -208,40 +208,39 @@ document.querySelectorAll('.status-btn').forEach(btn => {
         const accion = this.dataset.action;
 
         if (accion === "rechazar") {
-            @if($role === 'Area de compras')
-                Swal.fire({
-                    title: "Motivo de rechazo",
-                    input: "textarea",
-                    inputPlaceholder: "Escribe el motivo...",
-                    inputAttributes: { 'aria-label': 'Motivo de rechazo' },
-                    showCancelButton: true,
-                    confirmButtonText: "Rechazar",
-                    cancelButtonText: "Cancelar",
-                    confirmButtonColor: "#dc2626",
-                    cancelButtonColor: "#6b7280",
-                    inputValidator: (value) => {
-                        if (!value || value.trim() === '') return "Debes escribir un motivo de rechazo";
-                    }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        confirmarCambioEstatus(requisicionId, estatusId, result.value);
-                    }
-                });
-            @else
-                Swal.fire({
-                    title: `¿Seguro que deseas rechazar la requisición #${requisicionId}?`,
-                    icon: "warning",
-                    showCancelButton: true,
-                    confirmButtonText: "Sí, rechazar",
-                    cancelButtonText: "Cancelar",
-                    confirmButtonColor: "#dc2626",
-                    cancelButtonColor: "#6b7280"
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        confirmarCambioEstatus(requisicionId, estatusId, null);
-                    }
-                });
-            @endif
+            // Comentario opcional para todos los roles
+            Swal.fire({
+                title: "Motivo de rechazo (opcional)",
+                input: "textarea",
+                inputPlaceholder: "Escribe el motivo...",
+                inputAttributes: { 'aria-label': 'Motivo de rechazo' },
+                showCancelButton: true,
+                confirmButtonText: "Rechazar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#dc2626",
+                cancelButtonColor: "#6b7280"
+            }).then((result) => {
+                if (!result.isConfirmed) return;
+                const comentario = (result.value || '').trim();
+                if (!comentario) {
+                    Swal.fire({
+                        title: 'Enviar rechazo sin comentario',
+                        text: '¿Deseas continuar sin comentario?',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, rechazar',
+                        cancelButtonText: 'Cancelar',
+                        confirmButtonColor: '#dc2626',
+                        cancelButtonColor: '#6b7280'
+                    }).then((r2) => {
+                        if (r2.isConfirmed) {
+                            confirmarCambioEstatus(requisicionId, estatusId, null);
+                        }
+                    });
+                } else {
+                    confirmarCambioEstatus(requisicionId, estatusId, comentario);
+                }
+            });
         } else {
             Swal.fire({
                 title: `¿Seguro que deseas aprobar la requisición #${requisicionId}?`,

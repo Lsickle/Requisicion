@@ -58,7 +58,7 @@
         }
 
         // Cancelado, rechazado o completado
-        if (in_array($currentId, [6, 9, 10])) {
+        if (in_array($currentId, [6, 9, 10, 13])) {
             $siguiente = null;
         } elseif ($currentId == 11) {
             $siguiente = 'pendiente_gerencia';
@@ -66,7 +66,7 @@
 
         // Texto especial para rechazo
         $textoRechazo = 'Rechazado';
-        $indexRechazo = $estatusFiltrados->search(function($item){ return $item->id === 9; });
+        $indexRechazo = $estatusFiltrados->search(function($item){ return in_array($item->id, [9,13]); });
 
         if ($indexRechazo !== false && $indexRechazo > 0) {
             $anterior = $estatusFiltrados[$indexRechazo - 1] ?? null;
@@ -85,7 +85,7 @@
             $isCurrent = $item->id === $currentId;
 
                 // Colores especiales
-                $isRejected  = $item->id === 9;
+                $isRejected  = in_array($item->id, [9,13]);
                 $isCanceled  = $item->id === 6;
                 $isCorregir  = $item->id === 11;
             @endphp
@@ -162,7 +162,7 @@
         @endforeach
 
         {{-- Proceso finalizado tras rechazo --}}
-        @if($estatusFiltrados->contains('id', 9))
+        @if($estatusFiltrados->contains('id', 9) || $estatusFiltrados->contains('id', 13))
         <div class="mb-6 ml-6 relative">
             <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-700 text-white shadow-md">
                 <i class="fas fa-stop-circle text-xs"></i>
