@@ -74,7 +74,7 @@
                                 case 1: $colorEstatus = 'bg-blue-600'; break;
                                 case 2: case 3: case 4: $colorEstatus = 'bg-yellow-500'; break;
                                 case 5: $colorEstatus = 'bg-purple-600'; break;
-                                case 6: case 9: $colorEstatus = 'bg-red-600'; break;
+                                case 6: case 9: case 13: $colorEstatus = 'bg-red-600'; break;
                                 case 7: case 8: $colorEstatus = 'bg-indigo-600'; break;
                                 case 10: $colorEstatus = 'bg-green-600'; break;
                                 case 11: $colorEstatus = 'bg-orange-500'; break;
@@ -195,7 +195,7 @@
                                  case 1: $colorActual = 'bg-blue-600'; break;
                                  case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
                                  case 5: $colorActual = 'bg-purple-600'; break;
-                                 case 6: case 9: $colorActual = 'bg-red-600'; break;
+                                 case 6: case 9: case 13: $colorActual = 'bg-red-600'; break;
                                  case 7: case 8: $colorActual = 'bg-indigo-600'; break;
                                  case 10: $colorActual = 'bg-green-600'; break;
                                  case 11: $colorActual = 'bg-orange-500'; break;

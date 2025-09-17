@@ -13,29 +13,14 @@
     <div class="relative border-l-2 border-blue-400 ml-4">
         @php
         $estatusOrdenados = $estatusOrdenados ?? collect();
-        $estatusIds = $estatusOrdenados->pluck('id')->toArray();
         $currentId = optional($estatusActual)->id ?? 0;
 
-            // Filtrar "Iniciado": solo conservar el último
-            $ultimoIniciadoIndex = $estatusOrdenados->keys()->filter(function($i) use ($estatusOrdenados) {
-                return $estatusOrdenados[$i]->id == 1;
-            })->last();
-
-            // Filtrar "Cancelada": solo conservar la última
-            $ultimaCanceladaIndex = $estatusOrdenados->keys()->filter(function($i) use ($estatusOrdenados) {
-                return $estatusOrdenados[$i]->id == 6;
-            })->last();
-
-            $estatusFiltrados = collect();
-            foreach ($estatusOrdenados as $index => $item) {
-                if ($item->id == 1 && $index !== $ultimoIniciadoIndex) {
-                    continue; // ignorar iniciados anteriores
-                }
-                if ($item->id == 6 && $index !== $ultimaCanceladaIndex) {
-                    continue; // ignorar canceladas anteriores
-                }
-                $estatusFiltrados->push($item);
-            }
+        // Deduplicar: conservar solo el más reciente por id, luego ordenar cronológicamente
+        $estatusFiltrados = $estatusOrdenados
+            ->sortByDesc(function($i){ return optional($i->pivot->created_at); })
+            ->unique('id')
+            ->sortBy(function($i){ return optional($i->pivot->created_at); })
+            ->values();
 
         // Flujo normal
         $flujo = [
@@ -63,19 +48,6 @@
         } elseif ($currentId == 11) {
             $siguiente = 'pendiente_gerencia';
         }
-
-        // Texto especial para rechazo
-        $textoRechazo = 'Rechazado';
-        $indexRechazo = $estatusFiltrados->search(function($item){ return in_array($item->id, [9,13]); });
-
-        if ($indexRechazo !== false && $indexRechazo > 0) {
-            $anterior = $estatusFiltrados[$indexRechazo - 1] ?? null;
-            if ($anterior && $anterior->id == 3) {
-                $textoRechazo = 'Rechazado por Gerencia';
-            } elseif ($anterior && $anterior->id == 2) {
-                $textoRechazo = 'Rechazado por Financiera';
-            }
-        }
         @endphp 
 
         {{-- Mostrar estatus --}}
@@ -92,11 +64,7 @@
 
             <div class="mb-6 ml-6 relative">
                 {{-- Iconos --}}
-                @if($isCompleted)
-                    <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white shadow-md">
-                        <i class="fas fa-check text-xs"></i>
-                    </span>
-                @elseif($isCurrent && ($isRejected || $isCanceled))
+                @if($isRejected || $isCanceled)
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white shadow-md">
                         <i class="fas fa-times text-xs"></i>
                     </span>
@@ -104,6 +72,10 @@
                 <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-yellow-500 text-white shadow-md">
                     <i class="fas fa-exclamation text-xs"></i>
                 </span>
+                @elseif($isCompleted)
+                    <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white shadow-md">
+                        <i class="fas fa-check text-xs"></i>
+                    </span>
                 @elseif($isCurrent)
                 <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white shadow-md">
                     <i class="fas fa-check text-xs"></i>
@@ -112,18 +84,18 @@
 
                 {{-- Tarjeta --}}
                 <div class="p-4 rounded-lg shadow-sm border 
-                    @if($isCompleted) bg-green-50 border-green-300
-                    @elseif($isCurrent && ($isRejected || $isCanceled)) bg-red-50 border-red-300
-                    @elseif($isCurrent && $isCorregir) bg-yellow-50 border-yellow-300
+                    @if($isRejected || $isCanceled) bg-red-50 border-red-300
+                    @elseif($isCorregir && $isCurrent) bg-yellow-50 border-yellow-300
+                    @elseif($isCompleted) bg-green-50 border-green-300
                     @elseif($isCurrent) bg-blue-50 border-blue-300
                     @endif">
                     
                     <div class="flex justify-between items-start">
                         <div>
                             <h3 class="font-semibold 
-                                @if($isCompleted) text-green-800
-                                @elseif($isCurrent && ($isRejected || $isCanceled)) text-red-800
-                                @elseif($isCurrent && $isCorregir) text-yellow-800
+                                @if($isRejected || $isCanceled) text-red-800
+                                @elseif($isCorregir && $isCurrent) text-yellow-800
+                                @elseif($isCompleted) text-green-800
                                 @elseif($isCurrent) text-blue-800
                                 @endif">
                                 {{ $item->status_name }}
@@ -131,9 +103,9 @@
 
                             @if(isset($item->pivot->created_at))
                                 <p class="text-sm 
-                                    @if($isCompleted) text-green-600
-                                    @elseif($isCurrent && ($isRejected || $isCanceled)) text-red-600
-                                    @elseif($isCurrent && $isCorregir) text-yellow-600
+                                    @if($isRejected || $isCanceled) text-red-600
+                                    @elseif($isCorregir && $isCurrent) text-yellow-600
+                                    @elseif($isCompleted) text-green-600
                                     @elseif($isCurrent) text-blue-600
                                     @endif mt-1">
                                     <i class="far fa-clock mr-1"></i>
@@ -161,30 +133,48 @@
             </div>
         @endforeach
 
-        {{-- Proceso finalizado tras rechazo --}}
-        @if($estatusFiltrados->contains('id', 9) || $estatusFiltrados->contains('id', 13))
-        <div class="mb-6 ml-6 relative">
-            <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-700 text-white shadow-md">
-                <i class="fas fa-stop-circle text-xs"></i>
-            </span>
-            <div class="p-4 rounded-lg shadow-sm border bg-red-50 border-red-300">
-                <h3 class="font-semibold text-red-800">Proceso Finalizado</h3>
-                <p class="text-sm text-red-600 mt-1"><i class="far fa-clock mr-1"></i>El proceso terminó debido al rechazo.</p>
-            </div>
-        </div>
-        @endif
+        @php
+            $hasRechazo = $estatusFiltrados->contains('id', 9) || $estatusFiltrados->contains('id', 13);
+            $isCompletado = optional($estatusActual)->id === 10;
+            $showRed = $hasRechazo;
+            $showGreen = !$hasRechazo && $isCompletado;
+            $showGray = !$hasRechazo && !$isCompletado && in_array($currentId, [6, 11]);
+        @endphp
 
-        {{-- ✅ Proceso finalizado con éxito (estatus 10) --}}
-        @if(optional($estatusActual)->id === 10)
-        <div class="mb-6 ml-6 relative">
-            <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-700 text-white shadow-md">
-                <i class="fas fa-flag-checkered text-xs"></i>
-            </span>
-            <div class="p-4 rounded-lg shadow-sm border bg-green-50 border-green-300">
-                <h3 class="font-semibold text-green-800">Proceso Finalizado</h3>
-                <p class="text-sm text-green-600 mt-1"><i class="far fa-clock mr-1"></i>El proceso concluyó exitosamente.</p>
+        @if($showRed)
+            <div class="mb-6 ml-6 relative">
+                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-700 text-white shadow-md">
+                    <i class="fas fa-stop-circle text-xs"></i>
+                </span>
+                <div class="p-4 rounded-lg shadow-sm border bg-red-50 border-red-300">
+                    <h3 class="font-semibold text-red-800">Proceso Finalizado</h3>
+                    <p class="text-sm text-red-600 mt-1"><i class="far fa-clock mr-1"></i>El proceso terminó debido al rechazo.</p>
+                </div>
             </div>
-        </div>
+        @elseif($showGreen)
+            <div class="mb-6 ml-6 relative">
+                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-700 text-white shadow-md">
+                    <i class="fas fa-flag-checkered text-xs"></i>
+                </span>
+                <div class="p-4 rounded-lg shadow-sm border bg-green-50 border-green-300">
+                    <h3 class="font-semibold text-green-800">Proceso Finalizado</h3>
+                    <p class="text-sm text-green-600 mt-1"><i class="far fa-clock mr-1"></i>El proceso concluyó exitosamente.</p>
+                </div>
+            </div>
+        @elseif($showGray)
+            <div class="mb-6 ml-6 relative">
+                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-600 text-white shadow-md">
+                    <i class="fas fa-flag-checkered text-xs"></i>
+                </span>
+                <div class="p-4 rounded-lg shadow-sm border bg-gray-100 border-gray-400">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-semibold text-gray-700">Proceso finalizado</h3>
+                            <p class="text-sm text-gray-500 mt-1">La requisición ya no avanzará en el flujo.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         @endif
 
         {{-- Pendientes --}}
@@ -236,27 +226,6 @@
             </div>
         @endif
 
-        {{-- Proceso finalizado --}}
-        @if(in_array($currentId, [6, 9, 10, 11]))
-            <div class="mb-6 ml-6 relative">
-                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-600 text-white shadow-md">
-                    <i class="fas fa-flag-checkered text-xs"></i>
-                </span>
-
-                <div class="p-4 rounded-lg shadow-sm border bg-gray-100 border-gray-400">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h3 class="font-semibold text-gray-700">
-                                Proceso finalizado
-                            </h3>
-                            <p class="text-sm text-gray-500 mt-1">
-                                La requisición ya no avanzará en el flujo.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endif
     </div>
 
     <div class="mt-8 flex gap-3 justify-center">
