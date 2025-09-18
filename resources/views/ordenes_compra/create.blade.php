@@ -752,7 +752,7 @@
                     ? `<button type="button" onclick="showYaEntregadoAlert()" class="bg-gray-400 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button><div class="text-xs text-amber-700 mt-1">Entregado antes: ${prevEntregado}</div>`
                     : `<button type="button" onclick="toggleSacarStock('${rowKey}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button>`
                   }
-                <button type="button" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
+                <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
                 <div id="sacar-stock-container-${rowKey}" class="mt-2 hidden">
                     <div class="flex items-center gap-2">
@@ -821,6 +821,12 @@
     }
 
     function quitarProducto(rowId, rowKey, ocpId = null) {
+        // No permitir quitar si ya se confirmó sacar de stock
+        const cont = document.getElementById(`sacar-stock-container-${rowKey}`);
+        if (cont?.dataset.confirmed === '1') {
+            Swal.fire({icon:'info', title:'No permitido', text:'No puede quitar el producto porque ya se confirmó la salida de stock.'});
+            return;
+        }
         const row = document.getElementById(rowId);
         const selector = document.getElementById('producto-selector');
         if (row) {
@@ -1378,6 +1384,9 @@
             if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
             if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
             if (container) container.dataset.confirmed = '1';
+            // Deshabilitar botón Quitar tras confirmar
+            const btnQuitar = document.getElementById(`btn-quitar-${rowKey}`);
+            if (btnQuitar) { btnQuitar.disabled = true; btnQuitar.classList.add('opacity-50','cursor-not-allowed'); }
         } finally {
             if (container) container.dataset.busy = '0';
             if (btn) {
