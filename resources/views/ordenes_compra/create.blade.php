@@ -397,6 +397,12 @@
                             ->where('estatus', 1)
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
+                        $hayReservadoStock = DB::table('ordencompra_producto as ocp')
+                            ->whereNull('ocp.deleted_at')
+                            ->where('ocp.requisicion_id', $requisicion->id)
+                            ->whereNotNull('ocp.stock_e')
+                            ->where('ocp.stock_e', '>', 0)
+                            ->exists();
                     @endphp
                     @if(in_array($estatusActual, [5,7,8,12]))
                         <button type="button" id="btn-abrir-entrega-oc"
@@ -409,10 +415,12 @@
                            class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
                            Realizar entrega parcial de stock
                         </button>
+                        @if($hayReservadoStock)
                         <button type="button" id="btn-restaurar-stock"
                            class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow mr-2">
                            Restaurar stock
                         </button>
+                        @endif
                      @endif
                       <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
                          class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
@@ -444,6 +452,14 @@
                         ->whereNull('deleted_at')
                         ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
                         ->groupBy('producto_id')
+                        ->pluck('rec','producto_id');
+                    // Totales recibidos desde stock por producto
+                    $recibidoStockPorProducto = DB::table('recepcion as r')
+                        ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                        ->where('oc.requisicion_id', $requisicion->id)
+                        ->whereNull('r.deleted_at')
+                        ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad,0)) as rec'))
+                        ->groupBy('r.producto_id')
                         ->pluck('rec','producto_id');
                     // Entregas enviadas y pendientes de confirmación por producto (bloquean reenvío)
                     $pendNoConfPorProducto = DB::table('entrega')
@@ -485,8 +501,10 @@
                                         @forelse($ocpLineas as $l)
                                         @php
                                             $reqTot = (int) ($reqCantPorProducto[$l->producto_id] ?? 0);
-                                            $recTot = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
-                                            $faltTot = max(0, $reqTot - $recTot);
+                                            $recEntregas = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
+                                            $recStock = (int) ($recibidoStockPorProducto[$l->producto_id] ?? 0);
+                                            $recTotal = $recEntregas + $recStock;
+                                            $faltTot = max(0, $reqTot - $recTotal);
                                             $isDone = $faltTot <= 0;
                                             $pendLock = (int) ($pendNoConfPorProducto[$l->producto_id] ?? 0);
                                             $maxEntregar = min((int)$l->total, $faltTot);
@@ -503,7 +521,7 @@
                                                 @elseif($pendLock>0)
                                                     <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Enviado, esperando confirmación ({{ $pendLock }})</span>
                                                  @else
-                                                     <span class="text-xs">{{ $recTot }} / {{ $reqTot }} recibidos · Falta {{ $faltTot }}</span>
+                                                     <span class="text-xs">{{ $recTotal }} / {{ $reqTot }} recibidos · Falta {{ $faltTot }}</span>
                                                  @endif
                                             </td>
                                             <td class="px-3 py-2 text-center">
