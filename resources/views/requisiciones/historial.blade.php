@@ -131,7 +131,7 @@
                             </a>
                             
                             <!-- Botón de Cancelar/Reenviar -->
-                            @if($ultimoEstatusId != 6 && $ultimoEstatusId != 10 && $ultimoEstatusId != 5)
+                            @if(in_array(($ultimoEstatusId ?? null), [1,2,3,4]))
                             <button onclick="cancelarRequisicion({{ $req->id }})"
                                 class="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700 transition flex items-center gap-1">
                                 <i class="fas fa-times"></i> Cancelar
@@ -404,6 +404,9 @@
                 ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
                 ->where('e.requisicion_id', $req->id)
                 ->whereNull('e.deleted_at')
+                ->where(function($q){
+                    $q->whereNull('e.cantidad_recibido')->orWhere('e.cantidad_recibido', 0);
+                })
                 ->orderBy('e.id','asc')
                 ->get();
         } else {
@@ -716,7 +719,7 @@
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.message || 'Error al confirmar recepción');
-            Swal.fire({icon:'success', title:'Guardado', text:'Cantidad recibida actualizada.'});
+            Swal.fire({icon:'success', title:'Guardado', text:'Cantidad recibida actualizada.'}).then(() => location.reload());
         } catch(e){
             Swal.fire({icon:'error', title:'Error', text: e.message});
         } finally {

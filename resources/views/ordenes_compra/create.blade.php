@@ -432,6 +432,27 @@
                         ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
                         ->orderBy('ocp.id','desc')
                         ->get();
+                    // Totales requeridos por producto (desde la distribución de centros)
+                    $reqCantPorProducto = DB::table('centro_producto')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->select('producto_id', DB::raw('SUM(amount) as req'))
+                        ->groupBy('producto_id')
+                        ->pluck('req','producto_id');
+                    // Totales recibidos por producto (confirmados en entrega)
+                    $recibidoPorProducto = DB::table('entrega')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->whereNull('deleted_at')
+                        ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
+                        ->groupBy('producto_id')
+                        ->pluck('rec','producto_id');
+                    // Entregas enviadas y pendientes de confirmación por producto (bloquean reenvío)
+                    $pendNoConfPorProducto = DB::table('entrega')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->whereNull('deleted_at')
+                        ->where(function($q){ $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); })
+                        ->select('producto_id', DB::raw('SUM(cantidad) as pend'))
+                        ->groupBy('producto_id')
+                        ->pluck('pend', 'producto_id');
                 @endphp
                 <div id="modal-entrega-oc" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
                     <div class="bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
@@ -456,23 +477,41 @@
                                             <th class="px-3 py-2 text-left">Proveedor</th>
                                             <th class="px-3 py-2 text-left">OC</th>
                                             <th class="px-3 py-2 text-center">Cantidad OC</th>
+                                            <th class="px-3 py-2 text-center">Pendiente</th>
                                             <th class="px-3 py-2 text-center">Entregar</th>
                                         </tr>
                                     </thead>
                                     <tbody id="ent-tbody">
                                         @forelse($ocpLineas as $l)
+                                        @php
+                                            $reqTot = (int) ($reqCantPorProducto[$l->producto_id] ?? 0);
+                                            $recTot = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
+                                            $faltTot = max(0, $reqTot - $recTot);
+                                            $isDone = $faltTot <= 0;
+                                            $pendLock = (int) ($pendNoConfPorProducto[$l->producto_id] ?? 0);
+                                            $maxEntregar = min((int)$l->total, $faltTot);
+                                        @endphp
                                         <tr class="border-t">
-                                            <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}"></td>
+                                            <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}" data-rem="{{ $faltTot }}" {{ ($isDone || $pendLock>0) ? 'disabled' : '' }}></td>
                                             <td class="px-3 py-2">{{ $l->name_produc }}</td>
                                             <td class="px-3 py-2">{{ $l->prov_name ?? 'Proveedor' }}</td>
                                             <td class="px-3 py-2">{{ $l->order_oc ?? ('OC-'.$l->oc_id) }}</td>
                                             <td class="px-3 py-2 text-center">{{ $l->total }}</td>
                                             <td class="px-3 py-2 text-center">
-                                                <input type="number" min="0" max="{{ $l->total }}" value="{{ $l->total }}" class="w-24 border rounded p-1 text-center ent-cant-input">
+                                                @if($isDone)
+                                                     <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Completado</span>
+                                                @elseif($pendLock>0)
+                                                    <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Enviado, esperando confirmación ({{ $pendLock }})</span>
+                                                 @else
+                                                     <span class="text-xs">{{ $recTot }} / {{ $reqTot }} recibidos · Falta {{ $faltTot }}</span>
+                                                 @endif
+                                            </td>
+                                            <td class="px-3 py-2 text-center">
+                                                <input type="number" min="0" max="{{ $maxEntregar }}" value="{{ $maxEntregar }}" class="w-24 border rounded p-1 text-center ent-cant-input" {{ ($isDone || $pendLock>0) ? 'disabled' : '' }}>
                                             </td>
                                         </tr>
                                         @empty
-                                        <tr><td colspan="6" class="px-3 py-3 text-center text-gray-500">No hay líneas de órdenes para esta requisición.</td></tr>
+                                        <tr><td colspan="7" class="px-3 py-3 text-center text-gray-500">No hay líneas de órdenes para esta requisición.</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -1123,7 +1162,7 @@
 
             function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
             function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
-            function setAll(checked){ tbody?.querySelectorAll('.ent-row-chk').forEach(ch => ch.checked = checked); }
+            function setAll(checked){ tbody?.querySelectorAll('.ent-row-chk').forEach(ch => { if (!ch.disabled) ch.checked = checked; }); }
 
             btnOpen?.addEventListener('click', open);
             btnClose?.addEventListener('click', close);
@@ -1132,16 +1171,35 @@
             chkHeader?.addEventListener('change', function(){ setAll(this.checked); });
             chkAll?.addEventListener('change', function(){ setAll(this.checked); });
 
+            // Limitar inputs a su máximo
+            tbody?.addEventListener('input', function(e){
+                if (e.target && e.target.classList.contains('ent-cant-input')){
+                    const mx = parseInt(e.target.max || '0', 10);
+                    let v = parseInt(e.target.value || '0', 10);
+                    if (isNaN(v) || v < 0) v = 0;
+                    if (mx > 0 && v > mx) v = mx;
+                    e.target.value = v;
+                }
+            });
+            
             btnSave?.addEventListener('click', async function(){
                 const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
                 const items = [];
+                const porProducto = {};
                 rows.forEach(tr => {
                     const chk = tr.querySelector('.ent-row-chk');
                     const inp = tr.querySelector('.ent-cant-input');
-                    if (!chk || !inp) return;
-                    if (!chk.checked) return;
-                    const cant = parseInt(inp.value||'0',10);
-                    if (cant>0) items.push({ producto_id: Number(chk.dataset.productoId), ocp_id: Number(chk.dataset.ocpId), cantidad: cant });
+                    if (!chk || !inp || chk.disabled || !chk.checked) return;
+                    const prodId = Number(chk.dataset.productoId);
+                    const rem = parseInt(chk.dataset.rem || '0', 10);
+                    const actual = parseInt(inp.value||'0',10);
+                    const ya = porProducto[prodId] || 0;
+                    const permitido = Math.max(0, rem - ya);
+                    const aEnviar = Math.min(Math.max(0, actual), permitido);
+                    if (aEnviar > 0) {
+                        items.push({ producto_id: prodId, ocp_id: Number(chk.dataset.ocpId), cantidad: aEnviar });
+                        porProducto[prodId] = ya + aEnviar;
+                    }
                 });
                 if (items.length === 0) { Swal.fire({icon:'info', title:'Sin selección', text:'Seleccione al menos un producto con cantidad > 0.'}); return; }
                 try {
