@@ -431,6 +431,14 @@
                         ->whereNotNull('ocp.orden_compras_id')
                         ->whereNotNull('ocp.stock_e')
                         ->where('ocp.stock_e','>',0)
+                        ->whereNotExists(function($q){
+                            $q->select(DB::raw(1))
+                              ->from('recepcion as r')
+                              ->join('orden_compras as ocr','ocr.id','=','r.orden_compra_id')
+                              ->whereColumn('ocr.requisicion_id','ocp.requisicion_id')
+                              ->whereColumn('r.producto_id','ocp.producto_id')
+                              ->whereNull('r.deleted_at');
+                        })
                         ->select('ocp.id as ocp_id','ocp.stock_e','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name')
                         ->orderBy('ocp.id','desc')
                         ->get();
@@ -496,11 +504,44 @@
     </div>
 </div>
 
+@php
+    $productosConRecepcionIds = [];
+    $entregasPrevPorProducto = [];
+    if (!empty($requisicion?->id)) {
+        $productosConRecepcionIds = DB::table('recepcion as r')
+            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+            ->where('oc.requisicion_id', $requisicion->id)
+            ->whereNull('r.deleted_at')
+            ->pluck('r.producto_id')
+            ->unique()
+            ->values()
+            ->toArray();
+        $entregasPrevPorProducto = DB::table('recepcion as r')
+            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+            ->where('oc.requisicion_id', $requisicion->id)
+            ->whereNull('r.deleted_at')
+            ->select('r.producto_id', DB::raw('SUM(r.cantidad) as total_entregado'))
+            ->groupBy('r.producto_id')
+            ->pluck('total_entregado','producto_id')
+            ->toArray();
+    }
+@endphp
+
 <script>
     // Cambiar a llave compuesta para permitir líneas distribuidas del mismo producto
     let productosAgregados = [];
     let centros = @json($centros);
     let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
+    let productosConRecepcion = @json($productosConRecepcionIds);
+    let entregasPrevPorProducto = @json($entregasPrevPorProducto);
+    
+    function yaTuvoEntrega(productoId){
+        return productosConRecepcion.includes(Number(productoId));
+    }
+
+    function showYaEntregadoAlert(){
+        Swal.fire({icon:'info', title:'Aviso', text:'Ya se realizó una entrega de stock para este producto en esta requisición.'});
+    }
 
     // Preparar la distribución original de la requisición
     let distribucionOriginal = {};
@@ -571,6 +612,18 @@
             `;
         });
 
+        const yaEntregado = yaTuvoEntrega(productoId);
+        const prevEntregado = Number((entregasPrevPorProducto && (entregasPrevPorProducto[productoId] ?? entregasPrevPorProducto[String(productoId)])) || 0);
+        // Si ya hubo entrega y no es una línea distribuida, restar del total a comprar
+        let cantidadParaComprar = cantidadOriginal;
+        if (yaEntregado && !esDistribuido) {
+            cantidadParaComprar = Math.max(0, cantidadOriginal - prevEntregado);
+            if (cantidadParaComprar <= 0) {
+                Swal.fire({icon:'info', title:'Sin remanente', text:'Este producto ya fue totalmente entregado desde stock.'});
+                return; // no agregar la línea
+            }
+        }
+
         const row = document.createElement('tr');
         row.id = rowId;
         row.innerHTML = `
@@ -581,12 +634,12 @@
                 ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
             </td>
             <td class="p-3 text-center">
-                <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadOriginal}" 
+                <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadParaComprar}" 
                     class="w-20 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
-                <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadOriginal}">
-                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="">
+                <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadParaComprar}">
+                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="${(yaEntregado && !esDistribuido) ? prevEntregado : ''}">
             </td>
             <td class="p-3 text-center">${unidad}</td>
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
@@ -596,7 +649,10 @@
                 </div>
             </td>
             <td class="p-3 text-center space-x-2">
-                <button type="button" onclick="toggleSacarStock('${rowKey}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button>
+                ${ yaEntregado 
+                    ? `<button type="button" onclick="showYaEntregadoAlert()" class="bg-gray-400 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button><div class="text-xs text-amber-700 mt-1">Entregado antes: ${prevEntregado}</div>`
+                    : `<button type="button" onclick="toggleSacarStock('${rowKey}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button>`
+                  }
                 <button type="button" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
                 <div id="sacar-stock-container-${rowKey}" class="mt-2 hidden">
@@ -611,16 +667,10 @@
 
         productosAgregados.push(rowKey);
 
-        if (esDistribuido) {
-            const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
-            totalInput.value = cantidadOriginal;
-            distribuirAutomaticamente(rowKey);
-        } else {
-            // Inicializar automáticamente la distribución con la cantidad original
-            const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
-            totalInput.value = cantidadOriginal;
-            distribuirAutomaticamente(rowKey);
-        }
+        // Ajustar distribución al total a comprar calculado
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        totalInput.value = cantidadParaComprar;
+        distribuirAutomaticamente(rowKey);
 
         // Quitar opción usada del selector
         if (esDistribuido && ocpId) {
