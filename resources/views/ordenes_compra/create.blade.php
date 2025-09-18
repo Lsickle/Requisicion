@@ -638,6 +638,8 @@
     let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
     let productosConRecepcion = @json($productosConRecepcionIds);
     let entregasPrevPorProducto = @json($entregasPrevPorProducto);
+    // Flag global: hay stock reservado sin entregar (impide anular)
+    window.hayReservadoSinEntrega = @json(($entregables ?? collect())->count() > 0);
     
     function yaTuvoEntrega(productoId){
         return productosConRecepcion.includes(Number(productoId));
@@ -855,6 +857,15 @@
     }
 
     function confirmarAnulacion(button) {
+        // Bloquear anulación si hay stock reservado sin entregar
+        if (window.hayReservadoSinEntrega) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Acción no permitida',
+                text: 'No puede anular mientras existan productos sacados de stock sin entregar. Realice primero la entrega parcial de stock.'
+            });
+            return;
+        }
         Swal.fire({
             title: '¿Estás seguro?',
             text: "Esta acción anulará la orden de compra.",
@@ -1331,41 +1342,70 @@
         const row = document.getElementById(`producto-${rowKey}`);
         const baseStock = parseInt(row?.querySelector('input[type="hidden"][name$="[id]"]')?.dataset?.stock || '0', 10);
         const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
+        const container = document.getElementById(`sacar-stock-container-${rowKey}`);
+        const btn = container ? container.querySelector('button') : null;
 
         if (!input) return;
+        if (container?.dataset.confirmed === '1') {
+            Swal.fire({icon:'info', title:'Ya confirmado', text:'Esta salida de stock ya fue confirmada.'});
+            return;
+        }
+        if (container?.dataset.busy === '1') return; // evitar doble click rápido
+        if (container) container.dataset.busy = '1';
+        if (btn) { btn.disabled = true; btn.classList.add('opacity-50','cursor-not-allowed'); }
         let val = input.value.trim();
         let n = val === '' ? 0 : parseInt(val, 10);
         if (isNaN(n) || n < 0) n = 0;
         const maxASacar = Math.max(0, baseCantidad - 1);
         if (n > maxASacar) n = maxASacar;
 
-        const res = await Swal.fire({
-            title: 'Confirmar salida de stock',
-            text: `¿Desea sacar ${n} unidad(es) del stock para esta línea?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, confirmar',
-            cancelButtonText: 'Cancelar'
-        });
-        if (!res.isConfirmed) return;
-
-        // Aplicar cambios: solo marcar stock_e y actualizar visual del stock.
-        input.value = n === 0 ? '' : n;
-        if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
-        if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
-
-        // No cambiar la cantidad total ni la distribución automáticamente.
+        let wasConfirmed = false;
+        try {
+            const res = await Swal.fire({
+                title: 'Confirmar salida de stock',
+                text: `¿Desea sacar ${n} unidad(es) del stock para esta línea?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, confirmar',
+                cancelButtonText: 'Cancelar'
+            });
+            if (!res.isConfirmed) return;
+            wasConfirmed = true;
+            // Aplicar cambios: solo marcar stock_e y actualizar visual del stock.
+            input.value = n === 0 ? '' : n;
+            if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
+            if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
+            if (container) container.dataset.confirmed = '1';
+        } finally {
+            if (container) container.dataset.busy = '0';
+            if (btn) {
+                if (wasConfirmed) {
+                    // Mantener deshabilitado tras confirmar
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50','cursor-not-allowed');
+                }
+            }
+        }
     }
 
     function toggleSacarStock(rowKey) {
+        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
+        const disponible = parseInt((stockCell?.textContent || '0').replace(/[^0-9-]/g,''), 10) || 0;
+        if (disponible <= 0) {
+            Swal.fire({ icon: 'info', title: 'Sin stock', text: 'No hay stock disponible para sacar.' });
+            return;
+        }
         const container = document.getElementById(`sacar-stock-container-${rowKey}`);
+        if (container?.dataset.confirmed === '1') {
+            Swal.fire({icon:'info', title:'Ya confirmado', text:'Esta salida de stock ya fue confirmada.'});
+            return;
+        }
         container.classList.toggle('hidden');
         const inputStock = document.getElementById(`sacar-stock-${rowKey}`);
-        if (!container.classList.contains('hidden')) {
-            inputStock.focus();
-        }
+        if (!container.classList.contains('hidden')) { inputStock.focus(); }
     }
 
     // Fallback de eventos delegados para el modal de entrega parcial
