@@ -107,7 +107,13 @@
                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
                                 <i class="fas fa-eye"></i> Ver
                             </button>
-                            @if(($ultimoEstatusId ?? null) == 12)
+                            @if(($ultimoEstatusId ?? null) == 5)
+                            <button onclick="toggleModal('modal-entregar-{{ $req->id }}')"
+                                class="bg-green-700 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-800 transition flex items-center gap-1">
+                                <i class="fas fa-dolly"></i> Entregar productos
+                            </button>
+                            @endif
+                            @if(in_array(($ultimoEstatusId ?? null), [8,12]))
                             <button onclick="toggleModal('modal-recibir-{{ $req->id }}')"
                                 class="bg-green-700 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-800 transition flex items-center gap-1">
                                 <i class="fas fa-inbox"></i> Recibir productos
@@ -323,14 +329,93 @@
      </div>
 
     @php
-        $recepcionesList = DB::table('recepcion as r')
-            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-            ->join('productos as p','p.id','=','r.producto_id')
-            ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
-            ->where('oc.requisicion_id', $req->id)
-            ->whereNull('r.deleted_at')
-            ->orderBy('r.id','asc')
+        $ocpLineas = DB::table('ordencompra_producto as ocp')
+            ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
+            ->join('productos as p','p.id','=','ocp.producto_id')
+            ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
+            ->whereNull('ocp.deleted_at')
+            ->where('ocp.requisicion_id', $req->id)
+            ->whereNotNull('ocp.orden_compras_id')
+            ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
+            ->orderBy('ocp.id','desc')
             ->get();
+    @endphp
+    <div id="modal-entregar-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-entregar-{{ $req->id }}')"></div>
+        <div class="relative w-full max-w-4xl">
+            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
+                <button onclick="toggleModal('modal-entregar-{{ $req->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl" aria-label="Cerrar">&times;</button>
+                <h3 class="text-xl font-semibold mb-4">Entregar productos - Requisición #{{ $req->id }}</h3>
+                <div class="flex items-center justify-between mb-3">
+                    <label class="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" id="ent-select-all-{{ $req->id }}" onchange="entTglAll({{ $req->id }}, this)" class="border rounded">
+                        Seleccionar todos
+                    </label>
+                    <span class="text-xs text-gray-500">Estatus resultante: 8 (Material recibido por coordinador)</span>
+                </div>
+                @if($ocpLineas->count())
+                <div class="max-h-[55vh] overflow-y-auto border rounded">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-100 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-3 py-2 text-center"><input type="checkbox" id="ent-chk-header-{{ $req->id }}" onchange="entTglAll({{ $req->id }}, this)"></th>
+                                <th class="px-3 py-2 text-left">Producto</th>
+                                <th class="px-3 py-2 text-left">Proveedor</th>
+                                <th class="px-3 py-2 text-left">OC</th>
+                                <th class="px-3 py-2 text-center">Cantidad OC</th>
+                                <th class="px-3 py-2 text-center">Entregar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ent-tbody-{{ $req->id }}">
+                            @foreach($ocpLineas as $l)
+                            <tr class="border-t">
+                                <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}"></td>
+                                <td class="px-3 py-2">{{ $l->name_produc }}</td>
+                                <td class="px-3 py-2">{{ $l->prov_name ?? 'Proveedor' }}</td>
+                                <td class="px-3 py-2">{{ $l->order_oc ?? ('OC-'.$l->oc_id) }}</td>
+                                <td class="px-3 py-2 text-center">{{ $l->total }}</td>
+                                <td class="px-3 py-2 text-center">
+                                    <input type="number" min="0" max="{{ $l->total }}" value="{{ $l->total }}" class="w-24 border rounded p-1 text-center ent-cant-input">
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @else
+                <div class="text-gray-600">No hay líneas de órdenes para esta requisición.</div>
+                @endif
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" class="px-4 py-2 border rounded" onclick="toggleModal('modal-entregar-{{ $req->id }}')">Cancelar</button>
+                    <button type="button" class="px-4 py-2 bg-green-600 text-white rounded btn-ent-save" onclick="entGuardarEntrega({{ $req->id }})">Guardar entrega</button>
+                </div>
+            </div>
+        </div>
+    </div>
+ 
+    @php
+        $hist = $req->estatusHistorial;
+        $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
+        $estatusActualId = $ultimoActivo->estatus_id ?? null;
+        $usarEntrega = ($estatusActualId == 8);
+        if ($usarEntrega) {
+            $recList = DB::table('entrega as e')
+                ->join('productos as p','p.id','=','e.producto_id')
+                ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
+                ->where('e.requisicion_id', $req->id)
+                ->whereNull('e.deleted_at')
+                ->orderBy('e.id','asc')
+                ->get();
+        } else {
+            $recList = DB::table('recepcion as r')
+                ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                ->join('productos as p','p.id','=','r.producto_id')
+                ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
+                ->where('oc.requisicion_id', $req->id)
+                ->whereNull('r.deleted_at')
+                ->orderBy('r.id','asc')
+                ->get();
+        }
     @endphp
     <div id="modal-recibir-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-recibir-{{ $req->id }}')"></div>
@@ -338,7 +423,7 @@
             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
                 <button onclick="toggleModal('modal-recibir-{{ $req->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl" aria-label="Cerrar">&times;</button>
                 <h3 class="text-xl font-semibold mb-4">Recibir productos - Requisición #{{ $req->id }}</h3>
-                @if($recepcionesList->count())
+                @if(($recList ?? collect())->count())
                 <table class="w-full text-sm border rounded overflow-hidden bg-white">
                     <thead class="bg-gray-100">
                         <tr>
@@ -349,22 +434,22 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($recepcionesList as $r)
+                        @foreach($recList as $r)
                         <tr class="border-t">
                             <td class="p-2">{{ $r->name_produc }}</td>
                             <td class="p-2 text-center">{{ $r->cantidad }}</td>
                             <td class="p-2 text-center">
-                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input" data-recepcion-id="{{ $r->id }}">
+                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input">
                             </td>
                             <td class="p-2 text-center">
-                                <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this)">Guardar</button>
+                                <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this, '{{ $usarEntrega ? 'entrega' : 'recepcion' }}')">Guardar</button>
                             </td>
                         </tr>
                         @endforeach
                     </tbody>
                 </table>
                 @else
-                    <div class="text-gray-600">No hay registros de recepción para esta requisición.</div>
+                    <div class="text-gray-600">No hay registros para esta requisición.</div>
                 @endif
             </div>
         </div>
@@ -600,7 +685,9 @@
     }
 
     // Confirmar recepción de item
-    async function confirmarRecepcionItem(id, btn){
+    const URL_CONFIRM_ENTREGA = "{{ route('entregas.confirmar') }}";
+    const URL_CONFIRM_RECEPCION = "{{ route('recepciones.confirmar') }}";
+    async function confirmarRecepcionItem(id, btn, tipo = 'recepcion'){
         const row = btn.closest('tr');
         const inp = row.querySelector('.recx-input');
         const max = parseInt(inp.max || '0', 10);
@@ -620,14 +707,16 @@
         if (!ask.isConfirmed) return;
         btn.disabled = true;
         try {
-            const resp = await fetch(`{{ route('recepciones.confirmar') }}`, {
+            const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
+            const payload = (tipo === 'entrega') ? { entrega_id: id, cantidad: val } : { recepcion_id: id, cantidad: val };
+            const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recepcion_id: id, cantidad: val })
+                body: JSON.stringify(payload)
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.message || 'Error al confirmar recepción');
-            Swal.fire({icon:'success', title:'Confirmado', text:'Recepción registrada.'}).then(()=> location.reload());
+            Swal.fire({icon:'success', title:'Guardado', text:'Cantidad recibida actualizada.'});
         } catch(e){
             Swal.fire({icon:'error', title:'Error', text: e.message});
         } finally {
@@ -662,5 +751,37 @@
             confirmButtonColor: '#1e40af'
         });
     @endif
+
+    function entSetAll(reqId, checked){
+        document.querySelectorAll(`#ent-tbody-${reqId} .ent-row-chk`).forEach(ch => ch.checked = checked);
+    }
+    function entTglAll(reqId, el){ entSetAll(reqId, el.checked); }
+    async function entGuardarEntrega(reqId){
+        const tbody = document.getElementById(`ent-tbody-${reqId}`);
+        if (!tbody) return;
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const items = [];
+        rows.forEach(tr => {
+            const chk = tr.querySelector('.ent-row-chk');
+            const inp = tr.querySelector('.ent-cant-input');
+            if (!chk || !inp) return;
+            if (!chk.checked) return;
+            const cant = parseInt(inp.value||'0',10);
+            if (cant>0) items.push({ producto_id: Number(chk.dataset.productoId), ocp_id: Number(chk.dataset.ocpId), cantidad: cant });
+        });
+        if (items.length === 0) { Swal.fire({icon:'info', title:'Sin selección', text:'Seleccione al menos un producto con cantidad > 0.'}); return; }
+        try {
+            const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                body: JSON.stringify({ requisicion_id: reqId, items, comentario: null })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
+            Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas (estatus 8).'}).then(()=> location.reload());
+        } catch(e){
+            Swal.fire({icon:'error', title:'Error', text:e.message});
+        }
+    }
 </script>
 @endsection

@@ -398,13 +398,13 @@
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
                     @endphp
-                    @if($estatusActual == 5)
-                        <a href="{{ url('recepciones/create?requisicion_id='.$requisicion->id) }}"
+                    @if(in_array($estatusActual, [5,7,8,12]))
+                        <button type="button" id="btn-abrir-entrega-oc"
                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow mr-2">
-                            Recibir productos
-                        </a>
+                           Entregar productos
+                        </button>
                     @endif
-                    @if($hayOrdenes || in_array($estatusActual, [5,7,8]))
+                     @if($hayOrdenes || in_array($estatusActual, [5,7,8]))
                         <button type="button" id="btn-abrir-entrega-parcial"
                            class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
                            Realizar entrega parcial de stock
@@ -413,91 +413,156 @@
                            class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow mr-2">
                            Restaurar stock
                         </button>
-                    @endif
-                     <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
+                     @endif
+                      <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
                          class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
                          Descargar PDF/ZIP
                      </a>
                 </div>
 
-                <!-- Modal Entrega Parcial (funcional) -->
                 @php
-                    $entregables = DB::table('ordencompra_producto as ocp')
+                    // Productos de todas las órdenes para el modal de entrega (estatus 5)
+                    $ocpLineas = DB::table('ordencompra_producto as ocp')
                         ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
                         ->join('productos as p','p.id','=','ocp.producto_id')
                         ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
                         ->whereNull('ocp.deleted_at')
                         ->where('ocp.requisicion_id', $requisicion->id)
                         ->whereNotNull('ocp.orden_compras_id')
-                        ->whereNotNull('ocp.stock_e')
-                        ->where('ocp.stock_e','>',0)
-                        ->whereNotExists(function($q){
-                            $q->select(DB::raw(1))
-                              ->from('recepcion as r')
-                              ->join('orden_compras as ocr','ocr.id','=','r.orden_compra_id')
-                              ->whereColumn('ocr.requisicion_id','ocp.requisicion_id')
-                              ->whereColumn('r.producto_id','ocp.producto_id')
-                              ->whereNull('r.deleted_at');
-                        })
-                        ->select('ocp.id as ocp_id','ocp.stock_e','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name')
+                        ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
                         ->orderBy('ocp.id','desc')
                         ->get();
                 @endphp
-                <div id="modal-entrega-parcial" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
-                    <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                <div id="modal-entrega-oc" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
                         <div class="flex justify-between items-center px-6 py-4 border-b">
-                            <h3 class="text-lg font-semibold">Entrega parcial de stock</h3>
-                            <button type="button" id="ep-close" class="text-gray-600 hover:text-gray-800">✕</button>
+                            <h3 class="text-lg font-semibold">Entregar productos de órdenes de compra</h3>
+                            <button type="button" id="ent-close" class="text-gray-600 hover:text-gray-800">✕</button>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
-                            <div class="border rounded-lg overflow-hidden">
-                                <div class="px-4 py-2 bg-gray-50 border-b text-sm font-medium">Líneas con stock para entregar</div>
-                                <div class="max-h-64 overflow-y-auto">
-                                    <table class="min-w-full text-sm">
-                                        <thead class="bg-gray-100 sticky top-0">
-                                            <tr>
-                                                <th class="px-3 py-2 text-left">Producto</th>
-                                                <th class="px-3 py-2 text-center">Disponible</th>
-                                                <th class="px-3 py-2 text-left">OC</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="ep-tbody">
-                                            @forelse($entregables as $e)
-                                            <tr class="border-t hover:bg-gray-50 cursor-pointer ep-row" data-ocp-id="{{ $e->ocp_id }}" data-producto-id="{{ $e->producto_id }}" data-disponible="{{ $e->stock_e }}" data-nombre="{{ $e->name_produc }}" data-orden="{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}">
-                                                <td class="px-3 py-2">{{ $e->name_produc }}</td>
-                                                <td class="px-3 py-2 text-center font-semibold">{{ $e->stock_e }}</td>
-                                                <td class="px-3 py-2">{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}</td>
-                                            </tr>
-                                            @empty
-                                            <tr>
-                                                <td colspan="3" class="px-3 py-3 text-center text-gray-500">No hay líneas con stock para entregar</td>
-                                            </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
-                                </div>
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="inline-flex items-center gap-2 text-sm">
+                                    <input type="checkbox" id="ent-select-all" class="border rounded">
+                                    Seleccionar todos
+                                </label>
+                                <span class="text-xs text-gray-500">Estatus resultante: 8 (Material recibido por coordinador)</span>
                             </div>
-                            <div class="border rounded-lg p-4 bg-gray-50" id="ep-detalle">
-                                <div class="text-sm text-gray-600 mb-2">Detalle seleccionado</div>
-                                <div class="space-y-2">
-                                    <div><span class="text-gray-500 text-sm">Producto:</span> <span id="ep-prod" class="font-medium">—</span></div>
-                                    <div><span class="text-gray-500 text-sm">Disponible (stock):</span> <span id="ep-disp" class="font-semibold">0</span></div>
-                                    <div><span class="text-gray-500 text-sm">Orden:</span> <span id="ep-oc" class="font-medium">—</span></div>
-                                </div>
-                                <div class="mt-4">
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a entregar</label>
-                                    <input type="number" id="ep-cant" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad" disabled>
-                                    <input type="hidden" id="ep-ocp-id" value="">
-                                    <input type="hidden" id="ep-producto-id" value="">
-                                </div>
+                            <div class="max-h-[55vh] overflow-y-auto border rounded">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-100 sticky top-0 z-10">
+                                        <tr>
+                                            <th class="px-3 py-2 text-center"><input type="checkbox" id="ent-chk-header"></th>
+                                            <th class="px-3 py-2 text-left">Producto</th>
+                                            <th class="px-3 py-2 text-left">Proveedor</th>
+                                            <th class="px-3 py-2 text-left">OC</th>
+                                            <th class="px-3 py-2 text-center">Cantidad OC</th>
+                                            <th class="px-3 py-2 text-center">Entregar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ent-tbody">
+                                        @forelse($ocpLineas as $l)
+                                        <tr class="border-t">
+                                            <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}"></td>
+                                            <td class="px-3 py-2">{{ $l->name_produc }}</td>
+                                            <td class="px-3 py-2">{{ $l->prov_name ?? 'Proveedor' }}</td>
+                                            <td class="px-3 py-2">{{ $l->order_oc ?? ('OC-'.$l->oc_id) }}</td>
+                                            <td class="px-3 py-2 text-center">{{ $l->total }}</td>
+                                            <td class="px-3 py-2 text-center">
+                                                <input type="number" min="0" max="{{ $l->total }}" value="{{ $l->total }}" class="w-24 border rounded p-1 text-center ent-cant-input">
+                                            </td>
+                                        </tr>
+                                        @empty
+                                        <tr><td colspan="6" class="px-3 py-3 text-center text-gray-500">No hay líneas de órdenes para esta requisición.</td></tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                         <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-                            <button type="button" id="ep-cancel" class="px-4 py-2 border rounded">Cancelar</button>
-                            <button type="button" id="ep-save" class="px-4 py-2 bg-blue-600 text-white rounded" disabled>Realizar entrega</button>
+                            <button type="button" id="ent-cancel" class="px-4 py-2 border rounded">Cancelar</button>
+                            <button type="button" id="ent-save" class="px-4 py-2 bg-green-600 text-white rounded">Realizar entrega</button>
                         </div>
                     </div>
                 </div>
+                 
+                 <!-- Modal Entrega Parcial (funcional) -->
+                 @php
+                     $entregables = DB::table('ordencompra_producto as ocp')
+                         ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
+                         ->join('productos as p','p.id','=','ocp.producto_id')
+                         ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
+                         ->whereNull('ocp.deleted_at')
+                         ->where('ocp.requisicion_id', $requisicion->id)
+                         ->whereNotNull('ocp.orden_compras_id')
+                         ->whereNotNull('ocp.stock_e')
+                         ->where('ocp.stock_e','>',0)
+                         ->whereNotExists(function($q){
+                             $q->select(DB::raw(1))
+                               ->from('recepcion as r')
+                               ->join('orden_compras as ocr','ocr.id','=','r.orden_compra_id')
+                               ->whereColumn('ocr.requisicion_id','ocp.requisicion_id')
+                               ->whereColumn('r.producto_id','ocp.producto_id')
+                               ->whereNull('r.deleted_at');
+                         })
+                         ->select('ocp.id as ocp_id','ocp.stock_e','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name')
+                         ->orderBy('ocp.id','desc')
+                         ->get();
+                 @endphp
+                 <div id="modal-entrega-parcial" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
+                     <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                         <div class="flex justify-between items-center px-6 py-4 border-b">
+                             <h3 class="text-lg font-semibold">Entrega parcial de stock</h3>
+                             <button type="button" id="ep-close" class="text-gray-600 hover:text-gray-800">✕</button>
+                         </div>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                             <div class="border rounded-lg overflow-hidden">
+                                 <div class="px-4 py-2 bg-gray-50 border-b text-sm font-medium">Líneas con stock para entregar</div>
+                                 <div class="max-h-64 overflow-y-auto">
+                                     <table class="min-w-full text-sm">
+                                         <thead class="bg-gray-100 sticky top-0">
+                                             <tr>
+                                                 <th class="px-3 py-2 text-left">Producto</th>
+                                                 <th class="px-3 py-2 text-center">Disponible</th>
+                                                 <th class="px-3 py-2 text-left">OC</th>
+                                             </tr>
+                                         </thead>
+                                         <tbody id="ep-tbody">
+                                             @forelse($entregables as $e)
+                                             <tr class="border-t hover:bg-gray-50 cursor-pointer ep-row" data-ocp-id="{{ $e->ocp_id }}" data-producto-id="{{ $e->producto_id }}" data-disponible="{{ $e->stock_e }}" data-nombre="{{ $e->name_produc }}" data-orden="{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}">
+                                                 <td class="px-3 py-2">{{ $e->name_produc }}</td>
+                                                 <td class="px-3 py-2 text-center font-semibold">{{ $e->stock_e }}</td>
+                                                 <td class="px-3 py-2">{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}</td>
+                                             </tr>
+                                             @empty
+                                             <tr>
+                                                 <td colspan="3" class="px-3 py-3 text-center text-gray-500">No hay líneas con stock para entregar</td>
+                                             </tr>
+                                             @endforelse
+                                         </tbody>
+                                     </table>
+                                 </div>
+                             </div>
+                             <div class="border rounded-lg p-4 bg-gray-50" id="ep-detalle">
+                                 <div class="text-sm text-gray-600 mb-2">Detalle seleccionado</div>
+                                 <div class="space-y-2">
+                                     <div><span class="text-gray-500 text-sm">Producto:</span> <span id="ep-prod" class="font-medium">—</span></div>
+                                     <div><span class="text-gray-500 text-sm">Disponible (stock):</span> <span id="ep-disp" class="font-semibold">0</span></div>
+                                     <div><span class="text-gray-500 text-sm">Orden:</span> <span id="ep-oc" class="font-medium">—</span></div>
+                                 </div>
+                                 <div class="mt-4">
+                                     <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a entregar</label>
+                                     <input type="number" id="ep-cant" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad" disabled>
+                                     <input type="hidden" id="ep-ocp-id" value="">
+                                     <input type="hidden" id="ep-producto-id" value="">
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                             <button type="button" id="ep-cancel" class="px-4 py-2 border rounded">Cancelar</button>
+                             <button type="button" id="ep-save" class="px-4 py-2 bg-blue-600 text-white rounded" disabled>Realizar entrega</button>
+                         </div>
+                     </div>
+                 </div>
             </div>
             @endif
         </div>
@@ -614,15 +679,8 @@
 
         const yaEntregado = yaTuvoEntrega(productoId);
         const prevEntregado = Number((entregasPrevPorProducto && (entregasPrevPorProducto[productoId] ?? entregasPrevPorProducto[String(productoId)])) || 0);
-        // Si ya hubo entrega y no es una línea distribuida, restar del total a comprar
+        // Usar siempre la cantidad original; entregas previas no afectan la OC
         let cantidadParaComprar = cantidadOriginal;
-        if (yaEntregado && !esDistribuido) {
-            cantidadParaComprar = Math.max(0, cantidadOriginal - prevEntregado);
-            if (cantidadParaComprar <= 0) {
-                Swal.fire({icon:'info', title:'Sin remanente', text:'Este producto ya fue totalmente entregado desde stock.'});
-                return; // no agregar la línea
-            }
-        }
 
         const row = document.createElement('tr');
         row.id = rowId;
@@ -639,7 +697,7 @@
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
                 <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadParaComprar}">
-                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="${(yaEntregado && !esDistribuido) ? prevEntregado : ''}">
+                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="">
             </td>
             <td class="p-3 text-center">${unidad}</td>
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
@@ -667,10 +725,9 @@
 
         productosAgregados.push(rowKey);
 
-        // Ajustar distribución al total a comprar calculado
+        // Establecer la cantidad inicial sin modificar la distribución
         const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
         totalInput.value = cantidadParaComprar;
-        distribuirAutomaticamente(rowKey);
 
         // Quitar opción usada del selector
         if (esDistribuido && ocpId) {
@@ -1053,6 +1110,56 @@
             }
         });
 
+        // Modal Entregar productos (estatus 5)
+        (function(){
+            const modal = document.getElementById('modal-entrega-oc');
+            const btnOpen = document.getElementById('btn-abrir-entrega-oc');
+            const btnClose = document.getElementById('ent-close');
+            const btnCancel = document.getElementById('ent-cancel');
+            const btnSave = document.getElementById('ent-save');
+            const tbody = document.getElementById('ent-tbody');
+            const chkHeader = document.getElementById('ent-chk-header');
+            const chkAll = document.getElementById('ent-select-all');
+
+            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
+            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
+            function setAll(checked){ tbody?.querySelectorAll('.ent-row-chk').forEach(ch => ch.checked = checked); }
+
+            btnOpen?.addEventListener('click', open);
+            btnClose?.addEventListener('click', close);
+            btnCancel?.addEventListener('click', close);
+            modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+            chkHeader?.addEventListener('change', function(){ setAll(this.checked); });
+            chkAll?.addEventListener('change', function(){ setAll(this.checked); });
+
+            btnSave?.addEventListener('click', async function(){
+                const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
+                const items = [];
+                rows.forEach(tr => {
+                    const chk = tr.querySelector('.ent-row-chk');
+                    const inp = tr.querySelector('.ent-cant-input');
+                    if (!chk || !inp) return;
+                    if (!chk.checked) return;
+                    const cant = parseInt(inp.value||'0',10);
+                    if (cant>0) items.push({ producto_id: Number(chk.dataset.productoId), ocp_id: Number(chk.dataset.ocpId), cantidad: cant });
+                });
+                if (items.length === 0) { Swal.fire({icon:'info', title:'Sin selección', text:'Seleccione al menos un producto con cantidad > 0.'}); return; }
+                try {
+                    const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, items, comentario: null })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
+                    close();
+                    Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas (estatus 8).'}).then(()=> location.reload());
+                } catch(e){
+                    Swal.fire({icon:'error', title:'Error', text:e.message});
+                }
+            });
+        })();
+
         // Modal Entrega Parcial
         (function(){
             const modal = document.getElementById('modal-entrega-parcial');
@@ -1066,7 +1173,7 @@
             const spanOc = document.getElementById('ep-oc');
             const inpCant = document.getElementById('ep-cant');
             const inputOcpId = document.getElementById('ep-ocp-id');
-
+            
             function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
             function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); reset(); } }
             function reset(){
@@ -1139,18 +1246,10 @@
 
     function onCantidadTotalChange(rowKey) {
         const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
-        const baseCantidadInput = document.getElementById(`base-cantidad-${rowKey}`);
-        const cantidadBase = parseInt(baseCantidadInput?.value) || 0;
         let nuevaCantidad = parseInt(totalInput?.value) || 0;
-
-        if (nuevaCantidad > cantidadBase) nuevaCantidad = cantidadBase;
         if (nuevaCantidad < 1) nuevaCantidad = 1;
         totalInput.value = nuevaCantidad;
-
-        // Ya no sincronizamos automáticamente "sacar de stock" con la cantidad
-        // ni ajustamos el stock visible aquí.
-
-        distribuirAutomaticamente(rowKey);
+        // No ajustar automáticamente la distribución; el usuario puede editar centros.
     }
 
     function sanearSacarStock(rowKey){
@@ -1199,8 +1298,7 @@
         if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
         if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
 
-        // No cambiar la cantidad total. Mantener distribución según el total actual.
-        distribuirAutomaticamente(rowKey);
+        // No cambiar la cantidad total ni la distribución automáticamente.
     }
 
     function toggleSacarStock(rowKey) {

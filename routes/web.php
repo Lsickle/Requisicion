@@ -20,6 +20,8 @@ use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
 use App\Http\Controllers\Proveedores\ProveedoresController;
 use App\Http\Controllers\dashboard\DashboardController;
+use App\Http\Controllers\EntregasController;
+use App\Http\Controllers\StockController;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -229,6 +231,14 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/recepciones/entrega-parcial', [OrdenCompraController::class, 'storeEntregaParcial'])->name('recepciones.storeEntregaParcial');
     Route::post('/recepciones/restaurar-stock', [OrdenCompraController::class, 'restaurarStock'])->name('recepciones.restaurarStock');
     Route::post('/recepciones/confirmar', [OrdenCompraController::class, 'confirmarRecepcion'])->name('recepciones.confirmar');
+
+    // Entregas masivas (guardar en tabla entrega) -> estatus 8, comentario null
+    Route::post('/entregas/store-masiva', [EntregasController::class, 'storeMasiva'])->name('entregas.storeMasiva');
+    // Confirmar recepción sobre tabla entrega (actualizar cantidad_recibido)
+    Route::post('/entregas/confirmar', [EntregasController::class, 'confirmar'])->name('entregas.confirmar');
+
+    // Restaurar stock de líneas con stock_e y volver a estatus 5, comentario null
+    Route::post('/ordenes-compra/restaurar-stock', [StockController::class, 'restaurarStock'])->name('ordenes_compra.restaurarStock');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);
