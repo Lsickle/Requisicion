@@ -379,14 +379,8 @@ class OrdenCompraController extends Controller
         }
 
         // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
-        try {
-            $statusRequest = new \Illuminate\Http\Request();
-            $statusRequest->replace(['estatus_id' => 5, 'comentario' => 'Cambio automático al descargar OC']);
-            app(EstatusRequisicionController::class)->updateStatus($statusRequest, $requisicionId);
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo actualizar estatus a 5 al descargar: ' . $e->getMessage());
-        }
-
+        try { $this->setRequisicionStatus((int)$requisicionId, 5, 'Cambio automático al descargar OC'); } catch (\Throwable $e) {}
+         
         $zip = new ZipArchive();
         $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
         $zipPath = storage_path('app/temp/' . $zipFileName);
@@ -630,13 +624,7 @@ class OrdenCompraController extends Controller
     public function download($requisicionId)
     {
         // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
-        try {
-            $statusRequest = new \Illuminate\Http\Request();
-            $statusRequest->replace(['estatus_id' => 5, 'comentario' => 'Cambio automático al descargar OC']);
-            app(EstatusRequisicionController::class)->updateStatus($statusRequest, $requisicionId);
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo actualizar estatus a 5 al descargar: ' . $e->getMessage());
-        }
+        try { $this->setRequisicionStatus((int)$requisicionId, 5, 'Cambio automático al descargar OC'); } catch (\Throwable $e) {}
 
         $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
             ->with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
@@ -758,33 +746,39 @@ class OrdenCompraController extends Controller
     public function storeEntregaParcial(Request $request)
     {
         $data = $request->validate([
-            'requisicion_id' => 'required|exists:requisicion,id',
-            'producto_id' => 'required|exists:productos,id',
+            'ocp_id' => 'required|exists:ordencompra_producto,id',
             'cantidad' => 'required|integer|min:1',
         ]);
 
         try {
             DB::beginTransaction();
 
-            $producto = Producto::lockForUpdate()->findOrFail($data['producto_id']);
-            $sacar = min((int)$data['cantidad'], max(0, (int)$producto->stock_produc));
+            $ocp = OrdenCompraProducto::lockForUpdate()->findOrFail((int)$data['ocp_id']);
+            if (!$ocp->orden_compras_id) throw new \Exception('La línea no pertenece a una Orden de Compra');
+            $disponible = (int)($ocp->stock_e ?? 0);
+            if ($disponible < 1) throw new \Exception('No hay stock para entregar');
+            $entregar = min((int)$data['cantidad'], $disponible);
 
-            // Registrar una línea temporal en ordencompra_producto con stock_e
-            $ocp = OrdenCompraProducto::create([
-                'producto_id' => $producto->id,
-                'orden_compras_id' => null,
-                'requisicion_id' => (int)$data['requisicion_id'],
-                'proveedor_id' => null,
-                'total' => 0,
-                'stock_e' => $sacar,
+            // Crear registro recepcion (cantidad_recibido = null, fecha automática)
+            DB::table('recepcion')->insert([
+                'orden_compra_id' => $ocp->orden_compras_id,
+                'producto_id' => $ocp->producto_id,
+                'cantidad' => $entregar,
+                'cantidad_recibido' => null,
+                'fecha' => now()->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
-            // Descontar stock del producto
-            $producto->stock_produc = max(0, (int)$producto->stock_produc - $sacar);
-            $producto->save();
+            // Descontar de stock_e y guardar
+            $ocp->stock_e = $disponible - $entregar;
+            $ocp->save();
+
+            // Estatus 12 a la requisición
+            $this->setRequisicionStatus((int)$ocp->requisicion_id, 12, 'Entrega parcial registrada');
 
             DB::commit();
-            return response()->json(['ok' => true, 'ocp_id' => $ocp->id]);
+            return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -815,6 +809,51 @@ class OrdenCompraController extends Controller
             } else {
                 $ocp->save();
             }
+
+            DB::commit();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null): void
+    {
+        // Desactivar estatus activos previos y crear el nuevo
+        DB::table('estatus_requisicion')
+            ->where('requisicion_id', $requisicionId)
+            ->update(['estatus' => 0, 'updated_at' => now()]);
+
+        DB::table('estatus_requisicion')->insert([
+            'requisicion_id' => $requisicionId,
+            'estatus_id' => $estatusId,
+            'estatus' => 1,
+            'comentario' => $comentario,
+            'date_update' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function confirmarRecepcion(Request $request)
+    {
+        $data = $request->validate([
+            'recepcion_id' => 'required|exists:recepcion,id',
+            'cantidad' => 'required|integer|min:0',
+        ]);
+        try {
+            DB::beginTransaction();
+            $rec = DB::table('recepcion')->lockForUpdate()->where('id', (int)$data['recepcion_id'])->first();
+            if (!$rec) throw new \Exception('Registro no encontrado');
+            $max = (int)$rec->cantidad;
+            $val = (int)$data['cantidad'];
+            if ($val > $max) throw new \Exception('No puede recibir más de lo entregado');
+
+            DB::table('recepcion')->where('id', $rec->id)->update([
+                'cantidad_recibido' => $val,
+                'updated_at' => now(),
+            ]);
 
             DB::commit();
             return response()->json(['ok' => true]);
