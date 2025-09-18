@@ -227,6 +227,7 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Ruta para recibir entrega parcial de productos
     Route::post('/recepciones/entrega-parcial', [OrdenCompraController::class, 'storeEntregaParcial'])->name('recepciones.storeEntregaParcial');
+    Route::post('/recepciones/restaurar-stock', [OrdenCompraController::class, 'restaurarStock'])->name('recepciones.restaurarStock');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

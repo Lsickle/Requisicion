@@ -754,4 +754,73 @@ class OrdenCompraController extends Controller
         $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
         return $pdf->download($fileName);
     }
+
+    public function storeEntregaParcial(Request $request)
+    {
+        $data = $request->validate([
+            'requisicion_id' => 'required|exists:requisicion,id',
+            'producto_id' => 'required|exists:productos,id',
+            'cantidad' => 'required|integer|min:1',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $producto = Producto::lockForUpdate()->findOrFail($data['producto_id']);
+            $sacar = min((int)$data['cantidad'], max(0, (int)$producto->stock_produc));
+
+            // Registrar una línea temporal en ordencompra_producto con stock_e
+            $ocp = OrdenCompraProducto::create([
+                'producto_id' => $producto->id,
+                'orden_compras_id' => null,
+                'requisicion_id' => (int)$data['requisicion_id'],
+                'proveedor_id' => null,
+                'total' => 0,
+                'stock_e' => $sacar,
+            ]);
+
+            // Descontar stock del producto
+            $producto->stock_produc = max(0, (int)$producto->stock_produc - $sacar);
+            $producto->save();
+
+            DB::commit();
+            return response()->json(['ok' => true, 'ocp_id' => $ocp->id]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function restaurarStock(Request $request)
+    {
+        $data = $request->validate([
+            'ocp_id' => 'required|exists:ordencompra_producto,id',
+            'cantidad' => 'required|integer|min:1',
+        ]);
+
+        try {
+            DB::beginTransaction();
+            $ocp = OrdenCompraProducto::lockForUpdate()->findOrFail((int)$data['ocp_id']);
+            if (($ocp->stock_e ?? 0) < 1) throw new \Exception('La línea seleccionada no tiene stock para restaurar');
+            $restaurar = min((int)$data['cantidad'], (int)$ocp->stock_e);
+
+            $producto = Producto::lockForUpdate()->findOrFail($ocp->producto_id);
+            $producto->stock_produc = (int)$producto->stock_produc + $restaurar;
+            $producto->save();
+
+            $ocp->stock_e = (int)$ocp->stock_e - $restaurar;
+            if ($ocp->stock_e <= 0 && ($ocp->orden_compras_id === null) && ($ocp->total === 0)) {
+                // Limpieza: si es sólo registro de stock y ya no queda, eliminar
+                $ocp->delete();
+            } else {
+                $ocp->save();
+            }
+
+            DB::commit();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
 }

@@ -402,9 +402,15 @@
                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow mr-2">
                             Recibir productos
                         </a>
+                    @endif
+                    @if(in_array($estatusActual, [5,7,8]))
                         <button type="button" id="btn-abrir-entrega-parcial"
                            class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
                            Realizar entrega parcial de stock
+                        </button>
+                        <button type="button" id="btn-restaurar-stock"
+                           class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow mr-2">
+                           Restaurar stock
                         </button>
                     @endif
                      <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
@@ -449,6 +455,74 @@
                         <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
                             <button type="button" id="ep-cancel" class="px-4 py-2 border rounded">Cancelar</button>
                             <button type="button" id="ep-save" class="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Restaurar Stock -->
+                @php
+                    $restaurables = DB::table('ordencompra_producto as ocp')
+                        ->join('productos as p', 'ocp.producto_id', '=', 'p.id')
+                        ->leftJoin('proveedores as prov', 'ocp.proveedor_id', '=', 'prov.id')
+                        ->whereNull('ocp.deleted_at')
+                        ->where('ocp.requisicion_id', $requisicion->id)
+                        ->whereNotNull('ocp.stock_e')
+                        ->where('ocp.stock_e', '>', 0)
+                        ->select('ocp.id as ocp_id','ocp.producto_id','ocp.stock_e','p.name_produc','p.unit_produc','p.stock_produc','prov.prov_name')
+                        ->orderBy('ocp.id','desc')
+                        ->get();
+                @endphp
+                <div id="modal-restaurar-stock" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                        <div class="flex justify-between items-center px-6 py-4 border-b">
+                            <h3 class="text-lg font-semibold">Restaurar stock</h3>
+                            <button type="button" id="rs-close" class="text-gray-600 hover:text-gray-800">✕</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                            <div class="border rounded-lg overflow-hidden">
+                                <div class="px-4 py-2 bg-gray-50 border-b text-sm font-medium">Líneas con salida de stock</div>
+                                <div class="max-h-64 overflow-y-auto">
+                                    <table class="min-w-full text-sm">
+                                        <thead class="bg-gray-100 sticky top-0">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left">Producto</th>
+                                                <th class="px-3 py-2 text-center">Sacado</th>
+                                                <th class="px-3 py-2 text-left">Proveedor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rs-tbody">
+                                            @forelse($restaurables as $r)
+                                            <tr class="border-t hover:bg-gray-50 cursor-pointer rs-row" data-ocp-id="{{ $r->ocp_id }}" data-producto-id="{{ $r->producto_id }}" data-sacado="{{ $r->stock_e }}" data-nombre="{{ $r->name_produc }}">
+                                                <td class="px-3 py-2">{{ $r->name_produc }}</td>
+                                                <td class="px-3 py-2 text-center font-semibold">{{ $r->stock_e }}</td>
+                                                <td class="px-3 py-2">{{ $r->prov_name ?? 'Proveedor' }}</td>
+                                            </tr>
+                                            @empty
+                                            <tr>
+                                                <td colspan="3" class="px-3 py-3 text-center text-gray-500">No hay líneas con stock a restaurar</td>
+                                            </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="border rounded-lg p-4 bg-gray-50" id="rs-detalle">
+                                <div class="text-sm text-gray-600 mb-2">Detalle seleccionado</div>
+                                <div class="space-y-2">
+                                    <div><span class="text-gray-500 text-sm">Producto:</span> <span id="rs-prod" class="font-medium">—</span></div>
+                                    <div><span class="text-gray-500 text-sm">Sacado de stock:</span> <span id="rs-sacado" class="font-semibold">0</span></div>
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a restaurar</label>
+                                    <input type="number" id="rs-cant" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad" disabled>
+                                    <input type="hidden" id="rs-ocp-id" value="">
+                                    <input type="hidden" id="rs-producto-id" value="">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                            <button type="button" id="rs-cancel" class="px-4 py-2 border rounded">Cancelar</button>
+                            <button type="button" id="rs-save" class="px-4 py-2 bg-amber-600 text-white rounded" disabled>Restaurar</button>
                         </div>
                     </div>
                 </div>
@@ -976,6 +1050,7 @@
             const spanCant = document.getElementById('ep-cantidad');
             const spanStock = document.getElementById('ep-stock');
             const inpCant = document.getElementById('ep-cant-retirar');
+            const btnRestaurar = document.getElementById('btn-restaurar-stock');
 
             function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
             function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); reset(); } }
@@ -1011,6 +1086,89 @@
                     if (!resp.ok) throw new Error(data.message || 'Error al registrar la entrega parcial');
                     close();
                     Swal.fire({icon:'success', title:'Éxito', text:'Entrega parcial registrada.'}).then(()=> location.reload());
+                } catch (e) {
+                    Swal.fire({icon:'error', title:'Error', text: e.message});
+                }
+            });
+        })();
+
+        // Modal Restaurar Stock
+        (function(){
+            const modal = document.getElementById('modal-restaurar-stock');
+            const btnOpen = document.getElementById('btn-restaurar-stock');
+            const btnClose = document.getElementById('rs-close');
+            const btnCancel = document.getElementById('rs-cancel');
+            const btnSave = document.getElementById('rs-save');
+            const tbody = document.getElementById('rs-tbody');
+            const spanProd = document.getElementById('rs-prod');
+            const spanSacado = document.getElementById('rs-sacado');
+            const inpCant = document.getElementById('rs-cant');
+            const inputOcpId = document.getElementById('rs-ocp-id');
+            const inputProductoId = document.getElementById('rs-producto-id');
+
+            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
+            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); reset(); } }
+            function reset(){
+                // Mantener las filas, solo limpiar selección y controles
+                if (tbody) tbody.querySelectorAll('.rs-row.bg-blue-50').forEach(r => r.classList.remove('bg-blue-50'));
+                if (spanProd) spanProd.textContent = '—';
+                if (spanSacado) spanSacado.textContent = '0';
+                if (inpCant) { inpCant.value = ''; inpCant.disabled = true; inpCant.removeAttribute('max'); }
+                if (inputOcpId) inputOcpId.value = '';
+                if (inputProductoId) inputProductoId.value = '';
+                if (btnSave) btnSave.disabled = true;
+            }
+
+            if (btnOpen) btnOpen.addEventListener('click', open);
+            if (btnClose) btnClose.addEventListener('click', close);
+            if (btnCancel) btnCancel.addEventListener('click', close);
+            if (modal) modal.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+
+            tbody.addEventListener('click', function(e){
+                const row = e.target.closest('.rs-row');
+                if (!row) return;
+                // Selección única
+                tbody.querySelectorAll('.rs-row.bg-blue-50').forEach(r => r.classList.remove('bg-blue-50'));
+                row.classList.add('bg-blue-50');
+                const ocpId = row.dataset.ocpId;
+                const productoId = row.dataset.productoId;
+                const sacado = parseInt(row.dataset.sacado || '0', 10);
+                const nombre = row.dataset.nombre;
+                spanProd.textContent = nombre;
+                spanSacado.textContent = sacado;
+                inpCant.value = sacado;
+                inpCant.disabled = false;
+                inpCant.min = 1;
+                inpCant.max = sacado > 0 ? sacado : 1;
+                inputOcpId.value = ocpId;
+                inputProductoId.value = productoId;
+                btnSave.disabled = false;
+            });
+
+            if (inpCant) inpCant.addEventListener('input', function(){
+                let v = parseInt(this.value || '0', 10);
+                const mx = parseInt(this.max || '0', 10);
+                if (isNaN(v) || v < 1) v = 1;
+                if (mx > 0 && v > mx) v = mx;
+                this.value = v;
+            });
+
+            btnSave.addEventListener('click', async function(){
+                const ocpId = inputOcpId.value;
+                const cantidad = parseInt(inpCant.value || '0', 10);
+                if (!ocpId) return Swal.fire({icon:'warning', title:'Atención', text:'Seleccione una línea para restaurar'});
+                if (!cantidad || cantidad < 1) return Swal.fire({icon:'warning', title:'Atención', text:'Ingrese una cantidad válida'});
+
+                try {
+                    const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ocp_id: ocpId, cantidad })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al restaurar stock');
+                    close();
+                    Swal.fire({icon:'success', title:'Éxito', text:'Stock restaurado correctamente.'}).then(()=> location.reload());
                 } catch (e) {
                     Swal.fire({icon:'error', title:'Error', text: e.message});
                 }
