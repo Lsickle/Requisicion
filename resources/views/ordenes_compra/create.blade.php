@@ -965,7 +965,7 @@
                 const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData })
+                    body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
@@ -1034,7 +1034,7 @@
                     const resp = await fetch(`{{ route('ordenes_compra.undoDistribucion') }}`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, ocp_ids: idsSeleccionados })
+                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, ocp_ids: idsSeleccionados, comentario: null })
                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al deshacer distribución');
@@ -1124,7 +1124,7 @@
                     const resp = await fetch(`{{ route('recepciones.storeEntregaParcial') }}`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ocp_id: ocpId, cantidad })
+                        body: JSON.stringify({ ocp_id: ocpId, cantidad, comentario: null })
                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al registrar la entrega');
