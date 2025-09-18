@@ -121,44 +121,60 @@
 
             <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
             <div class="overflow-x-auto">
+                @php $totalGeneral = 0; @endphp
                 <table class="min-w-full border border-gray-200">
-                    <thead class="bg-gray-100">
+                    <thead class="bg-gray-100 text-gray-700">
                         <tr>
                             <th class="px-4 py-2 text-left">Producto</th>
-                            <th class="px-4 py-2 text-left">Cantidad Total</th>
+                            <th class="px-4 py-2 text-center">Cantidad</th>
+                            <th class="px-4 py-2 text-right">Precio</th>
+                            <th class="px-4 py-2 text-right">Total</th>
                             <th class="px-4 py-2 text-left">Distribución por Centros</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="divide-y">
                         @foreach($req->productos as $prod)
-                        @php
-                        $distribucion = DB::table('centro_producto')
-                            ->where('requisicion_id', $req->id)
-                            ->where('producto_id', $prod->id)
-                            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                            ->select('centro.name_centro', 'centro_producto.amount')
-                            ->get();
-                        @endphp
-                        <tr>
-                            <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
-                            <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}</td>
-                            <td class="px-4 py-3 border">
-                                @if($distribucion->count() > 0)
-                                <div class="space-y-2">
-                                    @foreach($distribucion as $centro)
-                                    <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
-                                        <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
-                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
-                                    </div>
-                                    @endforeach
-                                </div>
-                                @else
-                                <span class="text-gray-500 text-sm">No hay distribución registrada</span>
-                                @endif
-                            </td>
-                        </tr>
+                            @php
+                                $precio = (float) ($prod->price_produc ?? 0);
+                                $cantidad = (float) ($prod->pivot->pr_amount ?? 0);
+                                $totalProd = round($precio * $cantidad, 2);
+                                $totalGeneral = round($totalGeneral + $totalProd, 2);
+                                $distribucion = DB::table('centro_producto')
+                                    ->where('requisicion_id', $req->id)
+                                    ->where('producto_id', $prod->id)
+                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                    ->select('centro.name_centro', 'centro_producto.amount')
+                                    ->get();
+                            @endphp
+                            <tr class="align-top">
+                                <td class="px-4 py-3">{{ $prod->name_produc }}</td>
+                                <td class="px-4 py-3 text-center font-semibold">{{ number_format($cantidad, 0, ',', '.') }}</td>
+                                <td class="px-4 py-3 text-right">{{ number_format($precio, 2, ',', '.') }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($totalProd, 2, ',', '.') }}</td>
+                                <td class="px-4 py-3">
+                                    @if($distribucion->count() > 0)
+                                        <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                            @foreach($distribucion as $centro)
+                                                <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+                                                    <span class="font-medium text-sm truncate">{{ $centro->name_centro }}</span>
+                                                    <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                    @endif
+                                </td>
+                            </tr>
                         @endforeach
                     </tbody>
+                    <tfoot class="bg-gray-50">
+                        <tr>
+                            <td class="px-4 py-3 text-right font-semibold" colspan="3">Total general</td>
+                            <td class="px-4 py-3 text-right font-bold">{{ number_format($totalGeneral, 2, ',', '.') }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
