@@ -850,10 +850,25 @@ class OrdenCompraController extends Controller
             $val = (int)$data['cantidad'];
             if ($val > $max) throw new \Exception('No puede recibir más de lo entregado');
 
+            // Actualizar recepción
             DB::table('recepcion')->where('id', $rec->id)->update([
                 'cantidad_recibido' => $val,
                 'updated_at' => now(),
             ]);
+
+            // Sincronizar stock_e de la OCP correspondiente (misma OC y producto)
+            $ocp = DB::table('ordencompra_producto')
+                ->whereNull('deleted_at')
+                ->where('orden_compras_id', $rec->orden_compra_id)
+                ->where('producto_id', $rec->producto_id)
+                ->orderBy('id','desc')
+                ->first();
+            if ($ocp) {
+                DB::table('ordencompra_producto')->where('id', $ocp->id)->update([
+                    'stock_e' => (string)$val,
+                    'updated_at' => now(),
+                ]);
+            }
 
             DB::commit();
             return response()->json(['ok' => true]);

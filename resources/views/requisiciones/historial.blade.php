@@ -321,55 +321,55 @@
              </div>
          </div>
      </div>
+
+    @php
+        $recepcionesList = DB::table('recepcion as r')
+            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+            ->join('productos as p','p.id','=','r.producto_id')
+            ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
+            ->where('oc.requisicion_id', $req->id)
+            ->whereNull('r.deleted_at')
+            ->orderBy('r.id','asc')
+            ->get();
+    @endphp
+    <div id="modal-recibir-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-recibir-{{ $req->id }}')"></div>
+        <div class="relative w-full max-w-2xl">
+            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
+                <button onclick="toggleModal('modal-recibir-{{ $req->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl" aria-label="Cerrar">&times;</button>
+                <h3 class="text-xl font-semibold mb-4">Recibir productos - Requisición #{{ $req->id }}</h3>
+                @if($recepcionesList->count())
+                <table class="w-full text-sm border rounded overflow-hidden bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-2 text-left">Producto</th>
+                            <th class="p-2 text-center">Entregado</th>
+                            <th class="p-2 text-center">Cantidad recibida</th>
+                            <th class="p-2 text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($recepcionesList as $r)
+                        <tr class="border-t">
+                            <td class="p-2">{{ $r->name_produc }}</td>
+                            <td class="p-2 text-center">{{ $r->cantidad }}</td>
+                            <td class="p-2 text-center">
+                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input" data-recepcion-id="{{ $r->id }}">
+                            </td>
+                            <td class="p-2 text-center">
+                                <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this)">Guardar</button>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                @else
+                    <div class="text-gray-600">No hay registros de recepción para esta requisición.</div>
+                @endif
+            </div>
+        </div>
+    </div>
      @endforeach
-     @php
-         $recepcionesPend = DB::table('recepcion as r')
-             ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-             ->join('productos as p','p.id','=','r.producto_id')
-             ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
-             ->where('oc.requisicion_id', $req->id)
-             ->whereNull('r.deleted_at')
-             ->where(function($q){ $q->whereNull('r.cantidad_recibido')->orWhereColumn('r.cantidad_recibido','<','r.cantidad'); })
-             ->orderBy('r.id','asc')
-             ->get();
-     @endphp
-     <div id="modal-recibir-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-recibir-{{ $req->id }}')"></div>
-         <div class="relative w-full max-w-2xl">
-             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
-                 <button onclick="toggleModal('modal-recibir-{{ $req->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl" aria-label="Cerrar">&times;</button>
-                 <h3 class="text-xl font-semibold mb-4">Recibir productos - Requisición #{{ $req->id }}</h3>
-                 @if($recepcionesPend->count())
-                 <table class="w-full text-sm border rounded overflow-hidden bg-white">
-                     <thead class="bg-gray-100">
-                         <tr>
-                             <th class="p-2 text-left">Producto</th>
-                             <th class="p-2 text-center">Entregado</th>
-                             <th class="p-2 text-center">Cantidad recibida</th>
-                             <th class="p-2 text-center">Acción</th>
-                         </tr>
-                     </thead>
-                     <tbody>
-                         @foreach($recepcionesPend as $r)
-                         <tr class="border-t">
-                             <td class="p-2">{{ $r->name_produc }}</td>
-                             <td class="p-2 text-center">{{ $r->cantidad }}</td>
-                             <td class="p-2 text-center">
-                                 <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input" data-recepcion-id="{{ $r->id }}">
-                             </td>
-                             <td class="p-2 text-center">
-                                 <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this)">Guardar</button>
-                             </td>
-                         </tr>
-                         @endforeach
-                     </tbody>
-                 </table>
-                 @else
-                     <div class="text-gray-600">No hay entregas pendientes por recibir.</div>
-                 @endif
-             </div>
-         </div>
-     </div>
     @endif
 </div>
 
@@ -608,6 +608,16 @@
         if (isNaN(val) || val < 0) val = 0;
         if (val > max) val = max;
         inp.value = val;
+
+        const ask = await Swal.fire({
+            title: 'Confirmar recepción',
+            text: `¿Desea registrar ${val} como cantidad recibida?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, guardar',
+            cancelButtonText: 'Cancelar'
+        });
+        if (!ask.isConfirmed) return;
         btn.disabled = true;
         try {
             const resp = await fetch(`{{ route('recepciones.confirmar') }}`, {
@@ -624,6 +634,16 @@
             btn.disabled = false;
         }
     }
+
+    document.addEventListener('input', function(e){
+        if (e.target && e.target.classList && e.target.classList.contains('recx-input')){
+            const max = parseInt(e.target.max || '0', 10);
+            let v = parseInt(e.target.value || '0', 10);
+            if (isNaN(v) || v < 0) v = 0;
+            if (v > max) v = max;
+            e.target.value = v;
+        }
+     });
 
     @if(session('success'))
         Swal.fire({
