@@ -407,8 +407,12 @@
                            Entregar productos
                         </button>
                     @endif
+                    <button type="button" id="btn-abrir-recibir-oc"
+                       class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow mr-2">
+                       Recibir productos
+                    </button>
                     <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
-                         class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
+                         class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="{{ $hayOrdenes ? 1 : 0 }}">
                          Descargar PDF/ZIP
                      </a>
                 </div>
@@ -533,7 +537,78 @@
                         </div>
                     </div>
                 </div>
-            @endif
+
+                @php
+                    // Lista para ‘Recibir productos’ (pendientes por confirmar)
+                    $hist = DB::table('estatus_requisicion')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->whereNull('deleted_at')
+                        ->where('estatus', 1)
+                        ->orderByDesc('created_at')
+                        ->first();
+                    $estatusActualId = $hist->estatus_id ?? null;
+                    $usarEntregaRec = in_array($estatusActualId, [8,12]);
+                    if ($usarEntregaRec) {
+                        $recListRec = DB::table('entrega as e')
+                            ->join('productos as p','p.id','=','e.producto_id')
+                            ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
+                            ->where('e.requisicion_id', $requisicion->id)
+                            ->whereNull('e.deleted_at')
+                            ->where(function($q){ $q->whereNull('e.cantidad_recibido')->orWhere('e.cantidad_recibido', 0); })
+                            ->orderBy('e.id','asc')
+                            ->get();
+                    } else {
+                        $recListRec = DB::table('recepcion as r')
+                            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                            ->join('productos as p','p.id','=','r.producto_id')
+                            ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
+                            ->where('oc.requisicion_id', $requisicion->id)
+                            ->whereNull('r.deleted_at')
+                            ->orderBy('r.id','asc')
+                            ->get();
+                    }
+                @endphp
+                <div id="modal-recibir-oc" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4" data-tipo="{{ $usarEntregaRec ? 'entrega' : 'recepcion' }}">
+                    <div class="bg-white w-full max-w-2xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                        <div class="flex justify-between items-center px-6 py-4 border-b">
+                            <h3 class="text-lg font-semibold">Recibir productos</h3>
+                            <button type="button" id="rc-close" class="text-gray-600 hover:text-gray-800">✕</button>
+                        </div>
+                        <div class="p-6">
+                            @if(($recListRec ?? collect())->count())
+                            <table class="w-full text-sm border rounded overflow-hidden bg-white">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="p-2 text-left">Producto</th>
+                                        <th class="p-2 text-center">Entregado</th>
+                                        <th class="p-2 text-center">Cantidad recibida</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($recListRec as $r)
+                                    <tr class="border-t" data-item-id="{{ $r->id }}">
+                                        <td class="p-2">{{ $r->name_produc }}</td>
+                                        <td class="p-2 text-center">{{ $r->cantidad }}</td>
+                                        <td class="p-2 text-center">
+                                            <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center rcx-input">
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                            <div class="flex justify-end gap-3 mt-4">
+                                <button type="button" class="px-4 py-2 border rounded" id="rc-cancel">Cancelar</button>
+                                <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="rc-save">Guardar todo</button>
+                            </div>
+                            @else
+                                <div class="text-gray-600">No hay registros para esta requisición.</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                {{-- cierre del bloque @if($requisicion) del formulario y órdenes --}}
+                @endif
+            </div>
         </div>
     </div>
 </div>
@@ -967,6 +1042,14 @@
     // Modal: abrir, cerrar, validar y guardar por AJAX
     document.addEventListener('DOMContentLoaded', function() {
         configurarAutoCargaProveedor();
+        // Bloquear descarga si no hay datos
+        const btnZip = document.getElementById('btn-download-zip');
+        btnZip?.addEventListener('click', function(e){
+            if ((this.dataset?.hay || '0') !== '1') {
+                e.preventDefault();
+                Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
+            }
+        });
         const modal = document.getElementById('modal-distribucion');
         const btnAbrir = document.getElementById('btn-abrir-modal');
         const btnCerrar = document.getElementById('btn-cerrar-modal');
@@ -1270,6 +1353,69 @@
                     Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas.'}).then(()=> location.reload());
                 } catch(e){
                     Swal.fire({icon:'error', title:'Error', text:e.message});
+                }
+            });
+        })();
+
+        (function(){
+            // Modal Recibir productos
+            const modal = document.getElementById('modal-recibir-oc');
+            const btnOpen = document.getElementById('btn-abrir-recibir-oc');
+            const btnClose = document.getElementById('rc-close');
+            const btnCancel = document.getElementById('rc-cancel');
+            const btnSave = document.getElementById('rc-save');
+            const tipo = modal?.dataset?.tipo === 'entrega' ? 'entrega' : 'recepcion';
+            const URL_CONFIRM_ENTREGA = "{{ route('entregas.confirmar') }}";
+            const URL_CONFIRM_RECEPCION = "{{ route('recepciones.confirmar') }}";
+
+            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
+            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
+
+            btnOpen?.addEventListener('click', open);
+            btnClose?.addEventListener('click', close);
+            btnCancel?.addEventListener('click', close);
+            modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+
+            document.addEventListener('input', function(e){
+                if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
+                    const max = parseInt(e.target.max || '0', 10);
+                    let v = parseInt(e.target.value || '0', 10);
+                    if (isNaN(v) || v < 0) v = 0;
+                    if (v > max) v = max;
+                    e.target.value = v;
+                }
+            });
+
+            btnSave?.addEventListener('click', async function(){
+                if (!modal) return;
+                const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
+                const rows = Array.from(modal.querySelectorAll('tbody tr[data-item-id]'));
+                if (rows.length === 0) { Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'}); return; }
+                const items = rows.map(tr => {
+                    const id = parseInt(tr.dataset.itemId, 10);
+                    const inp = tr.querySelector('.rcx-input');
+                    const max = parseInt(inp?.max || '0', 10);
+                    let val = parseInt(inp?.value || '0', 10);
+                    if (isNaN(val) || val < 0) val = 0;
+                    if (val > max) val = max;
+                    if (inp) inp.value = val;
+                    return { id, cantidad: val };
+                });
+                const total = items.length;
+                const confirm = await Swal.fire({ title: 'Guardar recepciones', text: `Se actualizarán ${total} registro(s). ¿Desea continuar?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                if (!confirm.isConfirmed) return;
+                Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    for (const it of items){
+                        const payload = (tipo === 'entrega') ? { entrega_id: it.id, cantidad: it.cantidad } : { recepcion_id: it.id, cantidad: it.cantidad };
+                        const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.message || 'Error al confirmar');
+                    }
+                    close();
+                    Swal.fire({icon:'success', title:'¡Guardado!', text:'Recepciones actualizadas.'}).then(()=> location.reload());
+                } catch (e) {
+                    Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
                 }
             });
         })();
