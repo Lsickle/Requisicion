@@ -414,7 +414,7 @@
                 ->get();
         }
     @endphp
-    <div id="modal-recibir-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div id="modal-recibir-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4" data-tipo="{{ $usarEntrega ? 'entrega' : 'recepcion' }}">
         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-recibir-{{ $req->id }}')"></div>
         <div class="relative w-full max-w-2xl">
             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
@@ -427,24 +427,28 @@
                             <th class="p-2 text-left">Producto</th>
                             <th class="p-2 text-center">Entregado</th>
                             <th class="p-2 text-center">Cantidad recibida</th>
-                            <th class="p-2 text-center">Acción</th>
+                            {{-- <th class="p-2 text-center">Acción</th> --}}
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($recList as $r)
-                        <tr class="border-t">
+                        <tr class="border-t" data-item-id="{{ $r->id }}">
                             <td class="p-2">{{ $r->name_produc }}</td>
                             <td class="p-2 text-center">{{ $r->cantidad }}</td>
                             <td class="p-2 text-center">
                                 <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input">
                             </td>
-                            <td class="p-2 text-center">
+                            {{-- <td class="p-2 text-center">
                                 <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this, '{{ $usarEntrega ? 'entrega' : 'recepcion' }}')">Guardar</button>
-                            </td>
+                            </td> --}}
                         </tr>
                         @endforeach
                     </tbody>
                 </table>
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" class="px-4 py-2 border rounded" onclick="toggleModal('modal-recibir-{{ $req->id }}')">Cancelar</button>
+                    <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" onclick="guardarRecepcionesMasivo({{ $req->id }})">Guardar todo</button>
+                </div>
                 @else
                     <div class="text-gray-600">No hay registros para esta requisición.</div>
                 @endif
@@ -778,6 +782,50 @@
             Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas (estatus 8).'}).then(()=> location.reload());
         } catch(e){
             Swal.fire({icon:'error', title:'Error', text:e.message});
+        }
+    }
+
+    async function guardarRecepcionesMasivo(reqId){
+        const modal = document.getElementById(`modal-recibir-${reqId}`);
+        if (!modal) return;
+        const tipo = modal.dataset.tipo === 'entrega' ? 'entrega' : 'recepcion';
+        const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
+        const rows = Array.from(modal.querySelectorAll('tbody tr[data-item-id]'));
+        if (rows.length === 0) { Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'}); return; }
+
+        const items = rows.map(tr => {
+            const id = parseInt(tr.dataset.itemId, 10);
+            const inp = tr.querySelector('.recx-input');
+            const max = parseInt(inp?.max || '0', 10);
+            let val = parseInt(inp?.value || '0', 10);
+            if (isNaN(val) || val < 0) val = 0;
+            if (val > max) val = max;
+            if (inp) inp.value = val;
+            return { id, cantidad: val };
+        });
+
+        const total = items.length;
+        const confirm = await Swal.fire({
+            title: 'Guardar todas las recepciones',
+            text: `Se actualizarán ${total} registro(s). ¿Desea continuar?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, guardar',
+            cancelButtonText: 'Cancelar'
+        });
+        if (!confirm.isConfirmed) return;
+
+        Swal.fire({ title: 'Guardando', text: 'Procesando recepciones...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            for (const it of items){
+                const payload = (tipo === 'entrega') ? { entrega_id: it.id, cantidad: it.cantidad } : { recepcion_id: it.id, cantidad: it.cantidad };
+                const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || 'Error al confirmar recepción');
+            }
+            Swal.fire({icon:'success', title:'¡Guardado!', text:'Recepciones actualizadas.'}).then(()=> location.reload());
+        } catch (e) {
+            Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
         }
     }
 </script>
