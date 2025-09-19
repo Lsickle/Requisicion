@@ -241,6 +241,9 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/ordenes-compra/restaurar-stock', [StockController::class, 'restaurarStock'])->name('ordenes_compra.restaurarStock');
 
     Route::post('/recepciones/completar-si-listo', [OrdenCompraController::class, 'completarSiListo'])->name('recepciones.completarSiListo');
+
+    // Salida de stock directa a entrega
+    Route::post('/recepciones/salida-stock', [\App\Http\Controllers\ordencompra\OrdenCompraController::class, 'storeSalidaStockEnEntrega'])->name('recepciones.storeSalidaStockEnEntrega');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

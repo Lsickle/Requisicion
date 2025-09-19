@@ -779,24 +779,21 @@ class OrdenCompraController extends Controller
             if ($disponible < 1) throw new \Exception('No hay stock para entregar');
             $entregar = min((int)$data['cantidad'], $disponible);
 
-            // Crear registro recepcion confirmado desde stock (cantidad_recibido = cantidad)
+            // Crear recepción PENDIENTE desde stock (no confirmar aún)
             DB::table('recepcion')->insert([
                 'orden_compra_id' => $ocp->orden_compras_id,
                 'producto_id' => $ocp->producto_id,
                 'cantidad' => $entregar,
-                'cantidad_recibido' => $entregar,
+                'cantidad_recibido' => null,
                 'fecha' => now()->toDateString(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // Descontar de stock_e y guardar
-            $ocp->stock_e = $disponible - $entregar;
-            $ocp->save();
+            // No modificar stock_e; se conserva como dato histórico de lo que salió de stock
 
-            // Actualizar estatus según completitud total
-            $isComplete = $this->isRequisitionComplete((int)$ocp->requisicion_id);
-            $this->setRequisicionStatus((int)$ocp->requisicion_id, $isComplete ? 10 : 12, $isComplete ? 'Requisición completada desde stock' : 'Entrega parcial registrada');
+            // Estatus 12: entrega parcial registrada y pendiente de confirmación
+            $this->setRequisicionStatus((int)$ocp->requisicion_id, 12, 'Entrega parcial registrada (pendiente de confirmación)');
 
             DB::commit();
             return response()->json(['ok' => true]);
@@ -816,20 +813,20 @@ class OrdenCompraController extends Controller
         try {
             DB::beginTransaction();
             $ocp = OrdenCompraProducto::lockForUpdate()->findOrFail((int)$data['ocp_id']);
-            if (($ocp->stock_e ?? 0) < 1) throw new \Exception('La línea seleccionada no tiene stock para restaurar');
-            $restaurar = min((int)$data['cantidad'], (int)$ocp->stock_e);
 
-            $producto = Producto::lockForUpdate()->findOrFail($ocp->producto_id);
-            $producto->stock_produc = (int)$producto->stock_produc + $restaurar;
-            $producto->save();
-
-            $ocp->stock_e = (int)$ocp->stock_e - $restaurar;
-            if ($ocp->stock_e <= 0 && ($ocp->orden_compras_id === null) && ($ocp->total === 0)) {
-                // Limpieza: si es sólo registro de stock y ya no queda, eliminar
-                $ocp->delete();
-            } else {
-                $ocp->save();
+            // Si la OC asociada está soft-deleted, no hacer nada
+            if (!empty($ocp->orden_compras_id)) {
+                $oc = OrdenCompra::withTrashed()->find($ocp->orden_compras_id);
+                if ($oc && method_exists($oc, 'trashed') && $oc->trashed()) {
+                    DB::commit();
+                    return response()->json(['ok' => true]);
+                }
             }
+
+            // Sumar al inventario del producto la cantidad indicada, sin tocar stock_e
+            $producto = Producto::lockForUpdate()->findOrFail($ocp->producto_id);
+            $producto->stock_produc = (int)$producto->stock_produc + (int)$data['cantidad'];
+            $producto->save();
 
             DB::commit();
             return response()->json(['ok' => true]);
@@ -953,5 +950,48 @@ class OrdenCompraController extends Controller
             if ($recibido < (int)$req) return false;
         }
         return true;
+    }
+
+    public function storeSalidaStockEnEntrega(Request $request)
+    {
+        $data = $request->validate([
+            'requisicion_id' => 'required|exists:requisicion,id',
+            'producto_id' => 'required|exists:productos,id',
+            'cantidad' => 'required|integer|min:1',
+        ]);
+        try {
+            DB::beginTransaction();
+
+            $producto = Producto::lockForUpdate()->findOrFail((int)$data['producto_id']);
+            $cantidad = (int)$data['cantidad'];
+            $stockActual = (int)($producto->stock_produc ?? 0);
+            if ($cantidad > $stockActual) {
+                throw new \Exception('Stock insuficiente para realizar la salida');
+            }
+
+            // Descontar inventario
+            $producto->stock_produc = $stockActual - $cantidad;
+            $producto->save();
+
+            // Registrar en tabla entrega (pendiente de confirmación)
+            DB::table('entrega')->insert([
+                'requisicion_id' => (int)$data['requisicion_id'],
+                'producto_id' => (int)$data['producto_id'],
+                'cantidad' => $cantidad,
+                'cantidad_recibido' => null,
+                'fecha' => now()->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Estatus 12: movimiento parcial registrado
+            $this->setRequisicionStatus((int)$data['requisicion_id'], 12, 'Salida de stock registrada');
+
+            DB::commit();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 }

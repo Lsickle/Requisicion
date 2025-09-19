@@ -391,7 +391,7 @@
         $hist = $req->estatusHistorial;
         $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
         $estatusActualId = $ultimoActivo->estatus_id ?? null;
-        $usarEntrega = ($estatusActualId == 8);
+        $usarEntrega = in_array($estatusActualId, [8,12]);
         if ($usarEntrega) {
             $recList = DB::table('entrega as e')
                 ->join('productos as p','p.id','=','e.producto_id')

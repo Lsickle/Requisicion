@@ -85,10 +85,13 @@
                                 ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
                                 ->select('centro.name_centro', 'centro_producto.amount')
                                 ->get();
+                                $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $requisicion->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                                $confirmadoStock = (int) DB::table('recepcion as r')->join('orden_compras as oc','oc.id','=','r.orden_compra_id')->where('oc.requisicion_id',$requisicion->id)->where('r.producto_id',$prod->id)->whereNull('r.deleted_at')->sum(DB::raw('COALESCE(r.cantidad_recibido,0)'));
+                                $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-4 py-3">{{ $prod->name_produc }}</td>
-                                    <td class="px-4 py-3 text-center font-medium">{{ $prod->pivot->pr_amount }}</td>
+                                    <td class="px-4 py-3 text-center font-medium">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
                                     <td class="px-4 py-3">
                                         @if($distribucion->count() > 0)
                                         <div class="space-y-1">
@@ -397,12 +400,6 @@
                             ->where('estatus', 1)
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
-                        $hayReservadoStock = DB::table('ordencompra_producto as ocp')
-                            ->whereNull('ocp.deleted_at')
-                            ->where('ocp.requisicion_id', $requisicion->id)
-                            ->whereNotNull('ocp.stock_e')
-                            ->where('ocp.stock_e', '>', 0)
-                            ->exists();
                     @endphp
                     @if(in_array($estatusActual, [5,7,8,12]))
                         <button type="button" id="btn-abrir-entrega-oc"
@@ -410,19 +407,7 @@
                            Entregar productos
                         </button>
                     @endif
-                     @if($hayOrdenes || in_array($estatusActual, [5,7,8,12]))
-                        <button type="button" id="btn-abrir-entrega-parcial"
-                           class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
-                           Realizar entrega parcial de stock
-                        </button>
-                        @if($hayReservadoStock)
-                        <button type="button" id="btn-restaurar-stock"
-                           class="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow mr-2">
-                           Restaurar stock
-                        </button>
-                        @endif
-                     @endif
-                      <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
+                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
                          class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow">
                          Descargar PDF/ZIP
                      </a>
@@ -440,7 +425,7 @@
                         ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
                         ->orderBy('ocp.id','desc')
                         ->get();
-                    // Totales requeridos por producto (desde la distribución de centros) con fallback
+                    // Totales requeridos por producto (desde la distribución de centros) with fallback
                     $reqCantPorProducto = DB::table('centro_producto')
                         ->where('requisicion_id', $requisicion->id)
                         ->select('producto_id', DB::raw('SUM(amount) as req'))
@@ -548,78 +533,6 @@
                         </div>
                     </div>
                 </div>
-                 
-                 <!-- Modal Entrega Parcial (funcional) -->
-                 @php
-                     $entregables = DB::table('ordencompra_producto as ocp')
-                         ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
-                         ->join('productos as p','p.id','=','ocp.producto_id')
-                         ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
-                         ->whereNull('ocp.deleted_at')
-                         ->where('ocp.requisicion_id', $requisicion->id)
-                         ->whereNotNull('ocp.orden_compras_id')
-                         ->whereNotNull('ocp.stock_e')
-                         ->where('ocp.stock_e','>',0)
-                         ->select('ocp.id as ocp_id','ocp.stock_e','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name')
-                         ->orderBy('ocp.id','desc')
-                         ->get();
-                 @endphp
-                 <div id="modal-entrega-parcial" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
-                     <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
-                         <div class="flex justify-between items-center px-6 py-4 border-b">
-                             <h3 class="text-lg font-semibold">Entrega parcial de stock</h3>
-                             <button type="button" id="ep-close" class="text-gray-600 hover:text-gray-800">✕</button>
-                         </div>
-                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
-                             <div class="border rounded-lg overflow-hidden">
-                                 <div class="px-4 py-2 bg-gray-50 border-b text-sm font-medium">Líneas con stock para entregar</div>
-                                 <div class="max-h-64 overflow-y-auto">
-                                     <table class="min-w-full text-sm">
-                                         <thead class="bg-gray-100 sticky top-0">
-                                             <tr>
-                                                 <th class="px-3 py-2 text-left">Producto</th>
-                                                 <th class="px-3 py-2 text-center">Disponible</th>
-                                                 <th class="px-3 py-2 text-left">OC</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody id="ep-tbody">
-                                             @forelse($entregables as $e)
-                                             <tr class="border-t hover:bg-gray-50 cursor-pointer ep-row" data-ocp-id="{{ $e->ocp_id }}" data-producto-id="{{ $e->producto_id }}" data-disponible="{{ $e->stock_e }}" data-nombre="{{ $e->name_produc }}" data-orden="{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}">
-                                                 <td class="px-3 py-2">{{ $e->name_produc }}</td>
-                                                 <td class="px-3 py-2 text-center font-semibold">{{ $e->stock_e }}</td>
-                                                 <td class="px-3 py-2">{{ $e->order_oc ?? ('OC-'.$e->oc_id) }}</td>
-                                             </tr>
-                                             @empty
-                                             <tr>
-                                                 <td colspan="3" class="px-3 py-3 text-center text-gray-500">No hay líneas con stock para entregar</td>
-                                             </tr>
-                                             @endforelse
-                                         </tbody>
-                                     </table>
-                                 </div>
-                             </div>
-                             <div class="border rounded-lg p-4 bg-gray-50" id="ep-detalle">
-                                 <div class="text-sm text-gray-600 mb-2">Detalle seleccionado</div>
-                                 <div class="space-y-2">
-                                     <div><span class="text-gray-500 text-sm">Producto:</span> <span id="ep-prod" class="font-medium">—</span></div>
-                                     <div><span class="text-gray-500 text-sm">Disponible (stock):</span> <span id="ep-disp" class="font-semibold">0</span></div>
-                                     <div><span class="text-gray-500 text-sm">Orden:</span> <span id="ep-oc" class="font-medium">—</span></div>
-                                 </div>
-                                 <div class="mt-4">
-                                     <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad a entregar</label>
-                                     <input type="number" id="ep-cant" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad" disabled>
-                                     <input type="hidden" id="ep-ocp-id" value="">
-                                     <input type="hidden" id="ep-producto-id" value="">
-                                 </div>
-                             </div>
-                         </div>
-                         <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-                             <button type="button" id="ep-cancel" class="px-4 py-2 border rounded">Cancelar</button>
-                             <button type="button" id="ep-save" class="px-4 py-2 bg-blue-600 text-white rounded" disabled>Realizar entrega</button>
-                         </div>
-                     </div>
-                 </div>
-            </div>
             @endif
         </div>
     </div>
@@ -628,6 +541,7 @@
 @php
     // Listado para modal Restaurar stock
     $restaurables = [];
+    $recepcionesRestaurables = collect();
     if (!empty($requisicion?->id)) {
         $restaurables = DB::table('ordencompra_producto as ocp')
             ->join('productos as p','p.id','=','ocp.producto_id')
@@ -640,6 +554,25 @@
             ->select('ocp.id as ocp_id','p.name_produc','ocp.stock_e','oc.order_oc','oc.id as oc_id','prov.prov_name')
             ->orderBy('ocp.id','desc')
             ->get();
+        // Recepciones desde stock (para permitir restaurar lo que se sacó)
+        $recepcionesRestaurables = DB::table('recepcion as r')
+            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+            ->join('productos as p','p.id','=','r.producto_id')
+            ->where('oc.requisicion_id', $requisicion->id)
+            ->whereNull('r.deleted_at')
+            ->select('r.id as recep_id','p.id as producto_id','p.name_produc','oc.id as oc_id','oc.order_oc','r.cantidad','r.cantidad_recibido')
+            ->orderBy('r.id','desc')
+            ->get();
+        // Mapear cada recepción a una línea ocp con stock_e disponible (si existe)
+        foreach ($recepcionesRestaurables as $idx => $r) {
+            $ocpId = DB::table('ordencompra_producto as ocp')
+                ->whereNull('ocp.deleted_at')
+                ->where('ocp.orden_compras_id', $r->oc_id)
+                ->where('ocp.producto_id', $r->producto_id)
+                ->orderByDesc('ocp.stock_e')
+                ->value('ocp.id');
+            $recepcionesRestaurables[$idx]->ocp_id = $ocpId; // puede ser null
+        }
     }
 @endphp
 
@@ -649,8 +582,8 @@
             <h3 class="text-lg font-semibold">Restaurar stock</h3>
             <button type="button" id="rs-close" class="text-gray-600 hover:text-gray-800">✕</button>
         </div>
-        <div class="p-6">
-            <div class="max-h-[55vh] overflow-y-auto border rounded">
+        <div class="p-6 space-y-6">
+            <div class="max-h-[40vh] overflow-y-auto border rounded">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-100 sticky top-0 z-10">
                         <tr>
@@ -668,13 +601,51 @@
                             <td class="px-3 py-2">{{ $r->order_oc ?? ('OC-'.$r->oc_id) }}</td>
                             <td class="px-3 py-2 text-center">
                                 <div class="inline-flex items-center gap-2">
-                                    <input type="number" min="1" max="{{ $r->stock_e }}" value="{{ $r->stock_e }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $r->ocp_id }}">
+                                    <input type="number" min="1" value="{{ $r->stock_e }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $r->ocp_id }}">
                                     <button type="button" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm rs-restore-btn">Restaurar</button>
                                 </div>
                             </td>
                         </tr>
                         @empty
                         <tr><td colspan="4" class="px-3 py-3 text-center text-gray-500">No hay stock reservado para restaurar.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="max-h-[40vh] overflow-y-auto border rounded">
+                <div class="px-3 py-2 bg-gray-50 border-b text-sm font-medium">Salidas de stock realizadas</div>
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-100 sticky top-0 z-10">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Producto</th>
+                            <th class="px-3 py-2 text-left">OC</th>
+                            <th class="px-3 py-2 text-center">Cantidad</th>
+                            <th class="px-3 py-2 text-left">Estado</th>
+                            <th class="px-3 py-2 text-center">Restaurar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rs-tbody-salidas">
+                        @forelse($recepcionesRestaurables as $rr)
+                        <tr class="border-t">
+                            <td class="px-3 py-2">{{ $rr->name_produc }}</td>
+                            <td class="px-3 py-2">{{ $rr->order_oc ?? ('OC-'.$rr->oc_id) }}</td>
+                            <td class="px-3 py-2 text-center">{{ $rr->cantidad }}</td>
+                            <td class="px-3 py-2">
+                                @if(is_null($rr->cantidad_recibido) || (int)$rr->cantidad_recibido === 0)
+                                    <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Esperando confirmación</span>
+                                @else
+                                    <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Confirmado por {{ (int)$rr->cantidad_recibido }}</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <div class="inline-flex items-center gap-2">
+                                    <input type="number" min="1" value="{{ $rr->cantidad }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $rr->ocp_id }}">
+                                    <button type="button" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm rs-restore-btn" @if(empty($rr->ocp_id)) disabled title="Sin línea asociada" @endif>Restaurar</button>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="5" class="px-3 py-3 text-center text-gray-500">No hay salidas de stock registradas.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -797,9 +768,6 @@
             `;
         });
 
-        const yaEntregado = yaTuvoEntrega(productoId);
-        const prevEntregado = Number((entregasPrevPorProducto && (entregasPrevPorProducto[productoId] ?? entregasPrevPorProducto[String(productoId)])) || 0);
-        // Usar siempre la cantidad original; entregas previas no afectan la OC
         let cantidadParaComprar = cantidadOriginal;
 
         const row = document.createElement('tr');
@@ -827,18 +795,8 @@
                 </div>
             </td>
             <td class="p-3 text-center space-x-2">
-                ${ yaEntregado 
-                    ? `<button type="button" onclick="showYaEntregadoAlert()" class="bg-gray-400 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button><div class="text-xs text-amber-700 mt-1">Entregado antes: ${prevEntregado}</div>`
-                    : `<button type="button" onclick="toggleSacarStock('${rowKey}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg mb-1">Sacar de stock</button>`
-                  }
                 <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
-                <div id="sacar-stock-container-${rowKey}" class="mt-2 hidden">
-                    <div class="flex items-center gap-2">
-                        <input type="number" min="0" id="sacar-stock-${rowKey}" class="w-24 border rounded p-1 text-center" placeholder="" oninput="sanearSacarStock('${rowKey}')">
-                        <button type="button" class="px-2 py-1 bg-blue-600 text-white rounded text-sm" onclick="confirmarSacarStock('${rowKey}')">Confirmar</button>
-                    </div>
-                </div>
             </td>
         `;
         table.appendChild(row);
@@ -1315,92 +1273,6 @@
                 }
             });
         })();
-
-        // Modal Entrega Parcial
-        (function(){
-            const modal = document.getElementById('modal-entrega-parcial');
-            const btnOpen = document.getElementById('btn-abrir-entrega-parcial');
-            const btnClose = document.getElementById('ep-close');
-            const btnCancel = document.getElementById('ep-cancel');
-            const btnSave = document.getElementById('ep-save');
-            const tbody = document.getElementById('ep-tbody');
-            const spanProd = document.getElementById('ep-prod');
-            const spanDisp = document.getElementById('ep-disp');
-            const spanOc = document.getElementById('ep-oc');
-            const inpCant = document.getElementById('ep-cant');
-            const inputOcpId = document.getElementById('ep-ocp-id');
-            
-            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
-            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); reset(); } }
-            function reset(){
-                // Mantener filas; limpiar selección y controles
-                if (tbody) tbody.querySelectorAll('.ep-row.bg-blue-50').forEach(r => r.classList.remove('bg-blue-50'));
-                if (spanProd) spanProd.textContent = '—';
-                if (spanDisp) spanDisp.textContent = '0';
-                if (spanOc) spanOc.textContent = '—';
-                if (inpCant) { inpCant.value = ''; inpCant.disabled = true; inpCant.removeAttribute('max'); }
-                if (inputOcpId) inputOcpId.value = '';
-                if (btnSave) btnSave.disabled = true;
-            }
-
-            if (btnOpen) btnOpen.addEventListener('click', open);
-            if (btnClose) btnClose.addEventListener('click', close);
-            if (btnCancel) btnCancel.addEventListener('click', close);
-            if (modal) modal.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
-
-            tbody?.addEventListener('click', function(e){
-                const row = e.target.closest('.ep-row');
-                if (!row) return;
-                // Selección única
-                tbody.querySelectorAll('.ep-row.bg-blue-50').forEach(r => r.classList.remove('bg-blue-50'));
-                row.classList.add('bg-blue-50');
-                const ocpId = row.dataset.ocpId;
-                const disponible = parseInt(row.dataset.disponible || '0', 10);
-                const nombre = row.dataset.nombre;
-                const orden = row.dataset.orden;
-                spanProd.textContent = nombre;
-                spanDisp.textContent = disponible;
-                spanOc.textContent = orden;
-                inpCant.value = disponible;
-                inpCant.disabled = false;
-                inpCant.min = 1;
-                inpCant.max = disponible > 0 ? disponible : 1;
-                inputOcpId.value = ocpId;
-                btnSave.disabled = false;
-            });
-
-            if (inpCant) inpCant.addEventListener('input', function(){
-               
-                let v = parseInt(this.value || '0', 10);
-                const mx = parseInt(this.max || '0', 10);
-                if (isNaN(v) || v < 1) v = 1;
-                if (mx > 0 && v > mx) v = mx;
-                this.value = v;
-            });
-
-            btnSave.addEventListener('click', async function(){
-                const ocpId = inputOcpId.value;
-                const cantidad = parseInt(inpCant.value || '0', 10);
-                if (!ocpId) return Swal.fire({icon:'warning', title:'Atención', text:'Seleccione una línea para entregar'});
-                if (!cantidad || cantidad < 1) return Swal.fire({icon:'warning', title:'Atención', text:'Ingrese una cantidad válida'});
-
-                try {
-                    const resp = await fetch(`{{ route('recepciones.storeEntregaParcial') }}`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ocp_id: ocpId, cantidad, comentario: null })
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al registrar la entrega');
-                    // Intentar completar automáticamente
-                    try { await fetch(`{{ route('recepciones.completarSiListo') }}`, { method:'POST', headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify({ requisicion_id: {{ $requisicion->id }} }) }); } catch(e) {}
-                    close();
-                    Swal.fire({icon:'success', title:'Éxito', text:'Entrega registrada.'}).then(()=> location.reload());
-                } catch (e) {
-                    Swal.fire({icon:'error', title:'Error', text: e.message});
-                }
-            });
-        })();
     });
 
     function onCantidadTotalChange(rowKey) {
@@ -1409,96 +1281,6 @@
         if (nuevaCantidad < 1) nuevaCantidad = 1;
         totalInput.value = nuevaCantidad;
         // No ajustar automáticamente la distribución; el usuario puede editar centros.
-    }
-
-    function sanearSacarStock(rowKey){
-        const baseCantidad = parseInt(document.getElementById(`base-cantidad-${rowKey}`)?.value || '0', 10);
-        const input = document.getElementById(`sacar-stock-${rowKey}`);
-        if (!input) return;
-        let val = input.value.trim();
-        if (val === '') return; // permitir vacío
-        let n = parseInt(val, 10);
-        if (isNaN(n) || n < 0) n = 0;
-        const maxASacar = Math.max(0, baseCantidad - 1);
-        if (n > maxASacar) n = maxASacar;
-        if (String(n) !== val) input.value = n;
-    }
-
-    async function confirmarSacarStock(rowKey){
-        const baseCantidad = parseInt(document.getElementById(`base-cantidad-${rowKey}`)?.value || '0', 10);
-        const input = document.getElementById(`sacar-stock-${rowKey}`);
-        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
-        const hiddenStockE = document.getElementById(`stock-e-hidden-${rowKey}`);
-        const row = document.getElementById(`producto-${rowKey}`);
-        const baseStock = parseInt(row?.querySelector('input[type="hidden"][name$="[id]"]')?.dataset?.stock || '0', 10);
-        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
-        const container = document.getElementById(`sacar-stock-container-${rowKey}`);
-        const btn = container ? container.querySelector('button') : null;
-
-        if (!input) return;
-        if (container?.dataset.confirmed === '1') {
-            Swal.fire({icon:'info', title:'Ya confirmado', text:'Esta salida de stock ya fue confirmada.'});
-            return;
-        }
-        if (container?.dataset.busy === '1') return; // evitar doble click rápido
-        if (container) container.dataset.busy = '1';
-        if (btn) { btn.disabled = true; btn.classList.add('opacity-50','cursor-not-allowed'); }
-        let val = input.value.trim();
-        let n = val === '' ? 0 : parseInt(val, 10);
-        if (isNaN(n) || n < 0) n = 0;
-        const maxASacar = Math.max(0, baseCantidad - 1);
-        if (n > maxASacar) n = maxASacar;
-
-        let wasConfirmed = false;
-        try {
-            const res = await Swal.fire({
-                title: 'Confirmar salida de stock',
-                text: `¿Desea sacar ${n} unidad(es) del stock para esta línea?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Sí, confirmar',
-                cancelButtonText: 'Cancelar'
-            });
-            if (!res.isConfirmed) return;
-            wasConfirmed = true;
-            // Aplicar cambios: solo marcar stock_e y actualizar visual del stock.
-            input.value = n === 0 ? '' : n;
-            if (hiddenStockE) hiddenStockE.value = n > 0 ? n : '';
-            if (stockCell) stockCell.textContent = Math.max(0, baseStock - n);
-            if (container) container.dataset.confirmed = '1';
-            // Deshabilitar botón Quitar tras confirmar
-            const btnQuitar = document.getElementById(`btn-quitar-${rowKey}`);
-            if (btnQuitar) { btnQuitar.disabled = true; btnQuitar.classList.add('opacity-50','cursor-not-allowed'); }
-        } finally {
-            if (container) container.dataset.busy = '0';
-            if (btn) {
-                if (wasConfirmed) {
-                    // Mantener deshabilitado tras confirmar
-                } else {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50','cursor-not-allowed');
-                }
-            }
-        }
-    }
-
-    function toggleSacarStock(rowKey) {
-        const stockCell = document.getElementById(`stock-disponible-${rowKey}`);
-        const disponible = parseInt((stockCell?.textContent || '0').replace(/[^0-9-]/g,''), 10) || 0;
-        if (disponible <= 0) {
-            Swal.fire({ icon: 'info', title: 'Sin stock', text: 'No hay stock disponible para sacar.' });
-            return;
-        }
-        const container = document.getElementById(`sacar-stock-container-${rowKey}`);
-        if (container?.dataset.confirmed === '1') {
-            Swal.fire({icon:'info', title:'Ya confirmado', text:'Esta salida de stock ya fue confirmada.'});
-            return;
-        }
-        container.classList.toggle('hidden');
-        const inputStock = document.getElementById(`sacar-stock-${rowKey}`);
-        if (!container.classList.contains('hidden')) { inputStock.focus(); }
     }
 
     // Fallback de eventos delegados para el modal de entrega parcial
@@ -1525,6 +1307,7 @@
         const btnClose = document.getElementById('rs-close');
         const btnCancel = document.getElementById('rs-cancel');
         const tbody = document.getElementById('rs-tbody');
+        const tbodySalidas = document.getElementById('rs-tbody-salidas');
         function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
         function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
         btnOpen?.addEventListener('click', open);
@@ -1532,39 +1315,39 @@
         btnCancel?.addEventListener('click', close);
         modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
 
-        tbody?.addEventListener('input', function(e){
-            if (e.target && e.target.classList.contains('rs-cant-input')){
-                const mx = parseInt(e.target.max || '0', 10);
-                let v = parseInt(e.target.value || '0', 10);
-                if (isNaN(v) || v < 1) v = 1;
-                if (mx > 0 && v > mx) v = mx;
-                e.target.value = v;
-            }
-        });
-
-        tbody?.addEventListener('click', async function(e){
-            const btn = e.target.closest('.rs-restore-btn');
-            if (!btn) return;
-            const row = btn.closest('tr');
-            const inp = row.querySelector('.rs-cant-input');
-            const ocpId = inp?.dataset?.ocpId;
-            const cant = parseInt(inp?.value || '0', 10);
-            if (!ocpId || cant < 1) return;
-            try {
-                const confirm = await Swal.fire({ title:'Confirmar', text:`Restaurar ${cant} unidad(es) al inventario?`, icon:'question', showCancelButton:true, confirmButtonText:'Sí, restaurar', cancelButtonText:'Cancelar' });
-                if (!confirm.isConfirmed) return;
-                const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                    body: JSON.stringify({ ocp_id: ocpId, cantidad: cant })
-                });
-                const data = await resp.json();
-                if (!resp.ok) throw new Error(data.message || 'Error al restaurar');
-                Swal.fire({icon:'success', title:'Listo', text:'Stock restaurado.'}).then(()=> location.reload());
-            } catch (err) {
-                Swal.fire({icon:'error', title:'Error', text: err.message});
-            }
-        });
+        function bindRestore(container){
+            container?.addEventListener('click', async function(e){
+                const btn = e.target.closest('.rs-restore-btn');
+                if (!btn) return;
+                const row = btn.closest('tr');
+                const inp = row?.querySelector('.rs-cant-input');
+                const ocpId = inp?.dataset?.ocpId;
+                const cant = parseInt(inp?.value || '0', 10);
+                if (!ocpId || cant < 1) return;
+                try {
+                    const confirm = await Swal.fire({ title:'Confirmar', text:`Restaurar ${cant} unidad(es) al inventario?`, icon:'question', showCancelButton:true, confirmButtonText:'Sí, restaurar', cancelButtonText:'Cancelar' });
+                    if (!confirm.isConfirmed) return;
+                    const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                        body: JSON.stringify({ ocp_id: ocpId, cantidad: cant })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al restaurar');
+                    // Marcar visualmente como restaurado para evitar múltiples veces
+                    inp.disabled = true;
+                    const badge = document.createElement('span');
+                    badge.className = 'px-2 py-1 rounded text-xs bg-green-100 text-green-700';
+                    badge.textContent = 'Restaurado';
+                    btn.replaceWith(badge);
+                    Swal.fire({icon:'success', title:'Listo', text:'Stock restaurado.'});
+                } catch (err) {
+                    Swal.fire({icon:'error', title:'Error', text: err.message});
+                }
+            });
+        }
+        bindRestore(tbody);
+        bindRestore(tbodySalidas);
     })();
 </script>
 @endsection

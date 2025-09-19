@@ -193,18 +193,20 @@
                     <tbody>
                         @foreach($req->productos as $prod)
                         @php
-                        // Obtener la distribución por centros para este producto y requisición
                         $distribucion = DB::table('centro_producto')
                             ->where('requisicion_id', $req->id)
                             ->where('producto_id', $prod->id)
                             ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
                             ->select('centro.name_centro', 'centro_producto.amount')
                             ->get();
+                        $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $req->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                        $confirmadoStock = (int) DB::table('recepcion as r')->join('orden_compras as oc','oc.id','=','r.orden_compra_id')->where('oc.requisicion_id',$req->id)->where('r.producto_id',$prod->id)->whereNull('r.deleted_at')->sum(DB::raw('COALESCE(r.cantidad_recibido,0)'));
+                        $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
                         @endphp
 
                         <tr>
                             <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
-                            <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }}</td>
+                            <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
                             <td class="px-4 py-3 border">
                                 @if($distribucion->count() > 0)
                                 <div class="space-y-2">
@@ -217,6 +219,32 @@
                                 </div>
                                 @else
                                 <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                @endif
+
+                                @php
+                                    $salidas = DB::table('entrega as e')
+                                        ->where('e.requisicion_id', $req->id)
+                                        ->where('e.producto_id', $prod->id)
+                                        ->whereNull('e.deleted_at')
+                                        ->orderBy('e.id','asc')
+                                        ->get();
+                                @endphp
+                                @if($salidas->count())
+                                <div class="mt-3">
+                                    <div class="text-sm font-semibold text-gray-700 mb-1">Salidas de stock</div>
+                                    <ul class="text-xs text-gray-700 space-y-1">
+                                        @foreach($salidas as $s)
+                                            <li class="flex justify-between items-center bg-white border rounded px-2 py-1">
+                                                <span>Salida #{{ $s->id }} · Cant: {{ $s->cantidad }}</span>
+                                                @if(is_null($s->cantidad_recibido) || (int)$s->cantidad_recibido === 0)
+                                                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700">Esperando confirmación</span>
+                                                @else
+                                                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700">Confirmado: {{ (int)$s->cantidad_recibido }}</span>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
                                 @endif
                             </td>
                         </tr>
@@ -237,10 +265,67 @@
                     Crear Orden de Compra
                 </button>
             </form>
+            <button type="button" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition" data-btn-sacar-stock data-requisicion-id="{{ $req->id }}">
+                Sacar productos de stock
+            </button>
         </div>
+        @php
+            $prodsData = ($req->productos ?? collect())->map(function($p){
+                return [
+                    'id' => $p->id,
+                    'name_produc' => $p->name_produc,
+                    'unit_produc' => $p->unit_produc,
+                    'stock_produc' => $p->stock_produc,
+                    'pr_amount' => $p->pivot->pr_amount ?? 0,
+                ];
+            });
+        @endphp
+        <script type="application/json" id="req-products-{{ $req->id }}">{!! $prodsData->toJson() !!}</script>
     </div>
 </div>
 @endforeach
+
+<!-- Modal global para sacar de stock (inicialmente oculto) -->
+<div id="modal-sacar-stock-global" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="px-5 py-3 border-b flex justify-between items-center">
+            <h3 class="font-semibold">Sacar productos de stock</h3>
+            <button type="button" class="text-gray-600 hover:text-gray-800" id="ss-close">✕</button>
+        </div>
+        <div class="p-5 space-y-3">
+            <input type="hidden" id="ss-requisicion-id" value="">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Producto</label>
+                <select id="ss-producto" class="w-full border rounded p-2">
+                    <option value="">Seleccione producto</option>
+                </select>
+                <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                        <div class="text-[10px] tracking-wide text-blue-700 uppercase">Stock actual</div>
+                        <div class="text-2xl font-bold text-blue-900"><span id="ss-stock">0</span></div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                        <div class="text-[10px] tracking-wide text-amber-700 uppercase">Solicitado</div>
+                        <div class="text-2xl font-bold text-amber-900"><span id="ss-req">0</span></div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-gray-50 border border-gray-200 hidden sm:block">
+                        <div class="text-[10px] tracking-wide text-gray-600 uppercase">Unidad</div>
+                        <div class="text-xl font-semibold text-gray-800"><span id="ss-unit">—</span></div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Cantidad a sacar</label>
+                <input type="number" id="ss-cantidad" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad">
+                <div class="mt-1 text-xs text-gray-500">Máximo permitido: <span id="ss-max">0</span></div>
+            </div>
+        </div>
+        <div class="px-5 py-3 border-t flex justify-end gap-2">
+            <button type="button" class="px-4 py-2 border rounded" id="ss-cancel">Cancelar</button>
+            <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="ss-save">Guardar</button>
+        </div>
+    </div>
+</div>
 
 @endsection
 
@@ -281,5 +366,138 @@
             Swal.fire({icon:'error', title:'Error', text:e.message});
         }
     }
+
+    // Modal global para sacar de stock
+    document.addEventListener('DOMContentLoaded', function(){
+        const modalId = 'modal-sacar-stock-global';
+        let cont = document.getElementById(modalId);
+        if (!cont){
+            // Crear si no existe con el nuevo diseño
+            cont = document.createElement('div');
+            cont.id = modalId;
+            cont.className = 'fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4';
+            cont.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <h3 class="font-semibold">Sacar productos de stock</h3>
+                        <button type="button" class="text-gray-600 hover:text-gray-800" id="ss-close">✕</button>
+                    </div>
+                    <div class="p-5 space-y-3">
+                        <input type="hidden" id="ss-requisicion-id" value="">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Producto</label>
+                            <select id="ss-producto" class="w-full border rounded p-2">
+                                <option value="">Seleccione producto</option>
+                            </select>
+                            <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                                    <div class="text-[10px] tracking-wide text-blue-700 uppercase">Stock actual</div>
+                                    <div class="text-2xl font-bold text-blue-900"><span id="ss-stock">0</span></div>
+                                </div>
+                                <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                                    <div class="text-[10px] tracking-wide text-amber-700 uppercase">Solicitado</div>
+                                    <div class="text-2xl font-bold text-amber-900"><span id="ss-req">0</span></div>
+                                </div>
+                                <div class="p-3 rounded-lg bg-gray-50 border border-gray-200 hidden sm:block">
+                                    <div class="text-[10px] tracking-wide text-gray-600 uppercase">Unidad</div>
+                                    <div class="text-xl font-semibold text-gray-800"><span id="ss-unit">—</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Cantidad a sacar</label>
+                            <input type="number" id="ss-cantidad" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad">
+                            <div class="mt-1 text-xs text-gray-500">Máximo permitido: <span id="ss-max">0</span></div>
+                        </div>
+                    </div>
+                    <div class="px-5 py-3 border-t flex justify-end gap-2">
+                        <button type="button" class="px-4 py-2 border rounded" id="ss-cancel">Cancelar</button>
+                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="ss-save">Guardar</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(cont);
+        }
+
+        const overlay = cont;
+        const sel = cont.querySelector('#ss-producto');
+        const stockLbl = cont.querySelector('#ss-stock');
+        const reqLbl = cont.querySelector('#ss-req');
+        const unitLbl = cont.querySelector('#ss-unit');
+        const maxLbl = cont.querySelector('#ss-max');
+        const inpCant = cont.querySelector('#ss-cantidad');
+        const btnClose = cont.querySelector('#ss-close');
+        const btnCancel = cont.querySelector('#ss-cancel');
+        const btnSave = cont.querySelector('#ss-save');
+
+        function close(){ overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+        function open(requisicionId){
+            cont.querySelector('#ss-requisicion-id').value = requisicionId;
+            // Poblar productos desde JSON embebido por requisición
+            const jsonEl = document.getElementById(`req-products-${requisicionId}`);
+            let items = [];
+            if (jsonEl) {
+                try { items = JSON.parse(jsonEl.textContent || '[]'); } catch(e) { items = []; }
+            }
+            sel.innerHTML = '<option value="">Seleccione producto</option>';
+            items.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = String(p.id);
+                opt.textContent = `${p.name_produc} (${p.unit_produc || ''})`;
+                opt.dataset.stock = p.stock_produc ?? 0;
+                opt.dataset.req = p.pr_amount ?? 0;
+                opt.dataset.unit = p.unit_produc || '';
+                sel.appendChild(opt);
+            });
+            stockLbl.textContent = '0';
+            reqLbl.textContent = '0';
+            if (unitLbl) unitLbl.textContent = '—';
+            if (maxLbl) maxLbl.textContent = '0';
+            inpCant.value='';
+            overlay.classList.remove('hidden'); overlay.classList.add('flex');
+        }
+
+        window.openSalidaStockModal = open;
+
+        btnClose?.addEventListener('click', close);
+        btnCancel?.addEventListener('click', close);
+        overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
+        sel.addEventListener('change', function(){
+            const opt = this.options[this.selectedIndex];
+            const max = parseInt(opt?.dataset?.stock||'0',10) || 0;
+            stockLbl.textContent = opt?.dataset?.stock || '0';
+            reqLbl.textContent = opt?.dataset?.req || '0';
+            if (unitLbl) unitLbl.textContent = opt?.dataset?.unit || '—';
+            inpCant.max = max > 0 ? max : '';
+            if (maxLbl) maxLbl.textContent = String(max);
+        });
+        btnSave.addEventListener('click', async function(){
+            const requisicionId = parseInt(cont.querySelector('#ss-requisicion-id').value||'0',10);
+            const productoId = parseInt(sel.value||'0',10);
+            const cantidad = parseInt(inpCant.value||'0',10);
+            if (!requisicionId || !productoId || !cantidad || cantidad<1){
+                Swal.fire({icon:'warning', title:'Datos incompletos', text:'Seleccione producto y cantidad válida'}); return;
+            }
+            try {
+                const resp = await fetch(`{{ route('recepciones.storeSalidaStockEnEntrega') }}`, {
+                    method:'POST',
+                    headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                    body: JSON.stringify({ requisicion_id: requisicionId, producto_id: productoId, cantidad })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || 'Error al guardar');
+                close();
+                Swal.fire({icon:'success', title:'Listo', text:'Salida de stock registrada.'}).then(()=> location.reload());
+            } catch(e){
+                Swal.fire({icon:'error', title:'Error', text:e.message});
+            }
+        });
+
+        document.querySelectorAll('[data-btn-sacar-stock]').forEach(btn => {
+            btn.addEventListener('click', function(){
+                const reqId = this.getAttribute('data-requisicion-id');
+                window.openSalidaStockModal(reqId);
+            });
+        });
+    });
 </script>
 @endsection
