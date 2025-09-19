@@ -117,6 +117,20 @@ class OrdenCompraController extends Controller
                     })
                     ->orderBy('id', 'desc')
                     ->get();
+
+                // Si ya está completa, actualizar estatus a 10 si no lo está
+                try {
+                    if ($this->isRequisitionComplete((int)$requisicion->id)) {
+                        $estatusActual = (int) DB::table('estatus_requisicion')
+                            ->where('requisicion_id', $requisicion->id)
+                            ->whereNull('deleted_at')
+                            ->where('estatus', 1)
+                            ->value('estatus_id');
+                        if ($estatusActual !== 10) {
+                            $this->setRequisicionStatus((int)$requisicion->id, 10, 'Requisición completada automáticamente');
+                        }
+                    }
+                } catch (\Throwable $e) { /* noop */ }
             }
         }
 
@@ -378,9 +392,12 @@ class OrdenCompraController extends Controller
             return redirect()->back()->with('error', 'No hay órdenes de compra para descargar.');
         }
 
-        // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
-        try { $this->setRequisicionStatus((int)$requisicionId, 5, 'Cambio automático al descargar OC'); } catch (\Throwable $e) {}
-         
+        // Marcar estatus 5 (OC generada) o 10 si ya está completa
+        try { 
+            $estatus = $this->isRequisitionComplete((int)$requisicionId) ? 10 : 5;
+            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':'Cambio automático al descargar OC'); 
+        } catch (\Throwable $e) {}
+        
         $zip = new ZipArchive();
         $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
         $zipPath = storage_path('app/temp/' . $zipFileName);
@@ -623,8 +640,11 @@ class OrdenCompraController extends Controller
 
     public function download($requisicionId)
     {
-        // Marcar estatus 5 (OC generada) al descargar PDF/ZIP
-        try { $this->setRequisicionStatus((int)$requisicionId, 5, 'Cambio automático al descargar OC'); } catch (\Throwable $e) {}
+        // Marcar estatus 5 (OC generada) o 10 si ya está completa
+        try { 
+            $estatus = $this->isRequisitionComplete((int)$requisicionId) ? 10 : 5;
+            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':'Cambio automático al descargar OC'); 
+        } catch (\Throwable $e) {}
 
         $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
             ->with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
@@ -759,12 +779,12 @@ class OrdenCompraController extends Controller
             if ($disponible < 1) throw new \Exception('No hay stock para entregar');
             $entregar = min((int)$data['cantidad'], $disponible);
 
-            // Crear registro recepcion (cantidad_recibido = null, fecha automática)
+            // Crear registro recepcion confirmado desde stock (cantidad_recibido = cantidad)
             DB::table('recepcion')->insert([
                 'orden_compra_id' => $ocp->orden_compras_id,
                 'producto_id' => $ocp->producto_id,
                 'cantidad' => $entregar,
-                'cantidad_recibido' => null,
+                'cantidad_recibido' => $entregar,
                 'fecha' => now()->toDateString(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -774,8 +794,9 @@ class OrdenCompraController extends Controller
             $ocp->stock_e = $disponible - $entregar;
             $ocp->save();
 
-            // Estatus 12 a la requisición
-            $this->setRequisicionStatus((int)$ocp->requisicion_id, 12, 'Entrega parcial registrada');
+            // Actualizar estatus según completitud total
+            $isComplete = $this->isRequisitionComplete((int)$ocp->requisicion_id);
+            $this->setRequisicionStatus((int)$ocp->requisicion_id, $isComplete ? 10 : 12, $isComplete ? 'Requisición completada desde stock' : 'Entrega parcial registrada');
 
             DB::commit();
             return response()->json(['ok' => true]);
@@ -856,18 +877,13 @@ class OrdenCompraController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Sincronizar stock_e de la OCP correspondiente (misma OC y producto)
-            $ocp = DB::table('ordencompra_producto')
-                ->whereNull('deleted_at')
-                ->where('orden_compras_id', $rec->orden_compra_id)
-                ->where('producto_id', $rec->producto_id)
-                ->orderBy('id','desc')
-                ->first();
-            if ($ocp) {
-                DB::table('ordencompra_producto')->where('id', $ocp->id)->update([
-                    'stock_e' => (string)$val,
-                    'updated_at' => now(),
-                ]);
+            // No modificar stock_e aquí; ya se descontó al crear la recepción desde stock
+
+            // Actualizar estatus según completitud total
+            $oc = DB::table('orden_compras')->where('id', $rec->orden_compra_id)->first();
+            if ($oc) {
+                $complete = $this->isRequisitionComplete((int)$oc->requisicion_id);
+                $this->setRequisicionStatus((int)$oc->requisicion_id, $complete ? 10 : 12, $complete ? 'Requisición completada' : 'Recepción confirmada parcialmente');
             }
 
             DB::commit();
@@ -876,5 +892,66 @@ class OrdenCompraController extends Controller
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
         }
+    }
+
+    public function completarSiListo(Request $request)
+    {
+        $data = $request->validate([
+            'requisicion_id' => 'required|exists:requisicion,id',
+        ]);
+        try {
+            $reqId = (int)$data['requisicion_id'];
+            $complete = $this->isRequisitionComplete($reqId);
+            if ($complete) {
+                $this->setRequisicionStatus($reqId, 10, 'Requisición completada automáticamente');
+                return response()->json(['ok' => true, 'estatus' => 10]);
+            }
+            return response()->json(['ok' => false, 'message' => 'Aún no está completa'], 200);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function isRequisitionComplete(int $requisicionId): bool
+    {
+        // Requerido por producto según centros distribuidos
+        $reqPorProducto = DB::table('centro_producto')
+            ->where('requisicion_id', $requisicionId)
+            ->select('producto_id', DB::raw('SUM(amount) as req'))
+            ->groupBy('producto_id')
+            ->pluck('req', 'producto_id');
+
+        // Fallback: si no hay distribución por centros, usar producto_requisicion
+        if ($reqPorProducto->isEmpty()) {
+            $reqPorProducto = DB::table('producto_requisicion')
+                ->where('id_requisicion', $requisicionId)
+                ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                ->groupBy('id_producto')
+                ->pluck('req', 'producto_id');
+        }
+        if ($reqPorProducto->isEmpty()) return false;
+
+        // Recibido por coordinador (entregas confirmadas)
+        $recEnt = DB::table('entrega')
+            ->where('requisicion_id', $requisicionId)
+            ->whereNull('deleted_at')
+            ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
+            ->groupBy('producto_id')
+            ->pluck('rec', 'producto_id');
+
+        // Recibido desde stock (confirmado)
+        $recStock = DB::table('recepcion as r')
+            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+            ->where('oc.requisicion_id', $requisicionId)
+            ->whereNull('r.deleted_at')
+            ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+            ->groupBy('r.producto_id')
+            ->pluck('rec', 'producto_id');
+
+        foreach ($reqPorProducto as $pid => $req) {
+            $recibido = (int)($recEnt[$pid] ?? 0) + (int)($recStock[$pid] ?? 0);
+            if ($recibido < (int)$req) return false;
+        }
+        return true;
     }
 }

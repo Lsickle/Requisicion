@@ -239,6 +239,8 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Restaurar stock de líneas con stock_e y volver a estatus 5, comentario null
     Route::post('/ordenes-compra/restaurar-stock', [StockController::class, 'restaurarStock'])->name('ordenes_compra.restaurarStock');
+
+    Route::post('/recepciones/completar-si-listo', [OrdenCompraController::class, 'completarSiListo'])->name('recepciones.completarSiListo');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

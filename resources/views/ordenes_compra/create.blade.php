@@ -410,7 +410,7 @@
                            Entregar productos
                         </button>
                     @endif
-                     @if($hayOrdenes || in_array($estatusActual, [5,7,8]))
+                     @if($hayOrdenes || in_array($estatusActual, [5,7,8,12]))
                         <button type="button" id="btn-abrir-entrega-parcial"
                            class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow mr-2">
                            Realizar entrega parcial de stock
@@ -440,12 +440,19 @@
                         ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
                         ->orderBy('ocp.id','desc')
                         ->get();
-                    // Totales requeridos por producto (desde la distribución de centros)
+                    // Totales requeridos por producto (desde la distribución de centros) con fallback
                     $reqCantPorProducto = DB::table('centro_producto')
                         ->where('requisicion_id', $requisicion->id)
                         ->select('producto_id', DB::raw('SUM(amount) as req'))
                         ->groupBy('producto_id')
                         ->pluck('req','producto_id');
+                    if ($reqCantPorProducto->isEmpty()) {
+                        $reqCantPorProducto = DB::table('producto_requisicion')
+                            ->where('id_requisicion', $requisicion->id)
+                            ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                            ->groupBy('id_producto')
+                            ->pluck('req','producto_id');
+                    }
                     // Totales recibidos por producto (confirmados en entrega)
                     $recibidoPorProducto = DB::table('entrega')
                         ->where('requisicion_id', $requisicion->id)
@@ -453,12 +460,12 @@
                         ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
                         ->groupBy('producto_id')
                         ->pluck('rec','producto_id');
-                    // Totales recibidos desde stock por producto
+                    // Totales recibidos desde stock por producto (solo confirmados)
                     $recibidoStockPorProducto = DB::table('recepcion as r')
                         ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
                         ->where('oc.requisicion_id', $requisicion->id)
                         ->whereNull('r.deleted_at')
-                        ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad,0)) as rec'))
+                        ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
                         ->groupBy('r.producto_id')
                         ->pluck('rec','producto_id');
                     // Entregas enviadas y pendientes de confirmación por producto (bloquean reenvío)
@@ -553,14 +560,6 @@
                          ->whereNotNull('ocp.orden_compras_id')
                          ->whereNotNull('ocp.stock_e')
                          ->where('ocp.stock_e','>',0)
-                         ->whereNotExists(function($q){
-                             $q->select(DB::raw(1))
-                               ->from('recepcion as r')
-                               ->join('orden_compras as ocr','ocr.id','=','r.orden_compra_id')
-                               ->whereColumn('ocr.requisicion_id','ocp.requisicion_id')
-                               ->whereColumn('r.producto_id','ocp.producto_id')
-                               ->whereNull('r.deleted_at');
-                         })
                          ->select('ocp.id as ocp_id','ocp.stock_e','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name')
                          ->orderBy('ocp.id','desc')
                          ->get();
@@ -627,6 +626,68 @@
 </div>
 
 @php
+    // Listado para modal Restaurar stock
+    $restaurables = [];
+    if (!empty($requisicion?->id)) {
+        $restaurables = DB::table('ordencompra_producto as ocp')
+            ->join('productos as p','p.id','=','ocp.producto_id')
+            ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
+            ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
+            ->whereNull('ocp.deleted_at')
+            ->where('ocp.requisicion_id', $requisicion->id)
+            ->whereNotNull('ocp.stock_e')
+            ->where('ocp.stock_e','>',0)
+            ->select('ocp.id as ocp_id','p.name_produc','ocp.stock_e','oc.order_oc','oc.id as oc_id','prov.prov_name')
+            ->orderBy('ocp.id','desc')
+            ->get();
+    }
+@endphp
+
+<div id="modal-restaurar-stock" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+        <div class="flex justify-between items-center px-6 py-4 border-b">
+            <h3 class="text-lg font-semibold">Restaurar stock</h3>
+            <button type="button" id="rs-close" class="text-gray-600 hover:text-gray-800">✕</button>
+        </div>
+        <div class="p-6">
+            <div class="max-h-[55vh] overflow-y-auto border rounded">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-100 sticky top-0 z-10">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Producto</th>
+                            <th class="px-3 py-2 text-center">Reservado</th>
+                            <th class="px-3 py-2 text-left">OC</th>
+                            <th class="px-3 py-2 text-center">Restaurar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rs-tbody">
+                        @forelse($restaurables as $r)
+                        <tr class="border-t">
+                            <td class="px-3 py-2">{{ $r->name_produc }}</td>
+                            <td class="px-3 py-2 text-center font-semibold">{{ $r->stock_e }}</td>
+                            <td class="px-3 py-2">{{ $r->order_oc ?? ('OC-'.$r->oc_id) }}</td>
+                            <td class="px-3 py-2 text-center">
+                                <div class="inline-flex items-center gap-2">
+                                    <input type="number" min="1" max="{{ $r->stock_e }}" value="{{ $r->stock_e }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $r->ocp_id }}">
+                                    <button type="button" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm rs-restore-btn">Restaurar</button>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="4" class="px-3 py-3 text-center text-gray-500">No hay stock reservado para restaurar.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+            <button type="button" id="rs-cancel" class="px-4 py-2 border rounded">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+@php
+    // Variables para bloquear sacar de stock por producto ya recibido y totales previos
     $productosConRecepcionIds = [];
     $entregasPrevPorProducto = [];
     if (!empty($requisicion?->id)) {
@@ -642,7 +703,7 @@
             ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
             ->where('oc.requisicion_id', $requisicion->id)
             ->whereNull('r.deleted_at')
-            ->select('r.producto_id', DB::raw('SUM(r.cantidad) as total_entregado'))
+            ->select('r.producto_id', DB::raw('SUM(r.cantidad_recibido) as total_entregado'))
             ->groupBy('r.producto_id')
             ->pluck('total_entregado','producto_id')
             ->toArray();
@@ -1245,8 +1306,10 @@
                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
+                    // Intentar completar automáticamente
+                    try { await fetch(`{{ route('recepciones.completarSiListo') }}`, { method:'POST', headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify({ requisicion_id: {{ $requisicion->id }} }) }); } catch(e) {}
                     close();
-                    Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas (estatus 8).'}).then(()=> location.reload());
+                    Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas.'}).then(()=> location.reload());
                 } catch(e){
                     Swal.fire({icon:'error', title:'Error', text:e.message});
                 }
@@ -1307,6 +1370,7 @@
             });
 
             if (inpCant) inpCant.addEventListener('input', function(){
+               
                 let v = parseInt(this.value || '0', 10);
                 const mx = parseInt(this.max || '0', 10);
                 if (isNaN(v) || v < 1) v = 1;
@@ -1328,8 +1392,10 @@
                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al registrar la entrega');
+                    // Intentar completar automáticamente
+                    try { await fetch(`{{ route('recepciones.completarSiListo') }}`, { method:'POST', headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify({ requisicion_id: {{ $requisicion->id }} }) }); } catch(e) {}
                     close();
-                    Swal.fire({icon:'success', title:'Éxito', text:'Entrega registrada (estatus 12).'}).then(()=> location.reload());
+                    Swal.fire({icon:'success', title:'Éxito', text:'Entrega registrada.'}).then(()=> location.reload());
                 } catch (e) {
                     Swal.fire({icon:'error', title:'Error', text: e.message});
                 }
@@ -1451,5 +1517,54 @@
             overlay.classList.remove('flex');
         }
     });
+
+    // Modal Restaurar stock
+    (function(){
+        const modal = document.getElementById('modal-restaurar-stock');
+        const btnOpen = document.getElementById('btn-restaurar-stock');
+        const btnClose = document.getElementById('rs-close');
+        const btnCancel = document.getElementById('rs-cancel');
+        const tbody = document.getElementById('rs-tbody');
+        function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
+        function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
+        btnOpen?.addEventListener('click', open);
+        btnClose?.addEventListener('click', close);
+        btnCancel?.addEventListener('click', close);
+        modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+
+        tbody?.addEventListener('input', function(e){
+            if (e.target && e.target.classList.contains('rs-cant-input')){
+                const mx = parseInt(e.target.max || '0', 10);
+                let v = parseInt(e.target.value || '0', 10);
+                if (isNaN(v) || v < 1) v = 1;
+                if (mx > 0 && v > mx) v = mx;
+                e.target.value = v;
+            }
+        });
+
+        tbody?.addEventListener('click', async function(e){
+            const btn = e.target.closest('.rs-restore-btn');
+            if (!btn) return;
+            const row = btn.closest('tr');
+            const inp = row.querySelector('.rs-cant-input');
+            const ocpId = inp?.dataset?.ocpId;
+            const cant = parseInt(inp?.value || '0', 10);
+            if (!ocpId || cant < 1) return;
+            try {
+                const confirm = await Swal.fire({ title:'Confirmar', text:`Restaurar ${cant} unidad(es) al inventario?`, icon:'question', showCancelButton:true, confirmButtonText:'Sí, restaurar', cancelButtonText:'Cancelar' });
+                if (!confirm.isConfirmed) return;
+                const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                    body: JSON.stringify({ ocp_id: ocpId, cantidad: cant })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.message || 'Error al restaurar');
+                Swal.fire({icon:'success', title:'Listo', text:'Stock restaurado.'}).then(()=> location.reload());
+            } catch (err) {
+                Swal.fire({icon:'error', title:'Error', text: err.message});
+            }
+        });
+    })();
 </script>
 @endsection

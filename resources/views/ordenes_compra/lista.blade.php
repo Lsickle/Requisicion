@@ -42,6 +42,33 @@
                         </thead>
                         <tbody>
                             @forelse($requisicionesFiltradas as $req)
+                            @php
+                                // Calcular si ya está completa: entregas confirmadas + recepciones confirmadas vs requeridos
+                                $reqPorProducto = DB::table('centro_producto')
+                                    ->where('requisicion_id', $req->id)
+                                    ->select('producto_id', DB::raw('SUM(amount) as req'))
+                                    ->groupBy('producto_id')->pluck('req','producto_id');
+                                if ($reqPorProducto->isEmpty()) {
+                                    $reqPorProducto = DB::table('producto_requisicion')
+                                        ->where('id_requisicion', $req->id)
+                                        ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                                        ->groupBy('id_producto')->pluck('req','producto_id');
+                                }
+                                $recEnt = DB::table('entrega')->where('requisicion_id', $req->id)->whereNull('deleted_at')
+                                    ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
+                                    ->groupBy('producto_id')->pluck('rec','producto_id');
+                                $recStock = DB::table('recepcion as r')
+                                    ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                                    ->where('oc.requisicion_id', $req->id)->whereNull('r.deleted_at')
+                                    ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+                                    ->groupBy('r.producto_id')->pluck('rec','producto_id');
+                                $isComplete = !$reqPorProducto->isEmpty();
+                                foreach ($reqPorProducto as $pid => $need) {
+                                    $got = (int)($recEnt[$pid] ?? 0) + (int)($recStock[$pid] ?? 0);
+                                    if ($got < (int)$need) { $isComplete = false; break; }
+                                }
+                                $estatusActivo = optional(($req->estatusHistorial ?? collect())->sortByDesc('created_at')->first())->estatus_id;
+                            @endphp
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
                                 <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
@@ -59,6 +86,11 @@
                                         class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
                                         Ver
                                     </button>
+                                    @if($isComplete && $estatusActivo !== 10)
+                                    <button type="button" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition ml-2" onclick="completarReq({{ $req->id }})">
+                                        Completar requisición
+                                    </button>
+                                    @endif
                                 </td>
                             </tr>
                             @empty
@@ -218,16 +250,12 @@
         const modal = document.getElementById(id);
         modal.classList.toggle('hidden');
         modal.classList.toggle('flex');
-        
-        // Prevenir scroll del body cuando el modal está abierto
         if (modal.classList.contains('hidden')) {
             document.body.style.overflow = 'auto';
         } else {
             document.body.style.overflow = 'hidden';
         }
     }
-
-    // Cerrar modal al hacer clic fuera del contenido
     document.addEventListener('click', function(event) {
         if (event.target.classList.contains('fixed')) {
             event.target.classList.add('hidden');
@@ -235,5 +263,23 @@
             document.body.style.overflow = 'auto';
         }
     });
+    async function completarReq(id){
+        try{
+            const resp = await fetch(`{{ route('recepciones.completarSiListo') }}`, {
+                method:'POST',
+                headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                body: JSON.stringify({ requisicion_id: id })
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.message || 'Error al completar');
+            if (data.ok) {
+                Swal.fire({icon:'success', title:'Completada', text:'La requisición fue marcada como completa (estatus 10).'}).then(()=> location.reload());
+            } else {
+                Swal.fire({icon:'info', title:'Pendiente', text: data.message || 'Aún falta por recibir.'});
+            }
+        } catch(e){
+            Swal.fire({icon:'error', title:'Error', text:e.message});
+        }
+    }
 </script>
 @endsection
