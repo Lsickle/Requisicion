@@ -107,12 +107,6 @@
                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
                                 <i class="fas fa-eye"></i> Ver
                             </button>
-                            @if(($ultimoEstatusId ?? null) == 5)
-                            <button onclick="toggleModal('modal-entregar-{{ $req->id }}')"
-                                class="bg-green-700 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-800 transition flex items-center gap-1">
-                                <i class="fas fa-dolly"></i> Entregar productos
-                            </button>
-                            @endif
                             @if(in_array(($ultimoEstatusId ?? null), [8,12]))
                             <button onclick="toggleModal('modal-recibir-{{ $req->id }}')"
                                 class="bg-green-700 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-800 transition flex items-center gap-1">
