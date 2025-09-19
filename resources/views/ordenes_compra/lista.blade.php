@@ -235,11 +235,11 @@
                                     <ul class="text-xs text-gray-700 space-y-1">
                                         @foreach($salidas as $s)
                                             <li class="flex justify-between items-center bg-white border rounded px-2 py-1">
-                                                <span>Salida #{{ $s->id }} · Cant: {{ $s->cantidad }}</span>
+                                                <span>Cantidad entregada: {{ $s->cantidad }}</span>
                                                 @if(is_null($s->cantidad_recibido) || (int)$s->cantidad_recibido === 0)
                                                     <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700">Esperando confirmación</span>
                                                 @else
-                                                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700">Confirmado: {{ (int)$s->cantidad_recibido }}</span>
+                                                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700">Comfirmado: {{ (int)$s->cantidad_recibido }}</span>
                                                 @endif
                                             </li>
                                         @endforeach
@@ -279,8 +279,15 @@
                     'pr_amount' => $p->pivot->pr_amount ?? 0,
                 ];
             });
+            $salidasIds = DB::table('entrega')
+                ->where('requisicion_id', $req->id)
+                ->whereNull('deleted_at')
+                ->pluck('producto_id')
+                ->unique()
+                ->values();
         @endphp
         <script type="application/json" id="req-products-{{ $req->id }}">{!! $prodsData->toJson() !!}</script>
+        <script type="application/json" id="req-products-out-{{ $req->id }}">{!! $salidasIds->toJson() !!}</script>
     </div>
 </div>
 @endforeach
@@ -434,12 +441,18 @@
             cont.querySelector('#ss-requisicion-id').value = requisicionId;
             // Poblar productos desde JSON embebido por requisición
             const jsonEl = document.getElementById(`req-products-${requisicionId}`);
+            const outEl = document.getElementById(`req-products-out-${requisicionId}`);
             let items = [];
+            let outIds = [];
             if (jsonEl) {
                 try { items = JSON.parse(jsonEl.textContent || '[]'); } catch(e) { items = []; }
             }
+            if (outEl) {
+                try { outIds = JSON.parse(outEl.textContent || '[]'); } catch(e) { outIds = []; }
+            }
             sel.innerHTML = '<option value="">Seleccione producto</option>';
             items.forEach(p => {
+                if (outIds.includes(p.id)) return; // ya tiene salida, no permitir otra
                 const opt = document.createElement('option');
                 opt.value = String(p.id);
                 opt.textContent = `${p.name_produc} (${p.unit_produc || ''})`;

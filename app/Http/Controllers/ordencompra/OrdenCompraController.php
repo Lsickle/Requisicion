@@ -962,6 +962,16 @@ class OrdenCompraController extends Controller
         try {
             DB::beginTransaction();
 
+            // No permitir segunda salida del mismo producto para esta requisición
+            $yaExiste = DB::table('entrega')
+                ->where('requisicion_id', (int)$data['requisicion_id'])
+                ->where('producto_id', (int)$data['producto_id'])
+                ->whereNull('deleted_at')
+                ->exists();
+            if ($yaExiste) {
+                throw new \Exception('Ya existe una salida registrada para este producto en esta requisición');
+            }
+
             $producto = Producto::lockForUpdate()->findOrFail((int)$data['producto_id']);
             $cantidad = (int)$data['cantidad'];
             $stockActual = (int)($producto->stock_produc ?? 0);
