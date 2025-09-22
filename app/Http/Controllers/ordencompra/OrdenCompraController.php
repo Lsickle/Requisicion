@@ -856,78 +856,105 @@ class OrdenCompraController extends Controller
 
     public function confirmarRecepcion(Request $request)
     {
-        $data = $request->validate([
-            'recepcion_id' => 'nullable|integer|exists:recepcion,id',
-            'orden_compra_id' => 'nullable|integer|exists:orden_compras,id',
-            'producto_id' => 'nullable|integer|exists:productos,id',
-            'cantidad' => 'nullable|integer|min:0',
-            'cantidad_recibido' => 'nullable|integer|min:0',
-        ]);
+        $payload = $request->all();
 
-        // debe venir o recepcion_id (para actualizar) o orden_compra_id+producto_id (para crear)
-        if (empty($data['recepcion_id']) && (empty($data['orden_compra_id']) || empty($data['producto_id']))) {
-            return response()->json(['message' => 'Se requiere recepcion_id o (orden_compra_id y producto_id)'], 422);
+        // aceptar múltiples items (array) o un solo item
+        $items = [];
+        if (!empty($payload['items']) && is_array($payload['items'])) {
+            $items = $payload['items'];
+        } else {
+            $items = [$payload];
+        }
+
+        // validar al menos 1 item
+        if (empty($items)) {
+            return response()->json(['message' => 'No hay items para procesar'], 422);
         }
 
         try {
             DB::beginTransaction();
 
-            if (!empty($data['recepcion_id'])) {
-                // actualizar existente
-                $rec = DB::table('recepcion')->lockForUpdate()->where('id', (int)$data['recepcion_id'])->first();
-                if (!$rec) throw new \Exception('Registro no encontrado');
+            $affectedRequisiciones = [];
 
-                $max = (int)$rec->cantidad;
-                // prioridad a cantidad_recibido, si no, cantidad
-                $val = isset($data['cantidad_recibido']) ? (int)$data['cantidad_recibido'] : (isset($data['cantidad']) ? (int)$data['cantidad'] : null);
-                if ($val === null) throw new \Exception('No se indicó cantidad a registrar');
-                if ($val > $max) throw new \Exception('No puede recibir más de lo entregado');
+            foreach ($items as $itIndex => $it) {
+                // normalizar claves
+                $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
+                $ordenCompraId = isset($it['orden_compra_id']) ? (int)$it['orden_compra_id'] : null;
+                $productoId = isset($it['producto_id']) ? (int)$it['producto_id'] : null;
+                $cantidad = isset($it['cantidad']) ? (int)$it['cantidad'] : null; // cantidad total/especificada
+                $cantidadRec = isset($it['cantidad_recibido']) ? (int)$it['cantidad_recibido'] : null; // cantidad confirmada
 
-                DB::table('recepcion')->where('id', $rec->id)->update([
-                    'cantidad_recibido' => $val,
-                    'updated_at' => now(),
-                ]);
+                if ($recepcionId) {
+                    $rec = DB::table('recepcion')->lockForUpdate()->where('id', $recepcionId)->first();
+                    if (!$rec) throw new \Exception('Registro de recepción no encontrado (id: ' . $recepcionId . ')');
 
-                $oc = DB::table('orden_compras')->where('id', $rec->orden_compra_id)->first();
-                if ($oc) {
-                    $complete = $this->isRequisitionComplete((int)$oc->requisicion_id);
-                    $this->setRequisicionStatus((int)$oc->requisicion_id, $complete ? 10 : 12, $complete ? 'Requisición completada' : 'Recepción confirmada parcialmente');
+                    $max = (int)$rec->cantidad;
+                    $val = $cantidadRec !== null ? $cantidadRec : ($cantidad !== null ? $cantidad : null);
+                    if ($val === null) throw new \Exception('Falta cantidad para recepcion_id ' . $recepcionId);
+                    if ($val > $max) throw new \Exception('No puede recibir más de lo entregado para recepcion_id ' . $recepcionId);
+
+                    $prev = (int)($rec->cantidad_recibido ?? 0);
+                    $delta = $val - $prev;
+
+                    DB::table('recepcion')->where('id', $rec->id)->update([
+                        'cantidad_recibido' => $val,
+                        'updated_at' => now(),
+                    ]);
+
+                    if ($delta > 0) {
+                        $producto = Producto::lockForUpdate()->findOrFail((int)$rec->producto_id);
+                        $producto->stock_produc = (int)$producto->stock_produc + $delta;
+                        $producto->save();
+                    }
+
+                    $oc = DB::table('orden_compras')->where('id', $rec->orden_compra_id)->first();
+                    if ($oc) $affectedRequisiciones[] = (int)$oc->requisicion_id;
+
+                    continue;
                 }
 
-                DB::commit();
-                return response()->json(['ok' => true]);
+                // crear nuevo registro
+                if (empty($ordenCompraId) || empty($productoId)) {
+                    throw new \Exception('Para crear recepción se requiere orden_compra_id y producto_id');
+                }
+
+                $cantidadTotal = $cantidad ?? 0;
+                $cantidadRecibida = $cantidadRec ?? 0;
+
+                if ($cantidadRecibida > $cantidadTotal && $cantidadTotal > 0) {
+                    throw new \Exception('No puede recibir más de la cantidad de la OC para producto ' . $productoId);
+                }
+
+                $now = now();
+                $newId = DB::table('recepcion')->insertGetId([
+                    'orden_compra_id' => $ordenCompraId,
+                    'producto_id' => $productoId,
+                    'cantidad' => $cantidadTotal,
+                    'cantidad_recibido' => $cantidadRecibida,
+                    'fecha' => $now->toDateString(),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                if ($cantidadRecibida > 0) {
+                    $producto = Producto::lockForUpdate()->findOrFail($productoId);
+                    $producto->stock_produc = (int)$producto->stock_produc + $cantidadRecibida;
+                    $producto->save();
+                }
+
+                $oc = DB::table('orden_compras')->where('id', $ordenCompraId)->first();
+                if ($oc) $affectedRequisiciones[] = (int)$oc->requisicion_id;
             }
 
-            // crear nuevo registro en recepcion
-            $ordenCompraId = (int)$data['orden_compra_id'];
-            $productoId = (int)$data['producto_id'];
-            $cantidadTotal = isset($data['cantidad']) ? (int)$data['cantidad'] : 0; // cantidad esperada/OC
-            $cantidadRec = isset($data['cantidad_recibido']) ? (int)$data['cantidad_recibido'] : 0;
-
-            if ($cantidadRec > $cantidadTotal && $cantidadTotal > 0) {
-                throw new \Exception('No puede recibir más de la cantidad de la OC');
-            }
-
-            $now = now();
-            $newId = DB::table('recepcion')->insertGetId([
-                'orden_compra_id' => $ordenCompraId,
-                'producto_id' => $productoId,
-                'cantidad' => $cantidadTotal,
-                'cantidad_recibido' => $cantidadRec,
-                'fecha' => $now->toDateString(),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            // Actualizar estatus según completitud total
-            $oc = DB::table('orden_compras')->where('id', $ordenCompraId)->first();
-            if ($oc) {
-                $complete = $this->isRequisitionComplete((int)$oc->requisicion_id);
-                $this->setRequisicionStatus((int)$oc->requisicion_id, $complete ? 10 : 12, $complete ? 'Requisición completada' : 'Recepción registrada');
+            // actualizar estatus por cada requisición afectada (únicos)
+            $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
+            foreach ($affectedRequisiciones as $reqId) {
+                $complete = $this->isRequisitionComplete((int)$reqId);
+                $this->setRequisicionStatus((int)$reqId, $complete ? 10 : 12, $complete ? 'Requisición completada' : 'Recepción registrada');
             }
 
             DB::commit();
-            return response()->json(['ok' => true, 'recepcion_id' => $newId]);
+            return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);

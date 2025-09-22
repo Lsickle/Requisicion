@@ -255,7 +255,7 @@
                                 <td class="p-2">{{ $r->name_produc }}</td>
                                 <td class="p-2 text-center">{{ (int)$r->cantidad_total }}</td>
                                 <td class="p-2 text-center">{{ (int)$r->recibido }}</td>
-                                <td class="p-2 text-center">{{ $pend }}</td>
+                                <td class="p-2 text-center">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
                                 <td class="p-2 text-center">
                                     <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
                                 </td>
@@ -624,21 +624,24 @@
                 if (!confirm.isConfirmed) { modal.classList.remove('hidden'); modal.classList.add('flex'); return; }
                 Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
-                    for (const it of items){
-                        // Unificar en recepciones.confirmar
-                        const payload = it.recId
-                            ? { recepcion_id: it.recId, cantidad_recibido: it.nuevoAcumulado }
-                            : { orden_compra_id: ocId, producto_id: it.prodId, cantidad: it.total, cantidad_recibido: it.nuevoAcumulado };
-                        const resp = await fetch("{{ route('recepciones.confirmar') }}", {
-                            method: 'POST',
-                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        const data = await resp.json();
-                        if (!resp.ok) throw new Error(data.message || 'Error al guardar recepción');
-                    }
+                    // enviar todos los items en una sola petición
+                    const payload = { items: items.map(it => ({
+                        recepcion_id: it.recId || undefined,
+                        orden_compra_id: it.recId ? undefined : ocId,
+                        producto_id: it.prodId,
+                        cantidad: it.total,
+                        cantidad_recibido: it.nuevoAcumulado
+                    })) };
+
+                    const resp = await fetch("{{ route('recepciones.confirmar') }}", {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
                     Swal.close();
-                    await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepción registrada y stock actualizado.'});
+                    await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'});
                     location.reload();
                 } catch (e) {
                     Swal.close();
