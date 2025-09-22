@@ -26,7 +26,6 @@
                     <th class="p-3 text-left">Proveedor</th>
                     <th class="p-3 text-left">Método</th>
                     <th class="p-3 text-left">Plazo</th>
-                    <!-- <th class="p-3 text-left">Productos</th> quitada -->
                     <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
@@ -42,7 +41,6 @@
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
                     <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
-                    <!-- Columna productos eliminada -->
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 flex-wrap">
                             <button onclick="toggleModal('modal-{{ $oc->id }}')"
@@ -82,84 +80,85 @@
     <div id="modal-{{ $oc->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $oc->id }}')"></div>
         <div class="relative w-full max-w-4xl">
-            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
+            <!-- Outer container for modal content and sticky footer -->
+            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] flex flex-col relative">
                 <button onclick="toggleModal('modal-{{ $oc->id }}')"
-                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl z-10"
                     aria-label="Cerrar modal">&times;</button>
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' .
-                    $oc->id) }}</h2>
+                <!-- Scrollable content area -->
+                <div class="overflow-y-auto p-8" style="max-height:calc(85vh - 92px);">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</h2>
 
-                <section class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
-                        <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}
+                    <section class="mb-8">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
+                            <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</div>
+                            <div><span class="font-medium">Fecha:</span> {{ optional($oc->created_at)->format('d/m/Y') }}</div>
+                            <div><span class="font-medium">Fecha OC:</span> {{ $oc->date_oc ? \Carbon\Carbon::parse($oc->date_oc)->format('d/m/Y') : '—' }}</div>
+                            <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
+                            <div><span class="font-medium">Proveedor:</span> {{
+                                optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
+                            <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Plazo de pago:</span> {{ $oc->plazo_oc ?? '—' }}</div>
+                            @if(!empty($oc->observaciones))
+                            <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones }}</div>
+                            @endif
                         </div>
-                        <div><span class="font-medium">Fecha:</span> {{ optional($oc->created_at)->format('d/m/Y') }}
-                        </div>
-                        <div><span class="font-medium">Fecha OC:</span> {{ $oc->date_oc ?
-                            \Carbon\Carbon::parse($oc->date_oc)->format('d/m/Y') : '—' }}</div>
-                        <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
-                        <div><span class="font-medium">Proveedor:</span> {{
-                            optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
-                        <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
-                        <div><span class="font-medium">Plazo de pago:</span> {{ $oc->plazo_oc ?? '—' }}</div>
-                        @if(!empty($oc->observaciones))
-                        <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones
-                            }}</div>
-                        @endif
-                    </div>
-                </section>
+                    </section>
 
-                <section class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
-                    <div class="border rounded-lg overflow-hidden">
-                        <div class="max-h-80 overflow-y-auto">
-                            <table class="w-full text-sm bg-white">
-                                <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
-                                    <tr class="border-b">
-                                        <th class="p-3 text-left">Producto</th>
-                                        <th class="p-3 text-center">Cantidad</th>
-                                        <th class="p-3 text-left">Distribución por Centro</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($oc->ordencompraProductos as $linea)
-                                    @if($linea->producto)
-                                    <tr class="border-b">
-                                        <td class="p-3 font-medium text-gray-800 align-top">{{
-                                            $linea->producto->name_produc }}</td>
-                                        <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
-                                        <td class="p-3 align-top">
-                                            @php
-                                            $dist = DB::table('ordencompra_centro_producto as ocp')
-                                            ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
-                                            ->select('c.name_centro', 'ocp.amount')
-                                            ->where('ocp.orden_compra_id', $oc->id)
-                                            ->where('ocp.producto_id', $linea->producto_id)
-                                            ->get();
-                                            @endphp
-                                            <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                                                @forelse($dist as $d)
-                                                <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
-                                                @empty
-                                                <li>No hay distribución registrada</li>
-                                                @endforelse
-                                            </ul>
-                                        </td>
-                                    </tr>
-                                    @endif
-                                    @endforeach
-                                </tbody>
-                            </table>
+                    <section class="mb-8">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
+                        <div class="border rounded-lg overflow-hidden">
+                            <div>
+                                <table class="w-full text-sm bg-white">
+                                    <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                        <tr class="border-b">
+                                            <th class="p-3 text-left">Producto</th>
+                                            <th class="p-3 text-center">Cantidad</th>
+                                            <th class="p-3 text-left">Distribución por Centro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($oc->ordencompraProductos as $linea)
+                                        @if($linea->producto)
+                                        <tr class="border-b">
+                                            <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
+                                            <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
+                                            <td class="p-3 align-top">
+                                                @php
+                                                $dist = DB::table('ordencompra_centro_producto as ocp')
+                                                    ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
+                                                    ->select('c.name_centro', 'ocp.amount')
+                                                    ->where('ocp.orden_compra_id', $oc->id)
+                                                    ->where('ocp.producto_id', $linea->producto_id)
+                                                    ->get();
+                                                @endphp
+                                                <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                                    @forelse($dist as $d)
+                                                    <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
+                                                    @empty
+                                                    <li>No hay distribución registrada</li>
+                                                    @endforelse
+                                                </ul>
+                                            </td>
+                                        </tr>
+                                        @endif
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                </section>
-
-                <section class="mt-6">
-                    <a href="{{ route('ordenes_compra.pdf', $oc->id) }}"
-                        class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">Descargar
-                        PDF</a>
-                </section>
+                    </section>
+                </div>
+                <!-- Sticky footer -->
+                <div class="sticky bottom-0 left-0 bg-white pt-4 pb-4 px-8 flex flex-wrap gap-3 justify-end border-t z-20">
+                    <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1">
+                        <i class="fas fa-box"></i> Recibir productos
+                    </button>
+                    <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </a>
+                </div>
             </div>
         </div>
     </div>
