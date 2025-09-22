@@ -58,18 +58,18 @@
              </li>
              @endif
 
-             @if($hasPermission('ver producto'))
+             @if($hasPermission('total requisiciones'))
              <li>
-                <a href="{{ route('productos.gestor')}}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Ver productos</a>
+                <a href="{{ route('requisiciones.todas') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de requisiciones</a>
              </li>
              @endif
 
-             @if($hasPermission('total requisiciones'))
+             @if($hasPermission('ver producto'))
              <li>
-                <a href="{{ route('requisiciones.todas') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Ver requisiciones</a>
+                <a href="{{ route('productos.gestor')}}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de productos</a>
              </li>
              @endif
-             
+
              @if($hasPermission('dashboard'))
              <li>
                 <a href="#" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Dashboard</a>
