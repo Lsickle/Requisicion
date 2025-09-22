@@ -14,6 +14,16 @@
             <!-- Encabezado -->
             <div class="flex items-center justify-between mb-6">
                 <h1 class="text-2xl font-bold text-gray-800">Panel de Aprobación de Requisiciones</h1>
+                <div>
+                    <a href="{{ route('requisiciones.menu') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">
+                        ← Volver
+                    </a>
+                </div>
+            </div>
+
+            <!-- Búsqueda -->
+            <div class="mb-4">
+                <input type="text" id="busquedaAprob" placeholder="Buscar requisición..." class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
             </div>
 
             <!-- Contenedor scrollable -->
@@ -32,10 +42,10 @@
                         </thead>
                         <tbody>
                             @forelse($requisiciones as $req)
-                            <tr class="border-b hover:bg-gray-50">
-                                <td class="px-4 py-2">{{ $req->id }}</td>
-                                <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
-                                <td class="px-4 py-2">
+                            <tr class="aprob-item border-b hover:bg-gray-50 transition" data-id="{{ $req->id }}">
+                                 <td class="px-4 py-2">{{ $req->id }}</td>
+                                 <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
+                                 <td class="px-4 py-2">
                                     <span class="px-2 py-1 rounded-full text-xs font-semibold 
                                         {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
                                            ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
@@ -63,33 +73,42 @@
                 <!-- Vista móvil -->
                 <div class="md:hidden space-y-4">
                     @forelse($requisiciones as $req)
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
-                        <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
-                        <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                        <div class="mt-3">
-                            <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
-                                Ver
-                            </button>
-                        </div>
-                    </div>
-                    @empty
-                    <p class="text-center text-gray-500">No hay requisiciones pendientes</p>
-                    @endforelse
-                </div>
-            </div>
+                    <div class="aprob-item bg-white rounded-lg shadow p-4" data-id="{{ $req->id }}">
+                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
+                         <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
+                         <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                         <div class="mt-3">
+                             <button onclick="toggleModal('modal-{{ $req->id }}')"
+                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
+                                 Ver
+                             </button>
+                         </div>
+                     </div>
+                     @empty
+                     <p class="text-center text-gray-500">No hay requisiciones pendientes</p>
+                     @endforelse
+                 </div>
 
-            <!-- Botón volver -->
-            <div class="mt-6 text-center">
-                <a href="{{ route('requisiciones.menu') }}"
-                   class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg shadow transition">
-                    ← Volver
-                </a>
+                <!-- (paginación movida al pie) -->
+             </div>
+
+            <!-- Paginación inferior -->
+            <div class="flex items-center justify-between mt-4" id="paginationBarAprob">
+                <div class="text-sm text-gray-600">
+                    Mostrar
+                    <select id="pageSizeSelectAprob" class="border rounded px-2 py-1">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                    por página
+                </div>
+                <div class="flex flex-wrap gap-1" id="paginationControlsAprob"></div>
             </div>
-        </div>
-    </div>
-</div>
+         </div>
+     </div>
+ </div>
 
 <!-- Modales -->
 @foreach($requisiciones as $req)
@@ -311,5 +330,74 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         Swal.fire("Error", "No se pudo actualizar el estatus: " + error.message, "error");
     });
 }
+
+// Paginación y búsqueda para Aprobación
+document.addEventListener('DOMContentLoaded', function(){
+    const input = document.getElementById('busquedaAprob');
+    const pageSizeSel = document.getElementById('pageSizeSelectAprob');
+    let currentPage = 1;
+    let pageSize = parseInt(pageSizeSel?.value || '10', 10) || 10;
+
+    function getMatchedItems(){
+        return Array.from(document.querySelectorAll('.aprob-item')).filter(el => (el.dataset.match ?? '1') !== '0');
+    }
+
+    function showPage(page = 1){
+        const items = getMatchedItems();
+        const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+        currentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+
+        // hide all
+        document.querySelectorAll('.aprob-item').forEach(el => el.style.display = 'none');
+        // show slice
+        items.slice(start, end).forEach(el => el.style.display = '');
+
+        renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages){
+        const container = document.getElementById('paginationControlsAprob');
+        container.innerHTML = '';
+        const start = Math.max(1, currentPage - 2);
+        const end = Math.min(totalPages, currentPage + 2);
+
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Anterior';
+        btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnPrev.disabled = currentPage === 1;
+        btnPrev.onclick = () => showPage(currentPage - 1);
+        container.appendChild(btnPrev);
+
+        for (let p = start; p <= end; p++){
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'px-3 py-1 rounded text-sm ' + (p === currentPage ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100');
+            btn.onclick = () => showPage(p);
+            container.appendChild(btn);
+        }
+
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Siguiente';
+        btnNext.className = 'px-3 py-1 border rounded text-sm ' + (currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnNext.disabled = currentPage === totalPages;
+        btnNext.onclick = () => showPage(currentPage + 1);
+        container.appendChild(btnNext);
+    }
+
+    // initialize
+    document.querySelectorAll('.aprob-item').forEach(el => el.dataset.match = '1');
+    if (pageSizeSel) pageSizeSel.addEventListener('change', (e)=>{ pageSize = parseInt(e.target.value,10)||10; showPage(1); });
+    if (input) input.addEventListener('keyup', function(){
+        const filtro = this.value.toLowerCase();
+        document.querySelectorAll('.aprob-item').forEach(el => {
+            el.dataset.match = el.textContent.toLowerCase().includes(filtro) ? '1' : '0';
+        });
+        showPage(1);
+    });
+
+    showPage(1);
+});
 </script>
 @endsection

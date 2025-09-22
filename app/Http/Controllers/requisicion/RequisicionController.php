@@ -479,38 +479,126 @@ class RequisicionController extends Controller
             }
 
             foreach ($items as $item) {
-                // Crear registro de entrega
-                Entrega::create([
+                $productoId = $item['producto_id'] ?? null;
+                $cantidad = (int)($item['cantidad'] ?? 0);
+
+                if (!$productoId || $cantidad <= 0) {
+                    DB::rollBack();
+                    return response()->json(['success' => false, 'message' => 'Datos de producto inválidos'], 400);
+                }
+
+                // Obtener cantidad total solicitada para este producto en la requisición
+                $totalReq = (int) DB::table('producto_requisicion')
+                    ->where('id_requisicion', $requisicionId)
+                    ->where('id_producto', $productoId)
+                    ->value('pr_amount');
+
+                // Si existe distribución por centros, usar la suma de centro_producto.amount
+                $sumaCentros = (int) DB::table('centro_producto')
+                    ->where('requisicion_id', $requisicionId)
+                    ->where('producto_id', $productoId)
+                    ->sum('amount');
+
+                if ($sumaCentros > 0) $totalReq = $sumaCentros;
+
+                // Cantidad ya registrada en entregas (cantidad en tabla entrega, aún sin confirmar)
+                $registrado = (int) DB::table('entrega')
+                    ->where('requisicion_id', $requisicionId)
+                    ->where('producto_id', $productoId)
+                    ->whereNull('deleted_at')
+                    ->sum('cantidad');
+
+                $pendiente = max(0, $totalReq - $registrado);
+
+                if ($cantidad > $pendiente) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Cantidad a entregar ({$cantidad}) excede el pendiente ({$pendiente}) para el producto {$productoId}."
+                    ], 400);
+                }
+
+                // Registrar entrega (pendiente de confirmación en cantidad_recibido)
+                DB::table('entrega')->insert([
                     'requisicion_id' => $requisicionId,
-                    'producto_id' => $item['producto_id'],
-                    'cantidad' => $item['cantidad'],
-                    'fecha_entrega' => now(),
-                    'entregado_por' => session('user.id'),
-                    'recibido_por' => $requisicion->user_id,
-                    'estado' => 'pendiente'
+                    'producto_id' => $productoId,
+                    'cantidad' => $cantidad,
+                    'cantidad_recibido' => null,
+                    'fecha' => now()->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
-            // Actualizar estatus de la requisición a "Material recibido por coordinador" (estatus 8)
+            // Desactivar estatus previo y crear estatus 8
+            Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
             Estatus_Requisicion::create([
                 'requisicion_id' => $requisicionId,
                 'estatus_id' => 8,
-                'comentario' => 'Entrega parcial realizada desde el módulo de requisiciones',
-                'user_id' => session('user.id')
+                'estatus' => 1,
+                'comentario' => 'Entrega registrada desde módulo de requisiciones',
+                'user_id' => session('user.id'),
+                'date_update' => now(),
             ]);
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Entrega registrada correctamente'
-            ]);
+            return response()->json(['success' => true, 'message' => 'Entrega registrada correctamente']);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al registrar la entrega: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Error al registrar la entrega: ' . $e->getMessage()], 500);
         }
+    }
+
+    // Método para actualizar el estatus de una requisición
+    private function setRequisicionStatus(int $requisicionId, int $estatusId, string $comentario = null)
+    {
+        $estatus = Estatus_Requisicion::where('requisicion_id', $requisicionId)
+            ->where('estatus_id', $estatusId)
+            ->first();
+
+        if (!$estatus) {
+            Estatus_Requisicion::create([
+                'requisicion_id' => $requisicionId,
+                'estatus_id'     => $estatusId,
+                'estatus'        => 1,
+                'date_update'    => now(),
+                'comentario'     => $comentario,
+                'user_id'        => session('user.id'),
+            ]);
+        } else {
+            $estatus->estatus = 1;
+            $estatus->date_update = now();
+            $estatus->comentario = $comentario;
+            $estatus->save();
+        }
+    }
+
+    // Verificar si una requisición está completa (todas las entregas registradas y confirmadas)
+    private function isRequisitionComplete(int $requisicionId): bool
+    {
+        // Obtener todos los productos de la requisición
+        $productos = DB::table('producto_requisicion')
+            ->where('id_requisicion', $requisicionId)
+            ->pluck('id_producto');
+
+        foreach ($productos as $productoId) {
+            // Verificar si hay entregas pendientes de confirmación
+            $pendientes = DB::table('entrega')
+                ->where('requisicion_id', $requisicionId)
+                ->where('producto_id', $productoId)
+                ->whereNull('deleted_at')
+                ->where(function ($query) {
+                    $query->whereNull('cantidad_recibido')
+                        ->orWhere('cantidad_recibido', '<', DB::raw('cantidad'));
+                })
+                ->exists();
+
+            if ($pendientes) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

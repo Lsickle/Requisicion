@@ -324,6 +324,7 @@
                                 <tr>
                                     <th class="p-3">Producto</th>
                                     <th class="p-3">Cantidad</th>
+                                    <th class="p-3">Sacado de stock</th>
                                     <th class="p-3">Unidad</th>
                                     <th class="p-3">Stock Disponible</th>
                                     <th class="p-3">Distribución por Centros</th>
@@ -448,6 +449,14 @@
                         ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
                         ->groupBy('r.producto_id')
                         ->pluck('rec','producto_id');
+                    // Sumar ambos para obtener total confirmado por producto
+                    $totalConfirmadoPorProducto = [];
+                    foreach ($recibidoPorProducto as $pid => $val) {
+                        $totalConfirmadoPorProducto[$pid] = ($totalConfirmadoPorProducto[$pid] ?? 0) + (int)$val;
+                    }
+                    foreach ($recibidoStockPorProducto as $pid => $val) {
+                        $totalConfirmadoPorProducto[$pid] = ($totalConfirmadoPorProducto[$pid] ?? 0) + (int)$val;
+                    }
                     // Entregas enviadas y pendientes de confirmación por producto (bloquean reenvío)
                     $pendNoConfPorProducto = DB::table('entrega')
                         ->where('requisicion_id', $requisicion->id)
@@ -740,22 +749,25 @@
             ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
             ->where('oc.requisicion_id', $requisicion->id)
             ->whereNull('r.deleted_at')
-            ->select('r.producto_id', DB::raw('SUM(r.cantidad_recibido) as total_entregado'))
+            ->select('r.producto_id', DB::raw('SUM(r.cantidad_recibido) as rec'))
             ->groupBy('r.producto_id')
-            ->pluck('total_entregado','producto_id')
+            ->pluck('rec','producto_id')
             ->toArray();
     }
 @endphp
 
 <script>
     // Cambiar a llave compuesta para permitir líneas distribuidas del mismo producto
-    let productosAgregados = [];
-    let centros = @json($centros);
-    let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
-    let productosConRecepcion = @json($productosConRecepcionIds);
-    let entregasPrevPorProducto = @json($entregasPrevPorProducto);
-    // Flag global: hay stock reservado sin entregar (impide anular)
-    window.hayReservadoSinEntrega = @json(($entregables ?? collect())->count() > 0);
+     let productosAgregados = [];
+     let centros = @json($centros);
+     let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
+     let productosConRecepcion = @json($productosConRecepcionIds);
+     let entregasPrevPorProducto = @json($entregasPrevPorProducto);
+     let totalConfirmadoPorProducto = @json($totalConfirmadoPorProducto ?? []);
+     // Flag global: hay stock reservado sin entregar (impide anular)
+     window.hayReservadoSinEntrega = @json(($entregables ?? collect())->count() > 0);
+    // Flag global: existen salidas de stock (entrega) pendientes de confirmación para esta requisición
+    window.haySalidasPendientes = @json(isset($requisicion) ? DB::table('entrega')->where('requisicion_id', $requisicion->id)->whereNull('deleted_at')->where(function($q){ $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); })->exists() : false);
     
     function yaTuvoEntrega(productoId){
         return productosConRecepcion.includes(Number(productoId));
@@ -829,7 +841,7 @@
                     <label class="block text-sm text-gray-600">${centro.name_centro}:</label>
                     <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
                            min="0" value="${cantidadCentro}" class="w-20 border rounded p-1 text-center distribucion-centro"
-                           data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}')">
+                           data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}', this)">
                 </div>
             `;
         });
@@ -850,21 +862,20 @@
                     class="w-20 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
-                <input type="hidden" id="base-cantidad-${rowKey}" value="${cantidadParaComprar}">
-                <input type="hidden" name="productos[${rowKey}][stock_e]" id="stock-e-hidden-${rowKey}" value="">
             </td>
-            <td class="p-3 text-center">${unidad}</td>
-            <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
-            <td class="p-3">
-                <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+            <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
+             <td class="p-3 text-center">${unidad}</td>
+             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
+             <td class="p-3">
+                 <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                     ${centrosHtml}
-                </div>
-            </td>
-            <td class="p-3 text-center space-x-2">
-                <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
-                    class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
-            </td>
-        `;
+                 </div>
+             </td>
+             <td class="p-3 text-center space-x-2">
+                 <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
+                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
+             </td>
+         `;
         table.appendChild(row);
 
         productosAgregados.push(rowKey);
@@ -891,10 +902,35 @@
     }
 
     function actualizarTotal(rowKey) {
+        // backward compatible: allow calling without changed element
+        const changedInput = arguments[1] || null;
         const inputs = document.querySelectorAll(`input[name^="productos[${rowKey}][centros]"]`);
+        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        const maxAllowed = totalInput ? parseInt(totalInput.value || totalInput.getAttribute('data-base') || '0', 10) : 0;
         let total = 0;
         inputs.forEach(input => { total += parseInt(input.value) || 0; });
-        const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
+        if (maxAllowed && total > maxAllowed) {
+            // reduce the changed input if provided, otherwise reduce the last input
+            if (changedInput) {
+                const current = parseInt(changedInput.value) || 0;
+                // compute sum of others
+                let others = 0;
+                inputs.forEach(i => { if (i !== changedInput) others += parseInt(i.value) || 0; });
+                const allowed = Math.max(0, maxAllowed - others);
+                if (current > allowed) changedInput.value = allowed;
+            } else {
+                // fallback: shrink last input
+                const last = inputs[inputs.length - 1];
+                if (last) {
+                    const excess = total - maxAllowed;
+                    const curr = parseInt(last.value) || 0;
+                    last.value = Math.max(0, curr - excess);
+                }
+            }
+            // recompute total
+            total = 0;
+            inputs.forEach(input => { total += parseInt(input.value) || 0; });
+        }
         if (totalInput) totalInput.value = total;
     }
 
@@ -994,29 +1030,55 @@
     // Validación al enviar con rowKey
     const ordenForm = document.getElementById('orden-form');
     ordenForm.addEventListener('submit', function(e) {
+        // Si hay salidas pendientes de confirmar, impedir continuar y avisar que se debe esperar la confirmación del usuario
+        if (window.haySalidasPendientes) {
+            e.preventDefault();
+            Swal.fire({ icon: 'warning', title: 'Acción bloqueada', text: 'Espere la confirmación de recibido del usuario para continuar.' });
+            return;
+        }
+
         if (productosAgregados.length === 0) {
             e.preventDefault();
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
             return;
         }
-        let errores = [];
+
+        const mismatches = [];
+
         productosAgregados.forEach(key => {
             const totalInput = document.getElementById(`cantidad-total-${key}`);
-            const total = parseInt(totalInput?.value) || 0;
-            const distribucionInputs = document.querySelectorAll(`input[name^="productos[${key}][centros]"]`);
+            const expected = parseInt(totalInput?.value) || 0;
+            const distribucionInputs = Array.from(document.querySelectorAll(`input[name^="productos[${key}][centros]"]`));
             let distribucionTotal = 0;
-            distribucionInputs.forEach(input => { distribucionTotal += parseInt(input.value) || 0; });
-            if (total !== distribucionTotal) {
-                errores.push(`La distribución de la línea ${key} no coincide con la cantidad total`);
-            }
-            if (total < 1) {
-                errores.push(`La cantidad de la línea ${key} debe ser mayor a cero`);
+            const detalles = [];
+            distribucionInputs.forEach(input => {
+                const val = parseInt(input.value) || 0;
+                distribucionTotal += val;
+                // obtener nombre del centro desde la etiqueta en la misma estructura
+                const label = input.parentElement?.querySelector('label')?.textContent?.trim() || '';
+                const centroName = label.replace(/:$/,'');
+                detalles.push({ centro: centroName, cantidad: val });
+            });
+
+            if (expected < 1) {
+                mismatches.push({ key, type: 'invalid', expected, distribucionTotal, detalles });
+            } else if (expected !== distribucionTotal) {
+                mismatches.push({ key, type: 'mismatch', expected, distribucionTotal, detalles });
             }
         });
-        if (errores.length > 0) {
+
+        if (mismatches.length > 0) {
             e.preventDefault();
-            Swal.fire({ icon: 'error', title: 'Error de validación', html: errores.join('<br>') });
-        }
+            // Construir lista simple de productos con mismatch
+            const items = mismatches.map(m => {
+                const nameInput = document.querySelector(`input[name="productos[${m.key}][id]"]`);
+                const prodName = nameInput?.dataset?.nombre || m.key;
+                return `<li style="margin-bottom:6px;">${prodName} - La cantidad no concuerda con la distribución</li>`;
+            }).join('');
+            const html = `<div class="text-left"><p>Corrija los siguientes productos:</p><ul style="text-align:left;margin-top:8px;">${items}</ul></div>`;
+            Swal.fire({ icon: 'error', title: 'Error de validación', html: html });
+             return;
+         }
     });
 
     function configurarAutoCargaProveedor() {
@@ -1033,14 +1095,25 @@
     // Modal: abrir, cerrar, validar y guardar por AJAX
     document.addEventListener('DOMContentLoaded', function() {
         configurarAutoCargaProveedor();
-        // Bloquear descarga si no hay datos
+        // Bloquear descarga si no hay datos o si existen salidas pendientes por confirmar
         const btnZip = document.getElementById('btn-download-zip');
-        btnZip?.addEventListener('click', function(e){
-            if ((this.dataset?.hay || '0') !== '1') {
-                e.preventDefault();
-                Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
+        if (btnZip) {
+            // Si hay salidas pendientes, marcar visualmente y prevenir descarga
+            if (window.haySalidasPendientes) {
+                btnZip.classList.add('opacity-50', 'pointer-events-none');
+                btnZip.addEventListener('click', function(e){
+                    e.preventDefault();
+                    Swal.fire({ icon:'warning', title:'Acción bloqueada', text:'Existen salidas de stock pendientes de confirmar. Confirme las cantidades recibidas antes de descargar.' });
+                });
+            } else {
+                btnZip.addEventListener('click', function(e){
+                    if ((this.dataset?.hay || '0') !== '1') {
+                        e.preventDefault();
+                        Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
+                    }
+                });
             }
-        });
+        }
         const modal = document.getElementById('modal-distribucion');
         const btnAbrir = document.getElementById('btn-abrir-modal');
         const btnCerrar = document.getElementById('btn-cerrar-modal');
@@ -1283,7 +1356,21 @@
         let nuevaCantidad = parseInt(totalInput?.value) || 0;
         if (nuevaCantidad < 1) nuevaCantidad = 1;
         totalInput.value = nuevaCantidad;
-        // No ajustar automáticamente la distribución; el usuario puede editar centros.
+        // If distribution sum exceeds new total, reduce last inputs to fit
+        const inputs = Array.from(document.querySelectorAll(`input[name^="productos[${rowKey}][centros]"]`));
+        let sum = inputs.reduce((s,i)=> s + (parseInt(i.value)||0), 0);
+        if (sum > nuevaCantidad) {
+            let excess = sum - nuevaCantidad;
+            // reduce from the last input backwards
+            for (let i = inputs.length -1; i >=0 && excess>0; i--) {
+                const val = parseInt(inputs[i].value)||0;
+                const reduce = Math.min(val, excess);
+                inputs[i].value = Math.max(0, val - reduce);
+                excess -= reduce;
+            }
+            // update displayed total
+            actualizarTotal(rowKey);
+        }
     }
 
     // Fallback de eventos delegados para el modal de entrega parcial

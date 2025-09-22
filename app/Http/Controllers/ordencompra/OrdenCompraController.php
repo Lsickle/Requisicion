@@ -947,10 +947,50 @@ class OrdenCompraController extends Controller
             }
 
             // actualizar estatus por cada requisición afectada (únicos)
+            // Si las recepciones (tabla 'recepcion') cubren todo => estatus 7 (Material recibido)
+            // El estatus 10 (completado) se mantiene para el proceso final que considere también las entregas
             $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
             foreach ($affectedRequisiciones as $reqId) {
-                $complete = $this->isRequisitionComplete((int)$reqId);
-                $this->setRequisicionStatus((int)$reqId, $complete ? 10 : 12, $complete ? 'Requisición completada' : 'Recepción registrada');
+                // Requerido por producto según centros distribuidos
+                $reqPorProducto = DB::table('centro_producto')
+                    ->where('requisicion_id', $reqId)
+                    ->select('producto_id', DB::raw('SUM(amount) as req'))
+                    ->groupBy('producto_id')
+                    ->pluck('req', 'producto_id');
+                if ($reqPorProducto->isEmpty()) {
+                    $reqPorProducto = DB::table('producto_requisicion')
+                        ->where('id_requisicion', $reqId)
+                        ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                        ->groupBy('id_producto')
+                        ->pluck('req', 'producto_id');
+                }
+
+                // Recibido desde stock (confirmado) - SOLO recepcion
+                $recStock = DB::table('recepcion as r')
+                    ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                    ->where('oc.requisicion_id', $reqId)
+                    ->whereNull('r.deleted_at')
+                    ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+                    ->groupBy('r.producto_id')
+                    ->pluck('rec', 'producto_id');
+
+                // Determinar si la recepción cubre todo lo requerido (solo recepcion)
+                $completeByRecepcion = true;
+                foreach ($reqPorProducto as $pid => $reqQty) {
+                    $recibido = (int)($recStock[$pid] ?? 0);
+                    if ($recibido < (int)$reqQty) {
+                        $completeByRecepcion = false;
+                        break;
+                    }
+                }
+
+                if ($completeByRecepcion) {
+                    // Todas las cantidades fueron recibidas desde proveedores => marcar Material recibido
+                    $this->setRequisicionStatus((int)$reqId, 7, 'Recepción completa: material recibido por compras');
+                } else {
+                    // Recepciones parciales
+                    $this->setRequisicionStatus((int)$reqId, 12, 'Recepción registrada');
+                }
             }
 
             DB::commit();

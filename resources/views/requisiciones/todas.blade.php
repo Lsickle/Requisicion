@@ -366,30 +366,21 @@
                                      ->select('productos.id', 'productos.name_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
                                      ->get();
                                  
-                                 // Obtener cantidades ya entregadas
+                                 // Obtener cantidades ya entregadas (solo tabla 'entrega')
                                  $entregasPorProducto = DB::table('entrega')
                                      ->where('requisicion_id', $req->id)
                                      ->whereNull('deleted_at')
                                      ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as entregado'))
                                      ->groupBy('producto_id')
                                      ->pluck('entregado', 'producto_id');
-                                 
-                                 // Obtener recepciones de stock
-                                 $recepcionesPorProducto = DB::table('recepcion as r')
-                                     ->join('orden_compras as oc', 'r.orden_compra_id', '=', 'oc.id')
-                                     ->where('oc.requisicion_id', $req->id)
-                                     ->whereNull('r.deleted_at')
-                                     ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as recibido'))
-                                     ->groupBy('r.producto_id')
-                                     ->pluck('recibido', 'producto_id');
                              @endphp
                              @forelse($productosReq as $producto)
                              @php
                                  $productoId = $producto->id;
                                  $cantidadRequerida = (int)$producto->cantidad_requerida;
                                  $entregado = (int)($entregasPorProducto[$productoId] ?? 0);
-                                 $recibidoStock = (int)($recepcionesPorProducto[$productoId] ?? 0);
-                                 $totalEntregado = $entregado + $recibidoStock;
+                                 // No considerar recepciones en este modal: sólo lo registrado en 'entrega'
+                                 $totalEntregado = $entregado;
                                  $pendiente = max(0, $cantidadRequerida - $totalEntregado);
                                  $isDone = ($pendiente <= 0);
                                  

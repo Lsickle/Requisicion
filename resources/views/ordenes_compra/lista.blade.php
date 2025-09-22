@@ -461,56 +461,25 @@
             cont.querySelector('#ss-requisicion-id').value = requisicionId;
             // Poblar productos desde JSON embebido por requisición
             const jsonEl = document.getElementById(`req-products-${requisicionId}`);
-            const ocpEl = document.getElementById(`req-products-ocp-${requisicionId}`);
             const outEl = document.getElementById(`req-products-out-${requisicionId}`);
             let items = [];
-            let ocpItems = [];
             let outIds = [];
             if (jsonEl) {
                 try { items = JSON.parse(jsonEl.textContent || '[]'); } catch(e) { items = []; }
             }
-            if (ocpEl) {
-                try { ocpItems = JSON.parse(ocpEl.textContent || '[]'); } catch(e) { ocpItems = []; }
-            }
             if (outEl) {
                 try { outIds = JSON.parse(outEl.textContent || '[]'); } catch(e) { outIds = []; }
             }
-            // obtener ocp que ya tienen salida para esta requisición
-            const ocpOutEl = document.getElementById(`req-products-ocp-out-${requisicionId}`);
-            let ocpOutIds = [];
-            if (ocpOutEl) {
-                try { ocpOutIds = JSON.parse(ocpOutEl.textContent || '[]'); } catch(e){ ocpOutIds = []; }
-            }
             sel.innerHTML = '<option value="">Seleccione producto</option>';
-            // construir conjunto de productos con distribución para ocultar la opción base
-            const ocpProductIds = new Set(ocpItems.map(o => Number(o.producto_id)));
-
+            // Poblar únicamente con los productos de la requisición (ignorar líneas distribuidas)
             items.forEach(p => {
-                // si existen líneas distribuidas para este producto, no mostrar la opción del producto base
-                if (ocpProductIds.has(Number(p.id))) return;
                 if (outIds.includes(p.id)) return; // ya tiene salida, no permitir otra
                 const opt = document.createElement('option');
                 opt.value = `prod_${p.id}`;
                 opt.dataset.productoId = String(p.id);
-                // mostrar producto con la cantidad requerida (pr_amount)
                 opt.textContent = `${p.name_produc} - Cant: ${p.pr_amount ?? 0} ${p.unit_produc ? '(' + p.unit_produc + ')' : ''}`;
                 opt.dataset.stock = p.stock_produc ?? 0;
                 opt.dataset.req = p.pr_amount ?? 0;
-                opt.dataset.unit = p.unit_produc || '';
-                sel.appendChild(opt);
-            });
-            ocpItems.forEach(p => {
-                // si esta ocp ya tiene salida, no mostrar
-                if (ocpOutIds.includes(p.ocp_id)) return;
-                // mostrar cada línea distribuida como opción independiente (valor ocp_{id})
-                const opt = document.createElement('option');
-                opt.value = `ocp_${p.ocp_id}`;
-                opt.dataset.productoId = String(p.producto_id);
-                opt.dataset.ocpId = String(p.ocp_id);
-                // mostrar producto con la cantidad de la línea; NO mostrar proveedor
-                opt.textContent = `${p.name_produc} - Cant: ${p.cantidad ?? 0} ${p.unit_produc ? '(' + p.unit_produc + ')' : ''}`;
-                opt.dataset.stock = 0;
-                opt.dataset.req = p.cantidad ?? 0;
                 opt.dataset.unit = p.unit_produc || '';
                 sel.appendChild(opt);
             });
