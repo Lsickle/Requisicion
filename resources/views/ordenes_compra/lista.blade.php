@@ -11,26 +11,34 @@
     <div class="flex-1 px-4 md:px-8 pb-10">
         <div class="max-w-7xl mx-auto bg-gray-50 rounded-xl shadow-lg p-6 flex flex-col min-h-[80vh]">
 
-            <!-- Encabezado -->
+            <!-- Encabezado: Título a la izquierda, Volver a la derecha -->
             <div class="flex items-center justify-between mb-6">
                 <h1 class="text-2xl font-bold text-gray-800">Requisiciones Aprobadas para Orden de Compra</h1>
+                <a href="{{ route('requisiciones.menu') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">← Volver</a>
             </div>
 
+            <!-- Barra de búsqueda -->
+            <div class="mb-4">
+                <input type="text" id="busquedaLista" placeholder="Buscar requisición..."
+                    class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+            </div>
+
+            <!-- Mostrar solo requisiciones con estatus permitidos y EXCLUIR explícitamente estatus 10 -->
             @php
                 $permitidos = [4,5,7,8,12];
                 $requisicionesFiltradas = ($requisiciones ?? collect())->filter(function($r) use ($permitidos) {
                     $hist = $r->estatusHistorial ?? collect();
                     $ultimo = $hist->sortByDesc('created_at')->first();
                     $ultimoId = $ultimo->estatus_id ?? null;
-                    return in_array($ultimoId, $permitidos, true);
-                });
+                    return $ultimoId !== 10 && in_array($ultimoId, $permitidos, true);
+                })->values();
             @endphp
 
             <!-- Contenedor scrollable -->
             <div class="flex-1 overflow-y-auto">
                 <!-- Tabla en escritorio -->
                 <div class="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
-                    <table class="min-w-full table-auto border-collapse">
+                    <table id="tablaRequisicionesLista" class="min-w-full table-auto border-collapse">
                         <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
@@ -86,11 +94,6 @@
                                         class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
                                         Ver
                                     </button>
-                                    @if($isComplete && $estatusActivo !== 10)
-                                    <button type="button" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition ml-2" onclick="completarReq({{ $req->id }})">
-                                        Completar requisición
-                                    </button>
-                                    @endif
                                 </td>
                             </tr>
                             @empty
@@ -103,9 +106,9 @@
                 </div>
 
                 <!-- Vista móvil como tarjetas -->
-                <div class="md:hidden space-y-4">
+                <div id="listaMobile" class="md:hidden space-y-4">
                     @forelse($requisicionesFiltradas as $req)
-                    <div class="bg-white rounded-lg shadow p-4">
+                    <div class="bg-white rounded-lg shadow p-4 req-card">
                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div>
@@ -132,12 +135,18 @@
                 </div>
             </div>
 
-            <!-- Botón volver fijo abajo -->
-            <div class="mt-6 text-center">
-                <a href="{{ route('requisiciones.menu') }}"
-                    class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg shadow transition">
-                    ← Volver
-                </a>
+            <!-- Paginación inferior: selector y controles -->
+            <div class="mt-6 flex items-center justify-between">
+                <div class="text-sm text-gray-600">Mostrar
+                    <select id="pageSizeSelectLista" class="border rounded px-2 py-1 ml-2">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                    por página
+                </div>
+                <div id="paginationControlsLista" class="flex flex-wrap gap-1"></div>
             </div>
 
         </div>
@@ -375,6 +384,97 @@
             document.body.style.overflow = 'auto';
         }
     });
+    // Paginación cliente para lista
+    let listaCurrentPage = 1;
+    let listaPageSize = 10;
+
+    function listaGetMatchedRows() {
+        return Array.from(document.querySelectorAll('#tablaRequisicionesLista tbody tr'))
+            .filter(r => (r.dataset.match ?? '1') !== '0');
+    }
+
+    function listaShowPage(page = 1) {
+        const rows = listaGetMatchedRows();
+        const totalPages = Math.max(1, Math.ceil(rows.length / listaPageSize));
+        listaCurrentPage = Math.min(Math.max(1, page), totalPages);
+        const start = (listaCurrentPage - 1) * listaPageSize;
+        const end = start + listaPageSize;
+
+        // Tabla desktop
+        const allRows = Array.from(document.querySelectorAll('#tablaRequisicionesLista tbody tr'));
+        allRows.forEach(r => r.style.display = 'none');
+        rows.slice(start, end).forEach(r => r.style.display = '');
+
+        // Mobile cards
+        const cards = Array.from(document.querySelectorAll('#listaMobile .req-card'));
+        cards.forEach(c => c.style.display = 'none');
+        cards.slice(start, end).forEach(c => c.style.display = '');
+
+        listaRenderPagination(totalPages);
+    }
+
+    function listaRenderPagination(totalPages){
+        const container = document.getElementById('paginationControlsLista');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Anterior';
+        btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (listaCurrentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnPrev.disabled = listaCurrentPage === 1;
+        btnPrev.onclick = () => listaShowPage(listaCurrentPage - 1);
+        container.appendChild(btnPrev);
+
+        const start = Math.max(1, listaCurrentPage - 2);
+        const end = Math.min(totalPages, listaCurrentPage + 2);
+        for (let p = start; p <= end; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'px-3 py-1 rounded text-sm ' + (p === listaCurrentPage ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100');
+            btn.onclick = () => listaShowPage(p);
+            container.appendChild(btn);
+        }
+
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Siguiente';
+        btnNext.className = 'px-3 py-1 border rounded text-sm ' + (listaCurrentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100');
+        btnNext.disabled = listaCurrentPage === totalPages;
+        btnNext.onclick = () => listaShowPage(listaCurrentPage + 1);
+        container.appendChild(btnNext);
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        // Inicializar matching y pageSize
+        document.querySelectorAll('#tablaRequisicionesLista tbody tr, #listaMobile .req-card').forEach(el => el.dataset.match = '1');
+
+        const selLista = document.getElementById('pageSizeSelectLista');
+        if (selLista) {
+            listaPageSize = parseInt(selLista.value, 10) || 10;
+            selLista.addEventListener('change', (e) => {
+                listaPageSize = parseInt(e.target.value, 10) || 10;
+                listaShowPage(1);
+            });
+        }
+
+        // Búsqueda
+        const search = document.getElementById('busquedaLista');
+        if (search) {
+            search.addEventListener('keyup', () => {
+                const filtro = (search.value || '').toLowerCase();
+                document.querySelectorAll('#tablaRequisicionesLista tbody tr').forEach(r => {
+                    r.dataset.match = r.textContent.toLowerCase().includes(filtro) ? '1' : '0';
+                });
+                document.querySelectorAll('#listaMobile .req-card').forEach(c => {
+                    c.dataset.match = c.textContent.toLowerCase().includes(filtro) ? '1' : '0';
+                });
+                listaShowPage(1);
+            });
+        }
+
+        // Inicial show
+        listaShowPage(1);
+    });
+
     async function completarReq(id){
         try{
             const resp = await fetch(`{{ route('recepciones.completarSiListo') }}`, {
