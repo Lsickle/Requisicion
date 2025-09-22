@@ -401,22 +401,13 @@
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
                     @endphp
-                    @if(in_array($estatusActual, [5,7,8,12]))
-                        <button type="button" id="btn-abrir-entrega-oc"
-                           class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow mr-2">
-                           Entregar productos
-                        </button>
-                    @endif
-                    <button type="button" id="btn-abrir-recibir-oc"
-                       class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow mr-2">
-                       Recibir productos
-                    </button>
                     <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
                          class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="{{ $hayOrdenes ? 1 : 0 }}">
                          Descargar PDF/ZIP
                      </a>
                 </div>
 
+                {{-- Se removieron los modales de entrega y recibir de esta vista --}}
                 @php
                     // Productos de todas las órdenes para el modal de entrega (estatus 5)
                     $ocpLineas = DB::table('ordencompra_producto as ocp')
@@ -1285,140 +1276,6 @@
                 }
             }
         });
-
-        // Modal Entregar productos (estatus 5)
-        (function(){
-            const modal = document.getElementById('modal-entrega-oc');
-            const btnOpen = document.getElementById('btn-abrir-entrega-oc');
-            const btnClose = document.getElementById('ent-close');
-            const btnCancel = document.getElementById('ent-cancel');
-            const btnSave = document.getElementById('ent-save');
-            const tbody = document.getElementById('ent-tbody');
-            const chkHeader = document.getElementById('ent-chk-header');
-            const chkAll = document.getElementById('ent-select-all');
-
-            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
-            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
-            function setAll(checked){ tbody?.querySelectorAll('.ent-row-chk').forEach(ch => { if (!ch.disabled) ch.checked = checked; }); }
-
-            btnOpen?.addEventListener('click', open);
-            btnClose?.addEventListener('click', close);
-            btnCancel?.addEventListener('click', close);
-            modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
-            chkHeader?.addEventListener('change', function(){ setAll(this.checked); });
-            chkAll?.addEventListener('change', function(){ setAll(this.checked); });
-
-            // Limitar inputs a su máximo
-            tbody?.addEventListener('input', function(e){
-                if (e.target && e.target.classList.contains('ent-cant-input')){
-                    const mx = parseInt(e.target.max || '0', 10);
-                    let v = parseInt(e.target.value || '0', 10);
-                    if (isNaN(v) || v < 0) v = 0;
-                    if (mx > 0 && v > mx) v = mx;
-                    e.target.value = v;
-                }
-            });
-            
-            btnSave?.addEventListener('click', async function(){
-                const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
-                const items = [];
-                const porProducto = {};
-                rows.forEach(tr => {
-                    const chk = tr.querySelector('.ent-row-chk');
-                    const inp = tr.querySelector('.ent-cant-input');
-                    if (!chk || !inp || chk.disabled || !chk.checked) return;
-                    const prodId = Number(chk.dataset.productoId);
-                    const rem = parseInt(chk.dataset.rem || '0', 10);
-                    const actual = parseInt(inp.value||'0',10);
-                    const ya = porProducto[prodId] || 0;
-                    const permitido = Math.max(0, rem - ya);
-                    const aEnviar = Math.min(Math.max(0, actual), permitido);
-                    if (aEnviar > 0) {
-                        items.push({ producto_id: prodId, ocp_id: Number(chk.dataset.ocpId), cantidad: aEnviar });
-                        porProducto[prodId] = ya + aEnviar;
-                    }
-                });
-                if (items.length === 0) { Swal.fire({icon:'info', title:'Sin selección', text:'Seleccione al menos un producto con cantidad > 0.'}); return; }
-                try {
-                    const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, items, comentario: null })
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
-                    // Intentar completar automáticamente
-                    try { await fetch(`{{ route('recepciones.completarSiListo') }}`, { method:'POST', headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify({ requisicion_id: {{ $requisicion->id }} }) }); } catch(e) {}
-                    close();
-                    Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas.'}).then(()=> location.reload());
-                } catch(e){
-                    Swal.fire({icon:'error', title:'Error', text:e.message});
-                }
-            });
-        })();
-
-        (function(){
-            // Modal Recibir productos
-            const modal = document.getElementById('modal-recibir-oc');
-            const btnOpen = document.getElementById('btn-abrir-recibir-oc');
-            const btnClose = document.getElementById('rc-close');
-            const btnCancel = document.getElementById('rc-cancel');
-            const btnSave = document.getElementById('rc-save');
-            const tipo = modal?.dataset?.tipo === 'entrega' ? 'entrega' : 'recepcion';
-            const URL_CONFIRM_ENTREGA = "{{ route('entregas.confirmar') }}";
-            const URL_CONFIRM_RECEPCION = "{{ route('recepciones.confirmar') }}";
-
-            function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
-            function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
-
-            btnOpen?.addEventListener('click', open);
-            btnClose?.addEventListener('click', close);
-            btnCancel?.addEventListener('click', close);
-            modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
-
-            document.addEventListener('input', function(e){
-                if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
-                    const max = parseInt(e.target.max || '0', 10);
-                    let v = parseInt(e.target.value || '0', 10);
-                    if (isNaN(v) || v < 0) v = 0;
-                    if (v > max) v = max;
-                    e.target.value = v;
-                }
-            });
-
-            btnSave?.addEventListener('click', async function(){
-                if (!modal) return;
-                const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
-                const rows = Array.from(modal.querySelectorAll('tbody tr[data-item-id]'));
-                if (rows.length === 0) { Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'}); return; }
-                const items = rows.map(tr => {
-                    const id = parseInt(tr.dataset.itemId, 10);
-                    const inp = tr.querySelector('.rcx-input');
-                    const max = parseInt(inp?.max || '0', 10);
-                    let val = parseInt(inp?.value || '0', 10);
-                    if (isNaN(val) || val < 0) val = 0;
-                    if (val > max) val = max;
-                    if (inp) inp.value = val;
-                    return { id, cantidad: val };
-                });
-                const total = items.length;
-                const confirm = await Swal.fire({ title: 'Guardar recepciones', text: `Se actualizarán ${total} registro(s). ¿Desea continuar?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
-                if (!confirm.isConfirmed) return;
-                Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    for (const it of items){
-                        const payload = (tipo === 'entrega') ? { entrega_id: it.id, cantidad: it.cantidad } : { recepcion_id: it.id, cantidad: it.cantidad };
-                        const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                        const data = await resp.json();
-                        if (!resp.ok) throw new Error(data.message || 'Error al confirmar');
-                    }
-                    close();
-                    Swal.fire({icon:'success', title:'¡Guardado!', text:'Recepciones actualizadas.'}).then(()=> location.reload());
-                } catch (e) {
-                    Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
-                }
-            });
-        })();
     });
 
     function onCantidadTotalChange(rowKey) {
