@@ -11,6 +11,7 @@ use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Estatus;
 use App\Models\Estatus_Requisicion;
+use App\Models\Entrega;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
@@ -459,5 +460,57 @@ class RequisicionController extends Controller
             ->get();
 
         return view('requisiciones.todas', compact('requisiciones'));
+    }
+
+    // Agregar este método al controlador
+    public function entregarRequisicion(Request $request, $requisicionId)
+    {
+        try {
+            DB::beginTransaction();
+
+            $requisicion = Requisicion::findOrFail($requisicionId);
+            $items = $request->input('items', []);
+
+            if (empty($items)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay productos seleccionados para entregar'
+                ], 400);
+            }
+
+            foreach ($items as $item) {
+                // Crear registro de entrega
+                Entrega::create([
+                    'requisicion_id' => $requisicionId,
+                    'producto_id' => $item['producto_id'],
+                    'cantidad' => $item['cantidad'],
+                    'fecha_entrega' => now(),
+                    'entregado_por' => session('user.id'),
+                    'recibido_por' => $requisicion->user_id,
+                    'estado' => 'pendiente'
+                ]);
+            }
+
+            // Actualizar estatus de la requisición a "Material recibido por coordinador" (estatus 8)
+            Estatus_Requisicion::create([
+                'requisicion_id' => $requisicionId,
+                'estatus_id' => 8,
+                'comentario' => 'Entrega parcial realizada desde el módulo de requisiciones',
+                'user_id' => session('user.id')
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Entrega registrada correctamente'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al registrar la entrega: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

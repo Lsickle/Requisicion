@@ -214,7 +214,7 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
-    
+
     // Ruta para distribuir productos entre proveedores
     Route::post('ordenes_compra/distribuir-proveedores', [OrdenCompraController::class, 'distribuirProveedores'])
         ->name('ordenes_compra.distribuirProveedores');
@@ -243,7 +243,11 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/recepciones/completar-si-listo', [OrdenCompraController::class, 'completarSiListo'])->name('recepciones.completarSiListo');
 
     // Salida de stock directa a entrega
-    Route::post('/recepciones/salida-stock', [\App\Http\Controllers\ordencompra\OrdenCompraController::class, 'storeSalidaStockEnEntrega'])->name('recepciones.storeSalidaStockEnEntrega');
+    Route::post('/recepciones/salida-stock', [\App\Http\Controllers\ordencompra\OrdenCompraController::class, 'storeSalidaStockEnEntrega'])
+        ->name('recepciones.storeSalidaStockEnEntrega');
+
+    Route::post('/requisiciones/{requisicion}/entregar', [RequisicionController::class, 'entregarRequisicion'])
+        ->name('requisiciones.entregar');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

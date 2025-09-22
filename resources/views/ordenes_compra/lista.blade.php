@@ -475,6 +475,12 @@
             if (outEl) {
                 try { outIds = JSON.parse(outEl.textContent || '[]'); } catch(e) { outIds = []; }
             }
+            // obtener ocp que ya tienen salida para esta requisición
+            const ocpOutEl = document.getElementById(`req-products-ocp-out-${requisicionId}`);
+            let ocpOutIds = [];
+            if (ocpOutEl) {
+                try { ocpOutIds = JSON.parse(ocpOutEl.textContent || '[]'); } catch(e){ ocpOutIds = []; }
+            }
             sel.innerHTML = '<option value="">Seleccione producto</option>';
             // construir conjunto de productos con distribución para ocultar la opción base
             const ocpProductIds = new Set(ocpItems.map(o => Number(o.producto_id)));
@@ -494,6 +500,8 @@
                 sel.appendChild(opt);
             });
             ocpItems.forEach(p => {
+                // si esta ocp ya tiene salida, no mostrar
+                if (ocpOutIds.includes(p.ocp_id)) return;
                 // mostrar cada línea distribuida como opción independiente (valor ocp_{id})
                 const opt = document.createElement('option');
                 opt.value = `ocp_${p.ocp_id}`;

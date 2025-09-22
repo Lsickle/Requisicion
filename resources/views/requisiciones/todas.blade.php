@@ -135,6 +135,13 @@
                                 <i class="fas fa-paper-plane"></i> Reenviar
                             </button>
                             @endif
+
+                            <!-- Nuevo: Botón Entregar - disponible para ciertos estatus -->
+                            @if(in_array($ultimoEstatusId, [4, 5, 7, 8, 12]))
+                            <button type="button" class="bg-teal-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-teal-700 transition flex items-center gap-1 btn-open-entrega-req" data-req-id="{{ $req->id }}">
+                                <i class="fas fa-truck"></i> Entregar
+                            </button>
+                            @endif
                         </div>
                     </td>
                 </tr>
@@ -314,6 +321,122 @@
              </div>
          </div>
      </div>
+
+     <!-- Modal de Entrega para Requisición -->
+     @php
+         // Calcular estatus activo para esta requisición (independiente del loop de la tabla)
+         $histX = $req->estatusHistorial;
+         $ultimoActivoX = ($histX && $histX->count()) ? ($histX->firstWhere('estatus', 1) ?? $histX->sortByDesc('created_at')->first()) : null;
+         $estatusIdX = $ultimoActivoX->estatus_id ?? null;
+     @endphp
+     @if(in_array($estatusIdX, [4, 5, 7, 8, 12]))
+     <div id="modal-entrega-req-{{ $req->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-req-id="{{ $req->id }}">
+         <div class="absolute inset-0 bg-black/50" data-close="1"></div>
+         <div class="relative bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+             <div class="flex justify-between items-center px-6 py-4 border-b">
+                 <h3 class="text-lg font-semibold">Entregar productos - Requisición #{{ $req->id }}</h3>
+                 <button type="button" class="text-gray-600 hover:text-gray-800 ent-req-close" data-req-id="{{ $req->id }}">✕</button>
+             </div>
+             <div class="p-6">
+                 <div class="flex items-center justify-between mb-3">
+                     <label class="inline-flex items-center gap-2 text-sm">
+                         <input type="checkbox" class="border rounded ent-req-select-all" data-req-id="{{ $req->id }}">
+                         Seleccionar todos
+                     </label>
+                     <span class="text-xs text-gray-500">Estatus resultante: 8 (Material recibido por coordinador)</span>
+                 </div>
+                 <div class="max-h-[55vh] overflow-y-auto border rounded bg-white">
+                     <table class="min-w-full text-sm">
+                         <thead class="bg-gray-100 sticky top-0 z-10">
+                             <tr>
+                                 <th class="px-3 py-2 text-center"><input type="checkbox" class="ent-req-chk-header" data-req-id="{{ $req->id }}"></th>
+                                 <th class="px-3 py-2 text-left">Producto</th>
+                                 <th class="px-3 py-2 text-center">Cantidad Requerida</th>
+                                 <th class="px-3 py-2 text-center">Ya Entregado</th>
+                                 <th class="px-3 py-2 text-center">Pendiente</th>
+                                 <th class="px-3 py-2 text-center">Entregar</th>
+                             </tr>
+                         </thead>
+                         <tbody id="ent-req-tbody-{{ $req->id }}">
+                             @php
+                                 // Obtener productos de la requisición con sus cantidades
+                                 $productosReq = DB::table('producto_requisicion')
+                                     ->join('productos', 'producto_requisicion.id_producto', '=', 'productos.id')
+                                     ->where('producto_requisicion.id_requisicion', $req->id)
+                                     ->select('productos.id', 'productos.name_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
+                                     ->get();
+                                 
+                                 // Obtener cantidades ya entregadas
+                                 $entregasPorProducto = DB::table('entrega')
+                                     ->where('requisicion_id', $req->id)
+                                     ->whereNull('deleted_at')
+                                     ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as entregado'))
+                                     ->groupBy('producto_id')
+                                     ->pluck('entregado', 'producto_id');
+                                 
+                                 // Obtener recepciones de stock
+                                 $recepcionesPorProducto = DB::table('recepcion as r')
+                                     ->join('orden_compras as oc', 'r.orden_compra_id', '=', 'oc.id')
+                                     ->where('oc.requisicion_id', $req->id)
+                                     ->whereNull('r.deleted_at')
+                                     ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as recibido'))
+                                     ->groupBy('r.producto_id')
+                                     ->pluck('recibido', 'producto_id');
+                             @endphp
+                             @forelse($productosReq as $producto)
+                             @php
+                                 $productoId = $producto->id;
+                                 $cantidadRequerida = (int)$producto->cantidad_requerida;
+                                 $entregado = (int)($entregasPorProducto[$productoId] ?? 0);
+                                 $recibidoStock = (int)($recepcionesPorProducto[$productoId] ?? 0);
+                                 $totalEntregado = $entregado + $recibidoStock;
+                                 $pendiente = max(0, $cantidadRequerida - $totalEntregado);
+                                 $isDone = ($pendiente <= 0);
+                                 
+                                 // Verificar si hay entregas pendientes de confirmación
+                                 $pendientesNoConfirmadas = DB::table('entrega')
+                                     ->where('requisicion_id', $req->id)
+                                     ->where('producto_id', $productoId)
+                                     ->whereNull('deleted_at')
+                                     ->where(function($q){ 
+                                         $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); 
+                                     })
+                                     ->sum('cantidad');
+                             @endphp
+                             <tr class="border-t">
+                                 <td class="px-3 py-2 text-center">
+                                     <input type="checkbox" class="ent-req-row-chk" data-producto-id="{{ $productoId }}" data-pendiente="{{ $pendiente }}" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
+                                 </td>
+                                 <td class="px-3 py-2">{{ $producto->name_produc }}</td>
+                                 <td class="px-3 py-2 text-center">{{ $cantidadRequerida }}</td>
+                                 <td class="px-3 py-2 text-center">{{ $totalEntregado }}</td>
+                                 <td class="px-3 py-2 text-center">
+                                     @if($isDone)
+                                         <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Completado</span>
+                                     @elseif($pendientesNoConfirmadas > 0)
+                                         <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Enviado, esperando confirmación ({{ $pendientesNoConfirmadas }})</span>
+                                     @else
+                                         <span class="text-xs">{{ $pendiente }}</span>
+                                     @endif
+                                 </td>
+                                 <td class="px-3 py-2 text-center">
+                                     <input type="number" min="0" max="{{ $pendiente }}" value="{{ $pendiente }}" class="w-24 border rounded p-1 text-center ent-req-cant-input" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
+                                 </td>
+                             </tr>
+                             @empty
+                             <tr><td colspan="6" class="px-3 py-3 text-center text-gray-500">No hay productos en esta requisición.</td></tr>
+                             @endforelse
+                         </tbody>
+                     </table>
+                 </div>
+             </div>
+             <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                 <button type="button" class="px-4 py-2 border rounded ent-req-cancel" data-req-id="{{ $req->id }}">Cancelar</button>
+                 <button type="button" class="px-4 py-2 bg-green-600 text-white rounded ent-req-save" data-req-id="{{ $req->id }}">Realizar entrega</button>
+             </div>
+         </div>
+     </div>
+     @endif
      @endforeach
     @endif
 </div>
@@ -414,6 +537,129 @@
             });
         }
         showPage(1);
+
+        // Funcionalidad para modal de entrega de requisición
+        document.querySelectorAll('.btn-open-entrega-req').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const reqId = btn.dataset.reqId;
+                const modal = document.getElementById(`modal-entrega-req-${reqId}`);
+                modal?.classList.remove('hidden');
+                modal?.classList.add('flex');
+            });
+        });
+
+        document.querySelectorAll('.ent-req-close, .ent-req-cancel').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const reqId = btn.dataset.reqId;
+                const modal = document.getElementById(`modal-entrega-req-${reqId}`);
+                modal?.classList.add('hidden');
+                modal?.classList.remove('flex');
+            });
+        });
+
+        document.querySelectorAll('[id^="modal-entrega-req-"]').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal || e.target?.dataset?.close === '1') {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+        });
+
+        document.querySelectorAll('.ent-req-chk-header').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const reqId = chk.dataset.reqId;
+                const tbody = document.getElementById(`ent-req-tbody-${reqId}`);
+                tbody?.querySelectorAll('.ent-req-row-chk').forEach(c => { 
+                    if (!c.disabled) c.checked = chk.checked; 
+                });
+            });
+        });
+
+        document.querySelectorAll('.ent-req-select-all').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const reqId = chk.dataset.reqId;
+                const tbody = document.getElementById(`ent-req-tbody-${reqId}`);
+                tbody?.querySelectorAll('.ent-req-row-chk').forEach(c => { 
+                    if (!c.disabled) c.checked = chk.checked; 
+                });
+            });
+        });
+
+        document.querySelectorAll('[id^="ent-req-tbody-"]').forEach(tb => {
+            tb.addEventListener('input', (e) => {
+                if (e.target && e.target.classList.contains('ent-req-cant-input')){
+                    const mx = parseInt(e.target.max || '0', 10);
+                    let v = parseInt(e.target.value || '0', 10);
+                    if (isNaN(v) || v < 0) v = 0;
+                    if (mx > 0 && v > mx) v = mx;
+                    e.target.value = v;
+                }
+            });
+        });
+
+        document.querySelectorAll('.ent-req-save').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const reqId = btn.dataset.reqId;
+                const modal = document.getElementById(`modal-entrega-req-${reqId}`);
+                const tbody = document.getElementById(`ent-req-tbody-${reqId}`);
+                const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
+                const items = [];
+                
+                rows.forEach(tr => {
+                    const chk = tr.querySelector('.ent-req-row-chk');
+                    const inp = tr.querySelector('.ent-req-cant-input');
+                    if (!chk || !inp || chk.disabled || !chk.checked) return;
+                    
+                    const prodId = Number(chk.dataset.productoId);
+                    const pendiente = parseInt(chk.dataset.pendiente || '0', 10);
+                    const cantidad = parseInt(inp.value||'0',10);
+                    
+                    if (cantidad > 0 && cantidad <= pendiente) {
+                        items.push({ 
+                            producto_id: prodId, 
+                            cantidad: cantidad 
+                        });
+                    }
+                });
+                
+                if (items.length === 0) { 
+                    Swal.fire({
+                        icon:'info', 
+                        title:'Sin selección', 
+                        text:'Seleccione al menos un producto con cantidad > 0.'
+                    }); 
+                    return; 
+                }
+                
+                try {
+                    const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                        body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, fecha: new Date().toISOString().slice(0,19).replace('T',' ') })
+                    });
+                    
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
+                    
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    
+                    Swal.fire({
+                        icon:'success', 
+                        title:'Éxito', 
+                        text:'Entregas registradas correctamente.'
+                    }).then(() => location.reload());
+                    
+                } catch(e) {
+                    Swal.fire({
+                        icon:'error', 
+                        title:'Error', 
+                        text: e.message || 'Ocurrió un error al procesar la entrega'
+                    });
+                }
+            });
+        });
     });
 
     // Funciones propietario
@@ -442,12 +688,15 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire({ icon: 'success', title: '¡Cancelada!', text: 'La requisición ha sido cancelada', confirmButtonColor: '#1e40af' }).then(() => location.reload());
+                        Swal.fire('Cancelada!', data.message, 'success').then(() => location.reload());
                     } else {
-                        Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Ocurrió un error al cancelar la requisición', confirmButtonColor: '#1e40af' });
+                        Swal.fire('Error!', data.message, 'error');
                     }
                 })
-                .catch(() => Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al procesar la solicitud', confirmButtonColor: '#1e40af' }));
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('Error!', 'Error al cancelar', 'error');
+                });
             }
         });
     }
@@ -455,30 +704,38 @@
     function reenviarRequisicion(id) {
         Swal.fire({
             title: '¿Reenviar requisición?',
-            text: "Esta acción cambiará el estatus a 'Requisición creada'",
+            text: 'Esta acción reenviará la requisición para su aprobación',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#1e40af',
+            confirmButtonColor: '#3085d6',
             cancelButtonColor: '#d33',
             confirmButtonText: 'Sí, reenviar',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
-            if (result.isConfirmed) {
-                Swal.fire({ title: 'Procesando', text: 'Reenviando requisición...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-                fetch(`/requisiciones/${id}/reenviar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({ icon: 'success', title: '¡Reenviada!', text: 'La requisición ha sido reenviada', confirmButtonColor: '#1e40af' }).then(() => location.reload());
-                    } else {
-                        Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Ocurrió un error al reenviar la requisición', confirmButtonColor: '#1e40af' });
-                    }
-                })
-                .catch(() => Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al procesar la solicitud', confirmButtonColor: '#1e40af' }));
-            }
+            if (!result.isConfirmed) return;
+            Swal.fire({
+                title: 'Procesando',
+                text: 'Reenviando requisición...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            fetch(`/requisiciones/${id}/reenviar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('Reenviada!', data.message, 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Error!', data.message || 'No se pudo reenviar', 'error');
+                    if (data.error) console.error(data.error);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire('Error!', 'Error al reenviar', 'error');
+            });
         });
     }
 </script>
