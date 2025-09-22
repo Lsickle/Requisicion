@@ -124,24 +124,13 @@
                 ->select('producto_id', DB::raw('SUM(cantidad) as pend'))
                 ->groupBy('producto_id')
                 ->pluck('pend', 'producto_id');
-            // Datos para modal Recibir
-            $recListEntrega = DB::table('entrega as e')
-                ->join('productos as p','p.id','=','e.producto_id')
-                ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
-                ->where('e.requisicion_id', $requisicionId)
-                ->whereNull('e.deleted_at')
-                ->where(function($q){ $q->whereNull('e.cantidad_recibido')->orWhere('e.cantidad_recibido', 0); })
-                ->orderBy('e.id','asc')
-                ->get();
-            $recListRecep = DB::table('recepcion as r')
-                ->join('orden_compras as oc4','oc4.id','=','r.orden_compra_id')
-                ->join('productos as p','p.id','=','r.producto_id')
-                ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
-                ->where('oc4.requisicion_id', $requisicionId)
+            // Datos para modal Recibir: recibido por producto en esta OC (confirmado)
+            $yaRecPorProducto = DB::table('recepcion as r')
+                ->where('r.orden_compra_id', $oc->id)
                 ->whereNull('r.deleted_at')
-                ->orderBy('r.id','asc')
-                ->get();
-            $tipoRec = $recListEntrega->count() ? 'entrega' : 'recepcion';
+                ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+                ->groupBy('r.producto_id')
+                ->pluck('rec','producto_id');
         @endphp
         <div id="modal-entrega-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}">
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
@@ -216,31 +205,59 @@
             </div>
         </div>
 
-        <div id="modal-recibir-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}" data-tipo="{{ $tipoRec }}">
+        <!-- El modal anterior que listaba únicamente filas desde 'recepcion' fue eliminado porque ocultaba la posibilidad de crear recepciones para líneas de la OC. Se conserva el modal que muestra las líneas de la OC y permite anotar cantidades a recibir. -->
+
+        <div id="modal-recibir-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}">
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
-            <div class="relative bg-white w-full max-w-2xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+            <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
                 <div class="flex justify-between items-center px-6 py-4 border-b">
-                    <h3 class="text-lg font-semibold">Recibir productos (Req #{{ $requisicionId }})</h3>
+                    <h3 class="text-lg font-semibold">Recibir productos de la OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                     <button type="button" class="text-gray-600 hover:text-gray-800 rc-close" data-oc-id="{{ $oc->id }}">✕</button>
                 </div>
                 <div class="p-6">
-                    @php $recRows = $tipoRec === 'entrega' ? $recListEntrega : $recListRecep; @endphp
+                    @php
+                        $recRows = DB::table('ordencompra_producto as ocp')
+                            ->join('productos as p','p.id','=','ocp.producto_id')
+                            ->leftJoin('recepcion as r', function($j) use ($oc){
+                                $j->on('r.producto_id','=','ocp.producto_id')
+                                  ->where('r.orden_compra_id', $oc->id)
+                                  ->whereNull('r.deleted_at');
+                            })
+                            ->select(
+                                'p.id as producto_id',
+                                'p.name_produc',
+                                'ocp.total as cantidad_total',
+                                'r.id as recepcion_id',
+                                DB::raw('COALESCE(r.cantidad_recibido,0) as recibido')
+                            )
+                            ->where('ocp.orden_compras_id', $oc->id)
+                            ->whereNull('ocp.deleted_at')
+                            ->orderBy('p.name_produc','asc')
+                            ->get();
+                    @endphp
                     @if(($recRows ?? collect())->count())
                     <table class="w-full text-sm border rounded overflow-hidden bg-white">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 text-left">Producto</th>
-                                <th class="p-2 text-center">Entregado</th>
-                                <th class="p-2 text-center">Cantidad recibida</th>
+                                <th class="p-2 text-center">Cant. OC</th>
+                                <th class="p-2 text-center">Recibido</th>
+                                <th class="p-2 text-center">Pendiente</th>
+                                <th class="p-2 text-center">A recibir</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($recRows as $r)
-                            <tr class="border-t" data-item-id="{{ $r->id }}">
+                            @php
+                                $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
+                            @endphp
+                            <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
                                 <td class="p-2">{{ $r->name_produc }}</td>
-                                <td class="p-2 text-center">{{ $r->cantidad }}</td>
+                                <td class="p-2 text-center">{{ (int)$r->cantidad_total }}</td>
+                                <td class="p-2 text-center">{{ (int)$r->recibido }}</td>
+                                <td class="p-2 text-center">{{ $pend }}</td>
                                 <td class="p-2 text-center">
-                                    <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center rcx-input">
+                                    <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
                                 </td>
                             </tr>
                             @endforeach
@@ -248,10 +265,10 @@
                     </table>
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
-                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar todo</button>
+                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar recepción</button>
                     </div>
                     @else
-                        <div class="text-gray-600">No hay registros para esta requisición.</div>
+                        <div class="text-gray-600">Esta orden no tiene líneas.</div>
                     @endif
                 </div>
             </div>
@@ -574,36 +591,59 @@
             btn.addEventListener('click', async () => {
                 const ocId = btn.dataset.ocId;
                 const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                const reqId = modal?.dataset?.requisicionId;
-                const tipo = modal?.dataset?.tipo === 'recepcion' ? 'recepcion' : 'entrega';
-                const rows = Array.from(modal.querySelectorAll('tbody tr[data-item-id]'));
-                if (rows.length === 0) { Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'}); return; }
+                const rows = Array.from(modal.querySelectorAll('.rc-row'));
+                if (rows.length === 0) {
+                    modal.classList.add('hidden'); modal.classList.remove('flex');
+                    await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
+                    modal.classList.remove('hidden'); modal.classList.add('flex');
+                    return;
+                }
                 const items = rows.map(tr => {
-                    const id = parseInt(tr.dataset.itemId, 10);
+                    const recId = tr.dataset.recId || null;
+                    const prodId = parseInt(tr.dataset.productoId, 10);
+                    const total = parseInt(tr.dataset.total || '0', 10); // Cantidad OC
+                    const current = parseInt(tr.dataset.current || '0', 10); // Ya recibido acumulado
                     const inp = tr.querySelector('.rcx-input');
                     const max = parseInt(inp?.max || '0', 10);
-                    let val = parseInt(inp?.value || '0', 10);
-                    if (isNaN(val) || val < 0) val = 0;
-                    if (val > max) val = max;
-                    if (inp) inp.value = val;
-                    return { id, cantidad: val };
-                });
-                const total = items.length;
-                const confirm = await Swal.fire({ title: 'Guardar recepciones', text: `Se actualizarán ${total} registro(s). ¿Desea continuar?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
-                if (!confirm.isConfirmed) return;
+                    let inc = parseInt(inp?.value || '0', 10); // A recibir ahora
+                    if (!inp || inp.disabled) return null;
+                    if (isNaN(inc) || inc < 0) inc = 0;
+                    if (inc > max) inc = max;
+                    const nuevoAcumulado = Math.min(total, current + inc);
+                    return { recId, prodId, total, current, inc, nuevoAcumulado };
+                }).filter(Boolean).filter(it => it.inc > 0);
+                if (items.length === 0) {
+                    modal.classList.add('hidden'); modal.classList.remove('flex');
+                    await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
+                    modal.classList.remove('hidden'); modal.classList.add('flex');
+                    return;
+                }
+                // Ocultar modal antes de mostrar confirmación para que el diálogo no quede detrás
+                modal.classList.add('hidden'); modal.classList.remove('flex');
+                const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                if (!confirm.isConfirmed) { modal.classList.remove('hidden'); modal.classList.add('flex'); return; }
                 Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
                     for (const it of items){
-                        const payload = (tipo === 'entrega') ? { entrega_id: it.id, cantidad: it.cantidad } : { recepcion_id: it.id, cantidad: it.cantidad };
-                        const url = (tipo === 'entrega') ? "{{ route('entregas.confirmar') }}" : "{{ route('recepciones.confirmar') }}";
-                        const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        // Unificar en recepciones.confirmar
+                        const payload = it.recId
+                            ? { recepcion_id: it.recId, cantidad_recibido: it.nuevoAcumulado }
+                            : { orden_compra_id: ocId, producto_id: it.prodId, cantidad: it.total, cantidad_recibido: it.nuevoAcumulado };
+                        const resp = await fetch("{{ route('recepciones.confirmar') }}", {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
                         const data = await resp.json();
-                        if (!resp.ok) throw new Error(data.message || 'Error al confirmar');
+                        if (!resp.ok) throw new Error(data.message || 'Error al guardar recepción');
                     }
-                    modal.classList.add('hidden'); modal.classList.remove('flex');
-                    Swal.fire({icon:'success', title:'¡Guardado!', text:'Recepciones actualizadas.'}).then(()=> location.reload());
+                    Swal.close();
+                    await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepción registrada y stock actualizado.'});
+                    location.reload();
                 } catch (e) {
-                    Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
+                    Swal.close();
+                    await Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
+                    modal.classList.remove('hidden'); modal.classList.add('flex');
                 }
             });
         });
