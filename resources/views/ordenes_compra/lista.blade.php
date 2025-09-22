@@ -279,6 +279,25 @@
                     'pr_amount' => $p->pivot->pr_amount ?? 0,
                 ];
             });
+            // Añadir también líneas distribuidas pendientes (ocp) para que aparezcan en el selector
+            $lineasDistribuidasJson = DB::table('ordencompra_producto as ocp')
+                ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
+                ->leftJoin('productos as p','p.id','=','ocp.producto_id')
+                ->whereNull('ocp.deleted_at')
+                ->where('ocp.requisicion_id', $req->id)
+                ->whereNull('ocp.orden_compras_id')
+                ->select('ocp.id as ocp_id','ocp.producto_id','ocp.total as cantidad','p.name_produc','p.unit_produc','prov.prov_name')
+                ->get()
+                ->map(function($row){
+                    return [
+                        'ocp_id' => $row->ocp_id,
+                        'producto_id' => $row->producto_id,
+                        'cantidad' => $row->cantidad,
+                        'name_produc' => $row->name_produc,
+                        'unit_produc' => $row->unit_produc,
+                        'prov_name' => $row->prov_name,
+                    ];
+                });
             $salidasIds = DB::table('entrega')
                 ->where('requisicion_id', $req->id)
                 ->whereNull('deleted_at')
@@ -287,6 +306,7 @@
                 ->values();
         @endphp
         <script type="application/json" id="req-products-{{ $req->id }}">{!! $prodsData->toJson() !!}</script>
+        <script type="application/json" id="req-products-ocp-{{ $req->id }}">{!! $lineasDistribuidasJson->toJson() !!}</script>
         <script type="application/json" id="req-products-out-{{ $req->id }}">{!! $salidasIds->toJson() !!}</script>
     </div>
 </div>
@@ -441,23 +461,48 @@
             cont.querySelector('#ss-requisicion-id').value = requisicionId;
             // Poblar productos desde JSON embebido por requisición
             const jsonEl = document.getElementById(`req-products-${requisicionId}`);
+            const ocpEl = document.getElementById(`req-products-ocp-${requisicionId}`);
             const outEl = document.getElementById(`req-products-out-${requisicionId}`);
             let items = [];
+            let ocpItems = [];
             let outIds = [];
             if (jsonEl) {
                 try { items = JSON.parse(jsonEl.textContent || '[]'); } catch(e) { items = []; }
+            }
+            if (ocpEl) {
+                try { ocpItems = JSON.parse(ocpEl.textContent || '[]'); } catch(e) { ocpItems = []; }
             }
             if (outEl) {
                 try { outIds = JSON.parse(outEl.textContent || '[]'); } catch(e) { outIds = []; }
             }
             sel.innerHTML = '<option value="">Seleccione producto</option>';
+            // construir conjunto de productos con distribución para ocultar la opción base
+            const ocpProductIds = new Set(ocpItems.map(o => Number(o.producto_id)));
+
             items.forEach(p => {
+                // si existen líneas distribuidas para este producto, no mostrar la opción del producto base
+                if (ocpProductIds.has(Number(p.id))) return;
                 if (outIds.includes(p.id)) return; // ya tiene salida, no permitir otra
                 const opt = document.createElement('option');
-                opt.value = String(p.id);
-                opt.textContent = `${p.name_produc} (${p.unit_produc || ''})`;
+                opt.value = `prod_${p.id}`;
+                opt.dataset.productoId = String(p.id);
+                // mostrar producto con la cantidad requerida (pr_amount)
+                opt.textContent = `${p.name_produc} - Cant: ${p.pr_amount ?? 0} ${p.unit_produc ? '(' + p.unit_produc + ')' : ''}`;
                 opt.dataset.stock = p.stock_produc ?? 0;
                 opt.dataset.req = p.pr_amount ?? 0;
+                opt.dataset.unit = p.unit_produc || '';
+                sel.appendChild(opt);
+            });
+            ocpItems.forEach(p => {
+                // mostrar cada línea distribuida como opción independiente (valor ocp_{id})
+                const opt = document.createElement('option');
+                opt.value = `ocp_${p.ocp_id}`;
+                opt.dataset.productoId = String(p.producto_id);
+                opt.dataset.ocpId = String(p.ocp_id);
+                // mostrar producto con la cantidad de la línea; NO mostrar proveedor
+                opt.textContent = `${p.name_produc} - Cant: ${p.cantidad ?? 0} ${p.unit_produc ? '(' + p.unit_produc + ')' : ''}`;
+                opt.dataset.stock = 0;
+                opt.dataset.req = p.cantidad ?? 0;
                 opt.dataset.unit = p.unit_produc || '';
                 sel.appendChild(opt);
             });
@@ -476,25 +521,55 @@
         overlay.addEventListener('click', (e)=>{ if (e.target === overlay) close(); });
         sel.addEventListener('change', function(){
             const opt = this.options[this.selectedIndex];
-            const max = parseInt(opt?.dataset?.stock||'0',10) || 0;
-            stockLbl.textContent = opt?.dataset?.stock || '0';
-            reqLbl.textContent = opt?.dataset?.req || '0';
+            const stock = parseInt(opt?.dataset?.stock||'0',10) || 0;
+            const req = parseInt(opt?.dataset?.req||'0',10) || 0;
+            stockLbl.textContent = String(stock);
+            reqLbl.textContent = String(req);
             if (unitLbl) unitLbl.textContent = opt?.dataset?.unit || '—';
-            inpCant.max = max > 0 ? max : '';
-            if (maxLbl) maxLbl.textContent = String(max);
+            // establecer máximo según tipo: para ocp y también para producto usamos la cantidad requerida; si hay stock disponible limitar por stock
+            if (opt && opt.value && opt.value.startsWith('ocp_')) {
+                // línea distribuida: máximo es la cantidad de la línea
+                inpCant.max = req > 0 ? String(req) : '';
+                if (maxLbl) maxLbl.textContent = String(req);
+            } else {
+                // producto normal: si hay stock disponible, limitar por stock; de lo contrario usar la cantidad requerida
+                if (stock > 0) {
+                    inpCant.max = stock > 0 ? String(stock) : '';
+                    if (maxLbl) maxLbl.textContent = String(stock);
+                } else {
+                    inpCant.max = req > 0 ? String(req) : '';
+                    if (maxLbl) maxLbl.textContent = String(req);
+                }
+            }
         });
         btnSave.addEventListener('click', async function(){
             const requisicionId = parseInt(cont.querySelector('#ss-requisicion-id').value||'0',10);
-            const productoId = parseInt(sel.value||'0',10);
+            const rawVal = sel.value || '';
+            if (!rawVal) { Swal.fire({icon:'warning', title:'Datos incompletos', text:'Seleccione producto y cantidad válida'}); return; }
+
+            let productoId = 0;
+            let ocpId = null;
+            if (rawVal.startsWith('ocp_')) {
+                ocpId = parseInt(sel.options[sel.selectedIndex].dataset.ocpId || '0', 10) || null;
+                productoId = parseInt(sel.options[sel.selectedIndex].dataset.productoId || '0', 10);
+            } else if (rawVal.startsWith('prod_')) {
+                productoId = parseInt(sel.options[sel.selectedIndex].dataset.productoId || '0', 10);
+            } else {
+                productoId = parseInt(rawVal||'0',10);
+            }
+
             const cantidad = parseInt(inpCant.value||'0',10);
             if (!requisicionId || !productoId || !cantidad || cantidad<1){
                 Swal.fire({icon:'warning', title:'Datos incompletos', text:'Seleccione producto y cantidad válida'}); return;
             }
             try {
+                const body = { requisicion_id: requisicionId, producto_id: productoId, cantidad };
+                if (ocpId) body.ocp_id = ocpId; // enviar ocp_id para que backend lo use si está implementado
+
                 const resp = await fetch(`{{ route('recepciones.storeSalidaStockEnEntrega') }}`, {
                     method:'POST',
                     headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                    body: JSON.stringify({ requisicion_id: requisicionId, producto_id: productoId, cantidad })
+                    body: JSON.stringify(body)
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar');

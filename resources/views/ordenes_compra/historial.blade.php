@@ -163,14 +163,19 @@
                             <tbody id="ent-tbody-{{ $oc->id }}">
                                 @forelse($ocpLineas as $l)
                                 @php
+                                    // Totales requeridos por producto (desde la distribución de centros) con fallback
                                     $reqTot = (int) ($reqCantPorProducto[$l->producto_id] ?? 0);
-                                    $recEntregas = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
+                                    if ($reqTot <= 0) { $reqTot = (int) $l->total; }
+                                    // Recibido confirmado: entregas confirmadas + recepciones confirmadas
+                                    $recEnt = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
                                     $recStock = (int) ($recibidoStockPorProducto[$l->producto_id] ?? 0);
-                                    $recTotal = $recEntregas + $recStock;
+                                    $recTotal = $recEnt + $recStock;
+                                    // faltante total para la requisición por este producto
                                     $faltTot = max(0, $reqTot - $recTotal);
-                                    $isDone = $faltTot <= 0;
+                                    // Para esta línea de OC, no poder entregar más que lo que falta o que la OC pide
+                                    $maxEntregar = max(0, min((int)$l->total, $faltTot));
+                                    $isDone = ($faltTot <= 0);
                                     $pendLock = (int) ($pendNoConfPorProducto[$l->producto_id] ?? 0);
-                                    $maxEntregar = min((int)$l->total, $faltTot);
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}" data-rem="{{ $faltTot }}" {{ ($isDone || $pendLock>0) ? 'disabled' : '' }}></td>
