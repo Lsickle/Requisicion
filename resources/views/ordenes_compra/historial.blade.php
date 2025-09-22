@@ -14,51 +14,42 @@
     </div>
 
     @if($ordenes->isEmpty())
-        <p class="text-gray-500 text-center py-6">No hay órdenes de compra registradas.</p>
+    <p class="text-gray-500 text-center py-6">No hay órdenes de compra registradas.</p>
     @else
     <div class="overflow-x-auto">
         <table id="tablaOC" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
             <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
                 <tr>
+                    <th class="p-3 text-left">Requisición</th>
                     <th class="p-3 text-left">Orden</th>
                     <th class="p-3 text-left">Fecha</th>
-                    <th class="p-3 text-left">Requisición</th>
                     <th class="p-3 text-left">Proveedor</th>
                     <th class="p-3 text-left">Método</th>
                     <th class="p-3 text-left">Plazo</th>
-                    <th class="p-3 text-left">Productos</th>
+                    <!-- <th class="p-3 text-left">Productos</th> quitada -->
                     <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody class="text-gray-700">
                 @foreach($ordenes as $oc)
                 @php
-                    $proveedor = optional($oc->ordencompraProductos->first())->proveedor;
+                $proveedor = optional($oc->ordencompraProductos->first())->proveedor;
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
+                    <td class="p-3">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
                     <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y') }}</td>
-                    <td class="p-3">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
                     <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
-                    <td class="p-3">
-                        <ul class="list-disc list-inside text-sm text-gray-600">
-                            @foreach($oc->ordencompraProductos as $linea)
-                                @if($linea->producto)
-                                    <li>{{ $linea->producto->name_produc }} ({{ (int)$linea->total }})</li>
-                                @endif
-                            @endforeach
-                        </ul>
-                    </td>
+                    <!-- Columna productos eliminada -->
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 flex-wrap">
                             <button onclick="toggleModal('modal-{{ $oc->id }}')"
                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
                                 <i class="fas fa-eye"></i> Ver
                             </button>
-                            <a href="{{ route('ordenes_compra.pdf', $oc->id) }}"
-                                class="hidden"></a>
+                            <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" class="hidden"></a>
                             <a href="{{ route('ordenes_compra.download', $oc->requisicion->id ?? ($oc->requisicion_id ?? 0)) }}"
                                 class="bg-green-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-700 transition flex items-center gap-1">
                                 <i class="fas fa-file-pdf"></i> PDF
@@ -92,21 +83,29 @@
         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $oc->id }}')"></div>
         <div class="relative w-full max-w-4xl">
             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
-                <button onclick="toggleModal('modal-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl" aria-label="Cerrar modal">&times;</button>
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</h2>
+                <button onclick="toggleModal('modal-{{ $oc->id }}')"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"
+                    aria-label="Cerrar modal">&times;</button>
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' .
+                    $oc->id) }}</h2>
 
                 <section class="mb-8">
                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
-                        <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</div>
-                        <div><span class="font-medium">Fecha:</span> {{ optional($oc->created_at)->format('d/m/Y') }}</div>
-                        <div><span class="font-medium">Fecha OC:</span> {{ $oc->date_oc ? \Carbon\Carbon::parse($oc->date_oc)->format('d/m/Y') : '—' }}</div>
+                        <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}
+                        </div>
+                        <div><span class="font-medium">Fecha:</span> {{ optional($oc->created_at)->format('d/m/Y') }}
+                        </div>
+                        <div><span class="font-medium">Fecha OC:</span> {{ $oc->date_oc ?
+                            \Carbon\Carbon::parse($oc->date_oc)->format('d/m/Y') : '—' }}</div>
                         <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
-                        <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
+                        <div><span class="font-medium">Proveedor:</span> {{
+                            optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
                         <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
                         <div><span class="font-medium">Plazo de pago:</span> {{ $oc->plazo_oc ?? '—' }}</div>
                         @if(!empty($oc->observaciones))
-                        <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones }}</div>
+                        <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones
+                            }}</div>
                         @endif
                     </div>
                 </section>
@@ -125,29 +124,30 @@
                                 </thead>
                                 <tbody>
                                     @foreach($oc->ordencompraProductos as $linea)
-                                        @if($linea->producto)
-                                        <tr class="border-b">
-                                            <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
-                                            <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
-                                            <td class="p-3 align-top">
-                                                @php
-                                                    $dist = DB::table('ordencompra_centro_producto as ocp')
-                                                        ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
-                                                        ->select('c.name_centro', 'ocp.amount')
-                                                        ->where('ocp.orden_compra_id', $oc->id)
-                                                        ->where('ocp.producto_id', $linea->producto_id)
-                                                        ->get();
-                                                @endphp
-                                                <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                                                    @forelse($dist as $d)
-                                                        <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
-                                                    @empty
-                                                        <li>No hay distribución registrada</li>
-                                                    @endforelse
-                                                </ul>
-                                            </td>
-                                        </tr>
-                                        @endif
+                                    @if($linea->producto)
+                                    <tr class="border-b">
+                                        <td class="p-3 font-medium text-gray-800 align-top">{{
+                                            $linea->producto->name_produc }}</td>
+                                        <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
+                                        <td class="p-3 align-top">
+                                            @php
+                                            $dist = DB::table('ordencompra_centro_producto as ocp')
+                                            ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
+                                            ->select('c.name_centro', 'ocp.amount')
+                                            ->where('ocp.orden_compra_id', $oc->id)
+                                            ->where('ocp.producto_id', $linea->producto_id)
+                                            ->get();
+                                            @endphp
+                                            <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                                @forelse($dist as $d)
+                                                <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
+                                                @empty
+                                                <li>No hay distribución registrada</li>
+                                                @endforelse
+                                            </ul>
+                                        </td>
+                                    </tr>
+                                    @endif
                                     @endforeach
                                 </tbody>
                             </table>
@@ -156,7 +156,9 @@
                 </section>
 
                 <section class="mt-6">
-                    <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">Descargar PDF</a>
+                    <a href="{{ route('ordenes_compra.pdf', $oc->id) }}"
+                        class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">Descargar
+                        PDF</a>
                 </section>
             </div>
         </div>
