@@ -15,11 +15,30 @@
         $estatusOrdenados = $estatusOrdenados ?? collect();
         $currentId = optional($estatusActual)->id ?? 0;
 
+        // Determinar timestamp actual de forma segura:
+        // - Construir lista de timestamps con isset() para evitar Optional falsos
+        $allTimestamps = $estatusOrdenados->map(function($i){
+            $date = (isset($i->pivot) && isset($i->pivot->created_at)) ? $i->pivot->created_at : null;
+            return $date ? strtotime((string)$date) : null;
+        })->filter()->values();
+
+        // - Buscar el estatus activo (pivot.estatus == 1) de forma segura
+        $active = $estatusOrdenados->first(function($i){
+            return isset($i->pivot) && isset($i->pivot->estatus) && $i->pivot->estatus == 1;
+        });
+        $activeTimestamp = ($active && isset($active->pivot->created_at)) ? strtotime((string)$active->pivot->created_at) : null;
+
+        $currentTs = $activeTimestamp ?? ($allTimestamps->isNotEmpty() ? $allTimestamps->max() : null);
+
         // Deduplicar: conservar solo el más reciente por id, luego ordenar cronológicamente
         $estatusFiltrados = $estatusOrdenados
-            ->sortByDesc(function($i){ return optional($i->pivot->created_at); })
+            ->sortByDesc(function($i){
+                return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
+            })
             ->unique('id')
-            ->sortBy(function($i){ return optional($i->pivot->created_at); })
+            ->sortBy(function($i){
+                return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
+            })
             ->values();
 
         // Flujo normal
@@ -53,7 +72,15 @@
         {{-- Mostrar estatus --}}
         @foreach($estatusFiltrados as $item) 
             @php
-            $isCompleted = $item->id < $currentId; 
+            // Decidir completado comparando timestamps pivot.created_at frente al currentTs calculado arriba
+            $itemCreated = (isset($item->pivot) && isset($item->pivot->created_at)) ? $item->pivot->created_at : null;
+            $itemTs = $itemCreated ? strtotime((string)$itemCreated) : null;
+            if ($itemTs !== null && $currentTs !== null) {
+                $isCompleted = $itemTs <= $currentTs;
+            } else {
+                // Fallback: considerar 7 como completado o cualquier id menor al actual
+                $isCompleted = ($item->id == 7) || ($item->id < $currentId);
+            }
             $isCurrent = $item->id === $currentId;
 
                 // Colores especiales
