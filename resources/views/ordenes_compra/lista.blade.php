@@ -191,12 +191,12 @@
 
             <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
             <div class="overflow-x-auto">
-                <table class="min-w-full border border-gray-200">
+                <table class="min-w-full border border-gray-200 text-sm table-fixed">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="px-4 py-2 text-left">Producto</th>
-                            <th class="px-4 py-2 text-left">Cantidad Total</th>
-                            <th class="px-4 py-2 text-left">Distribución por Centros</th>
+                            <th class="px-4 py-2 text-left" style="width:40%">Producto</th>
+                            <th class="px-4 py-2 text-center" style="width:60px">Total</th>
+                            <th class="px-4 py-2 text-left" >Distribución por Centros</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -214,46 +214,20 @@
                         @endphp
 
                         <tr>
-                            <td class="px-4 py-3 border">{{ $prod->name_produc }}</td>
-                            <td class="px-4 py-3 border text-center font-semibold">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
-                            <td class="px-4 py-3 border">
+                            <td class="px-4 py-3 border min-w-0">{{ $prod->name_produc }}</td>
+                            <td class="px-4 py-3 border text-center font-semibold w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                            <td class="px-4 py-3 border align-top">
                                 @if($distribucion->count() > 0)
-                                <div class="space-y-2">
+                                <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
                                     @foreach($distribucion as $centro)
-                                    <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
-                                        <span class="font-medium text-sm">{{ $centro->name_centro }}</span>
-                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                    <div class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded text-sm min-w-0 overflow-hidden">
+                                        <span class="truncate mr-2">{{ $centro->name_centro }}</span>
+                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold flex-shrink-0 ml-2">{{ $centro->amount }}</span>
                                     </div>
                                     @endforeach
                                 </div>
                                 @else
                                 <span class="text-gray-500 text-sm">No hay distribución registrada</span>
-                                @endif
-
-                                @php
-                                    $salidas = DB::table('entrega as e')
-                                        ->where('e.requisicion_id', $req->id)
-                                        ->where('e.producto_id', $prod->id)
-                                        ->whereNull('e.deleted_at')
-                                        ->orderBy('e.id','asc')
-                                        ->get();
-                                @endphp
-                                @if($salidas->count())
-                                <div class="mt-3">
-                                    <div class="text-sm font-semibold text-gray-700 mb-1">Salidas de stock</div>
-                                    <ul class="text-xs text-gray-700 space-y-1">
-                                        @foreach($salidas as $s)
-                                            <li class="flex justify-between items-center bg-white border rounded px-2 py-1">
-                                                <span>Cantidad entregada: {{ $s->cantidad }}</span>
-                                                @if(is_null($s->cantidad_recibido) || (int)$s->cantidad_recibido === 0)
-                                                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700">Esperando confirmación</span>
-                                                @else
-                                                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700">Comfirmado: {{ (int)$s->cantidad_recibido }}</span>
-                                                @endif
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
                                 @endif
                             </td>
                         </tr>

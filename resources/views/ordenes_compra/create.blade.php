@@ -68,12 +68,12 @@
                 <div class="mt-6">
                     <h3 class="text-lg font-medium text-gray-700 mb-3">Distribución Original por Centros</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full border border-gray-200 text-sm">
+                        <table class="min-w-full border border-gray-200 text-sm table-fixed">
                             <thead class="bg-gray-100">
                                 <tr>
-                                    <th class="px-4 py-2 text-left">Producto</th>
-                                    <th class="px-4 py-2 text-center">Cantidad Total</th>
-                                    <th class="px-4 py-2 text-left">Distribución</th>
+                                    <th class="px-4 py-2 text-left" style="width:60%">Producto</th>
+                                    <th class="px-3 py-2 text-center" style="width:90px">Total</th>
+                                    <th class="px-4 py-2 text-left" style="width:40%">Distribución</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -91,17 +91,14 @@
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-4 py-3">{{ $prod->name_produc }}</td>
-                                    <td class="px-4 py-3 text-center font-medium">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                                    <td class="px-3 py-3 text-center font-medium w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
                                     <td class="px-4 py-3">
                                         @if($distribucion->count() > 0)
-                                        <div class="space-y-1">
+                                        <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
                                             @foreach($distribucion as $centro)
-                                            <div class="flex justify-between items-center bg-gray-50 px-3 py-1 rounded">
-                                                <span>{{ $centro->name_centro }}</span>
-                                                <span
-                                                    class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">
-                                                    {{ $centro->amount }}
-                                                </span>
+                                            <div class="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
+                                                <span class="truncate mr-2">{{ $centro->name_centro }}</span>
+                                                <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">{{ $centro->amount }}</span>
                                             </div>
                                             @endforeach
                                         </div>
@@ -113,7 +110,7 @@
                                 @endforeach
                             </tbody>
                         </table>
-                    </div>
+                     </div>
                 </div>
             </div>
             @endif
@@ -319,21 +316,21 @@
                     <!-- Tabla productos -->
                     <div class="overflow-x-auto mt-6 max-h-[60vh] overflow-y-auto">
                         <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
-                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white">
+                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-fixed">
                             <thead class="bg-gray-100 sticky top-0 z-10">
                                 <tr>
-                                    <th class="p-3">Producto</th>
-                                    <th class="p-3">Cantidad</th>
-                                    <th class="p-3">Sacado de stock</th>
-                                    <th class="p-3">Unidad</th>
-                                    <th class="p-3">Stock Disponible</th>
-                                    <th class="p-3">Distribución por Centros</th>
-                                    <th class="p-3 text-center">Acciones</th>
+                                    <th class="p-3 text-left" style="width:48%">Producto</th>
+                                    <th class="p-3 text-center" style="width:70px">Total</th>
+                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
+                                    <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                    <th class="p-3 text-center" style="width:110px">Stock</th>
+                                    <th class="p-3" style="width:30%">Distribución por Centros</th>
+                                    <th class="p-3 text-center" style="width:90px">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="productos-table"></tbody>
                         </table>
-                    </div>
+                     </div>
 
                     <!-- Botón submit -->
                     <div class="flex justify-end">
@@ -859,7 +856,7 @@
             </td>
             <td class="p-3 text-center">
                 <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadParaComprar}" 
-                    class="w-20 border rounded p-1 text-center cantidad-total" 
+                    class="w-14 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
             </td>
