@@ -56,14 +56,17 @@
              <li>
                 <a href="{{ route('ordenes_compra.historial') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de Órdenes de Compra</a>
              </li>
-             <li>
-                <a href="{{ route('ordenes.verify_upload') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Verificar PDF de OC</a>
-             </li>
              @endif
 
              @if($hasPermission('total requisiciones'))
              <li>
                 <a href="{{ route('requisiciones.todas') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial de requisiciones</a>
+             </li>
+             @endif
+
+            @if($hasPermission('verificar pdf'))
+             <li>
+                <a href="{{ route('ordenes.verify_upload') }}" class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Verificar PDF de OC</a>
              </li>
              @endif
 
