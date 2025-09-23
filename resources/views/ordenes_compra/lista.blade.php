@@ -378,9 +378,11 @@
         }
     }
     document.addEventListener('click', function(event) {
-        if (event.target.classList.contains('fixed')) {
-            event.target.classList.add('hidden');
-            event.target.classList.remove('flex');
+        // Cerrar solo overlays/modales específicos (evitar afectar nav/sidebars u otros elementos 'fixed')
+        const el = event.target;
+        if (el && el.id && (el.id.startsWith('modal-') || el.id === 'modal-sacar-stock-global')) {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
             document.body.style.overflow = 'auto';
         }
     });
