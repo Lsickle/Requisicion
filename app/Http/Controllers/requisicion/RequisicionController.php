@@ -278,12 +278,34 @@ class RequisicionController extends Controller
         $emailSolicitante = $requisicion->email_user;
         $operacionSolicitante = $requisicion->operacion_user;
 
+        // Preparar logo como data URI para que DomPDF lo muestre sin depender de URLs remotas
+        $logoData = null;
+        $candidates = [
+            public_path('images/logo.png'),
+            public_path('images/logo.jpg'),
+            public_path('images/logo.jpeg'),
+            public_path('logo_empresa.png'),
+            public_path('images/logo_empresa.png'),
+        ];
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                $contents = file_get_contents($path);
+                $mime = function_exists('mime_content_type') ? mime_content_type($path) : null;
+                if (empty($mime)) {
+                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                    $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
+                }
+                $logoData = 'data:' . $mime . ';base64,' . base64_encode($contents);
+                break;
+            }
+        }
+
         $pdf = Pdf::loadView('requisiciones.pdf', [
             'requisicion' => $requisicion,
             'nombreSolicitante' => $nombreSolicitante,
             'emailSolicitante' => $emailSolicitante,
             'operacionSolicitante' => $operacionSolicitante,
-            'logo' => asset('logo_empresa.png'),
+            'logo' => $logoData ?? asset('images/logo.png'),
         ])->setPaper('A4', 'portrait');
 
         return $pdf->download("requisicion_{$requisicion->id}.pdf");

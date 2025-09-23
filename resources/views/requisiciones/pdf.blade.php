@@ -14,6 +14,33 @@
             color: #333;
         }
 
+        /* Watermark (imagen) */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+            opacity: 0.12;
+        }
+
+        .watermark img {
+            max-width: 900px;
+            width: 70%;
+            transform: rotate(-20deg);
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Asegurar que el contenido principal se muestre sobre la marca */
+        .content {
+            position: relative;
+            z-index: 1;
+        }
+
         /* Encabezado */
         .header {
             margin-bottom: 20px;
@@ -159,96 +186,104 @@
 </head>
 
 <body>
-    <!-- Encabezado -->
-    <div class="header">
-        <div class="company-info">
-            @if($logo)
-            <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
-            @endif
-        </div>
+    {{-- Watermark usando $logo o fallback --}}
+    @php $wm = !empty($logo) ? $logo : asset('images/logo.png'); @endphp
+    <div class="watermark"><img src="{{ $wm }}" alt="marca de agua"></div>
 
-        <div class="document-info">
-            <div class="title">
-                REQUISICIÓN #{{ $requisicion->id }}
-                @if(!empty($operacionUsuario))
-                {{ $operacionUsuario }}
+    <div class="content">
+        <!-- Encabezado -->
+        <div class="header">
+            <div class="company-info">
+                @if(!empty($logo))
+                <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+                @else
+                <img src="{{ asset('images/logo.png') }}" class="logo" alt="Logo de la empresa">
                 @endif
             </div>
-            <div><strong>Fecha:</strong> {{ $requisicion->created_at->format('d/m/Y') }}</div>
-        </div>
-        <div class="clear"></div>
-    </div>
 
-    <!-- Información de la requisición -->
-    <div class="info-section">
-        <div class="info-box">
-            <h4>Detalles de la Requisición</h4>
-            <div class="info-item"><span class="label">Solicitante:</span> {{ $requisicion->name_user ?? 'Desconocido' }}</div>
-            <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion)}}</div>
-            <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>
-            <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
-            <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}</div>
+            <div class="document-info">
+                <div class="title">
+                    REQUISICIÓN #{{ $requisicion->id }}
+                    @if(!empty($operacionUsuario))
+                    {{ $operacionUsuario }}
+                    @endif
+                </div>
+                <div><strong>Fecha:</strong> {{ $requisicion->created_at->format('d/m/Y') }}</div>
+            </div>
+            <div class="clear"></div>
         </div>
-    </div>
 
-    <!-- Tabla de productos -->
-    <table class="product-table">
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Asignación a centros</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($requisicion->productos as $producto)
-            <tr>
-                <td>{{ $producto->name_produc }}</td>
-                <td>{{ $producto->pivot->pr_amount }}</td>
-                <td class="centros-lista">
-                    <ul>
-                        @php
+        <!-- Información de la requisición -->
+        <div class="info-section">
+            <div class="info-box">
+                <h4>Detalles de la Requisición</h4>
+                <div class="info-item"><span class="label">Solicitante:</span> {{ $requisicion->name_user ?? 'Desconocido' }}</div>
+                <div class="info-item"><span class="label">Prioridad:</span> {{ ucfirst($requisicion->prioridad_requisicion)}}</div>
+                <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>
+                <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
+                <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}</div>
+            </div>
+        </div>
+
+        <!-- Tabla de productos -->
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Asignación a centros</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($requisicion->productos as $producto)
+                <tr>
+                    <td>{{ $producto->name_produc }}</td>
+                    <td>{{ $producto->pivot->pr_amount }}</td>
+                    <td class="centros-lista">
+                        <ul>
+                            @php
                             // Usar la distribución preparada en el controlador si existe, sino buscarla aquí como fallback
                             $distros = null;
                             if (isset($producto->distribucion_centros) && is_countable($producto->distribucion_centros) && count($producto->distribucion_centros) > 0) {
-                                $distros = $producto->distribucion_centros;
+                            $distros = $producto->distribucion_centros;
                             } else {
-                                $distros = \Illuminate\Support\Facades\DB::table('centro_producto')
-                                    ->where('requisicion_id', $requisicion->id)
-                                    ->where('producto_id', $producto->id)
-                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                    ->select('centro.name_centro', 'centro_producto.amount')
-                                    ->get();
+                            $distros = \Illuminate\Support\Facades\DB::table('centro_producto')
+                            ->where('requisicion_id', $requisicion->id)
+                            ->where('producto_id', $producto->id)
+                            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                            ->select('centro.name_centro', 'centro_producto.amount')
+                            ->get();
                             }
-                        @endphp
+                            @endphp
 
-                        @if($distros && is_countable($distros) && count($distros) > 0)
+                            @if($distros && is_countable($distros) && count($distros) > 0)
                             @foreach($distros as $centro)
-                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                            <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
                             @endforeach
-                        @else
+                            @else
                             <li>No hay centros asignados</li>
-                        @endif
-                    </ul>
-                </td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+                            @endif
+                        </ul>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
 
-    <!-- Firmas -->
-    <div class="signatures">
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <p>Solicitante</p>
+        <!-- Firmas -->
+        <div class="signatures">
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <p>Solicitante</p>
+            </div>
+            <div class="clear"></div>
         </div>
-        <div class="clear"></div>
-    </div>
 
-    <!-- Footer -->
-    <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i') }} | Software de Requisicion de Compras
-    </div>
+        <!-- Footer -->
+        <div class="footer">
+            Documento generado el {{ now()->format('d/m/Y H:i') }} | Software de Requisicion de Compras
+        </div>
+    </div> {{-- .content --}}
 </body>
 
 </html>
