@@ -207,12 +207,27 @@
                 <td>{{ $producto->pivot->pr_amount }}</td>
                 <td class="centros-lista">
                     <ul>
-                        @if(isset($producto->distribucion_centros) && $producto->distribucion_centros->count() > 0)
-                        @foreach($producto->distribucion_centros as $centro)
-                        <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
-                        @endforeach
+                        @php
+                            // Usar la distribución preparada en el controlador si existe, sino buscarla aquí como fallback
+                            $distros = null;
+                            if (isset($producto->distribucion_centros) && is_countable($producto->distribucion_centros) && count($producto->distribucion_centros) > 0) {
+                                $distros = $producto->distribucion_centros;
+                            } else {
+                                $distros = \Illuminate\Support\Facades\DB::table('centro_producto')
+                                    ->where('requisicion_id', $requisicion->id)
+                                    ->where('producto_id', $producto->id)
+                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                    ->select('centro.name_centro', 'centro_producto.amount')
+                                    ->get();
+                            }
+                        @endphp
+
+                        @if($distros && is_countable($distros) && count($distros) > 0)
+                            @foreach($distros as $centro)
+                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                            @endforeach
                         @else
-                        <li>No hay centros asignados</li>
+                            <li>No hay centros asignados</li>
                         @endif
                     </ul>
                 </td>
