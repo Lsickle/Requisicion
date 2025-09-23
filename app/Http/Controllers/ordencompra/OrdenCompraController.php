@@ -12,6 +12,7 @@ use App\Models\Proveedor;
 use App\Models\Requisicion;
 use App\Models\Producto;
 use App\Models\Centro;
+use App\Models\Estatus_Requisicion;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
@@ -955,19 +956,19 @@ class OrdenCompraController extends Controller
 
     private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null): void
     {
-        // Desactivar estatus activos previos y crear el nuevo
-        DB::table('estatus_requisicion')
-            ->where('requisicion_id', $requisicionId)
+        // Desactivar estatus activos previos (usando Eloquent para consistencia)
+        Estatus_Requisicion::where('requisicion_id', $requisicionId)
+            ->where('estatus', 1)
             ->update(['estatus' => 0, 'updated_at' => now()]);
 
-        DB::table('estatus_requisicion')->insert([
+        // Crear nuevo registro mediante Eloquent para que el Observer detecte el cambio y despache el Job
+        Estatus_Requisicion::create([
             'requisicion_id' => $requisicionId,
             'estatus_id' => $estatusId,
             'estatus' => 1,
             'comentario' => $comentario,
             'date_update' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
+            'user_id' => session('user.id') ?? null,
         ]);
     }
 
@@ -1199,16 +1200,13 @@ class OrdenCompraController extends Controller
                 throw new \Exception('Ya existe una salida registrada para este producto en esta requisición');
             }
 
-            $producto = Producto::lockForUpdate()->findOrFail((int)$data['producto_id']);
             $cantidad = (int)$data['cantidad'];
-            $stockActual = (int)($producto->stock_produc ?? 0);
+
+            // Verificar disponibilidad actual de stock pero NO descontar ahora; la resta ocurrirá cuando el usuario confirme (cantidad_recibido)
+            $stockActual = (int) Producto::where('id', (int)$data['producto_id'])->value('stock_produc') ?? 0;
             if ($cantidad > $stockActual) {
                 throw new \Exception('Stock insuficiente para realizar la salida');
             }
-
-            // Descontar inventario
-            $producto->stock_produc = $stockActual - $cantidad;
-            $producto->save();
 
             // Registrar en tabla entrega (pendiente de confirmación)
             DB::table('entrega')->insert([
@@ -1221,7 +1219,7 @@ class OrdenCompraController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Estatus 12: movimiento parcial registrado
+            // Estatus 12: movimiento parcial registrado (pendiente de confirmación)
             $this->setRequisicionStatus((int)$data['requisicion_id'], 12, 'Salida de stock registrada');
 
             DB::commit();

@@ -37,17 +37,21 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
     public function handle()
     {
         try {
-            if ($this->userEmail) {
-                Mail::to($this->userEmail)->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
-                Log::info("✅ Correo de estatus enviado a: {$this->userEmail} para requisición #{$this->requisicion->id}");
+            // Preferir el email proporcionado, si no, usar el email guardado en la requisición o el usuario relacionado
+            $to = $this->userEmail
+                ?? ($this->requisicion->email_user ?? null)
+                ?? optional($this->requisicion->user)->email
+                ?? null;
+
+            if ($to) {
+                Mail::to($to)->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
+                Log::info("Correo de estatus enviado a: {$to} para requisición #{$this->requisicion->id}");
             } else {
-                Log::warning("⚠️ No se proporcionó email para usuario {$this->requisicion->user_id}, requisición #{$this->requisicion->id}");
-                
-                // Fallback: enviar a correo administrativo
+                Log::warning("No se encontró email destinatario para requisición #{$this->requisicion->id}. Enviando fallback a admin.");
                 Mail::to('admin@empresa.com')->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
             }
         } catch (\Exception $e) {
-            Log::error("❌ Error enviando correo para requisición #{$this->requisicion->id}: " . $e->getMessage());
+            Log::error("Error enviando correo para requisición #{$this->requisicion->id}: " . $e->getMessage());
         }
     }
 }

@@ -6,6 +6,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Estatus_Requisicion;
+use App\Observers\EstatusRequisicionObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
                 $this->extractUserRolesAndPermissions($user);
             }
         });
+        
+        // Registrar observer para enviar correo cuando cambie estatus
+        Estatus_Requisicion::observe(EstatusRequisicionObserver::class);
     }
 
     /**
