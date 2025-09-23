@@ -273,6 +273,26 @@ class OrdenCompraController extends Controller
                 }
             }
 
+            // Generar PDF, guardar binario en la orden y calcular SHA256 para validation_hash
+            try {
+                $orden->load('ordencompraProductos.producto', 'ordencompraProductos.proveedor');
+                $pdfData = $this->buildPdfData($orden);
+                $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
+                $content = $pdf->output();
+
+                // Guardar blob del PDF en la orden (método del modelo)
+                $orden->storePdfBlob($content);
+
+                // Calcular hash SHA256 del contenido y guardarlo si está vacío
+                $fileHash = hash('sha256', $content);
+                if (empty($orden->validation_hash)) {
+                    $orden->validation_hash = $fileHash;
+                    $orden->save();
+                }
+            } catch (\Throwable $e) {
+                // noop: no bloquear la creación si falla el guardado del PDF/hash
+            }
+
             DB::commit();
             return redirect()->route('ordenes_compra.create', ['requisicion_id' => $request->requisicion_id])
                 ->with('success', 'Orden guardada correctamente.');
@@ -656,10 +676,36 @@ class OrdenCompraController extends Controller
 
         if ($ordenes->count() === 1) {
             $orden = $ordenes->first();
-            $data = $this->buildPdfData($orden);
-            $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
-            return $pdf->download($fileName);
+
+            // Si ya hay un PDF almacenado en la orden, devolver ese binario (asegura mismo hash)
+            if (!empty($orden->pdf_file)) {
+                $bin = base64_decode($orden->pdf_file);
+                if ($bin === false) {
+                    // fallback: regenerate
+                } else {
+                    return response($bin, 200, [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                    ]);
+                }
+            }
+
+            // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
+            $data = $this->buildPdfData($orden);
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
+            $content = $pdf->output();
+
+            try {
+                $orden->storePdfBlob($content);
+            } catch (\Throwable $e) {
+                // noop: no bloquear la descarga si falla el guardado
+            }
+
+            return response($content, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ]);
         }
 
         // Varias órdenes: generar ZIP
@@ -676,9 +722,26 @@ class OrdenCompraController extends Controller
         }
 
         foreach ($ordenes as $orden) {
+            $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
+
+            // Si ya hay un PDF almacenado en la orden, agregarlo al ZIP
+            if (!empty($orden->pdf_file)) {
+                $zip->addFromString($fileName, $orden->pdf_file);
+                continue;
+            }
+
+            // Generar PDF y almacenar en la orden (si no existe)
             $data = $this->buildPdfData($orden);
             $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
-            $zip->addFromString('orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf', $pdf->output());
+            $content = $pdf->output();
+
+            try {
+                $orden->storePdfBlob($content);
+            } catch (\Throwable $e) {
+                // noop: no bloquear el proceso si falla el guardado
+            }
+
+            $zip->addFromString($fileName, $content);
         }
         $zip->close();
 
@@ -785,10 +848,36 @@ class OrdenCompraController extends Controller
         $orden = OrdenCompra::with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
             ->findOrFail($id);
 
+        $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
+
+        // Si ya hay un PDF almacenado en la orden, devolver ese binario (asegura mismo hash)
+        if (!empty($orden->pdf_file)) {
+            $bin = base64_decode($orden->pdf_file);
+            if ($bin === false) {
+                // fallback: regenerate
+            } else {
+                return response($bin, 200, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                ]);
+            }
+        }
+
+        // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
         $data = $this->buildPdfData($orden);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
-        $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
-        return $pdf->download($fileName);
+        $content = $pdf->output();
+
+        try {
+            $orden->storePdfBlob($content);
+        } catch (\Throwable $e) {
+            // noop: no bloquear la descarga si falla el guardado
+        }
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ]);
     }
 
     public function storeEntregaParcial(Request $request)

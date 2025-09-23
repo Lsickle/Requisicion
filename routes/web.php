@@ -22,6 +22,7 @@ use App\Http\Controllers\Proveedores\ProveedoresController;
 use App\Http\Controllers\dashboard\DashboardController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -248,6 +249,17 @@ Route::middleware([AuthSession::class])->group(function () {
 
     Route::post('/requisiciones/{requisicion}/entregar', [RequisicionController::class, 'entregarRequisicion'])
         ->name('requisiciones.entregar');
+
+    // Mostrar formulario si alguien hace GET accidentalmente a la ruta de verificación por archivo
+    Route::get('/ordenes/verify-file', function() {
+        return view('ordenes_compra.verify_upload');
+    })->name('ordenes.verify_file_get');
+
+    // Rutas para verificación de OC
+    Route::get('/ordenes/verify', [OrdenCompraVerifyController::class, 'showForm'])->name('ordenes.verify_form');
+    Route::get('/ordenes/{id}/verify', [OrdenCompraVerifyController::class, 'verify'])->name('ordenes.verify');
+    Route::post('/ordenes/verify-file', [OrdenCompraVerifyController::class, 'verifyFilePost'])->name('ordenes.verify_file');
+    Route::get('/ordenes/verify-upload', function() { return view('ordenes_compra.verify_upload'); })->name('ordenes.verify_upload');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

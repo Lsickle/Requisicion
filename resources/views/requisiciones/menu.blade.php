@@ -117,6 +117,17 @@
                     Ver Listado
                 </a>
             </div>
+            <!-- Verificar PDF OC -->
+            <div class="w-full max-w-sm bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 text-center">
+                <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-file-pdf text-indigo-600 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Verificar PDF de OC</h3>
+                <p class="text-gray-600 mb-4">Sube un PDF para verificar su hash frente al almacenado</p>
+                <a href="{{ route('ordenes.verify_upload') }}" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Verificar PDF
+                </a>
+            </div>
             @endif
 
             @if($hasPermission('ver producto'))
