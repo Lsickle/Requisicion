@@ -7,48 +7,79 @@
 
     <style>
         body { font-family: 'DejaVu Sans', sans-serif; margin: 0; padding: 0; font-size: 12px; color: #333; }
-        .header { margin-bottom: 20px; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
-        .company-info { float: left; width: 60%; }
-        .document-info { float: right; width: 35%; text-align: right; }
-        .logo { max-height: 80px; width: 150px; margin-top: 10px; }
-        .title { font-size: 18px; font-weight: bold; color: #2c3e50; margin-top: 10px; }
-        .info-section { margin-bottom: 20px; overflow: hidden; }
-        .info-box { width: 48%; float: left; }
-        .info-box.right { float: right; }
-        .info-box h4 { background-color: #f5f5f5; padding: 5px 10px; margin: 0 0 10px 0; border-left: 4px solid #2c3e50; font-size: 14px; }
-        .info-item { margin-bottom: 5px; }
-        .product-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .product-table th { background-color: #2c3e50; color: white; padding: 8px; text-align: left; font-size: 11px; }
-        .product-table td { padding: 6px; border-bottom: 1px solid #ddd; font-size: 10px; }
-        .product-table tr:nth-child(even) { background-color: #f9f9f9; }
-        .totals { float: right; width: 300px; margin-top: 10px; }
-        .total-row { overflow: hidden; margin-bottom: 5px; }
-        .total-label { float: left; width: 70%; text-align: right; padding-right: 10px; font-weight: bold; }
-        .total-value { float: right; width: 30%; text-align: right; font-weight: bold; }
-        .signatures { margin-top: 60px; overflow: hidden; }
-        .signature-box { width: 45%; float: left; text-align: center; }
-        .signature-line { border-top: 1px solid #000; margin: 0 auto; width: 80%; padding-top: 5px; }
-        .footer { margin-top: 30px; font-size: 10px; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 5px; }
-        .text-right { text-align: right; }
-        .clear { clear: both; }
-        .page-break { page-break-after: always; }
-    </style>
-</head>
+        /* Watermark (imagen) */
+        .watermark {
+            position: fixed;
+            top: 52%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+            overflow: visible;
+        }
+        .watermark img {
+            max-width: 1100px; /* increase size */
+            width: 80%;
+            opacity: 0.15;    /* make it more subtle */
+            transform: rotate(-25deg);
+            display: block;
+            margin: 0 auto;
+        }
+        /* Ensure main content prints above watermark */
+        .content { position: relative; z-index: 1; }
+         .header { margin-bottom: 20px; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
+         .company-info { float: left; width: 60%; }
+         .document-info { float: right; width: 35%; text-align: right; }
+         .logo { max-height: 50px; width: auto; margin-top: 20px; }
+         .top-logo { text-align: center; margin-bottom: 8px; }
+         .title { font-size: 18px; font-weight: bold; color: #2c3e50; margin-top: 10px; }
+         .info-section { margin-bottom: 20px; overflow: hidden; }
+         .info-box { width: 48%; float: left; }
+         .info-box.right { float: right; }
+         .info-box h4 { background-color: #f5f5f5; padding: 5px 10px; margin: 0 0 10px 0; border-left: 4px solid #2c3e50; font-size: 14px; }
+         .info-item { margin-bottom: 5px; }
+         .product-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+         .product-table th { background-color: #2c3e50; color: white; padding: 8px; text-align: left; font-size: 11px; }
+         .product-table td { padding: 6px; border-bottom: 1px solid #ddd; font-size: 10px; }
+         .product-table tr:nth-child(even) { background-color: #f9f9f9; }
+         .totals { float: right; width: 300px; margin-top: 10px; }
+         .total-row { overflow: hidden; margin-bottom: 5px; }
+         .total-label { float: left; width: 70%; text-align: right; padding-right: 10px; font-weight: bold; }
+         .total-value { float: right; width: 30%; text-align: right; font-weight: bold; }
+         .signatures { margin-top: 60px; overflow: hidden; }
+         .signature-box { width: 45%; float: left; text-align: center; }
+         .signature-line { border-top: 1px solid #000; margin: 0 auto; width: 80%; padding-top: 5px; }
+         .footer { margin-top: 30px; font-size: 10px; text-align: center; color: #777; border-top: 1px solid #eee; padding-top: 5px; }
+         .text-right { text-align: right; }
+         .clear { clear: both; }
+         .page-break { page-break-after: always; }
+     </style>
+ </head>
 
-<body>
-    <!-- Página 1: Productos para el proveedor -->
+ <body>
+    {{-- Marca de agua (usar $logo si viene como data URI, si no fallback a asset) --}}
+    @php $watermarkSrc = !empty($logo) ? $logo : asset('images/logo.png'); @endphp
+    <div class="watermark"><img src="{{ $watermarkSrc }}" alt="marca de agua"></div>
+
+     <div class="content">
+     <!-- Página 1: Productos para el proveedor -->
     <div class="header">
-        <div class="company-info">
+    <div class="header">
+         <div class="company-info">
             @if(!empty($logo))
-            <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+                <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+            @else
+                <img src="{{ asset('images/logo.png') }}" alt="Vigía Plus Logistics" class="logo">
             @endif
-        </div>
-        <div class="document-info">
-            <div class="title">ORDEN DE COMPRA #{{ $orden->order_oc ?? $orden->id }}</div>
-            <div><strong>Fecha:</strong> {{ $date_oc }}</div>
-        </div>
-        <div class="clear"></div>
-    </div>
+         </div>
+         <div class="document-info">
+             <div class="title">ORDEN DE COMPRA #{{ $orden->order_oc ?? $orden->id }}</div>
+             <div><strong>Fecha:</strong> {{ $date_oc }}</div>
+         </div>
+         <div class="clear"></div>
+     </div>
 
     <div class="info-section">
         <div class="info-box">
@@ -67,47 +98,66 @@
         <div class="clear"></div>
     </div>
 
-    <table class="product-table">
-        <thead>
-            <tr>
-                <th width="5%">#</th>
-                <th width="20%">Producto</th>
-                <th width="35%">Descripción</th>
-                <th width="10%">Unidad</th>
-                <th width="10%">Cantidad</th>
-                <th width="10%">Valor Unitario</th>
-                <th width="10%">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($items as $index => $item)
-            <tr>
-                <td>{{ $index + 1 }}</td>
-                <td>{{ $item['name_produc'] }}</td>
-                <td>{{ $item['description_produc'] }}</td>
-                <td>{{ $item['unit_produc'] }}</td>
-                <td>{{ number_format($item['po_amount'], 0) }}</td>
-                <td class="text-right">${{ number_format($item['precio_unitario'], 2) }}</td>
-                <td class="text-right">${{ number_format($item['po_amount'] * $item['precio_unitario'], 2) }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+    @php
+        // Paginación de productos para el PDF
+        $rowsPerPage = 18; // ajustar si es necesario
+        $productPages = array_chunk($items, $rowsPerPage);
+    @endphp
+
+    <style>
+        /* Forzar repetición del thead en cada página y evitar cortes de fila */
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { page-break-inside: avoid; }
+    </style>
+
+    @foreach($productPages as $pageIndex => $pageItems)
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th width="5%">#</th>
+                    <th width="20%">Producto</th>
+                    <th width="35%">Descripción</th>
+                    <th width="10%">Unidad</th>
+                    <th width="10%">Cantidad</th>
+                    <th width="10%">Valor Unitario</th>
+                    <th width="10%">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($pageItems as $i => $item)
+                <tr>
+                    <td>{{ $pageIndex * $rowsPerPage + $i + 1 }}</td>
+                    <td>{{ $item['name_produc'] }}</td>
+                    <td>{{ $item['description_produc'] }}</td>
+                    <td>{{ $item['unit_produc'] }}</td>
+                    <td>{{ number_format($item['po_amount'], 0) }}</td>
+                    <td class="text-right">${{ number_format($item['precio_unitario'], 2) }}</td>
+                    <td class="text-right">${{ number_format($item['po_amount'] * $item['precio_unitario'], 2) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        @if($pageIndex !== count($productPages) - 1)
+            <div class="page-break"></div>
+        @endif
+    @endforeach
 
     <div class="totals">
-        <div class="total-row">
-            <div class="total-label">SUBTOTAL:</div>
-            <div class="total-value">${{ number_format($subtotal, 2) }}</div>
-        </div>
-        <div class="total-row">
-            <div class="total-label">IVA (0%):</div>
-            <div class="total-value">$0.00</div>
-        </div>
-        <div class="total-row">
-            <div class="total-label">TOTAL A PAGAR:</div>
-            <div class="total-value">${{ number_format($subtotal, 2) }}</div>
-        </div>
-    </div>
+         <div class="total-row">
+             <div class="total-label">SUBTOTAL:</div>
+             <div class="total-value">${{ number_format($subtotal, 2) }}</div>
+         </div>
+         <div class="total-row">
+             <div class="total-label">IVA (0%):</div>
+             <div class="total-value">$0.00</div>
+         </div>
+         <div class="total-row">
+             <div class="total-label">TOTAL A PAGAR:</div>
+             <div class="total-value">${{ number_format($subtotal, 2) }}</div>
+         </div>
+     </div>
     <div class="clear"></div>
 
     @if(!empty($observaciones))
@@ -136,6 +186,8 @@
         <div class="company-info">
             @if(!empty($logo))
             <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+            @else
+            <img src="{{ asset('images/logo.png') }}" class="logo" alt="Vigía Plus Logistics">
             @endif
         </div>
         <div class="document-info">
@@ -194,6 +246,7 @@
     <div class="footer">
         Documento generado el {{ $fecha_actual }} | Software de Requisición de Compras
     </div>
-</body>
+    </div> {{-- .content --}}
+ </body>
 
-</html>
+ </html>

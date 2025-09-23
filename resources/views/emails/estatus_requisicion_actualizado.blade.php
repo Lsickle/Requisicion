@@ -8,8 +8,12 @@
     <h2>Requisición #{{ $requisicion->id }}</h2>
     <p>Se ha actualizado el estatus de la requisición.</p>
 
-    <p><strong>Nuevo estatus:</strong> {{ $estatus->estatus->status_name ?? 'Desconocido' }}</p>
-    <p><strong>Fecha:</strong> {{ $estatus->created_at->format('d/m/Y H:i') }}</p>
+    <p><strong>Nuevo estatus:</strong> {{ $estatus->estatusRelation->status_name ?? 'Desconocido' }}</p>
+    <p><strong>Fecha:</strong> {{ optional($estatus->date_update ?? $estatus->created_at)->format('d/m/Y H:i') }}</p>
+
+    @if(!empty($estatus->comentario))
+        <p><strong>Comentario:</strong> {{ $estatus->comentario }}</p>
+    @endif
 
     <h3>Detalles de la requisición:</h3>
     <ul>

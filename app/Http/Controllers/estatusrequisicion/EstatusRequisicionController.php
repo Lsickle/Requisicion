@@ -13,6 +13,8 @@ use App\Jobs\EstatusRequisicionActualizadoJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\OrdenCompra;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\EstatusRequisicionActualizado as EstatusRequisicionMail;
 
 class EstatusRequisicionController extends Controller
 {
@@ -196,16 +198,34 @@ class EstatusRequisicionController extends Controller
                 }
             }
 
-            // Notificación
+            // Notificación: intentar envío directo si hay email, si falla despachar job
             try {
-                $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
-                $userEmail = $userInfo['email'] ?? null;
+                $userEmail = $requisicion->email_user ?? null;
+                if (empty($userEmail)) {
+                    $userInfo = $this->obtenerInformacionUsuario($requisicion->user_id);
+                    $userEmail = $userInfo['email'] ?? null;
+                }
 
-                if ($userEmail) {
-                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
+                if (!empty($userEmail)) {
+                    // Enriquecer $nuevoEstatus con user_id si no viene
+                    if (empty($nuevoEstatus->user_id) && session('user.id')) {
+                        $nuevoEstatus->user_id = session('user.id');
+                    }
+
+                    // Envío síncrono
+                    Mail::to($userEmail)->send(new EstatusRequisicionMail($requisicion, $nuevoEstatus));
+                    Log::info("Correo enviado directamente a {$userEmail} para requisición {$requisicion->id}");
+                } else {
+                    // No hay email; despachar job que hará fallback
+                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, null);
                 }
             } catch (\Exception $e) {
-                Log::error("Error en notificación: " . $e->getMessage());
+                Log::error("Error enviando correo directamente: " . $e->getMessage());
+                try {
+                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $requisicion->email_user ?? null);
+                } catch (\Exception $jobEx) {
+                    Log::error("Error despachando job de correo: " . $jobEx->getMessage());
+                }
             }
 
             DB::commit();

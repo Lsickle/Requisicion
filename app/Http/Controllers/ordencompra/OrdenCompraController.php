@@ -734,11 +734,39 @@ class OrdenCompraController extends Controller
             'subtotal' => $subtotal,
             'observaciones' => $orden->observaciones,
             'fecha_actual' => now()->format('d/m/Y H:i'),
-            'logo' => null,
+            // Usar data URI para que DomPDF cargue la imagen local correctamente
+            'logo' => $this->resolveLogoDataUri(),
             'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
             'methods_oc' => $orden->methods_oc,
             'plazo_oc' => $orden->plazo_oc,
         ];
+    }
+
+    // Resolver logo como data URI buscando en public/images
+    private function resolveLogoDataUri(): ?string
+    {
+        // Si la vista ya recibió $logo por alguna vía, no hacemos nada (pero en este controlador no)
+        $candidates = [
+            public_path('images/logo.png'),
+            public_path('images/logo.jpg'),
+            public_path('images/logo.jpeg'),
+            public_path('images/logo_empresa.png'),
+            public_path('images/logo_empresa.jpg'),
+        ];
+
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                $contents = file_get_contents($path);
+                $mime = function_exists('mime_content_type') ? mime_content_type($path) : null;
+                if (empty($mime)) {
+                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                    $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
+                }
+                return 'data:' . $mime . ';base64,' . base64_encode($contents);
+            }
+        }
+        // Fallback: asset URL (may not work with DomPDF)
+        return asset('images/logo.png');
     }
 
     public function historial()

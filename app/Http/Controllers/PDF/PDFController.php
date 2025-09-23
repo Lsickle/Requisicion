@@ -21,8 +21,27 @@ class PdfController extends Controller
      */
     private function getLogoData()
     {
-        $logoPath = public_path('images/logo.jpg');
-        return file_exists($logoPath) ? 'data:image/jpeg;base64,' . base64_encode(file_get_contents($logoPath)) : null;
+        $candidates = [
+            public_path('images/logo.png'),
+            public_path('images/logo.jpg'),
+            public_path('images/logo.jpeg'),
+            public_path('images/logo_empresa.png'),
+            public_path('images/logo_empresa.jpg'),
+        ];
+
+        foreach ($candidates as $logoPath) {
+            if (file_exists($logoPath)) {
+                $contents = file_get_contents($logoPath);
+                $mime = function_exists('mime_content_type') ? mime_content_type($logoPath) : null;
+                if (empty($mime)) {
+                    $ext = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
+                    $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
+                }
+                return 'data:' . $mime . ';base64,' . base64_encode($contents);
+            }
+        }
+
+        return null;
     }
 
     /**
