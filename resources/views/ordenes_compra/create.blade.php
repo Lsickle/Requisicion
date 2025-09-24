@@ -71,12 +71,16 @@
                         <table class="min-w-full border border-gray-200 text-sm table-fixed">
                             <thead class="bg-gray-100">
                                 <tr>
-                                    <th class="px-4 py-2 text-left" style="width:60%">Producto</th>
-                                    <th class="px-3 py-2 text-center" style="width:90px">Total</th>
-                                    <th class="px-4 py-2 text-left" style="width:40%">Distribución</th>
+                                    <th class="px-4 py-2 text-left" style="width:20%">Producto</th>
+                                    <th class="px-3 py-2 text-center" style="width:90px">Unidad</th>
+                                    <th class="px-3 py-2 text-center" style="width:70px">Total</th>
+                                    <th class="px-3 py-2 text-center" style="width:110px">Precio unitario</th>
+                                    <th class="px-3 py-2 text-center" style="width:120px">Precio total</th>
+                                    <th class="px-4 py-2 text-left" style="width:30%">Distribución</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                 @php $grandTotal = 0; @endphp
                                 @foreach($requisicion->productos as $prod)
                                 @php
                                 $distribucion = DB::table('centro_producto')
@@ -86,29 +90,46 @@
                                 ->select('centro.name_centro', 'centro_producto.amount')
                                 ->get();
                                 $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $requisicion->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
-                                $confirmadoStock = (int) DB::table('recepcion as r')->join('orden_compras as oc','oc.id','=','r.orden_compra_id')->where('oc.requisicion_id',$requisicion->id)->where('r.producto_id',$prod->id)->whereNull('r.deleted_at')->sum(DB::raw('COALESCE(r.cantidad_recibido,0)'));
+                                // Ignorar tabla `recepcion` aquí: considerar solo entregas
+                                $confirmadoStock = 0;
                                 $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
+                                @endphp
+                                @php
+                                    $precioUnit = (float) ($prod->price_produc ?? 0);
+                                    $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
+                                    $grandTotal += $precioTotal;
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-4 py-3">{{ $prod->name_produc }}</td>
+                                    <td class="px-3 py-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
                                     <td class="px-3 py-3 text-center font-medium w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                                    <td class="px-3 py-3 text-center">${{ number_format($precioUnit,2) }}</td>
+                                    <td class="px-3 py-3 text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
                                     <td class="px-4 py-3">
-                                        @if($distribucion->count() > 0)
-                                        <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
-                                            @foreach($distribucion as $centro)
-                                            <div class="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
-                                                <span class="truncate mr-2">{{ $centro->name_centro }}</span>
-                                                <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">{{ $centro->amount }}</span>
-                                            </div>
-                                            @endforeach
-                                        </div>
-                                        @else
-                                        <span class="text-gray-500 text-sm">No hay distribución registrada</span>
-                                        @endif
-                                    </td>
+                                         @if($distribucion->count() > 0)
+                                         <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
+                                             @foreach($distribucion as $centro)
+                                             <div class="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
+                                                 <span class="truncate mr-2">{{ $centro->name_centro }}</span>
+                                                 <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">{{ $centro->amount }}</span>
+                                             </div>
+                                             @endforeach
+                                         </div>
+                                         @else
+                                         <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                         @endif
+                                     </td>
+                                 </tr>
+                                 @endforeach
+                                <tr class="border-t bg-gray-50">
+                                    <td class="px-4 py-3 font-semibold">Total general</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td class="px-3 py-3 font-semibold">${{ number_format($grandTotal,2) }}</td>
+                                    <td></td>
                                 </tr>
-                                @endforeach
-                            </tbody>
+                             </tbody>
                         </table>
                      </div>
                 </div>
@@ -321,8 +342,8 @@
                                 <tr>
                                     <th class="p-3 text-left" style="width:48%">Producto</th>
                                     <th class="p-3 text-center" style="width:70px">Total</th>
-                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
                                     <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
                                     <th class="p-3 text-center" style="width:110px">Stock</th>
                                     <th class="p-3" style="width:30%">Distribución por Centros</th>
                                     <th class="p-3 text-center" style="width:90px">Acciones</th>
@@ -438,14 +459,8 @@
                         ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
                         ->groupBy('producto_id')
                         ->pluck('rec','producto_id');
-                    // Totales recibidos desde stock por producto (solo confirmados)
-                    $recibidoStockPorProducto = DB::table('recepcion as r')
-                        ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-                        ->where('oc.requisicion_id', $requisicion->id)
-                        ->whereNull('r.deleted_at')
-                        ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
-                        ->groupBy('r.producto_id')
-                        ->pluck('rec','producto_id');
+                    // No considerar recepciones desde stock en esta vista
+                    $recibidoStockPorProducto = collect();
                     // Sumar ambos para obtener total confirmado por producto
                     $totalConfirmadoPorProducto = [];
                     foreach ($recibidoPorProducto as $pid => $val) {
@@ -729,28 +744,22 @@
     </div>
 </div>
 
+<!-- Modal de carga para operaciones de sacar/restaurar stock -->
+<div id="modal-loading-stock" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col items-center gap-4 max-w-sm w-full">
+        <div class="loader w-16 h-16 border-4 border-blue-300 border-t-blue-600 rounded-full animate-spin" aria-hidden="true"></div>
+        <div class="text-center">
+            <div class="text-lg font-medium loader-text">Procesando salida de stock...</div>
+            <div class="text-sm text-gray-500">Espere por favor</div>
+        </div>
+    </div>
+</div>
+
 @php
     // Variables para bloquear sacar de stock por producto ya recibido y totales previos
     $productosConRecepcionIds = [];
     $entregasPrevPorProducto = [];
-    if (!empty($requisicion?->id)) {
-        $productosConRecepcionIds = DB::table('recepcion as r')
-            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-            ->where('oc.requisicion_id', $requisicion->id)
-            ->whereNull('r.deleted_at')
-            ->pluck('r.producto_id')
-            ->unique()
-            ->values()
-            ->toArray();
-        $entregasPrevPorProducto = DB::table('recepcion as r')
-            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-            ->where('oc.requisicion_id', $requisicion->id)
-            ->whereNull('r.deleted_at')
-            ->select('r.producto_id', DB::raw('SUM(r.cantidad_recibido) as rec'))
-            ->groupBy('r.producto_id')
-            ->pluck('rec','producto_id')
-            ->toArray();
-    }
+    // Nota: no se consultará la tabla `recepcion` en esta vista para evitar que sus registros influyan en los totales mostrados.
 @endphp
 
 <script>
@@ -1315,6 +1324,7 @@
             const confirm = await Swal.fire({
                 title: 'Confirmar deshacer',
                 text: "Esto deshará la distribución seleccionada(s) y actualizará la orden.",
+
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -1436,5 +1446,46 @@
         bindRestore(tbody);
         bindRestore(tbodySalidas);
     })();
+
+    // Funciones para mostrar/ocultar modal de carga al sacar productos de stock
+    function showStockLoader(message = 'Procesando salida de stock...') {
+        const modal = document.getElementById('modal-loading-stock');
+        if (!modal) return;
+        const txt = modal.querySelector('.loader-text');
+        if (txt) txt.textContent = message;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function hideStockLoader() {
+        const modal = document.getElementById('modal-loading-stock');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+
+    // Mostrar modal de carga cuando se envía el formulario principal (sacar productos de stock)
+    ordenForm.addEventListener('submit', function(e){
+        // Si no fue prevenido por validaciones, mostrar loader (tiempo breve antes de la navegación)
+        // La validación anterior previene el submit cuando hay errores; si llegamos aquí, mostrar loader
+        if (!e.defaultPrevented) {
+            showStockLoader('Procesando salida de stock...');
+        }
+    });
+
+    // Integrar loader en el flujo de recepciones (botones .rc-save)
+    document.querySelectorAll('.rc-save').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            // Mostrar loader inmediatamente
+            showStockLoader('Guardando recepciones y actualizando stock...');
+            // Dejar que el handler existente realice la lógica; hideStockLoader() se llamará en catch si hay error
+            // Nota: el handler re-carga la página en caso de éxito, por lo que no es necesario ocultar el loader en ese caso.
+            // Si ocurre un error, el catch del handler ya muestra mensajes; además ocultamos el loader allí.
+        }, { once: true });
+    });
 </script>
 @endsection

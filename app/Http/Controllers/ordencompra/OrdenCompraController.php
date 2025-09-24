@@ -1078,52 +1078,38 @@ class OrdenCompraController extends Controller
             // El estatus 10 (completado) se mantiene para el proceso final que considere también las entregas
             $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
             foreach ($affectedRequisiciones as $reqId) {
-                // Requerido por producto según centros distribuidos
-                $reqPorProducto = DB::table('centro_producto')
-                    ->where('requisicion_id', $reqId)
-                    ->select('producto_id', DB::raw('SUM(amount) as req'))
-                    ->groupBy('producto_id')
-                    ->pluck('req', 'producto_id');
-                if ($reqPorProducto->isEmpty()) {
-                    $reqPorProducto = DB::table('producto_requisicion')
-                        ->where('id_requisicion', $reqId)
-                        ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
-                        ->groupBy('id_producto')
-                        ->pluck('req', 'producto_id');
-                }
+                    // Para cada requisición, comprobar si todas las órdenes de compra asociadas están completamente recibidas
+                    $ocs = DB::table('orden_compras')->where('requisicion_id', $reqId)->pluck('id');
+                    $allComplete = true;
+                    foreach ($ocs as $ocId) {
+                        $totOrdered = (int) DB::table('ordencompra_producto')
+                            ->where('orden_compras_id', $ocId)
+                            ->whereNull('deleted_at')
+                            ->sum('total');
 
-                // Recibido desde stock (confirmado) - SOLO recepcion
-                $recStock = DB::table('recepcion as r')
-                    ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-                    ->where('oc.requisicion_id', $reqId)
-                    ->whereNull('r.deleted_at')
-                    ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
-                    ->groupBy('r.producto_id')
-                    ->pluck('rec', 'producto_id');
+                        $totReceived = (int) DB::table('recepcion')
+                            ->where('orden_compra_id', $ocId)
+                            ->whereNull('deleted_at')
+                            ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
 
-                // Determinar si la recepción cubre todo lo requerido (solo recepcion)
-                $completeByRecepcion = true;
-                foreach ($reqPorProducto as $pid => $reqQty) {
-                    $recibido = (int)($recStock[$pid] ?? 0);
-                    if ($recibido < (int)$reqQty) {
-                        $completeByRecepcion = false;
-                        break;
+                        if ($totOrdered > 0 && $totReceived < $totOrdered) {
+                            $allComplete = false;
+                            break;
+                        }
                     }
-                }
 
-                // Determinar estatus deseado
-                $desiredStatus = $completeByRecepcion ? 7 : 12;
-                $desiredMessage = $completeByRecepcion ? 'Recepción completa: material recibido por compras' : 'Recepción registrada';
+                    $desiredStatus = $allComplete ? 7 : 12;
+                    $desiredMessage = $allComplete ? 'Recepción completa: material recibido por compras' : 'Recepción registrada';
 
-                // Comprobar estatus activo actual y solo cambiar si difiere
-                $currentActive = DB::table('estatus_requisicion')
-                    ->where('requisicion_id', $reqId)
-                    ->where('estatus', 1)
-                    ->value('estatus_id');
+                    // Comprobar estatus activo actual y solo cambiar si difiere
+                    $currentActive = DB::table('estatus_requisicion')
+                        ->where('requisicion_id', $reqId)
+                        ->where('estatus', 1)
+                        ->value('estatus_id');
 
-                if ((int)$currentActive !== (int)$desiredStatus) {
-                    $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
-                }
+                    if ((int)$currentActive !== (int)$desiredStatus) {
+                        $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
+                    }
                  
              }
             DB::commit();

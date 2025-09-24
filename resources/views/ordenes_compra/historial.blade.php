@@ -26,12 +26,24 @@
                     <th class="p-3 text-left">Proveedor</th>
                     <th class="p-3 text-left">Método</th>
                     <th class="p-3 text-left">Plazo</th>
+                    <th class="p-3 text-right">Total OC</th>
                     <th class="p-3 text-left">Estatus</th>
                     <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
+            @php $ordersGrandTotal = 0; @endphp
             <tbody class="text-gray-700">
                 @foreach($ordenes as $oc)
+                @php
+                    // calcular total de la OC sumando price_produc * cantidad por línea
+                    $ocTotal = 0;
+                    foreach($oc->ordencompraProductos as $ln) {
+                        $price = optional($ln->producto)->price_produc ?? 0;
+                        $qty = (int)($ln->total ?? 0);
+                        $ocTotal += $price * $qty;
+                    }
+                    $ordersGrandTotal += $ocTotal;
+                @endphp
                 @php
                 $proveedor = optional($oc->ordencompraProductos->first())->proveedor;
                 $requisicionId = $oc->requisicion->id ?? ($oc->requisicion_id ?? null);
@@ -58,6 +70,7 @@
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
                     <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
+                    <td class="p-3 text-right font-semibold">{{ number_format($ocTotal, 2) }}</td>
                     @php
                         // Mostrar etiqueta corta y elegir color
                         $estatusDisplay = $estatusText;
@@ -127,6 +140,7 @@
                             ->whereNull('deleted_at')
                             ->groupBy('producto_id');
 
+                        // Traer también precio y unidad para mostrar totales
                         $recRows = DB::table('ordencompra_producto as ocp')
                             ->join('productos as p','p.id','=','ocp.producto_id')
                             ->leftJoinSub($recSum, 'r', function($j){
@@ -135,6 +149,8 @@
                             ->select(
                                 'p.id as producto_id',
                                 'p.name_produc',
+                                'p.price_produc as price_produc',
+                                'p.unit_produc as unit_produc',
                                 'ocp.total as cantidad_total',
                                 'r.recepcion_id as recepcion_id',
                                 DB::raw('COALESCE(r.recibido,0) as recibido')
@@ -145,11 +161,15 @@
                             ->get();
                     @endphp
                     @if(($recRows ?? collect())->count())
+                    @php $grandRecTotal = 0; @endphp
                     <table class="w-full text-sm border rounded overflow-hidden bg-white">
                         <thead class="bg-gray-100">
                             <tr>
                                 <th class="p-2 text-left">Producto</th>
                                 <th class="p-2 text-center">Cant. OC</th>
+                                <th class="p-2 text-center">Unidad</th>
+                                <th class="p-2 text-center">Precio U.</th>
+                                <th class="p-2 text-center">Total</th>
                                 <th class="p-2 text-center">Recibido</th>
                                 <th class="p-2 text-center">Pendiente</th>
                                 <th class="p-2 text-center">A recibir</th>
@@ -159,10 +179,16 @@
                             @foreach($recRows as $r)
                             @php
                                 $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
+                                $price = (float)($r->price_produc ?? 0);
+                                $lineTotal = $price * (int)$r->cantidad_total;
+                                $grandRecTotal += $lineTotal;
                             @endphp
                             <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
                                 <td class="p-2">{{ $r->name_produc }}</td>
                                 <td class="p-2 text-center">{{ (int)$r->cantidad_total }}</td>
+                                <td class="p-2 text-center">{{ $r->unit_produc ?? '—' }}</td>
+                                <td class="p-2 text-center">{{ number_format($price, 2) }}</td>
+                                <td class="p-2 text-center">{{ number_format($lineTotal, 2) }}</td>
                                 <td class="p-2 text-center">{{ (int)$r->recibido }}</td>
                                 <td class="p-2 text-center">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
                                 <td class="p-2 text-center">
@@ -171,6 +197,13 @@
                             </tr>
                             @endforeach
                         </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50 font-semibold border-t">
+                                <td colspan="4" class="p-2 text-right">Total general</td>
+                                <td class="p-2 text-center">{{ number_format($grandRecTotal, 2) }}</td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
@@ -215,45 +248,71 @@
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
                         <div class="border rounded-lg overflow-hidden">
                             <div>
-                                <table class="w-full text-sm bg-white">
-                                    <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
-                                        <tr class="border-b">
-                                            <th class="p-3 text-left">Producto</th>
-                                            <th class="p-3 text-center">Cantidad</th>
-                                            <th class="p-3 text-left">Distribución por Centro</th>
+                                @php
+                                    // calcular total general de la orden (suma de price_produc * cantidad)
+                                    $grandTotal = 0;
+                                    foreach($oc->ordencompraProductos as $__ln) {
+                                        $up = $__ln->producto->price_produc ?? 0;
+                                        $grandTotal += $up * (int)$__ln->total;
+                                    }
+                                @endphp
+                                 <table class="w-full text-sm bg-white">
+                                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                         <tr class="border-b">
+                                             <th class="p-3 text-left">Producto</th>
+                                             <th class="p-3 text-center">Cant.</th>
+                                             <th class="p-3 text-center">Unidad</th>
+                                             <th class="p-3 text-center">Precio U.</th>
+                                             <th class="p-3 text-center">Total</th>
+                                             <th class="p-3 text-left">Distribución por Centro</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         @foreach($oc->ordencompraProductos as $linea)
+                                         @if($linea->producto)
+                                         @php
+                                             $unitPrice = $linea->producto->price_produc ?? 0;
+                                             $unitName = $linea->producto->unit_produc ?? '—';
+                                             $lineTotal = $unitPrice * (int)$linea->total;
+                                         @endphp
+                                         <tr class="border-b">
+                                             <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
+                                             <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
+                                             <td class="p-3 text-center align-top">{{ $unitName }}</td>
+                                             <td class="p-3 text-center align-top">{{ number_format($unitPrice, 2) }}</td>
+                                             <td class="p-3 text-center align-top">{{ number_format($lineTotal, 2) }}</td>
+                                             <td class="p-3 align-top">
+                                                 @php
+                                                 $dist = DB::table('ordencompra_centro_producto as ocp')
+                                                     ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
+                                                     ->select('c.name_centro', 'ocp.amount')
+                                                     ->where('ocp.orden_compra_id', $oc->id)
+                                                     ->where('ocp.producto_id', $linea->producto_id)
+                                                     ->get();
+                                                 @endphp
+                                                 <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                                     @forelse($dist as $d)
+                                                     <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
+                                                     @empty
+                                                     <li>No hay distribución registrada</li>
+                                                     @endforelse
+                                                 </ul>
+                                             </td>
+                                         </tr>
+                                         @endif
+                                         @endforeach
+                                     </tbody>
+                                    <tfoot>
+                                        <tr class="bg-gray-50 font-semibold border-t">
+                                            <td colspan="4" class="p-3 text-right">Total general</td>
+                                            <td class="p-3 text-center">{{ number_format($grandTotal, 2) }}</td>
+                                            <td></td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($oc->ordencompraProductos as $linea)
-                                        @if($linea->producto)
-                                        <tr class="border-b">
-                                            <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
-                                            <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
-                                            <td class="p-3 align-top">
-                                                @php
-                                                $dist = DB::table('ordencompra_centro_producto as ocp')
-                                                    ->join('centro as c', 'ocp.centro_id', '=', 'c.id')
-                                                    ->select('c.name_centro', 'ocp.amount')
-                                                    ->where('ocp.orden_compra_id', $oc->id)
-                                                    ->where('ocp.producto_id', $linea->producto_id)
-                                                    ->get();
-                                                @endphp
-                                                <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                                                    @forelse($dist as $d)
-                                                    <li>{{ $d->name_centro }} ({{ $d->amount }})</li>
-                                                    @empty
-                                                    <li>No hay distribución registrada</li>
-                                                    @endforelse
-                                                </ul>
-                                            </td>
-                                        </tr>
-                                        @endif
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </section>
+                                    </tfoot>
+                                 </table>
+                             </div>
+                         </div>
+                     </section>
                 </div>
                 <div class="sticky bottom-0 left-0 bg-white pt-4 pb-4 px-8 flex flex-wrap gap-3 justify-end border-t z-20">
                     <button type="button" class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-1 btn-open-estatus-oc" data-oc-id="{{ $oc->id }}">

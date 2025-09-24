@@ -65,11 +65,8 @@
                                 $recEnt = DB::table('entrega')->where('requisicion_id', $req->id)->whereNull('deleted_at')
                                     ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
                                     ->groupBy('producto_id')->pluck('rec','producto_id');
-                                $recStock = DB::table('recepcion as r')
-                                    ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-                                    ->where('oc.requisicion_id', $req->id)->whereNull('r.deleted_at')
-                                    ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
-                                    ->groupBy('r.producto_id')->pluck('rec','producto_id');
+                                // No sumar recepciones desde la tabla `recepcion` en esta vista: mantener vacío
+                                $recStock = collect();
                                 $isComplete = !$reqPorProducto->isEmpty();
                                 foreach ($reqPorProducto as $pid => $need) {
                                     $got = (int)($recEnt[$pid] ?? 0) + (int)($recStock[$pid] ?? 0);
@@ -209,7 +206,8 @@
                             ->select('centro.name_centro', 'centro_producto.amount')
                             ->get();
                         $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $req->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
-                        $confirmadoStock = (int) DB::table('recepcion as r')->join('orden_compras as oc','oc.id','=','r.orden_compra_id')->where('oc.requisicion_id',$req->id)->where('r.producto_id',$prod->id)->whereNull('r.deleted_at')->sum(DB::raw('COALESCE(r.cantidad_recibido,0)'));
+                        // Ignorar tabla recepcion aquí; solo considerar entregas
+                        $confirmadoStock = 0;
                         $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
                         @endphp
 
