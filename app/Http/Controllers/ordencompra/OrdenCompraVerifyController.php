@@ -204,8 +204,8 @@ class OrdenCompraVerifyController extends Controller
             ]);
         }
 
-        // esperado: preferir el blob almacenado
-        $expectedHash = $orden->getPdfHash() ?? $orden->validation_hash;
+        // No se guarda el PDF binario en BD; usar sólo el hash de validación
+        $expectedHash = $orden->validation_hash;
 
         $uploadedPath = $request->file('pdf')->getRealPath();
         $providedHash = hash_file('sha256', $uploadedPath);
@@ -220,11 +220,11 @@ class OrdenCompraVerifyController extends Controller
 
         $message = '';
         if (empty($expectedSan)) {
-            $message = 'No hay PDF almacenado para esta orden para comparar.';
+            $message = 'No hay hash de validación almacenado para esta orden.';
         } else if ($valid) {
-            $message = 'El archivo coincide con el original (hash SHA256 igual).';
+            $message = 'El archivo coincide con el hash de validación (SHA256 igual).';
         } else {
-            $message = 'El documento ha sido alterado o no es igual al original.';
+            $message = 'El documento ha sido alterado o no coincide con el hash de validación.';
         }
 
         return view('ordenes_compra.verify_upload', [
@@ -234,5 +234,42 @@ class OrdenCompraVerifyController extends Controller
             'provided' => $providedSan,
             'orden' => $orden,
         ]);
+    }
+
+    /**
+     * Ensure validation_hash exists for all orders in a requisition; generate & save if missing.
+     */
+    public function ensureHashesForRequisition($requisicionId, Request $request)
+    {
+        $orders = OrdenCompra::with(['ordencompraProductos.producto'])
+            ->where('requisicion_id', $requisicionId)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $secret = config('app.key') ?? env('APP_KEY');
+        $result = [];
+
+        foreach ($orders as $orden) {
+            // compute subtotal similar to verify()
+            $subtotal = 0;
+            $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
+            foreach ($porProducto as $lineas) {
+                $producto = optional($lineas->first())->producto;
+                $cantidad = (int) $lineas->sum('total');
+                $precio = (float) ($producto->price_produc ?? 0);
+                $subtotal += ($cantidad * $precio);
+            }
+            $hashSource = $orden->id . '|' . ($orden->order_oc ?? '') . '|' . number_format($subtotal, 2) . '|' . ($orden->created_at ? $orden->created_at->toDateTimeString() : '');
+            $h = hash_hmac('sha256', $hashSource, $secret);
+
+            if (empty($orden->validation_hash)) {
+                $orden->validation_hash = $h;
+                try { $orden->save(); } catch (\Throwable $e) { /* ignore save errors per-order */ }
+            }
+
+            $result[$orden->id] = $orden->validation_hash ?? $h;
+        }
+
+        return response()->json(['ok' => true, 'hashes' => $result]);
     }
 }

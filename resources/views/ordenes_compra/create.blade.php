@@ -749,7 +749,7 @@
     <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col items-center gap-4 max-w-sm w-full">
         <div class="loader w-16 h-16 border-4 border-blue-300 border-t-blue-600 rounded-full animate-spin" aria-hidden="true"></div>
         <div class="text-center">
-            <div class="text-lg font-medium loader-text">Procesando salida de stock...</div>
+            <div class="text-lg font-medium loader-text">Creando orden de compra</div>
             <div class="text-sm text-gray-500">Espere por favor</div>
         </div>
     </div>
@@ -1104,21 +1104,37 @@
         // Bloquear descarga si no hay datos o si existen salidas pendientes por confirmar
         const btnZip = document.getElementById('btn-download-zip');
         if (btnZip) {
-            // Si hay salidas pendientes, marcar visualmente y prevenir descarga
-            if (window.haySalidasPendientes) {
-                btnZip.classList.add('opacity-50', 'pointer-events-none');
-                btnZip.addEventListener('click', function(e){
-                    e.preventDefault();
+            btnZip.addEventListener('click', async function(e){
+                e.preventDefault();
+                if (window.haySalidasPendientes) {
                     Swal.fire({ icon:'warning', title:'Acción bloqueada', text:'Existen salidas de stock pendientes de confirmar. Confirme las cantidades recibidas antes de descargar.' });
-                });
-            } else {
-                btnZip.addEventListener('click', function(e){
-                    if ((this.dataset?.hay || '0') !== '1') {
-                        e.preventDefault();
-                        Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
+                    return;
+                }
+                if ((this.dataset?.hay || '0') !== '1') {
+                    Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
+                    return;
+                }
+
+                try {
+                    showStockLoader('Generando hashes y preparando descarga...');
+                    const resp = await fetch(`{{ route('ordenes_compra.ensure_hashes', $requisicion->id) }}`, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const data = await resp.json();
+                    hideStockLoader();
+                    if (!resp.ok) throw new Error(data.message || 'Error preparando la descarga');
+
+                    const href = this.getAttribute('href');
+                    if (href) {
+                        window.location.href = href;
                     }
-                });
-            }
+                } catch (err) {
+                    hideStockLoader();
+                    Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error al preparar la descarga.' });
+                }
+            });
         }
         const modal = document.getElementById('modal-distribucion');
         const btnAbrir = document.getElementById('btn-abrir-modal');
@@ -1305,26 +1321,23 @@
 
         // Seleccionar/Deseleccionar todos
         const chkAll = document.getElementById('chk-undo-all');
-        if (chkAll) {
-            chkAll.addEventListener('change', function() {
-                const checked = this.checked;
-                document.querySelectorAll('.chk-undo-item').forEach(chk => {
-                    chk.checked = checked;
-                });
+        chkAll?.addEventListener('change', function() {
+            const checked = this.checked;
+            document.querySelectorAll('.chk-undo-item').forEach(chk => {
+                chk.checked = checked;
             });
-        }
+        });
 
         btnConfirmarUndo.addEventListener('click', async function() {
             const idsSeleccionados = Array.from(document.querySelectorAll('.chk-undo-item:checked')).map(chk => chk.value);
             if (idsSeleccionados.length === 0) {
-                Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione al menos una línea para deshacer'});
+                Swal.fire({icon: 'info', title: 'Sin selección', text: 'Seleccione al menos una línea para deshacer la distribución.'});
                 return;
             }
 
             const confirm = await Swal.fire({
                 title: 'Confirmar deshacer',
                 text: "Esto deshará la distribución seleccionada(s) y actualizará la orden.",
-
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -1448,7 +1461,7 @@
     })();
 
     // Funciones para mostrar/ocultar modal de carga al sacar productos de stock
-    function showStockLoader(message = 'Procesando salida de stock...') {
+    function showStockLoader(message = 'Creando orden de compra') {
         const modal = document.getElementById('modal-loading-stock');
         if (!modal) return;
         const txt = modal.querySelector('.loader-text');
@@ -1473,7 +1486,7 @@
         // Si no fue prevenido por validaciones, mostrar loader (tiempo breve antes de la navegación)
         // La validación anterior previene el submit cuando hay errores; si llegamos aquí, mostrar loader
         if (!e.defaultPrevented) {
-            showStockLoader('Procesando salida de stock...');
+            showStockLoader('Creando orden de compra');
         }
     });
 
@@ -1487,5 +1500,29 @@
             // Si ocurre un error, el catch del handler ya muestra mensajes; además ocultamos el loader allí.
         }, { once: true });
     });
+
+    // Si el servidor creó la orden y devolvió el hash en sesión, descargarlo automáticamente
+    @if(session('created_hash'))
+    (function(){
+        try {
+            const hash = {!! json_encode(session('created_hash')) !!};
+            const orderId = {!! json_encode(session('created_order_id') ?? '') !!};
+            const filename = orderId ? `orden_${orderId}_validation_hash.txt` : 'validation_hash.txt';
+            const content = `Validation Hash: ${hash}\nOrder ID: ${orderId || 'N/A'}\nGenerated: ${new Date().toISOString()}`;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            Swal.fire({ icon: 'success', title: 'Hash descargado', text: 'Se ha descargado el hash de validación. Guárdelo para futuras verificaciones.' });
+        } catch (e) {
+            console.error('Error descargando hash:', e);
+        }
+    })();
+    @endif
 </script>
 @endsection

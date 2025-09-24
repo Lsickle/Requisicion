@@ -260,6 +260,9 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/ordenes/{id}/verify', [OrdenCompraVerifyController::class, 'verify'])->name('ordenes.verify');
     Route::post('/ordenes/verify-file', [OrdenCompraVerifyController::class, 'verifyFilePost'])->name('ordenes.verify_file');
     Route::get('/ordenes/verify-upload', function() { return view('ordenes_compra.verify_upload'); })->name('ordenes.verify_upload');
+
+    // Endpoint para generar/asegurar hashes de validación para órdenes de una requisición
+    Route::post('/ordenes/ensure-hashes/{requisicion}', [OrdenCompraVerifyController::class, 'ensureHashesForRequisition'])->name('ordenes_compra.ensure_hashes');
 });
 
 Route::resource('nuevo_producto', NuevoProductoController::class);

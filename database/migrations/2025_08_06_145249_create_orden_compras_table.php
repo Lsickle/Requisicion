@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('plazo_oc', 255)->nullable(); #plazos de pago
             $table->string('order_oc')->nullable(); #numero de orden
             $table->text('validation_hash')->nullable(); #hash de validación HMAC-SHA256 (nullable)
-            $table->binary('pdf_file')->nullable(); # Guardar PDF binario
             $table->timestamps();
             $table->softDeletes();
         });

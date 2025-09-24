@@ -61,8 +61,7 @@
         @else
             <div class="max-w-2xl mx-auto mt-4 p-4 rounded bg-red-50 border border-red-200 text-red-700">
                 <p class="font-medium">El documento ha sido alterado o no es igual al original.</p>
-                <p class="text-xs text-gray-600 mt-2">Hash esperado: <code>{{ $expected ?? 'N/A' }}</code></p>
-                <p class="text-xs text-gray-600">Hash extraído del archivo: <code>{{ $provided ?? 'N/A' }}</code></p>
+                {{-- Hash details removed as not relevant to the user --}}
             </div>
         @endif
     @endif
@@ -121,8 +120,6 @@
         const run = function(){
             const valid = {{ $valid ? 'true' : 'false' }};
             const message = {!! json_encode($message ?? '') !!};
-            const expected = {!! json_encode($expected ?? '') !!};
-            const provided = {!! json_encode($provided ?? '') !!};
             const ordenExists = {{ (isset($orden) && $orden !== null) ? 'true' : 'false' }};
 
             if (!ordenExists) {
@@ -136,9 +133,7 @@
                 Swal.fire({
                     icon: 'error',
                     title: 'PDF no válido',
-                    html: `<p>${message || 'El archivo no coincide con el original.'}</p>
-                           <p style="margin-top:8px;font-size:12px;color:#666">Hash esperado: <code>${expected || 'N/A'}</code></p>
-                           <p style="font-size:12px;color:#666">Hash extraído del archivo: <code>${provided || 'N/A'}</code></p>`
+                    html: `<p>${message || 'El archivo no coincide con el original.'}</p>`
                 });
             }
         };

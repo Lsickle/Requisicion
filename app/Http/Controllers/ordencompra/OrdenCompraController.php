@@ -429,9 +429,56 @@ class OrdenCompraController extends Controller
 
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
             foreach ($ordenes as $orden) {
+                // Siempre obtener el binario correcto: si pdf_file está guardado en base64, decodificarlo
+                if (!empty($orden->pdf_file)) {
+                    $bin = null;
+                    // Intentar decodificar base64 en modo estricto
+                    $decoded = @base64_decode($orden->pdf_file, true);
+                    if ($decoded !== false && strpos($decoded, '%PDF') === 0) {
+                        $bin = $decoded;
+                    } elseif (strpos($orden->pdf_file, '%PDF') === 0) {
+                        // ya está en binario
+                        $bin = $orden->pdf_file;
+                    }
+
+                    if ($bin !== null) {
+                        // Calcular hash y guardar si es distinto
+                        try {
+                            $fileHash = hash('sha256', $bin);
+                            if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                                $orden->validation_hash = $fileHash;
+                                $orden->save();
+                            }
+                        } catch (\Throwable $e) { /* noop */ }
+
+                        $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
+                        $zip->addFromString($fileName, $bin);
+                        continue;
+                    }
+                    // si no logramos obtener binario válido, caeremos a generar
+                }
+
+                // Generar PDF y almacenar en la orden (si no existe o si el stored no era válido)
                 $pdf = Pdf::loadView('ordenes_compra.pdf', ['ordenCompra' => $orden]);
-                $pdfContent = $pdf->output();
-                $zip->addFromString('orden_' . $orden->order_oc . '.pdf', $pdfContent);
+                $content = $pdf->output();
+
+                try {
+                    // Intentar guardar blob (storePdfBlob puede esperar base64 o binario según implementación)
+                    $orden->storePdfBlob($content);
+                } catch (\Throwable $e) {
+                    // noop: no bloquear el proceso si falla el guardado
+                }
+
+                // Calcular y guardar hash sobre el contenido que realmente se agregará
+                try {
+                    $fileHash = hash('sha256', $content);
+                    if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                        $orden->validation_hash = $fileHash;
+                        $orden->save();
+                    }
+                } catch (\Throwable $e) { /* noop */ }
+
+                $zip->addFromString('orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf', $content);
             }
             $zip->close();
 
@@ -681,15 +728,26 @@ class OrdenCompraController extends Controller
 
             // Si ya hay un PDF almacenado en la orden, devolver ese binario (asegura mismo hash)
             if (!empty($orden->pdf_file)) {
-                $bin = base64_decode($orden->pdf_file);
-                if ($bin === false) {
-                    // fallback: regenerate
-                } else {
-                    return response($bin, 200, [
-                        'Content-Type' => 'application/pdf',
-                        'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
-                    ]);
+                // Intentar decodificar base64 estrictamente
+                $bin = @base64_decode($orden->pdf_file, true);
+                if ($bin === false || strpos($bin, '%PDF') !== 0) {
+                    // Si no parece base64 valido con PDF header, tratar como binario bruto
+                    $bin = $orden->pdf_file;
                 }
+
+                // Calcular hash y guardar si es distinto
+                try {
+                    $fileHash = hash('sha256', $bin);
+                    if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                        $orden->validation_hash = $fileHash;
+                        $orden->save();
+                    }
+                } catch (\Throwable $e) { /* noop */ }
+
+                return response($bin, 200, [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                ]);
             }
 
             // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
@@ -702,6 +760,15 @@ class OrdenCompraController extends Controller
             } catch (\Throwable $e) {
                 // noop: no bloquear la descarga si falla el guardado
             }
+
+            // Calcular y guardar hash del contenido servido
+            try {
+                $fileHash = hash('sha256', $content);
+                if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                    $orden->validation_hash = $fileHash;
+                    $orden->save();
+                }
+            } catch (\Throwable $e) { /* noop */ }
 
             return response($content, 200, [
                 'Content-Type' => 'application/pdf',
@@ -725,10 +792,29 @@ class OrdenCompraController extends Controller
         foreach ($ordenes as $orden) {
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
 
-            // Si ya hay un PDF almacenado en la orden, agregarlo al ZIP
+            // Si ya hay un PDF almacenado en la orden, agregarlo al ZIP (decodificando si es base64)
             if (!empty($orden->pdf_file)) {
-                $zip->addFromString($fileName, $orden->pdf_file);
-                continue;
+                $bin = null;
+                $decoded = @base64_decode($orden->pdf_file, true);
+                if ($decoded !== false && strpos($decoded, '%PDF') === 0) {
+                    $bin = $decoded;
+                } elseif (strpos($orden->pdf_file, '%PDF') === 0) {
+                    $bin = $orden->pdf_file;
+                }
+
+                if ($bin !== null) {
+                    try {
+                        $fileHash = hash('sha256', $bin);
+                        if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                            $orden->validation_hash = $fileHash;
+                            $orden->save();
+                        }
+                    } catch (\Throwable $e) { /* noop */ }
+
+                    $zip->addFromString($fileName, $bin);
+                    continue;
+                }
+                // si no logramos obtener binario válido, caeremos a generar
             }
 
             // Generar PDF y almacenar en la orden (si no existe)
@@ -739,8 +825,16 @@ class OrdenCompraController extends Controller
             try {
                 $orden->storePdfBlob($content);
             } catch (\Throwable $e) {
-                // noop: no bloquear el proceso si falla el guardado
+                // noop
             }
+
+            try {
+                $fileHash = hash('sha256', $content);
+                if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
+                    $orden->validation_hash = $fileHash;
+                    $orden->save();
+                }
+            } catch (\Throwable $e) { /* noop */ }
 
             $zip->addFromString($fileName, $content);
         }
@@ -749,11 +843,11 @@ class OrdenCompraController extends Controller
         return Response::download($zipPath, $zipFileName)->deleteFileAfterSend(true);
     }
 
-    private function buildPdfData(OrdenCompra $orden): array
+    // Añadir helper para construir los datos del PDF (usado por download/export)
+    private function buildPdfData(\App\Models\OrdenCompra $orden): array
     {
         $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
 
-        // Items por producto (suma cantidades) y precio desde productos.price_produc
         $items = [];
         $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
         foreach ($porProducto as $productoId => $lineas) {
@@ -798,7 +892,6 @@ class OrdenCompraController extends Controller
             'subtotal' => $subtotal,
             'observaciones' => $orden->observaciones,
             'fecha_actual' => now()->format('d/m/Y H:i'),
-            // Usar data URI para que DomPDF cargue la imagen local correctamente
             'logo' => $this->resolveLogoDataUri(),
             'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
             'methods_oc' => $orden->methods_oc,
@@ -809,7 +902,6 @@ class OrdenCompraController extends Controller
     // Resolver logo como data URI buscando en public/images
     private function resolveLogoDataUri(): ?string
     {
-        // Si la vista ya recibió $logo por alguna vía, no hacemos nada (pero en este controlador no)
         $candidates = [
             public_path('images/logo.png'),
             public_path('images/logo.jpg'),
@@ -829,157 +921,12 @@ class OrdenCompraController extends Controller
                 return 'data:' . $mime . ';base64,' . base64_encode($contents);
             }
         }
-        // Fallback: asset URL (may not work with DomPDF)
         return asset('images/logo.png');
     }
 
-    public function historial()
-    {
-        $ordenes = OrdenCompra::with([
-            'requisicion',
-            'ordencompraProductos.producto',
-            'ordencompraProductos.proveedor'
-        ])->orderBy('id', 'desc')->get();
-
-        return view('ordenes_compra.historial', compact('ordenes'));
-    }
-
-    public function exportPDF($id)
-    {
-        $orden = OrdenCompra::with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
-            ->findOrFail($id);
-
-        $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
-
-        // Si ya hay un PDF almacenado en la orden, devolver ese binario (asegura mismo hash)
-        if (!empty($orden->pdf_file)) {
-            $bin = base64_decode($orden->pdf_file);
-            if ($bin === false) {
-                // fallback: regenerate
-            } else {
-                return response($bin, 200, [
-                    'Content-Type' => 'application/pdf',
-                    'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
-                ]);
-            }
-        }
-
-        // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
-        $data = $this->buildPdfData($orden);
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
-        $content = $pdf->output();
-
-        try {
-            $orden->storePdfBlob($content);
-        } catch (\Throwable $e) {
-            // noop: no bloquear la descarga si falla el guardado
-        }
-
-        return response($content, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
-        ]);
-    }
-
-    public function storeEntregaParcial(Request $request)
-    {
-        $data = $request->validate([
-            'ocp_id' => 'required|exists:ordencompra_producto,id',
-            'cantidad' => 'required|integer|min:1',
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            $ocp = OrdenCompraProducto::lockForUpdate()->findOrFail((int)$data['ocp_id']);
-            if (!$ocp->orden_compras_id) throw new \Exception('La línea no pertenece a una Orden de Compra');
-            $disponible = (int)($ocp->stock_e ?? 0);
-            if ($disponible < 1) throw new \Exception('No hay stock para entregar');
-            $entregar = min((int)$data['cantidad'], $disponible);
-
-            // Crear recepción PENDIENTE desde stock (no confirmar aún)
-            DB::table('recepcion')->insert([
-                'orden_compra_id' => $ocp->orden_compras_id,
-                'producto_id' => $ocp->producto_id,
-                'cantidad' => $entregar,
-                'cantidad_recibido' => null,
-                'fecha' => now()->toDateString(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // No modificar stock_e; se conserva como dato histórico de lo que salió de stock
-
-            // Estatus 12: entrega parcial registrada y pendiente de confirmación
-            $this->setRequisicionStatus((int)$ocp->requisicion_id, 12, 'Entrega parcial registrada (pendiente de confirmación)');
-
-            DB::commit();
-            return response()->json(['ok' => true]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json(['message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function restaurarStock(Request $request)
-    {
-        $data = $request->validate([
-            'ocp_id' => 'required|exists:ordencompra_producto,id',
-            'cantidad' => 'required|integer|min:1',
-        ]);
-
-        try {
-            DB::beginTransaction();
-            $ocp = OrdenCompraProducto::lockForUpdate()->findOrFail((int)$data['ocp_id']);
-
-            // Si la OC asociada está soft-deleted, no hacer nada
-            if (!empty($ocp->orden_compras_id)) {
-                $oc = OrdenCompra::withTrashed()->find($ocp->orden_compras_id);
-                if ($oc && method_exists($oc, 'trashed') && $oc->trashed()) {
-                    DB::commit();
-                    return response()->json(['ok' => true]);
-                }
-            }
-
-            // Sumar al inventario del producto la cantidad indicada, sin tocar stock_e
-            $producto = Producto::lockForUpdate()->findOrFail($ocp->producto_id);
-            $producto->stock_produc = (int)$producto->stock_produc + (int)$data['cantidad'];
-            $producto->save();
-
-            DB::commit();
-            return response()->json(['ok' => true]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json(['message' => $e->getMessage()], 500);
-        }
-    }
-
-    private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null): void
-    {
-        // Si el estatus activo ya es el mismo, no hacer nada
-        $current = Estatus_Requisicion::where('requisicion_id', $requisicionId)
-            ->where('estatus', 1)
-            ->orderBy('date_update', 'desc')
-            ->first();
-
-        if ($current && (int)$current->estatus_id === (int)$estatusId) {
-            return;
-        }
-
-        // Desactivar estatus previos y crear nuevo registro
-        Estatus_Requisicion::where('requisicion_id', $requisicionId)
-            ->update(['estatus' => 0, 'updated_at' => now()]);
-
-        Estatus_Requisicion::create([
-            'requisicion_id' => $requisicionId,
-            'estatus_id' => $estatusId,
-            'estatus' => 1,
-            'comentario' => $comentario,
-            'date_update' => now(),
-            'user_id' => session('user.id') ?? null,
-        ]);
-    }
-
+    /**
+     * Confirmar recepción de productos
+     */
     public function confirmarRecepcion(Request $request)
     {
         $payload = $request->all();

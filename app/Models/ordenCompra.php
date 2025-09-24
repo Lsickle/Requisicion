@@ -23,7 +23,6 @@ class OrdenCompra extends Model
         'plazo_oc',
         'order_oc',
         'validation_hash',
-        'pdf_file'
     ];
 
     // Permitir cargar/guardar PDF en la orden (sin casts especiales)
@@ -54,20 +53,5 @@ class OrdenCompra extends Model
         return $this->hasMany(OrdenCompraCentroProducto::class, 'orden_compra_id');
     }
 
-    // Guardar el PDF como base64 para evitar problemas de blobs en diferentes DB drivers
-    public function storePdfBlob(string $content) : void
-    {
-        // Guardar como base64
-        $this->pdf_file = base64_encode($content);
-        $this->save();
-    }
-
-    // Obtener SHA256 del contenido binario
-    public function getPdfHash(): ?string
-    {
-        if (empty($this->pdf_file)) return null;
-        $bin = base64_decode($this->pdf_file);
-        if ($bin === false) return null;
-        return hash('sha256', $bin);
-    }
+    // NOTE: PDFs are no longer stored in the database to save space; only a validation_hash is kept.
 }
