@@ -645,13 +645,17 @@
             });
         });
 
+        // Exponer objeto user de la sesión al JS y derivar una cadena para quien entrega
+        const APP_SESSION_USER = {!! json_encode(session('user') ?? null) !!};
+        const receptionUser = (APP_SESSION_USER && (APP_SESSION_USER.name || APP_SESSION_USER.email || APP_SESSION_USER.id)) ? (APP_SESSION_USER.name ?? APP_SESSION_USER.email ?? APP_SESSION_USER.id) : '';
+
         document.querySelectorAll('.ent-req-save').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const reqId = btn.dataset.reqId;
-                const modal = document.getElementById(`modal-entrega-req-${reqId}`);
-                const tbody = document.getElementById(`ent-req-tbody-${reqId}`);
-                const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
-                const items = [];
+             btn.addEventListener('click', async () => {
+                 const reqId = btn.dataset.reqId;
+                 const modal = document.getElementById(`modal-entrega-req-${reqId}`);
+                 const tbody = document.getElementById(`ent-req-tbody-${reqId}`);
+                 const rows = Array.from(tbody?.querySelectorAll('tr')||[]);
+                 const items = [];
                 
                 rows.forEach(tr => {
                     const chk = tr.querySelector('.ent-req-row-chk');
@@ -665,7 +669,8 @@
                     if (cantidad > 0 && cantidad <= pendiente) {
                         items.push({ 
                             producto_id: prodId, 
-                            cantidad: cantidad 
+                            cantidad: cantidad,
+                            cantidad_recibido: null
                         });
                     }
                 });
@@ -680,10 +685,10 @@
                 }
                 
                 try {
-                    const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
+                    const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                        body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, fecha: new Date().toISOString().slice(0,19).replace('T',' ') })
+                        body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, fecha: new Date().toISOString().slice(0,19).replace('T',' '), reception_user: receptionUser })
                     });
                     
                     const data = await resp.json();
@@ -705,8 +710,8 @@
                         text: e.message || 'Ocurrió un error al procesar la entrega'
                     });
                 }
-            });
-        });
+             });
+         });
     });
 
     // Funciones propietario

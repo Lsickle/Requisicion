@@ -19,10 +19,16 @@ class Entrega extends Model
         'cantidad',
         'cantidad_recibido',
         'fecha',
+        'user_id',
+        'user_name',
+        'reception_user_id',
+        'reception_user',
     ];
 
     protected $casts = [
         'fecha' => 'date',
+        'user_id' => 'integer',
+        'reception_user_id' => 'integer',
     ];
 
     // Relaciones

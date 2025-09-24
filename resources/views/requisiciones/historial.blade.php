@@ -436,7 +436,7 @@
                             <td class="p-2">{{ $r->name_produc }}</td>
                             <td class="p-2 text-center">{{ $r->cantidad }}</td>
                             <td class="p-2 text-center">
-                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input">
+                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibida ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input">
                             </td>
                             {{-- <td class="p-2 text-center">
                                 <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this, '{{ $usarEntrega ? 'entrega' : 'recepcion' }}')">Guardar</button>
@@ -462,12 +462,15 @@
 <script>
     function toggleModal(id){
         const modal = document.getElementById(id);
+        if (!modal) return; // evitar errores si no existe
         const isHidden = modal.classList.contains('hidden');
         if (isHidden) {
             modal.classList.remove('hidden');
+            modal.classList.add('flex');
             document.body.style.overflow = 'hidden';
         } else {
             modal.classList.add('hidden');
+            modal.classList.remove('flex');
             document.body.style.overflow = '';
         }
     }
@@ -688,6 +691,9 @@
     // Confirmar recepción de item
     const URL_CONFIRM_ENTREGA = "{{ route('entregas.confirmar') }}";
     const URL_CONFIRM_RECEPCION = "{{ route('recepciones.confirmar') }}";
+    // Exponer objeto user de la sesión al JS y derivar una cadena para quien recibe
+    const APP_SESSION_USER = {!! json_encode(session('user') ?? null) !!};
+    const receptionUser = (APP_SESSION_USER && (APP_SESSION_USER.name || APP_SESSION_USER.email || APP_SESSION_USER.id)) ? (APP_SESSION_USER.name ?? APP_SESSION_USER.email ?? APP_SESSION_USER.id) : '';
     async function confirmarRecepcionItem(id, btn, tipo = 'recepcion'){
         const row = btn.closest('tr');
         const inp = row.querySelector('.recx-input');
@@ -709,7 +715,9 @@
         btn.disabled = true;
         try {
             const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
-            const payload = (tipo === 'entrega') ? { entrega_id: id, cantidad: val } : { recepcion_id: id, cantidad: val };
+            const payload = (tipo === 'entrega')
+                ? { entrega_id: id, cantidad: val, reception_user: receptionUser }
+                : { recepcion_id: id, cantidad: val, reception_user: receptionUser };
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -768,14 +776,14 @@
             if (!chk || !inp) return;
             if (!chk.checked) return;
             const cant = parseInt(inp.value||'0',10);
-            if (cant>0) items.push({ producto_id: Number(chk.dataset.productoId), ocp_id: Number(chk.dataset.ocpId), cantidad: cant });
+            if (cant>0) items.push({ producto_id: Number(chk.dataset.productoId), ocp_id: Number(chk.dataset.ocpId), cantidad: cant, cantidad_recibido: null });
         });
         if (items.length === 0) { Swal.fire({icon:'info', title:'Sin selección', text:'Seleccione al menos un producto con cantidad > 0.'}); return; }
         try {
-            const resp = await fetch(`{{ route('entregas.storeMasiva') }}`, {
+            const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                body: JSON.stringify({ requisicion_id: reqId, items, comentario: null })
+                body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, reception_user: receptionUser })
             });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
@@ -818,14 +826,18 @@
         Swal.fire({ title: 'Guardando', text: 'Procesando recepciones...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
             for (const it of items){
-                const payload = (tipo === 'entrega') ? { entrega_id: it.id, cantidad: it.cantidad } : { recepcion_id: it.id, cantidad: it.cantidad };
-                const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                const data = await resp.json();
-                if (!resp.ok) throw new Error(data.message || 'Error al confirmar recepción');
+                const payload = (tipo === 'entrega')
+                    ? { entrega_id: it.id, cantidad: it.cantidad, reception_user: receptionUser }
+                    : { recepcion_id: it.id, cantidad: it.cantidad, reception_user: receptionUser };
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
             }
-            Swal.fire({icon:'success', title:'¡Guardado!', text:'Recepciones actualizadas.'}).then(()=> location.reload());
-        } catch (e) {
-            Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
+            Swal.fire({icon:'success', title:'¡Listo!', text:`Se han guardado todas las recepciones.`}).then(() => location.reload());
+        } catch(e){
+            Swal.fire({icon:'error', title:'Error', text:e.message});
         }
     }
 </script>

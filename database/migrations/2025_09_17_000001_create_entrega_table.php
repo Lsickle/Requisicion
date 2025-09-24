@@ -17,6 +17,12 @@ return new class extends Migration
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
             $table->integer('cantidad');
             $table->integer('cantidad_recibido')->nullable();
+            // usuario que registra la entrega (quien entrega)
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('user_name')->nullable();
+            // usuario que confirma la recepción (quien recibe)
+            $table->unsignedBigInteger('reception_user_id')->nullable();
+            $table->string('reception_user')->nullable();
             $table->date('fecha');
             $table->timestamps();
             $table->softDeletes();
