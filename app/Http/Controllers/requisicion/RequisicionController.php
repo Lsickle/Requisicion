@@ -523,20 +523,37 @@ class RequisicionController extends Controller
 
                 if ($sumaCentros > 0) $totalReq = $sumaCentros;
 
-                // Cantidad ya registrada en entregas (cantidad en tabla entrega, aún sin confirmar)
-                $registrado = (int) DB::table('entrega')
+                // Cantidad ya registrada en entregas: contar entregas confirmadas (cantidad_recibido)
+                // y entregas pendientes (cantidad) usando la misma lógica que la UI.
+                $registrado = (int) (DB::table('entrega')
                     ->where('requisicion_id', $requisicionId)
                     ->where('producto_id', $productoId)
                     ->whereNull('deleted_at')
-                    ->sum('cantidad');
+                    ->select(DB::raw('COALESCE(SUM(COALESCE(cantidad_recibido, cantidad, 0)),0) as total'))
+                    ->value('total') ?? 0);
 
                 $pendiente = max(0, $totalReq - $registrado);
+
+                // Log para depuración
+                Log::info('Entrega validación', [
+                    'requisicion_id' => $requisicionId,
+                    'producto_id' => $productoId,
+                    'totalReq' => $totalReq,
+                    'registrado' => $registrado,
+                    'pendiente' => $pendiente,
+                    'cantidad_enviada' => $cantidad,
+                ]);
 
                 if ($cantidad > $pendiente) {
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "Cantidad a entregar ({$cantidad}) excede el pendiente ({$pendiente}) para el producto {$productoId}."
+                        'message' => "Cantidad a entregar ({$cantidad}) excede el pendiente ({$pendiente}) para el producto {$productoId}.",
+                        'debug' => [
+                            'totalReq' => $totalReq,
+                            'registrado' => $registrado,
+                            'pendiente' => $pendiente,
+                        ]
                     ], 400);
                 }
 

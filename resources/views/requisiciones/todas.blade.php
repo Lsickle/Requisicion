@@ -410,7 +410,8 @@
                                      ->select('productos.id', 'productos.name_produc', 'productos.unit_produc', 'productos.price_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
                                      ->get();
 
-                                // Obtener cantidades ya entregadas (solo tabla 'entrega')
+                                // Obtener cantidades ya entregadas según 'cantidad_recibido' (confirmadas)
+                                // Usar cantidad_recibido alinea la UI con la validación del servidor
                                 $entregasPorProducto = DB::table('entrega')
                                     ->where('requisicion_id', $req->id)
                                     ->whereNull('deleted_at')
@@ -431,14 +432,12 @@
                                  $pendiente = max(0, $cantidadRequerida - $totalEntregado);
                                  $isDone = ($pendiente <= 0);
                                  
-                                 // Verificar si hay entregas pendientes de confirmación
+                                 // Verificar si hay entregas pendientes de confirmación (solo NULL)
                                  $pendientesNoConfirmadas = DB::table('entrega')
                                      ->where('requisicion_id', $req->id)
                                      ->where('producto_id', $productoId)
                                      ->whereNull('deleted_at')
-                                     ->where(function($q){ 
-                                         $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); 
-                                     })
+                                     ->whereNull('cantidad_recibido')
                                      ->sum('cantidad');
                                 $unit = $producto->unit_produc ?? '-';
                                 $unitPrice = (float) ($producto->price_produc ?? 0);
@@ -489,6 +488,7 @@
 </div>
 
 <script>
+    // Usar SweetAlert para mostrar indicador de carga
     function toggleModal(id){
         const modal = document.getElementById(id);
         const isHidden = modal.classList.contains('hidden');
@@ -660,18 +660,12 @@
                 rows.forEach(tr => {
                     const chk = tr.querySelector('.ent-req-row-chk');
                     const inp = tr.querySelector('.ent-req-cant-input');
-                    if (!chk || !inp || chk.disabled || !chk.checked) return;
-                    
-                    const prodId = Number(chk.dataset.productoId);
-                    const pendiente = parseInt(chk.dataset.pendiente || '0', 10);
-                    const cantidad = parseInt(inp.value||'0',10);
-                    
-                    if (cantidad > 0 && cantidad <= pendiente) {
-                        items.push({ 
-                            producto_id: prodId, 
-                            cantidad: cantidad,
-                            cantidad_recibido: null
-                        });
+                    if (!chk || !inp) return;
+                    if (!chk.checked) return;
+                    const cant = parseInt(inp.value||'0',10);
+                    // Sólo requerir cantidad positiva; no comparar contra 'pendiente' aquí
+                    if (cant > 0) {
+                        items.push({ producto_id: Number(chk.dataset.productoId), cantidad: cant, cantidad_recibido: null });
                     }
                 });
                 
@@ -685,6 +679,14 @@
                 }
                 
                 try {
+                    // Mostrar SweetAlert de carga
+                    Swal.fire({
+                        title: 'Procesando',
+                        html: 'Registrando entregas, por favor espere...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
                     const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
@@ -692,18 +694,22 @@
                     });
                     
                     const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
-                    
+                    if (!resp.ok) {
+                        Swal.close();
+                        throw new Error(data.message || 'Error al registrar entregas');
+                    }
+
+                    Swal.close();
                     modal.classList.add('hidden');
                     modal.classList.remove('flex');
-                    
+
                     Swal.fire({
                         icon:'success', 
                         title:'Éxito', 
                         text:'Entregas registradas correctamente.'
                     }).then(() => location.reload());
-                    
                 } catch(e) {
+                    Swal.close();
                     Swal.fire({
                         icon:'error', 
                         title:'Error', 

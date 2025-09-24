@@ -201,7 +201,7 @@
                                  case 1: $colorActual = 'bg-blue-600'; break;
                                  case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
                                  case 5: $colorActual = 'bg-purple-600'; break;
-                                 case 6: case 9: case 13: $colorActual = 'bg-red-600'; break;
+                                 case 6: case 9: $colorActual = 'bg-red-600'; break;
                                  case 7: case 8: $colorActual = 'bg-indigo-600'; break;
                                  case 10: $colorActual = 'bg-green-600'; break;
                                  case 11: $colorActual = 'bg-orange-500'; break;
@@ -393,23 +393,24 @@
         $estatusActualId = $ultimoActivo->estatus_id ?? null;
         $usarEntrega = in_array($estatusActualId, [8,12]);
         if ($usarEntrega) {
+            // Solo traer entregas pendientes de confirmación (cantidad_recibido IS NULL)
             $recList = DB::table('entrega as e')
                 ->join('productos as p','p.id','=','e.producto_id')
                 ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
                 ->where('e.requisicion_id', $req->id)
                 ->whereNull('e.deleted_at')
-                ->where(function($q){
-                    $q->whereNull('e.cantidad_recibido')->orWhere('e.cantidad_recibido', 0);
-                })
+                ->whereNull('e.cantidad_recibido')
                 ->orderBy('e.id','asc')
                 ->get();
         } else {
+            // Solo traer recepciones pendientes de confirmación (cantidad_recibido IS NULL)
             $recList = DB::table('recepcion as r')
                 ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
                 ->join('productos as p','p.id','=','r.producto_id')
                 ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
                 ->where('oc.requisicion_id', $req->id)
                 ->whereNull('r.deleted_at')
+                ->whereNull('r.cantidad_recibido')
                 ->orderBy('r.id','asc')
                 ->get();
         }
