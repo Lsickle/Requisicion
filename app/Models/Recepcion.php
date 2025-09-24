@@ -17,21 +17,38 @@ class Recepcion extends Model
         'producto_id',
         'cantidad',
         'cantidad_recibido',
-        'fecha',
+        'reception_user',
+        'fecha'
     ];
 
     protected $casts = [
         'fecha' => 'date',
+        'cantidad' => 'integer',
+        'cantidad_recibido' => 'integer'
     ];
 
-    // Relaciones
-    public function ordenCompra()
+    protected static function booted()
     {
-        return $this->belongsTo(OrdenCompra::class, 'orden_compra_id');
+        static::creating(function ($model) {
+            // Si no se proporciona reception_user, tomarlo de la session (usuario proveniente del API)
+            if (empty($model->reception_user)) {
+                $model->reception_user = session('user.name') ?? session('user.email') ?? session('user.id') ?? 'unknown';
+            }
+            // Si no hay fecha, asignar hoy
+            if (empty($model->fecha)) {
+                $model->fecha = now()->toDateString();
+            }
+        });
     }
 
+    // Relaciones mínimas
     public function producto()
     {
         return $this->belongsTo(Producto::class, 'producto_id');
+    }
+
+    public function ordenCompra()
+    {
+        return $this->belongsTo(\App\Models\OrdenCompra::class, 'orden_compra_id');
     }
 }

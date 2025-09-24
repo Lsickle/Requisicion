@@ -20,12 +20,13 @@
         <table id="tablaOC" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
             <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
                 <tr>
-                    <th class="p-3 text-left">Requisición</th>
+                    <th class="p-3 text-left w-24" style="width:100px;">Requisición</th>
                     <th class="p-3 text-left">Orden</th>
                     <th class="p-3 text-left">Fecha</th>
                     <th class="p-3 text-left">Proveedor</th>
                     <th class="p-3 text-left">Método</th>
                     <th class="p-3 text-left">Plazo</th>
+                    <th class="p-3 text-left">Estatus</th>
                     <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
@@ -34,25 +35,55 @@
                 @php
                 $proveedor = optional($oc->ordencompraProductos->first())->proveedor;
                 $requisicionId = $oc->requisicion->id ?? ($oc->requisicion_id ?? null);
+                // Calcular estatus según cantidades: si no hay recibidos => 'Orden creada',
+                // si hay algunos recibidos pero no todos => 'Pendiente', si todos recibidos => 'Completada'.
+                try {
+                    $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
+                    $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                    if ($totReceived <= 0) {
+                        $estatusText = 'Orden creada';
+                    } elseif ($totReceived >= $totOrdered && $totOrdered > 0) {
+                        $estatusText = 'Completada';
+                    } else {
+                        $estatusText = 'Pendiente';
+                    }
+                } catch (\Throwable $e) {
+                    $estatusText = '—';
+                }
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
-                    <td class="p-3">#{{ $oc->requisicion->id ?? '-' }}</td>
+                    <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
                     <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y') }}</td>
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
                     <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
-                    <td class="p-3 text-center">
-                        <div class="flex justify-center gap-2 flex-wrap">
-                            <button onclick="toggleModal('modal-{{ $oc->id }}')"
-                                class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
-                                <i class="fas fa-eye"></i> Ver
-                            </button>
-                            <button type="button" class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-yellow-700 transition flex items-center gap-1 btn-open-recibir" data-oc-id="{{ $oc->id }}">
-                                <i class="fas fa-box"></i> Recibir
-                            </button>
-                        </div>
+                    @php
+                        // Mostrar etiqueta corta y elegir color
+                        $estatusDisplay = $estatusText;
+                        if ($estatusText === 'Orden creada') $estatusDisplay = 'Creada';
+                        // clase por defecto
+                        $badgeClass = 'bg-gray-100 text-gray-800';
+                        if (strtolower($estatusDisplay) === 'completada') $badgeClass = 'bg-green-100 text-green-700';
+                        elseif (strtolower($estatusDisplay) === 'pendiente') $badgeClass = 'bg-amber-100 text-amber-700';
+                        elseif (strtolower($estatusDisplay) === 'creada') $badgeClass = 'bg-blue-100 text-blue-800';
+                    @endphp
+                    <td class="p-3">
+                        <span class="inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">{{ $estatusDisplay }}</span>
                     </td>
+                    <td class="p-3 text-center">
+                        <div class="flex justify-center gap-2 items-center">
+                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver OC" aria-label="Ver OC">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-recibir bg-yellow-600 hover:bg-yellow-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Recibir productos" aria-label="Recibir productos">
+                                <i class="fas fa-box"></i>
+                            </button>
+                            <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                                <i class="fas fa-file-pdf"></i>
+                            </a>
+                        </div>
+                     </td>
                 </tr>
                 @endforeach
             </tbody>
@@ -164,8 +195,7 @@
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
                             <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</div>
-                            <div><span class="font-medium">Fecha:</span> {{ optional($oc->created_at)->format('d/m/Y') }}</div>
-                            <div><span class="font-medium">Fecha OC:</span> {{ $oc->date_oc ? \Carbon\Carbon::parse($oc->date_oc)->format('d/m/Y') : '—' }}</div>
+                            <div><span class="font-medium">Fecha de creación:</span> {{ optional($oc->created_at)->format('d/m/Y') }}</div>
                             <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
                             <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
                             <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
@@ -221,6 +251,9 @@
                     </section>
                 </div>
                 <div class="sticky bottom-0 left-0 bg-white pt-4 pb-4 px-8 flex flex-wrap gap-3 justify-end border-t z-20">
+                    <button type="button" class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-1 btn-open-estatus-oc" data-oc-id="{{ $oc->id }}">
+                        <i class="fas fa-info-circle"></i> Ver Estatus
+                    </button>
                     <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-box"></i> Recibir productos
                     </button>
@@ -228,8 +261,48 @@
                         <i class="fas fa-file-pdf"></i> Descargar PDF
                     </a>
                 </div>
-            </div>
-        </div>
+                <!-- Modal Estatus para esta OC -->
+                @php
+                    $recepcionesOC = DB::table('recepcion as r')
+                        ->join('productos as p','p.id','=','r.producto_id')
+                        ->select('r.id','r.created_at','r.cantidad','r.cantidad_recibido','p.name_produc')
+                        ->where('r.orden_compra_id', $oc->id)
+                        ->whereNull('r.deleted_at')
+                        ->orderBy('r.created_at','asc')
+                        ->get();
+                @endphp
+                <div id="modal-estatus-oc-{{ $oc->id }}" class="fixed inset-0 z-[10000] hidden items-center justify-center p-4">
+                    <div class="absolute inset-0 bg-black/50" data-close="1"></div>
+                    <div class="relative w-full max-w-3xl">
+                        <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
+                            <button onclick="toggleModal('modal-estatus-oc-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+                            <h3 class="text-xl font-semibold mb-4">Estatus y Recepciones - OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
+                            <div class="mb-4">
+                                <div class="mb-3 p-4 rounded bg-gray-50 border">
+                                    <div class="font-semibold">Orden creada</div>
+                                    <div class="text-sm text-gray-600">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
+                                </div>
+                                @if($recepcionesOC->count())
+                                    @foreach($recepcionesOC as $rec)
+                                        <details class="mb-2 border rounded">
+                                            <summary class="px-4 py-2 bg-gray-100 cursor-pointer flex justify-between items-center">
+                                                <span>Recepción - {{ optional($rec->created_at)->format('d/m/Y H:i') }}</span>
+                                                <span class="text-sm text-gray-700">Recibido: {{ $rec->cantidad_recibido ?? 0 }}</span>
+                                            </summary>
+                                            <div class="p-4">
+                                                <div class="text-sm text-gray-700">Producto: {{ $rec->name_produc }}</div>
+                                                <div class="text-sm text-gray-700">Cantidad registrada: {{ $rec->cantidad }}</div>
+                                                <div class="text-sm text-gray-700">Cantidad recibida: {{ $rec->cantidad_recibido ?? 0 }}</div>
+                                            </div>
+                                        </details>
+                                    @endforeach
+                                @else
+                                    <div class="text-gray-600">No hay recepciones registradas para esta OC.</div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
     </div>
     @endforeach
 
@@ -339,16 +412,22 @@
             btn.addEventListener('click', () => {
                 const ocId = btn.dataset.ocId;
                 const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                modal?.classList.remove('hidden');
-                modal?.classList.add('flex');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                }
             });
         });
         document.querySelectorAll('.rc-close, .rc-cancel').forEach(btn => {
             btn.addEventListener('click', () => {
                 const ocId = btn.dataset.ocId;
                 const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                modal?.classList.add('hidden');
-                modal?.classList.remove('flex');
+                if (modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    document.body.style.overflow = '';
+                }
             });
         });
         document.querySelectorAll('[id^="modal-recibir-oc-"]').forEach(modal => {
@@ -356,6 +435,7 @@
                 if (e.target === modal || e.target?.dataset?.close === '1') {
                     modal.classList.add('hidden');
                     modal.classList.remove('flex');
+                    document.body.style.overflow = '';
                 }
             });
         });
@@ -405,20 +485,24 @@
                 if (!confirm.isConfirmed) { modal.classList.remove('hidden'); modal.classList.add('flex'); return; }
                 Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
-                    // enviar todos los items en una sola petición
+                    // usuario actual (tomado de la sesión en el servidor y pasado al JS)
+                    const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
+                    // enviar todos los items en una sola petición, incluyendo quién recibe
                     const payload = { items: items.map(it => ({
-                        recepcion_id: it.recId || undefined,
-                        orden_compra_id: it.recId ? undefined : ocId,
-                        producto_id: it.prodId,
-                        cantidad: it.total,
-                        cantidad_recibido: it.nuevoAcumulado
-                    })) };
+                         recepcion_id: it.recId || undefined,
+                         orden_compra_id: it.recId ? undefined : ocId,
+                         producto_id: it.prodId,
+                         cantidad: it.total,
+                        cantidad_recibido: it.nuevoAcumulado,
+                        reception_user: receptionUser
+                     })) };
 
                     const resp = await fetch("{{ route('recepciones.confirmar') }}", {
                         method: 'POST',
+                        credentials: 'same-origin',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
-                    });
+                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
                     Swal.close();
@@ -446,11 +530,54 @@
             btn.addEventListener('click', () => {
                 const ocId = btn.dataset.ocId;
                 const vModal = document.getElementById(`modal-${ocId}`);
-                vModal?.classList.add('hidden');
-                vModal?.classList.remove('flex');
+                if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
                 const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                rModal?.classList.remove('hidden');
-                rModal?.classList.add('flex');
+                if (rModal) { rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+            });
+        });
+
+        // Abrir/Cerrar Estatus OC
+        document.querySelectorAll('.btn-open-estatus-oc').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const ocId = btn.dataset.ocId;
+                const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                }
+            });
+        });
+        document.querySelectorAll('[id^="modal-estatus-oc-"]').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal || e.target?.dataset?.close === '1') {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    document.body.style.overflow = '';
+                }
+            });
+        });
+
+        // Abrir Ver
+        document.querySelectorAll('.btn-open-ver').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const ocId = btn.dataset.ocId;
+                const modal = document.getElementById(`modal-${ocId}`);
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                }
+            });
+        });
+        // Cerrar modales por backdrop para modales de ver
+        document.querySelectorAll('[data-modal="ver"]').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal || e.target?.dataset?.close === '1') {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    document.body.style.overflow = '';
+                }
             });
         });
     });

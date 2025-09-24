@@ -995,8 +995,10 @@ class OrdenCompraController extends Controller
             $affectedRequisiciones = [];
 
             foreach ($items as $itIndex => $it) {
-                // normalizar claves
-                $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
+                // determinar usuario que realiza la acción (viene en payload o tomarse de session)
+                $receptionUser = $it['reception_user'] ?? session('user.name') ?? session('user.email') ?? session('user.id') ?? null;
+                 // normalizar claves
+                 $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
                 $ordenCompraId = isset($it['orden_compra_id']) ? (int)$it['orden_compra_id'] : null;
                 $productoId = isset($it['producto_id']) ? (int)$it['producto_id'] : null;
                 $cantidad = isset($it['cantidad']) ? (int)$it['cantidad'] : null; // cantidad total/especificada
@@ -1016,6 +1018,7 @@ class OrdenCompraController extends Controller
 
                     DB::table('recepcion')->where('id', $rec->id)->update([
                         'cantidad_recibido' => $val,
+                        'reception_user' => $receptionUser,
                         'updated_at' => now(),
                     ]);
 
@@ -1049,6 +1052,7 @@ class OrdenCompraController extends Controller
                     'producto_id' => $productoId,
                     'cantidad' => $cantidadTotal,
                     'cantidad_recibido' => $cantidadRecibida,
+                    'reception_user' => $receptionUser,
                     'fecha' => $now->toDateString(),
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -1215,6 +1219,8 @@ class OrdenCompraController extends Controller
                 'cantidad' => $cantidad,
                 'cantidad_recibido' => null,
                 'fecha' => now()->toDateString(),
+                'user_id' => session('user.id') ?? null,
+                'user_name' => session('user.name') ?? null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

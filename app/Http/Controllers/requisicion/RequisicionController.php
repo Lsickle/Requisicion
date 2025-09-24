@@ -575,25 +575,17 @@ class RequisicionController extends Controller
     // Método para actualizar el estatus de una requisición
     private function setRequisicionStatus(int $requisicionId, int $estatusId, string $comentario = null)
     {
-        $estatus = Estatus_Requisicion::where('requisicion_id', $requisicionId)
-            ->where('estatus_id', $estatusId)
-            ->first();
+        // Desactivar estatus previos y crear siempre un nuevo registro para histórico
+        Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
-        if (!$estatus) {
-            Estatus_Requisicion::create([
-                'requisicion_id' => $requisicionId,
-                'estatus_id'     => $estatusId,
-                'estatus'        => 1,
-                'date_update'    => now(),
-                'comentario'     => $comentario,
-                'user_id'        => session('user.id'),
-            ]);
-        } else {
-            $estatus->estatus = 1;
-            $estatus->date_update = now();
-            $estatus->comentario = $comentario;
-            $estatus->save();
-        }
+        Estatus_Requisicion::create([
+            'requisicion_id' => $requisicionId,
+            'estatus_id'     => $estatusId,
+            'estatus'        => 1,
+            'date_update'    => now(),
+            'comentario'     => $comentario,
+            'user_id'        => session('user.id'),
+        ]);
     }
 
     // Verificar si una requisición está completa (todas las entregas registradas y confirmadas)

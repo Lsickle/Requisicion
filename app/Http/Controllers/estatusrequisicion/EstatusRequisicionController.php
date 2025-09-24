@@ -102,6 +102,16 @@ class EstatusRequisicionController extends Controller
 
             $requisicion = Requisicion::with('ultimoEstatus')->findOrFail($requisicionId);
 
+            // Si no hay cambio de estatus, no crear registro ni enviar correo
+            $currentStatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+            if ($currentStatus == (int)$request->estatus_id) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No hay cambios en el estatus. Operación cancelada.'
+                ], 200);
+            }
+
             // Validar estatus según rol
             if ($role === 'Area de compras' && $requisicion->ultimoEstatus->estatus_id != 1) {
                 return response()->json(['success' => false, 'message' => 'Solo puedes aprobar requisiciones en estatus Iniciada'], 403);
@@ -129,6 +139,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 1,
                         'comentario' => $comentario,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $mensajeAccion = 'enviada a corrección';
                 } elseif ($role === 'Gerencia') {
@@ -139,6 +150,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 0,
                         'comentario' => $comentario,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
@@ -146,6 +158,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 1,
                         'comentario' => null,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $mensajeAccion = 'rechazada por gerencia';
                 } elseif ($role === 'Gerente financiero') {
@@ -156,6 +169,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 0,
                         'comentario' => $comentario,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
@@ -163,6 +177,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 1,
                         'comentario' => null,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $mensajeAccion = 'rechazada';
                 } else {
@@ -173,6 +188,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 0,
                         'comentario' => $comentario,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $nuevoEstatus = Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
@@ -180,6 +196,7 @@ class EstatusRequisicionController extends Controller
                         'estatus' => 1,
                         'comentario' => null,
                         'date_update' => now(),
+                        'user_id' => session('user.id') ?? null,
                     ]);
                     $mensajeAccion = 'rechazada';
                 }
@@ -190,6 +207,7 @@ class EstatusRequisicionController extends Controller
                     'estatus' => 1,
                     'comentario' => null,
                     'date_update' => now(),
+                    'user_id' => session('user.id') ?? null,
                 ]);
 
                 // Al aprobar por financiero (estatus 4) NO crear orden de compra automáticamente

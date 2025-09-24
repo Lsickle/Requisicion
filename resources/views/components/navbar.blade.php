@@ -9,6 +9,3 @@
 
     </nav>
 </div>
-
-<!-- FontAwesome (si no lo tienes ya cargado) -->
-<script src="https://kit.fontawesome.com/a2e0e6ad5a.js" crossorigin="anonymous"></script>
