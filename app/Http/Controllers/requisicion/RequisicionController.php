@@ -575,7 +575,17 @@ class RequisicionController extends Controller
     // Método para actualizar el estatus de una requisición
     private function setRequisicionStatus(int $requisicionId, int $estatusId, string $comentario = null)
     {
-        // Desactivar estatus previos y crear siempre un nuevo registro para histórico
+        // Si el estatus activo ya es el mismo, no hacer nada
+        $current = Estatus_Requisicion::where('requisicion_id', $requisicionId)
+            ->where('estatus', 1)
+            ->orderBy('date_update', 'desc')
+            ->first();
+
+        if ($current && (int)$current->estatus_id === (int)$estatusId) {
+            return;
+        }
+
+        // Desactivar estatus previos y crear nuevo registro para histórico
         Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
         Estatus_Requisicion::create([

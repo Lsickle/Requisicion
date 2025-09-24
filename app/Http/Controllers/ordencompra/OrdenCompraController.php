@@ -956,12 +956,20 @@ class OrdenCompraController extends Controller
 
     private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null): void
     {
-        // Desactivar estatus activos previos (usando Eloquent para consistencia)
-        Estatus_Requisicion::where('requisicion_id', $requisicionId)
+        // Si el estatus activo ya es el mismo, no hacer nada
+        $current = Estatus_Requisicion::where('requisicion_id', $requisicionId)
             ->where('estatus', 1)
+            ->orderBy('date_update', 'desc')
+            ->first();
+
+        if ($current && (int)$current->estatus_id === (int)$estatusId) {
+            return;
+        }
+
+        // Desactivar estatus previos y crear nuevo registro
+        Estatus_Requisicion::where('requisicion_id', $requisicionId)
             ->update(['estatus' => 0, 'updated_at' => now()]);
 
-        // Crear nuevo registro mediante Eloquent para que el Observer detecte el cambio y despache el Job
         Estatus_Requisicion::create([
             'requisicion_id' => $requisicionId,
             'estatus_id' => $estatusId,
@@ -997,75 +1005,72 @@ class OrdenCompraController extends Controller
             foreach ($items as $itIndex => $it) {
                 // determinar usuario que realiza la acción (viene en payload o tomarse de session)
                 $receptionUser = $it['reception_user'] ?? session('user.name') ?? session('user.email') ?? session('user.id') ?? null;
-                 // normalizar claves
-                 $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
+
+                // normalizar claves
+                $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
                 $ordenCompraId = isset($it['orden_compra_id']) ? (int)$it['orden_compra_id'] : null;
                 $productoId = isset($it['producto_id']) ? (int)$it['producto_id'] : null;
-                $cantidad = isset($it['cantidad']) ? (int)$it['cantidad'] : null; // cantidad total/especificada
-                $cantidadRec = isset($it['cantidad_recibido']) ? (int)$it['cantidad_recibido'] : null; // cantidad confirmada
+                $cantidad = isset($it['cantidad']) ? (int)$it['cantidad'] : null; // cantidad total/especificada (OC line)
+                $cantidadRec = isset($it['cantidad_recibido']) ? (int)$it['cantidad_recibido'] : null; // cantidad acumulada deseada
 
+                // Determinar ordenCompraId y base cantidad si se pasa recepcion_id
+                $baseCantidad = $cantidad;
+                $ocIdForCalc = $ordenCompraId;
                 if ($recepcionId) {
-                    $rec = DB::table('recepcion')->lockForUpdate()->where('id', $recepcionId)->first();
-                    if (!$rec) throw new \Exception('Registro de recepción no encontrado (id: ' . $recepcionId . ')');
-
-                    $max = (int)$rec->cantidad;
-                    $val = $cantidadRec !== null ? $cantidadRec : ($cantidad !== null ? $cantidad : null);
-                    if ($val === null) throw new \Exception('Falta cantidad para recepcion_id ' . $recepcionId);
-                    if ($val > $max) throw new \Exception('No puede recibir más de lo entregado para recepcion_id ' . $recepcionId);
-
-                    $prev = (int)($rec->cantidad_recibido ?? 0);
-                    $delta = $val - $prev;
-
-                    DB::table('recepcion')->where('id', $rec->id)->update([
-                        'cantidad_recibido' => $val,
-                        'reception_user' => $receptionUser,
-                        'updated_at' => now(),
-                    ]);
-
-                    if ($delta > 0) {
-                        $producto = Producto::lockForUpdate()->findOrFail((int)$rec->producto_id);
-                        $producto->stock_produc = (int)$producto->stock_produc + $delta;
-                        $producto->save();
+                    $recBase = DB::table('recepcion')->where('id', $recepcionId)->first();
+                    if ($recBase) {
+                        $ocIdForCalc = $recBase->orden_compra_id;
+                        $baseCantidad = $recBase->cantidad;
                     }
-
-                    $oc = DB::table('orden_compras')->where('id', $rec->orden_compra_id)->first();
-                    if ($oc) $affectedRequisiciones[] = (int)$oc->requisicion_id;
-
-                    continue;
                 }
 
-                // crear nuevo registro
-                if (empty($ordenCompraId) || empty($productoId)) {
+                if (empty($ocIdForCalc) || empty($productoId)) {
                     throw new \Exception('Para crear recepción se requiere orden_compra_id y producto_id');
                 }
 
-                $cantidadTotal = $cantidad ?? 0;
-                $cantidadRecibida = $cantidadRec ?? 0;
+                // total ya recibido acumulado según la BD
+                $totalRecibidoBD = (int) DB::table('recepcion')
+                    ->where('orden_compra_id', $ocIdForCalc)
+                    ->where('producto_id', $productoId)
+                    ->whereNull('deleted_at')
+                    ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
 
-                if ($cantidadRecibida > $cantidadTotal && $cantidadTotal > 0) {
-                    throw new \Exception('No puede recibir más de la cantidad de la OC para producto ' . $productoId);
+                $desiredTotal = $cantidadRec ?? 0;
+                // Si desiredTotal está vacío, asumimos que se quiere recibir el máximo pendiente
+                if ($desiredTotal <= 0) {
+                    // intentar tomar como total el total OC o la base
+                    $desiredTotal = $cantidad ?? $baseCantidad ?? 0;
                 }
 
+                $delta = $desiredTotal - $totalRecibidoBD;
+                if ($delta <= 0) {
+                    // nada que hacer
+                    $ocRow = DB::table('orden_compras')->where('id', $ocIdForCalc)->first();
+                    if ($ocRow) $affectedRequisiciones[] = (int)$ocRow->requisicion_id;
+                    continue;
+                }
+
+                // Insertar nuevo registro con la diferencia (histórico)
                 $now = now();
                 $newId = DB::table('recepcion')->insertGetId([
-                    'orden_compra_id' => $ordenCompraId,
+                    'orden_compra_id' => $ocIdForCalc,
                     'producto_id' => $productoId,
-                    'cantidad' => $cantidadTotal,
-                    'cantidad_recibido' => $cantidadRecibida,
+                    'cantidad' => $baseCantidad ?? ($cantidad ?? 0),
+                    'cantidad_recibido' => $delta,
                     'reception_user' => $receptionUser,
                     'fecha' => $now->toDateString(),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
 
-                if ($cantidadRecibida > 0) {
+                if ($delta > 0) {
                     $producto = Producto::lockForUpdate()->findOrFail($productoId);
-                    $producto->stock_produc = (int)$producto->stock_produc + $cantidadRecibida;
+                    $producto->stock_produc = (int)$producto->stock_produc + $delta;
                     $producto->save();
                 }
 
-                $oc = DB::table('orden_compras')->where('id', $ordenCompraId)->first();
-                if ($oc) $affectedRequisiciones[] = (int)$oc->requisicion_id;
+                $ocRow = DB::table('orden_compras')->where('id', $ocIdForCalc)->first();
+                if ($ocRow) $affectedRequisiciones[] = (int)$ocRow->requisicion_id;
             }
 
             // actualizar estatus por cada requisición afectada (únicos)
@@ -1106,15 +1111,21 @@ class OrdenCompraController extends Controller
                     }
                 }
 
-                if ($completeByRecepcion) {
-                    // Todas las cantidades fueron recibidas desde proveedores => marcar Material recibido
-                    $this->setRequisicionStatus((int)$reqId, 7, 'Recepción completa: material recibido por compras');
-                } else {
-                    // Recepciones parciales
-                    $this->setRequisicionStatus((int)$reqId, 12, 'Recepción registrada');
-                }
-            }
+                // Determinar estatus deseado
+                $desiredStatus = $completeByRecepcion ? 7 : 12;
+                $desiredMessage = $completeByRecepcion ? 'Recepción completa: material recibido por compras' : 'Recepción registrada';
 
+                // Comprobar estatus activo actual y solo cambiar si difiere
+                $currentActive = DB::table('estatus_requisicion')
+                    ->where('requisicion_id', $reqId)
+                    ->where('estatus', 1)
+                    ->value('estatus_id');
+
+                if ((int)$currentActive !== (int)$desiredStatus) {
+                    $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
+                }
+                 
+             }
             DB::commit();
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {

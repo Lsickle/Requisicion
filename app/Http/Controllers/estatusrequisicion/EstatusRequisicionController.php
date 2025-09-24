@@ -105,10 +105,11 @@ class EstatusRequisicionController extends Controller
             // Si no hay cambio de estatus, no crear registro ni enviar correo
             $currentStatus = $requisicion->ultimoEstatus->estatus_id ?? null;
             if ($currentStatus == (int)$request->estatus_id) {
+                // No hacer nada ni notificar si el estatus no cambia
                 DB::rollBack();
                 return response()->json([
-                    'success' => false,
-                    'message' => 'No hay cambios en el estatus. Operación cancelada.'
+                    'success' => true,
+                    'message' => 'El estatus ya está en el valor solicitado. Sin cambios.'
                 ], 200);
             }
 

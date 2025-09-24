@@ -120,19 +120,24 @@
                 </div>
                 <div class="p-6">
                     @php
+                        // Subconsulta para sumar las cantidades recibidas por producto en esta OC
+                        $recSum = DB::table('recepcion')
+                            ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as recibido'), DB::raw('MIN(id) as recepcion_id'))
+                            ->where('orden_compra_id', $oc->id)
+                            ->whereNull('deleted_at')
+                            ->groupBy('producto_id');
+
                         $recRows = DB::table('ordencompra_producto as ocp')
                             ->join('productos as p','p.id','=','ocp.producto_id')
-                            ->leftJoin('recepcion as r', function($j) use ($oc){
-                                $j->on('r.producto_id','=','ocp.producto_id')
-                                  ->where('r.orden_compra_id', $oc->id)
-                                  ->whereNull('r.deleted_at');
+                            ->leftJoinSub($recSum, 'r', function($j){
+                                $j->on('r.producto_id','=','ocp.producto_id');
                             })
                             ->select(
                                 'p.id as producto_id',
                                 'p.name_produc',
                                 'ocp.total as cantidad_total',
-                                'r.id as recepcion_id',
-                                DB::raw('COALESCE(r.cantidad_recibido,0) as recibido')
+                                'r.recepcion_id as recepcion_id',
+                                DB::raw('COALESCE(r.recibido,0) as recibido')
                             )
                             ->where('ocp.orden_compras_id', $oc->id)
                             ->whereNull('ocp.deleted_at')
