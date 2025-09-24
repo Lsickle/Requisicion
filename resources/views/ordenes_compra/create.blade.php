@@ -100,12 +100,12 @@
                                     $grandTotal += $precioTotal;
                                 @endphp
                                 <tr class="border-t">
-                                    <td class="px-4 py-3">{{ $prod->name_produc }}</td>
-                                    <td class="px-3 py-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
-                                    <td class="px-3 py-3 text-center font-medium w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
-                                    <td class="px-3 py-3 text-center">${{ number_format($precioUnit,2) }}</td>
-                                    <td class="px-3 py-3 text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-4 py-2">{{ $prod->name_produc }}</td>
+                                    <td class="px-3 py-2 text-center">{{ $prod->unit_produc ?? '-' }}</td>
+                                    <td class="px-3 py-2 text-center font-medium w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                                    <td class="px-3 py-2 text-center">${{ number_format($precioUnit,2) }}</td>
+                                    <td class="px-3 py-2 text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
+                                    <td class="px-4 py-2">
                                          @if($distribucion->count() > 0)
                                          <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
                                              @foreach($distribucion as $centro)

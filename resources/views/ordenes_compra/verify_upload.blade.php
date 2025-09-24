@@ -117,24 +117,37 @@
     });
 
     @if(isset($valid))
-    document.addEventListener('DOMContentLoaded', function() {
-        const valid = {{ $valid ? 'true' : 'false' }};
-        const message = {!! json_encode($message ?? '') !!};
-        const expected = {!! json_encode($expected ?? '') !!};
-        const provided = {!! json_encode($provided ?? '') !!};
+    (function(){
+        const run = function(){
+            const valid = {{ $valid ? 'true' : 'false' }};
+            const message = {!! json_encode($message ?? '') !!};
+            const expected = {!! json_encode($expected ?? '') !!};
+            const provided = {!! json_encode($provided ?? '') !!};
+            const ordenExists = {{ (isset($orden) && $orden !== null) ? 'true' : 'false' }};
 
-        if (valid) {
-            Swal.fire({ icon: 'success', title: 'PDF válido', text: message || 'El archivo coincide con el original.' });
+            if (!ordenExists) {
+                Swal.fire({ icon: 'error', title: 'Orden no encontrada', text: 'La orden de compra no existe o fue eliminada.' });
+                return;
+            }
+
+            if (valid) {
+                Swal.fire({ icon: 'success', title: 'PDF válido', text: message || 'El archivo coincide con el original.' });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'PDF no válido',
+                    html: `<p>${message || 'El archivo no coincide con el original.'}</p>
+                           <p style="margin-top:8px;font-size:12px;color:#666">Hash esperado: <code>${expected || 'N/A'}</code></p>
+                           <p style="font-size:12px;color:#666">Hash extraído del archivo: <code>${provided || 'N/A'}</code></p>`
+                });
+            }
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', run);
         } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'PDF no válido',
-                html: `<p>${message || 'El archivo no coincide con el original.'}</p>
-                       <p style="margin-top:8px;font-size:12px;color:#666">Hash esperado: <code>${expected || 'N/A'}</code></p>
-                       <p style="font-size:12px;color:#666">Hash extraído del archivo: <code>${provided || 'N/A'}</code></p>`
-            });
+            run();
         }
-    });
+    })();
     @endif
 </script>
 @endsection

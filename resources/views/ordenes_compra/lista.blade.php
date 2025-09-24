@@ -191,12 +191,16 @@
                 <table class="min-w-full border border-gray-200 text-sm table-fixed">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="px-4 py-2 text-left" style="width:40%">Producto</th>
+                            <th class="px-4 py-2 text-left" style="width:20%">Producto</th>
                             <th class="px-4 py-2 text-center" style="width:60px">Total</th>
-                            <th class="px-4 py-2 text-left" >Distribución por Centros</th>
+                            <th class="px-4 py-2 text-center" style="width:90px">Unidad</th>
+                            <th class="px-4 py-2 text-center" style="width:110px">Precio unitario</th>
+                            <th class="px-4 py-2 text-center" style="width:120px">Precio total</th>
+                            <th class="px-4 py-2 text-left" style="width:30%">Distribución por Centros</th>
                         </tr>
                     </thead>
                     <tbody>
+                        @php $grandTotal = 0; @endphp
                         @foreach($req->productos as $prod)
                         @php
                         $distribucion = DB::table('centro_producto')
@@ -209,18 +213,24 @@
                         // Ignorar tabla recepcion aquí; solo considerar entregas
                         $confirmadoStock = 0;
                         $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
+                        $precioUnit = (float) ($prod->price_produc ?? 0);
+                        $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
+                        $grandTotal += $precioTotal;
                         @endphp
 
                         <tr>
-                            <td class="px-4 py-3 border min-w-0">{{ $prod->name_produc }}</td>
-                            <td class="px-4 py-3 border text-center font-semibold w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
-                            <td class="px-4 py-3 border align-top">
+                            <td class="px-3 py-2 border min-w-0">{{ $prod->name_produc }}</td>
+                            <td class="px-3 py-2 border text-center font-semibold w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                            <td class="px-3 py-2 border text-center">{{ $prod->unit_produc ?? '-' }}</td>
+                            <td class="px-3 py-2 border text-center">${{ number_format($precioUnit,2) }}</td>
+                            <td class="px-3 py-2 border text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
+                            <td class="px-3 py-2 border align-top">
                                 @if($distribucion->count() > 0)
                                 <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
                                     @foreach($distribucion as $centro)
-                                    <div class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded text-sm min-w-0 overflow-hidden">
-                                        <span class="truncate mr-2">{{ $centro->name_centro }}</span>
-                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold flex-shrink-0 ml-2">{{ $centro->amount }}</span>
+                                    <div class="flex items-center bg-gray-50 px-3 py-2 rounded text-sm">
+                                        <span class="flex-1 mr-3 break-words">{{ $centro->name_centro }}</span>
+                                        <span class="flex-none bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
                                     </div>
                                     @endforeach
                                 </div>
@@ -230,6 +240,14 @@
                             </td>
                         </tr>
                         @endforeach
+                        <tr class="border-t bg-gray-50">
+                            <td class="px-4 py-3 font-semibold">Total general</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="px-3 py-3 font-semibold">${{ number_format($grandTotal,2) }}</td>
+                            <td></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

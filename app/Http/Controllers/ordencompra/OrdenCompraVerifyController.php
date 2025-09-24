@@ -188,7 +188,7 @@ class OrdenCompraVerifyController extends Controller
     public function verifyFilePost(Request $request)
     {
         $request->validate([
-            'id' => 'required|integer|exists:orden_compras,id',
+            'id' => 'required|integer',
             'pdf' => 'required|file|mimes:pdf|max:10240',
         ]);
 
