@@ -8,6 +8,31 @@
 <div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
     <h1 class="text-3xl font-bold mb-6 text-gray-800">Todas las Requisiciones</h1>
 
+    <style>
+        /* Mejorar visual de badges de estatus: permitir wrapping y evitar recorte */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: normal; /* permitir varias líneas dentro del badge */
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.75rem; /* menos agresivo que rounded-full para varias líneas */
+            line-height: 1.1;
+            max-width: 220px; /* evita que el badge sea demasiado ancho y cause desbordes */
+            word-break: break-word;
+            vertical-align: middle;
+            margin: 0 auto; /* centrar dentro de la celda */
+        }
+        /* mantener tamaño de texto pequeño dentro del badge */
+        .status-badge.text-xs { font-size: 0.75rem; }
+
+        /* Pequeñas mejoras de diseño: centrar el contenido principal y ajustar paddings */
+        .max-w-7xl { margin-left: auto; margin-right: auto; }
+        #tablaRequisiciones thead th { text-transform: uppercase; letter-spacing: 0.02em; }
+        /* Mantener la columna acciones compacta y centrada */
+        #tablaRequisiciones td .flex { justify-content: center; }
+    </style>
+
     <!-- 🔍 Barra de búsqueda -->
     <div class="mb-6 flex justify-between items-center">
         <input type="text" id="busqueda" placeholder="Buscar requisición..."
@@ -27,7 +52,7 @@
                     <th class="p-3 text-left">Prioridad</th>
                     <th class="p-3 text-left">Recobrable</th>
                     <th class="p-3 text-left">Productos</th>
-                    <th class="p-3 text-left">Estatus</th>
+                    <th class="p-3 text-center">Estatus</th>
                     <th class="p-3 text-center">Acciones</th>
                 </tr>
             </thead>
@@ -66,7 +91,7 @@
                     </td>
 
                     <!-- Estatus -->
-                    <td class="p-3">
+                    <td class="p-3 text-center">
                         @php
                             $colorEstatus = 'bg-gray-500';
                             $ultimoEstatus = ($req->estatusHistorial && $req->estatusHistorial->count() > 0)
@@ -100,7 +125,7 @@
                             ];
                             $tooltip = $descripcionesEstatus[$ultimoEstatusId] ?? 'Pendiente por gestión.';
                         @endphp
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">{{ $nombreEstatus }}</span>
+                        <span class="status-badge px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">{{ $nombreEstatus }}</span>
                     </td>
 
                     <!-- Acciones -->
@@ -229,7 +254,7 @@
                          @endphp
                          <div>
                              <span class="font-medium">Estatus actual:</span>
-                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
+                             <span class="status-badge ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
                          </div>
                          @php
                              $registroComentarioModal = null;
@@ -278,14 +303,26 @@
                                      <tr class="border-b">
                                          <th class="p-3 text-left">Producto</th>
                                          <th class="p-3 text-center">Cantidad Total</th>
+                                         <th class="p-3 text-center">Unidad</th>
+                                         <th class="p-3 text-center">Precio unitario</th>
+                                         <th class="p-3 text-center">Precio total</th>
                                          <th class="p-3 text-left">Distribución por Centro</th>
                                      </tr>
                                  </thead>
                                  <tbody>
+                                     @php $grandTotalModal = 0; @endphp
                                      @foreach($req->productos as $prod)
                                      <tr class="border-b">
                                          <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}</td>
                                          <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
+                                         <td class="p-3 text-center align-top">{{ $prod->unit_produc ?? '-' }}</td>
+                                         @php
+                                             $unitPrice = (float) ($prod->price_produc ?? 0);
+                                             $lineTotal = ($prod->pivot->pr_amount ?? 0) * $unitPrice;
+                                             $grandTotalModal += $lineTotal;
+                                         @endphp
+                                         <td class="p-3 text-center align-top">${{ number_format($unitPrice, 2) }}</td>
+                                         <td class="p-3 text-center align-top">${{ number_format($lineTotal, 2) }}</td>
                                          <td class="p-3 align-top">
                                              <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
                                                  @php
@@ -305,6 +342,10 @@
                                          </td>
                                      </tr>
                                      @endforeach
+                                     <tr class="bg-gray-50 border-t">
+                                        <td colspan="5" class="p-3 text-right font-semibold">Total general</td>
+                                        <td class="p-3 text-center font-semibold">${{ number_format($grandTotalModal, 2) }}</td>
+                                     </tr>
                                  </tbody>
                              </table>
                          </div>
@@ -351,7 +392,10 @@
                              <tr>
                                  <th class="px-3 py-2 text-center"><input type="checkbox" class="ent-req-chk-header" data-req-id="{{ $req->id }}"></th>
                                  <th class="px-3 py-2 text-left">Producto</th>
+                                 <th class="px-3 py-2 text-center">Unidad</th>
                                  <th class="px-3 py-2 text-center">Cantidad Requerida</th>
+                                 <th class="px-3 py-2 text-center">Precio unitario</th>
+                                 <th class="px-3 py-2 text-center">Precio total</th>
                                  <th class="px-3 py-2 text-center">Ya Entregado</th>
                                  <th class="px-3 py-2 text-center">Pendiente</th>
                                  <th class="px-3 py-2 text-center">Entregar</th>
@@ -359,20 +403,23 @@
                          </thead>
                          <tbody id="ent-req-tbody-{{ $req->id }}">
                              @php
-                                 // Obtener productos de la requisición con sus cantidades
+                                 // Obtener productos de la requisición con unidad y precio
                                  $productosReq = DB::table('producto_requisicion')
                                      ->join('productos', 'producto_requisicion.id_producto', '=', 'productos.id')
                                      ->where('producto_requisicion.id_requisicion', $req->id)
-                                     ->select('productos.id', 'productos.name_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
+                                     ->select('productos.id', 'productos.name_produc', 'productos.unit_produc', 'productos.price_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
                                      ->get();
-                                 
-                                 // Obtener cantidades ya entregadas (solo tabla 'entrega')
-                                 $entregasPorProducto = DB::table('entrega')
-                                     ->where('requisicion_id', $req->id)
-                                     ->whereNull('deleted_at')
-                                     ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as entregado'))
-                                     ->groupBy('producto_id')
-                                     ->pluck('entregado', 'producto_id');
+
+                                // Obtener cantidades ya entregadas (solo tabla 'entrega')
+                                $entregasPorProducto = DB::table('entrega')
+                                    ->where('requisicion_id', $req->id)
+                                    ->whereNull('deleted_at')
+                                    ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as entregado'))
+                                    ->groupBy('producto_id')
+                                    ->pluck('entregado', 'producto_id');
+
+                                $grandTotalReq = 0;
+                                $grandTotalPending = 0;
                              @endphp
                              @forelse($productosReq as $producto)
                              @php
@@ -393,13 +440,22 @@
                                          $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); 
                                      })
                                      ->sum('cantidad');
+                                $unit = $producto->unit_produc ?? '-';
+                                $unitPrice = (float) ($producto->price_produc ?? 0);
+                                $lineTotalReq = $cantidadRequerida * $unitPrice;
+                                $lineTotalPending = $pendiente * $unitPrice;
+                                $grandTotalReq += $lineTotalReq;
+                                $grandTotalPending += $lineTotalPending;
                              @endphp
                              <tr class="border-t">
                                  <td class="px-3 py-2 text-center">
                                      <input type="checkbox" class="ent-req-row-chk" data-producto-id="{{ $productoId }}" data-pendiente="{{ $pendiente }}" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
                                  </td>
                                  <td class="px-3 py-2">{{ $producto->name_produc }}</td>
+                                 <td class="px-3 py-2 text-center">{{ $unit }}</td>
                                  <td class="px-3 py-2 text-center">{{ $cantidadRequerida }}</td>
+                                 <td class="px-3 py-2 text-center">${{ number_format($unitPrice,2) }}</td>
+                                 <td class="px-3 py-2 text-center">${{ number_format($lineTotalReq,2) }}</td>
                                  <td class="px-3 py-2 text-center">{{ $totalEntregado }}</td>
                                  <td class="px-3 py-2 text-center">
                                      @if($isDone)
@@ -676,8 +732,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
                 })
-                .then(r => r.json())
-                .then(data => {
+                .then(data => data.json())
+                .then((data) => {
                     if (data.success) {
                         Swal.fire('Cancelada!', data.message, 'success').then(() => location.reload());
                     } else {

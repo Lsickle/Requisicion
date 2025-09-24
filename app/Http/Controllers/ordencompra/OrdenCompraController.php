@@ -924,6 +924,41 @@ class OrdenCompraController extends Controller
         return asset('images/logo.png');
     }
 
+    // Historial público de órdenes de compra
+    public function historial()
+    {
+        $ordenes = OrdenCompra::with([
+            'requisicion',
+            'ordencompraProductos.producto',
+            'ordencompraProductos.proveedor'
+        ])->orderBy('id', 'desc')->get();
+
+        return view('ordenes_compra.historial', compact('ordenes'));
+    }
+
+    // Helper local para cambiar el estatus de una requisición de forma segura.
+    // Desactiva cualquier estatus activo previo (estatus = 1) y crea un nuevo registro activo.
+    private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null)
+    {
+        try {
+            DB::table('estatus_requisicion')
+                ->where('requisicion_id', $requisicionId)
+                ->where('estatus', 1)
+                ->update(['estatus' => 0, 'updated_at' => now()]);
+
+            DB::table('estatus_requisicion')->insert([
+                'requisicion_id' => $requisicionId,
+                'estatus_id' => $estatusId,
+                'estatus' => 1,
+                'comentario' => $comentario,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('setRequisicionStatus falló: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Confirmar recepción de productos
      */

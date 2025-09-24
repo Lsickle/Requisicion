@@ -329,34 +329,57 @@
                 @php
                     $recepcionesOC = DB::table('recepcion as r')
                         ->join('productos as p','p.id','=','r.producto_id')
-                        ->select('r.id','r.created_at','r.cantidad','r.cantidad_recibido','p.name_produc')
-                        ->where('r.orden_compra_id', $oc->id)
-                        ->whereNull('r.deleted_at')
-                        ->orderBy('r.created_at','asc')
-                        ->get();
+                        ->select('r.id','r.created_at','r.cantidad','r.cantidad_recibido','r.reception_user','p.name_produc')
+                         ->where('r.orden_compra_id', $oc->id)
+                         ->whereNull('r.deleted_at')
+                         ->orderBy('r.created_at','asc')
+                         ->get();
                 @endphp
                 <div id="modal-estatus-oc-{{ $oc->id }}" class="fixed inset-0 z-[10000] hidden items-center justify-center p-4">
                     <div class="absolute inset-0 bg-black/50" data-close="1"></div>
                     <div class="relative w-full max-w-3xl">
                         <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
                             <button onclick="toggleModal('modal-estatus-oc-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">✕</button>
-                            <h3 class="text-xl font-semibold mb-4">Estatus y Recepciones - OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
+                            @php
+                                try {
+                                    $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
+                                    $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                                    $lastReception = DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->orderBy('created_at','desc')->value('created_at');
+                                    if ($totReceived <= 0) {
+                                        $estatusTextModal = 'Orden creada';
+                                    } elseif ($totReceived >= $totOrdered && $totOrdered > 0) {
+                                        $estatusTextModal = 'Completada';
+                                    } else {
+                                        $estatusTextModal = 'Pendiente';
+                                    }
+                                } catch (\Throwable $e) {
+                                    $estatusTextModal = '—';
+                                    $lastReception = null;
+                                }
+                            @endphp
+                            <h3 class="text-xl font-semibold mb-4">Historial de estatus - OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                             <div class="mb-4">
-                                <div class="mb-3 p-4 rounded bg-gray-50 border">
-                                    <div class="font-semibold">Orden creada</div>
-                                    <div class="text-sm text-gray-600">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
-                                </div>
-                                @if($recepcionesOC->count())
+                                <div>
+                                    <div class="p-4 bg-gray-50 border rounded flex justify-between items-center mb-3">
+                                        <div class="font-semibold">Orden creada</div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="text-sm text-gray-600">{{ optional($oc->created_at)->format('d/m/Y') }}</div>
+                                        </div>
+                                    </div>
+                                    @if($recepcionesOC->count())
                                     @foreach($recepcionesOC as $rec)
-                                        <details class="mb-2 border rounded">
-                                            <summary class="px-4 py-2 bg-gray-100 cursor-pointer flex justify-between items-center">
-                                                <span>Recepción - {{ optional($rec->created_at)->format('d/m/Y H:i') }}</span>
-                                                <span class="text-sm text-gray-700">Recibido: {{ $rec->cantidad_recibido ?? 0 }}</span>
+                                        <details class="mb-3">
+                                            <summary class="p-4 bg-gray-50 border rounded flex justify-between items-center cursor-pointer">
+                                                <div class="font-semibold">Recepción</div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="text-sm text-gray-600">{{ !empty($rec->created_at) ? \Carbon\Carbon::parse($rec->created_at)->format('d/m/Y H:i') : (!empty($rec->fecha) ? \Carbon\Carbon::parse($rec->fecha)->format('d/m/Y') : '—') }}</div>
+                                                    <svg class="details-summary-arrow w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
+                                                </div>
                                             </summary>
-                                            <div class="p-4">
+                                            <div class="p-4 border rounded mt-2 bg-white">
                                                 <div class="text-sm text-gray-700">Producto: {{ $rec->name_produc }}</div>
-                                                <div class="text-sm text-gray-700">Cantidad registrada: {{ $rec->cantidad }}</div>
                                                 <div class="text-sm text-gray-700">Cantidad recibida: {{ $rec->cantidad_recibido ?? 0 }}</div>
+                                                <div class="text-sm text-gray-700">Recibido por: {{ $rec->reception_user ?? '—' }}</div>
                                             </div>
                                         </details>
                                     @endforeach
@@ -364,13 +387,26 @@
                                     <div class="text-gray-600">No hay recepciones registradas para esta OC.</div>
                                 @endif
                             </div>
+                            {{-- Colocar aquí la casilla "Completado" debajo de las recepciones --}}
+                            @if(isset($estatusTextModal) && strtolower($estatusTextModal) === 'completada')
+                                <details class="mt-4">
+                                    <summary class="p-4 bg-green-50 border border-green-200 rounded flex justify-between items-center cursor-pointer">
+                                        <div class="font-semibold text-green-700">Completado</div>
+                                        <svg class="details-summary-arrow w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
+                                    </summary>
+                                    <div class="p-4 border rounded mt-2 bg-white">
+                                        <div class="text-sm text-gray-700">Fecha creación: {{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
+                                        <div class="text-sm text-gray-700">Fecha completado: {{ !empty($lastReception) ? \Carbon\Carbon::parse($lastReception)->format('d/m/Y H:i') : '—' }}</div>
+                                    </div>
+                                </details>
+                            @endif
                         </div>
                     </div>
                 </div>
-    </div>
-    @endforeach
+     </div>
+     @endforeach
 
-    @endif
+     @endif
 </div>
 
 <script>
@@ -647,3 +683,9 @@
     });
 </script>
 @endsection
+
+<style>
+        /* Flecha rotatoria para summaries */
+        .details-summary-arrow{ transition: transform .18s ease; }
+        details[open] .details-summary-arrow{ transform: rotate(180deg); }
+    </style>
