@@ -13,6 +13,7 @@ use App\Models\Requisicion;
 use App\Models\Producto;
 use App\Models\Centro;
 use App\Models\Estatus_Requisicion;
+use App\Models\OrdenCompraEstatus;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
@@ -515,6 +516,14 @@ class OrdenCompraController extends Controller
 
             // Soft delete del encabezado
             $orden->delete();
+
+            // Soft delete del estatus asociado a esta orden de compra (si existe)
+            try {
+                OrdenCompraEstatus::where('orden_compra_id', $id)->delete();
+            } catch (\Throwable $e) {
+                // no bloquear la anulación si falla el borrado de estatus, pero loguear
+                Log::warning('No se pudo borrar estatus de OC '.$id.': '.$e->getMessage());
+            }
 
             DB::commit();
             return redirect()->back()->with('success', 'Orden de compra anulada correctamente.');

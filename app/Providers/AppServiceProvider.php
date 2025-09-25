@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Estatus_Requisicion;
 use App\Observers\EstatusRequisicionObserver;
+use App\Models\OrdenCompra;
+use App\Observers\OrdenCompraObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
         
         // Registrar observer para enviar correo cuando cambie estatus
         Estatus_Requisicion::observe(EstatusRequisicionObserver::class);
+
+        // Registrar observer para OrdenCompra
+        if (class_exists(OrdenCompra::class) && class_exists(OrdenCompraObserver::class)) {
+            OrdenCompra::observe(OrdenCompraObserver::class);
+        }
     }
 
     /**
