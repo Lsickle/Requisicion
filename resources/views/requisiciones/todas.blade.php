@@ -690,7 +690,7 @@
                     const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                         method: 'POST',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                        body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, fecha: new Date().toISOString().slice(0,19).replace('T',' '), reception_user: receptionUser })
+                        body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, fecha: new Date().toISOString().slice(0,19).replace('T',' ') })
                     });
                     
                     const data = await resp.json();

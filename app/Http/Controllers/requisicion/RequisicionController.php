@@ -16,6 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema; // agregado
 
 class RequisicionController extends Controller
 {
@@ -500,6 +501,10 @@ class RequisicionController extends Controller
                 ], 400);
             }
 
+            // obtener usuario que registra la entrega desde session
+            $userIdSession = session('user.id') ?? null;
+            $userNameSession = session('user.name') ?? session('user.email') ?? null;
+
             foreach ($items as $item) {
                 $productoId = $item['producto_id'] ?? null;
                 $cantidad = (int)($item['cantidad'] ?? 0);
@@ -558,12 +563,20 @@ class RequisicionController extends Controller
                 }
 
                 // Registrar entrega (pendiente de confirmación en cantidad_recibido)
+                // Guardar únicamente quien entrega (user_id, user_name).
+                // No aceptar ni almacenar reception_user desde la petición: debe guardarse al confirmar la recepción.
                 DB::table('entrega')->insert([
                     'requisicion_id' => $requisicionId,
                     'producto_id' => $productoId,
                     'cantidad' => $cantidad,
                     'cantidad_recibido' => null,
                     'fecha' => now()->toDateString(),
+                    // usuario que entrega (desde sesión)
+                    'user_id' => $userIdSession,
+                    'user_name' => $userNameSession,
+                    // reception_* dejar en NULL hasta que se confirme la recepción
+                    'reception_user_id' => null,
+                    'reception_user' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -586,6 +599,124 @@ class RequisicionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => 'Error al registrar la entrega: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function confirmarEntrega(Request $request)
+    {
+        $entregaId = $request->input('entrega_id') ?? $request->input('id');
+        $cantidad = (int) $request->input('cantidad', 0);
+
+        if (!$entregaId || $cantidad < 0) {
+            return response()->json(['success' => false, 'message' => 'Datos inválidos'], 400);
+        }
+
+        try {
+            $entrega = DB::table('entrega')->where('id', $entregaId)->whereNull('deleted_at')->first();
+            if (!$entrega) return response()->json(['success' => false, 'message' => 'Registro de entrega no encontrado'], 404);
+
+            // limitar cantidad al máximo enviado
+            $max = (int) $entrega->cantidad;
+            $cantidad = min($cantidad, $max);
+
+            // Log del payload recibido
+            Log::info('confirmarEntrega payload', ['entrega_id' => $entregaId, 'cantidad' => $cantidad, 'request' => $request->all()]);
+
+            // Solo actualizar la columna de cantidad recibida (no tocar campos de usuario)
+            $updateData = [];
+            // cantidad recibido possible names
+            if (Schema::hasColumn('entrega', 'cantidad_recibido')) {
+                $updateData['cantidad_recibido'] = $cantidad;
+            } elseif (Schema::hasColumn('entrega', 'cantidad_recibida')) {
+                $updateData['cantidad_recibida'] = $cantidad;
+            }
+            // Escribir SOLO las columnas relacionadas con el receptor (no tocar user_id/user_name que son del que entrega)
+            foreach (['reception_user','recepcion_user','receptor_user'] as $col) {
+                if (Schema::hasColumn('entrega', $col)) {
+                    $updateData[$col] = $receiverName;
+                }
+            }
+            foreach (['reception_user_id','recepcion_user_id','receptor_user_id'] as $col) {
+                if (Schema::hasColumn('entrega', $col)) {
+                    $updateData[$col] = $receiverId;
+                }
+            }
+
+            $updateData['updated_at'] = now();
+
+            Log::info('confirmarEntrega payload/session', [
+                'entrega_id' => $entregaId,
+                'cantidad' => $cantidad,
+                'receiver_id' => $receiverId,
+                'receiver_name' => $receiverName,
+                'updateData_keys' => array_keys($updateData),
+            ]);
+
+            $affected = DB::table('entrega')->where('id', $entregaId)->update($updateData);
+            Log::info('confirmarEntrega updated rows', ['entrega_id' => $entregaId, 'affected' => $affected, 'updateData' => $updateData]);
+
+            return response()->json(['success' => true, 'message' => 'Entrega confirmada', 'affected' => $affected]);
+        } catch (\Exception $e) {
+            Log::error('Error confirmarEntrega', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['success' => false, 'message' => 'Error al confirmar entrega'], 500);
+        }
+    }
+
+    public function confirmarRecepcion(Request $request)
+    {
+        $recepcionId = $request->input('recepcion_id') ?? $request->input('id');
+        $cantidad = (int) $request->input('cantidad', 0);
+
+        if (!$recepcionId || $cantidad < 0) {
+            return response()->json(['success' => false, 'message' => 'Datos inválidos'], 400);
+        }
+
+        try {
+            $rec = DB::table('recepcion')->where('id', $recepcionId)->whereNull('deleted_at')->first();
+            if (!$rec) return response()->json(['success' => false, 'message' => 'Registro de recepción no encontrado'], 404);
+
+            $max = (int) $rec->cantidad;
+            $cantidad = min($cantidad, $max);
+
+            // Log del payload recibido
+            Log::info('confirmarRecepcion payload', ['recepcion_id' => $recepcionId, 'cantidad' => $cantidad, 'request' => $request->all()]);
+
+            // Solo actualizar la columna de cantidad recibida (no tocar campos de usuario)
+            $updateData = [];
+            if (Schema::hasColumn('recepcion', 'cantidad_recibida')) {
+                $updateData['cantidad_recibida'] = $cantidad;
+            } elseif (Schema::hasColumn('recepcion', 'cantidad_recibido')) {
+                $updateData['cantidad_recibido'] = $cantidad;
+            }
+
+            foreach (['reception_user','recepcion_user','receptor_user'] as $col) {
+                if (Schema::hasColumn('recepcion', $col)) {
+                    $updateData[$col] = $receiverName;
+                }
+            }
+            foreach (['reception_user_id','recepcion_user_id','receptor_user_id'] as $col) {
+                if (Schema::hasColumn('recepcion', $col)) {
+                    $updateData[$col] = $receiverId;
+                }
+            }
+
+            $updateData['updated_at'] = now();
+
+            Log::info('confirmarRecepcion payload/session', [
+                'recepcion_id' => $recepcionId,
+                'cantidad' => $cantidad,
+                'receiver_id' => $receiverId,
+                'receiver_name' => $receiverName,
+                'updateData_keys' => array_keys($updateData),
+            ]);
+
+            $affected = DB::table('recepcion')->where('id', $recepcionId)->update($updateData);
+            Log::info('confirmarRecepcion updated rows', ['recepcion_id' => $recepcionId, 'affected' => $affected, 'updateData' => $updateData]);
+
+            return response()->json(['success' => true, 'message' => 'Recepción confirmada', 'affected' => $affected]);
+        } catch (\Exception $e) {
+            Log::error('Error confirmarRecepcion', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['success' => false, 'message' => 'Error al confirmar recepción'], 500);
         }
     }
 

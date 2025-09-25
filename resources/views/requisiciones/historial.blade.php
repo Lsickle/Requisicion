@@ -407,10 +407,10 @@
             $recList = DB::table('recepcion as r')
                 ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
                 ->join('productos as p','p.id','=','r.producto_id')
-                ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
+                ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibida')
                 ->where('oc.requisicion_id', $req->id)
                 ->whereNull('r.deleted_at')
-                ->whereNull('r.cantidad_recibido')
+                ->whereNull('r.cantidad_recibida')
                 ->orderBy('r.id','asc')
                 ->get();
         }
@@ -717,18 +717,39 @@
         try {
             const url = (tipo === 'entrega') ? URL_CONFIRM_ENTREGA : URL_CONFIRM_RECEPCION;
             const payload = (tipo === 'entrega')
-                ? { entrega_id: id, cantidad: val, reception_user: receptionUser }
-                : { recepcion_id: id, cantidad: val, reception_user: receptionUser };
+                ? {
+                    entrega_id: id,
+                    cantidad: val,
+                    reception_user: receptionUser,
+                    reception_user_id: APP_SESSION_USER?.id ?? null,
+                    user_id: APP_SESSION_USER?.id ?? null,
+                    user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null
+                }
+                : {
+                    recepcion_id: id,
+                    cantidad: val,
+                    reception_user: receptionUser,
+                    reception_user_id: APP_SESSION_USER?.id ?? null,
+                    user_id: APP_SESSION_USER?.id ?? null,
+                    user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null
+                };
+
+            console.debug('confirmarRecepcionItem payload', payload);
+
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.message || 'Error al confirmar recepción');
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok) {
+                const msg = (data && (data.message || data.error)) ? (data.message || data.error) : 'Error al confirmar recepción';
+                throw new Error(msg);
+            }
             Swal.fire({icon:'success', title:'Guardado', text:'Cantidad recibida actualizada.'}).then(() => location.reload());
         } catch(e){
-            Swal.fire({icon:'error', title:'Error', text: e.message});
+            console.error('confirmarRecepcionItem error', e);
+            Swal.fire({icon:'error', title:'Error', text: e.message || 'Error desconocido'});
         } finally {
             btn.disabled = false;
         }
@@ -784,8 +805,8 @@
             const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
-                body: JSON.stringify({ requisicion_id: reqId, items, comentario: null, reception_user: receptionUser })
-            });
+                body: JSON.stringify({ requisicion_id: reqId, items, comentario: null })
+              });
             const data = await resp.json();
             if (!resp.ok) throw new Error(data.message || 'Error al registrar entregas');
             Swal.fire({icon:'success', title:'Éxito', text:'Entregas registradas (estatus 8).'}).then(()=> location.reload());
@@ -826,19 +847,35 @@
 
         Swal.fire({ title: 'Guardando', text: 'Procesando recepciones...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
+            const failures = [];
             for (const it of items){
                 const payload = (tipo === 'entrega')
-                    ? { entrega_id: it.id, cantidad: it.cantidad, reception_user: receptionUser }
-                    : { recepcion_id: it.id, cantidad: it.cantidad, reception_user: receptionUser };
-                await fetch(url, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                    ? { entrega_id: it.id, cantidad: it.cantidad, reception_user: receptionUser, reception_user_id: APP_SESSION_USER?.id ?? null, user_id: APP_SESSION_USER?.id ?? null, user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null }
+                    : { recepcion_id: it.id, cantidad: it.cantidad, reception_user: receptionUser, reception_user_id: APP_SESSION_USER?.id ?? null, user_id: APP_SESSION_USER?.id ?? null, user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null };
+
+                console.debug('guardarRecepcionesMasivo payload', payload);
+
+                const res = await fetch(url, {
+                     method: 'POST',
+                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                     body: JSON.stringify(payload)
+                 });
+                 let result = null;
+                 try { result = await res.json(); } catch(e){ result = null; }
+                 if (!res.ok) {
+                     failures.push({ id: it.id, status: res.status, body: result });
+                 }
             }
-            Swal.fire({icon:'success', title:'¡Listo!', text:`Se han guardado todas las recepciones.`}).then(() => location.reload());
+
+            if (failures.length) {
+                console.error('guardarRecepcionesMasivo failures', failures);
+                Swal.fire({icon:'error', title:'Error', text:`Fallo al guardar ${failures.length} registro(s). Revisa logs.`});
+            } else {
+                Swal.fire({icon:'success', title:'¡Listo!', text:`Se han guardado todas las recepciones.`}).then(() => location.reload());
+            }
         } catch(e){
-            Swal.fire({icon:'error', title:'Error', text:e.message});
+            console.error('guardarRecepcionesMasivo error', e);
+            Swal.fire({icon:'error', title:'Error', text:e.message || 'Error desconocido'});
         }
     }
 </script>

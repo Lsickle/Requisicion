@@ -21,7 +21,7 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('user_name')->nullable();
             // usuario que confirma la recepción (quien recibe)
-            $table->unsignedBigInteger('reception_user_id')->nullable();
+            $table->string('reception_user_id')->nullable();
             $table->string('reception_user')->nullable();
             $table->date('fecha');
             $table->timestamps();
