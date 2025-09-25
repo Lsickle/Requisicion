@@ -20,6 +20,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use ZipArchive;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Schema;
 use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
 use App\Http\Controllers\requisicion\RequisicionController; 
 
@@ -191,20 +192,43 @@ class OrdenCompraController extends Controller
                 'order_oc'       => $numeroOrden,
             ]);
 
-            // Crear estatus inicial 'Creada' (estatus_id = 1) y marcar como activo
+            // Obtener datos del usuario desde la sesión (misma convención que RequisicionController)
+            $sessionUserId = session('user.id');
+            $sessionUserName = session('user.name') ?? $this->resolveCurrentUserName($request) ?? null;
+            $sessionUserEmail = session('user.email') ?? null;
+            $sessionUserOperacion = session('user.operaciones') ?? session('user.operacion') ?? null;
+
+            // Guardar SOLO las columnas que existan en orden_compras (compatibilidad con esquemas distintos)
             try {
-                // por si acaso, desactivar previos activos para esta OC
-                OrdenCompraEstatus::where('orden_compra_id', $orden->id)->update(['activo' => 0]);
+                $dirty = false;
+                if (Schema::hasColumn('orden_compras', 'user_id') && $sessionUserId) { $orden->user_id = $sessionUserId; $dirty = true; }
+                if (Schema::hasColumn('orden_compras', 'name_user') && $sessionUserName) { $orden->name_user = $sessionUserName; $dirty = true; }
+                if (Schema::hasColumn('orden_compras', 'user_name') && $sessionUserName) { $orden->user_name = $sessionUserName; $dirty = true; }
+                if (Schema::hasColumn('orden_compras', 'email_user') && $sessionUserEmail) { $orden->email_user = $sessionUserEmail; $dirty = true; }
+                if (Schema::hasColumn('orden_compras', 'user_email') && $sessionUserEmail) { $orden->user_email = $sessionUserEmail; $dirty = true; }
+                if (Schema::hasColumn('orden_compras', 'operacion_user') && $sessionUserOperacion) { $orden->operacion_user = $sessionUserOperacion; $dirty = true; }
+                if ($dirty) { $orden->save(); }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo persistir info de usuario en orden ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
+            }
+
+            // Crear estatus inicial 'Creada' (estatus_id = 1) solo si NO existe ningún estatus para esta orden.
+            // No desactivar el estatus creado por el Observer: evitar doble inserción y pérdida de activo.
+            try {
                 $initial = EstatusOrdenCompra::find(1) ?? EstatusOrdenCompra::where('status_name', 'Creada')->first() ?? EstatusOrdenCompra::first();
                 if ($initial) {
-                    OrdenCompraEstatus::create([
-                        'estatus_id' => $initial->id,
-                        'orden_compra_id' => $orden->id,
-                        'recepcion_id' => null,
-                        'activo' => 1,
-                        'date_update' => now(),
-                        'user_name' => session('user.name') ?? session('user.email') ?? null,
-                    ]);
+                    $exists = OrdenCompraEstatus::where('orden_compra_id', $orden->id)->exists();
+                    if (!$exists) {
+                        OrdenCompraEstatus::create([
+                            'estatus_id' => $initial->id,
+                            'orden_compra_id' => $orden->id,
+                            'recepcion_id' => null,
+                            'activo' => 1,
+                            'date_update' => now(),
+                            'user_name' => $sessionUserName,
+                            'user_id' => $sessionUserId ?? null,
+                        ]);
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::warning('No se pudo crear estatus inicial para OC ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
@@ -951,7 +975,7 @@ class OrdenCompraController extends Controller
                 'recepcion_id' => null,
                 'activo' => 1,
                 'date_update' => now(),
-                'user_name' => session('user.name') ?? session('user.email') ?? null,
+                'user_name' => $this->resolveCurrentUserName($request),
             ]);
 
             DB::commit();
@@ -1050,7 +1074,7 @@ class OrdenCompraController extends Controller
 
             foreach ($items as $itIndex => $it) {
                 // determinar usuario que realiza la acción (viene en payload o tomarse de session)
-                $receptionUser = $it['reception_user'] ?? session('user.name') ?? session('user.email') ?? session('user.id') ?? null;
+                $receptionUser = $it['reception_user'] ?? $this->resolveCurrentUserName($request) ?? (session('user.id') ?? null);
 
                 // normalizar claves
                 $recepcionId = isset($it['recepcion_id']) ? (int)$it['recepcion_id'] : null;
@@ -1115,15 +1139,15 @@ class OrdenCompraController extends Controller
                     OrdenCompraEstatus::where('orden_compra_id', $ocIdForCalc)->update(['activo' => 0]);
                     $recEstatus = EstatusOrdenCompra::find(2) ?? EstatusOrdenCompra::where('status_name', 'Recibido')->first() ?? EstatusOrdenCompra::first();
                     if ($recEstatus) {
-                         OrdenCompraEstatus::create([
-                                 'estatus_id' => $recEstatus->id,
-                                 'orden_compra_id' => $ocIdForCalc,
-                                 'recepcion_id' => $newId,
-                                 'activo' => 1,
-                                 'date_update' => now(),
-                                 'user_name' => session('user.name') ?? session('user.email') ?? null,
-                              ]);
-                          }
+                        OrdenCompraEstatus::create([
+                            'estatus_id' => $recEstatus->id,
+                            'orden_compra_id' => $ocIdForCalc,
+                            'recepcion_id' => $newId,
+                            'activo' => 1,
+                            'date_update' => now(),
+                            'user_name' => session('user.name') ?? $this->resolveCurrentUserName($request),
+                        ]);
+                    }
                 } catch (\Throwable $e) {
                     Log::warning('No se pudo crear estatus Recibido para OC '.$ocIdForCalc.': '.$e->getMessage());
                 }
@@ -1281,8 +1305,7 @@ class OrdenCompraController extends Controller
                 'cantidad' => $cantidad,
                 'cantidad_recibido' => null,
                 'fecha' => now()->toDateString(),
-                'user_id' => session('user.id') ?? null,
-                'user_name' => session('user.name') ?? null,
+                'user_name' => session('user.name') ?? $this->resolveCurrentUserName($request),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -1297,4 +1320,37 @@ class OrdenCompraController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
     }
+
+    // Obtener nombre de usuario actual desde session, headers, request o Auth
+    private function resolveCurrentUserName(?Request $request = null): ?string
+    {
+        try {
+            // revisar session('user') en múltiples formas
+            $userSession = session('user');
+            if (is_array($userSession) && !empty($userSession['name'])) return (string)$userSession['name'];
+            if (is_object($userSession) && isset($userSession->name) && $userSession->name) return (string)$userSession->name;
+            if (session()->has('user.name') && session('user.name')) return (string)session('user.name');
+            if (session()->has('user.email') && session('user.email')) return (string)session('user.email');
+
+            // revisar request headers o payload
+            $req = $request ?? request();
+            $fromHeader = $req->header('X-User-Name') ?: $req->header('X-User-Email') ?: $req->input('user.name') ?: $req->input('user.email');
+            if (!empty($fromHeader)) return (string)$fromHeader;
+
+            // intentar Auth facade
+            if (class_exists(\Illuminate\Support\Facades\Auth::class)) {
+                $authUser = \Illuminate\Support\Facades\Auth::user();
+                if ($authUser) {
+                    if (!empty($authUser->name)) return (string)$authUser->name;
+                    if (!empty($authUser->email)) return (string)$authUser->email;
+                }
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning('resolveCurrentUserName fallo: ' . $e->getMessage());
+            return null;
+        }
+    }
+
 }

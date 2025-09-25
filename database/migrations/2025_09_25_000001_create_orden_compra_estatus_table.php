@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('recepcion_id')->nullable()->constrained('recepcion')->nullOnDelete();
             $table->boolean('activo')->default(0);
             $table->dateTime('date_update')->nullable();
-            // almacenar el nombre del usuario que realizó el cambio (no id numérico)
+            $table->string('user_id')->nullable();
             $table->string('user_name')->nullable();
             $table->timestamps();
             $table->softDeletes();

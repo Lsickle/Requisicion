@@ -20,7 +20,14 @@ class OrdenCompraEstatus extends Model
         'recepcion_id',
         'activo',
         'date_update',
+        'user_name',
         'user_id',
+    ];
+
+    protected $casts = [
+        'activo' => 'boolean',
+        'date_update' => 'datetime',
+        'user_id' => 'string',
     ];
 
     public function estatusRelation()

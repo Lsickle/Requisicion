@@ -36,7 +36,8 @@ class OrdenCompraObserver
                     'orden_compra_id' => $ordenCompra->id,
                     'activo' => 1,
                     'date_update' => now(),
-                    'user_id' => Auth::id() ?? null,
+                    'user_id' => session('user.id') ?? Auth::id() ?? null,
+                    'user_name' => session('user.name') ?? session('user.email') ?? null,
                 ]);
             }
         } catch (\Throwable $e) {
