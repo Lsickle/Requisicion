@@ -455,8 +455,9 @@
                                                             </tbody>
                                                         </table>
 
-                                                        @if($eh->estatus_id != 3 && (!empty($eh->comentario) || !empty($eh->user_name) || !empty($eh->user_id)))
-                                                            <div class="mt-3 text-sm text-gray-700">Usuario: {{ $eh->user_name ?? ($eh->user_id ?? '—') }}@if(!empty($eh->comentario)) — Comentario: {{ $eh->comentario }}@endif</div>
+                                                        {{-- Mostrar sólo comentario para entradas de recepción; el usuario ya aparece en la tabla (reception_user) --}}
+                                                        @if($eh->estatus_id != 3 && !empty($eh->comentario))
+                                                            <div class="mt-3 text-sm text-gray-700">Comentario: {{ $eh->comentario }}</div>
                                                         @endif
                                                     @else
                                                         @if(isset($eh->estatus_id) && (int)$eh->estatus_id !== 3)
