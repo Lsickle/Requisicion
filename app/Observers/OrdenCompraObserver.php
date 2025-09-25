@@ -36,7 +36,6 @@ class OrdenCompraObserver
                     'orden_compra_id' => $ordenCompra->id,
                     'activo' => 1,
                     'date_update' => now(),
-                    'comentario' => 'Estatus inicial al crear la orden',
                     'user_id' => Auth::id() ?? null,
                 ]);
             }

@@ -11,6 +11,7 @@ use App\Models\OrdenCompraCentroProducto;
 use App\Models\Proveedor;
 use App\Models\Requisicion;
 use App\Models\Producto;
+use App\Models\EstatusOrdenCompra;
 use App\Models\Centro;
 use App\Models\Estatus_Requisicion;
 use App\Models\OrdenCompraEstatus;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Log;
 use ZipArchive;
 use Illuminate\Support\Facades\Response;
 use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
+use App\Http\Controllers\requisicion\RequisicionController; 
+
 
 class OrdenCompraController extends Controller
 {
@@ -187,6 +190,25 @@ class OrdenCompraController extends Controller
                 'date_oc'        => now(),
                 'order_oc'       => $numeroOrden,
             ]);
+
+            // Crear estatus inicial 'Creada' (estatus_id = 1) y marcar como activo
+            try {
+                // por si acaso, desactivar previos activos para esta OC
+                OrdenCompraEstatus::where('orden_compra_id', $orden->id)->update(['activo' => 0]);
+                $initial = EstatusOrdenCompra::find(1) ?? EstatusOrdenCompra::where('status_name', 'Creada')->first() ?? EstatusOrdenCompra::first();
+                if ($initial) {
+                    OrdenCompraEstatus::create([
+                        'estatus_id' => $initial->id,
+                        'orden_compra_id' => $orden->id,
+                        'recepcion_id' => null,
+                        'activo' => 1,
+                        'date_update' => now(),
+                        'user_name' => session('user.name') ?? session('user.email') ?? null,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo crear estatus inicial para OC ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
+            }
 
             foreach ($request->productos as $rowKey => $productoData) {
                 if (empty($productoData['id'])) continue;
@@ -906,8 +928,41 @@ class OrdenCompraController extends Controller
             'methods_oc' => $orden->methods_oc,
             'plazo_oc' => $orden->plazo_oc,
         ];
+        
     }
 
+    
+    // Marcar una orden como terminada (estatus id 3)
+    public function terminar(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $orden = OrdenCompra::findOrFail($id);
+
+            // Desactivar estatus previos activos
+            OrdenCompraEstatus::where('orden_compra_id', $orden->id)->where('activo', 1)->update(['activo' => 0]);
+
+            // Obtener registro de estatus 'Terminada' (id 3) o el primero disponible
+            $terminado = EstatusOrdenCompra::find(3) ?? EstatusOrdenCompra::where('status_name', 'Terminada')->first() ?? EstatusOrdenCompra::first();
+
+            OrdenCompraEstatus::create([
+                'estatus_id' => $terminado->id ?? 3,
+                'orden_compra_id' => $orden->id,
+                'recepcion_id' => null,
+                'activo' => 1,
+                'date_update' => now(),
+                'user_name' => session('user.name') ?? session('user.email') ?? null,
+            ]);
+
+            DB::commit();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error terminando OC '.$id.': '.$e->getMessage());
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+    
     // Resolver logo como data URI buscando en public/images
     private function resolveLogoDataUri(): ?string
     {
@@ -1053,6 +1108,25 @@ class OrdenCompraController extends Controller
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+
+                // Crear/actualizar estatus en orden_compra_estatus: 'Recibido' (estatus id 2 preferido)
+                try {
+                    // desactivar previos
+                    OrdenCompraEstatus::where('orden_compra_id', $ocIdForCalc)->update(['activo' => 0]);
+                    $recEstatus = EstatusOrdenCompra::find(2) ?? EstatusOrdenCompra::where('status_name', 'Recibido')->first() ?? EstatusOrdenCompra::first();
+                    if ($recEstatus) {
+                         OrdenCompraEstatus::create([
+                                 'estatus_id' => $recEstatus->id,
+                                 'orden_compra_id' => $ocIdForCalc,
+                                 'recepcion_id' => $newId,
+                                 'activo' => 1,
+                                 'date_update' => now(),
+                                 'user_name' => session('user.name') ?? session('user.email') ?? null,
+                              ]);
+                          }
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo crear estatus Recibido para OC '.$ocIdForCalc.': '.$e->getMessage());
+                }
 
                 if ($delta > 0) {
                     $producto = Producto::lockForUpdate()->findOrFail($productoId);

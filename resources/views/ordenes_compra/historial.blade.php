@@ -47,26 +47,39 @@
                 @php
                 $proveedor = optional($oc->ordencompraProductos->first())->proveedor;
                 $requisicionId = $oc->requisicion->id ?? ($oc->requisicion_id ?? null);
-                // Calcular estatus según cantidades: si no hay recibidos => 'Orden creada',
-                // si hay algunos recibidos pero no todos => 'Pendiente', si todos recibidos => 'Completada'.
+                // Obtener estatus activo desde orden_compra_estatus. Si no existe, fallback a cómputo por recepciones
                 try {
-                    $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
-                    $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
-                    if ($totReceived <= 0) {
-                        $estatusText = 'Orden creada';
-                    } elseif ($totReceived >= $totOrdered && $totOrdered > 0) {
-                        $estatusText = 'Completada';
+                    $activeEstatusId = DB::table('orden_compra_estatus')
+                        ->where('orden_compra_id', $oc->id)
+                        ->where('activo', 1)
+                        ->whereNull('deleted_at')
+                        ->orderByDesc('created_at')
+                        ->value('estatus_id');
+
+                    if ($activeEstatusId) {
+                        $estatusText = DB::table('estatus_orden_compra')->where('id', $activeEstatusId)->value('status_name') ?? '—';
+                        $isTerminada = ((int)$activeEstatusId === 3);
                     } else {
-                        $estatusText = 'Pendiente';
+                        $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
+                        $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                        if ($totReceived <= 0) {
+                            $estatusText = 'Orden creada';
+                        } elseif ($totReceived >= $totOrdered && $totOrdered > 0) {
+                            $estatusText = 'Completada';
+                        } else {
+                            $estatusText = 'Pendiente';
+                        }
+                        $isTerminada = false;
                     }
                 } catch (\Throwable $e) {
                     $estatusText = '—';
+                    $isTerminada = false;
                 }
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
-                    <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y') }}</td>
+                    <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</td>
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
                     <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
@@ -89,9 +102,20 @@
                             <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver OC" aria-label="Ver OC">
                                 <i class="fas fa-eye"></i>
                             </button>
+                            @if(!($isTerminada ?? false))
                             <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-recibir bg-yellow-600 hover:bg-yellow-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Recibir productos" aria-label="Recibir productos">
                                 <i class="fas fa-box"></i>
                             </button>
+                            @else
+                            <button type="button" disabled class="bg-gray-300 text-gray-600 rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Orden terminada" aria-label="Orden terminada">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                            @endif
+                            @if(!($isTerminada ?? false))
+                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
+                                <i class="fas fa-flag-checkered"></i>
+                            </button>
+                            @endif
                             <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
                                 <i class="fas fa-file-pdf"></i>
                             </a>
@@ -233,7 +257,7 @@
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
                             <div><span class="font-medium">Número de Orden:</span> {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</div>
-                            <div><span class="font-medium">Fecha de creación:</span> {{ optional($oc->created_at)->format('d/m/Y') }}</div>
+                            <div><span class="font-medium">Fecha de creación:</span> {{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
                             <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
                             <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
                             <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
@@ -340,6 +364,7 @@
                     <div class="relative w-full max-w-3xl">
                         <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
                             <button onclick="toggleModal('modal-estatus-oc-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+
                             @php
                                 try {
                                     $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
@@ -356,50 +381,148 @@
                                     $estatusTextModal = '—';
                                     $lastReception = null;
                                 }
+
+                                $estatusHist = DB::table('orden_compra_estatus as oce')
+                                    ->join('estatus_orden_compra as e','e.id','=','oce.estatus_id')
+                                    ->leftJoin('recepcion as r','r.id','=','oce.recepcion_id')
+                                    ->leftJoin('productos as p','p.id','=','r.producto_id')
+                                    ->where('oce.orden_compra_id', $oc->id)
+                                    ->whereNull('oce.deleted_at')
+                                    ->select('oce.*','e.status_name','oce.estatus_id', 'r.id as recepcion_id', 'p.name_produc as producto_nombre', 'r.cantidad_recibido', 'r.reception_user')
+                                    ->orderBy('oce.created_at','asc')
+                                    ->get();
+
+                                $recepcionesOC = DB::table('recepcion as r')
+                                    ->join('productos as p','p.id','=','r.producto_id')
+                                    ->select('r.id','r.created_at','r.cantidad','r.cantidad_recibido','r.reception_user','p.name_produc')
+                                    ->where('r.orden_compra_id', $oc->id)
+                                    ->whereNull('r.deleted_at')
+                                    ->orderBy('r.created_at','asc')
+                                    ->get();
+
+                                $recepcionEnEstatus = $estatusHist->pluck('recepcion_id')->filter()->unique()->toArray();
+                                if (!empty($recepcionEnEstatus)) {
+                                    $recepcionesOC = collect($recepcionesOC)->filter(function($r) use ($recepcionEnEstatus) {
+                                        return !in_array($r->id, $recepcionEnEstatus);
+                                    })->values();
+                                } else {
+                                    $recepcionesOC = collect($recepcionesOC);
+                                }
+                                $hasRecepcionInEstatus = !empty($recepcionEnEstatus);
+
+                                // primeras/últimas fechas para mostrar junto al estatus 3
+                                $firstStatusDate = null;
+                                $lastStatusDate = null;
+                                if(isset($estatusHist) && $estatusHist->count()){
+                                    $first = $estatusHist->first();
+                                    $last = $estatusHist->last();
+                                    $firstStatusDate = !empty($first->date_update) ? \Carbon\Carbon::parse($first->date_update) : (!empty($first->created_at) ? \Carbon\Carbon::parse($first->created_at) : null);
+                                    $lastStatusDate = !empty($last->date_update) ? \Carbon\Carbon::parse($last->date_update) : (!empty($last->created_at) ? \Carbon\Carbon::parse($last->created_at) : null);
+                                }
                             @endphp
+
                             <h3 class="text-xl font-semibold mb-4">Historial de estatus - OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
+
                             <div class="mb-4">
-                                <div>
+                                @if(isset($estatusHist) && $estatusHist->count())
+                                    <div class="mb-4">
+                                        <h4 class="font-semibold mb-2">Estatus registrados</h4>
+                                        @foreach($estatusHist as $eh)
+                                            <details class="mb-2">
+                                                <summary class="p-4 bg-gray-50 border rounded flex justify-between items-center cursor-pointer">
+                                                    <div class="font-medium">{{ $eh->status_name }}</div>
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="text-sm text-gray-600">{{ !empty($eh->date_update) ? \Carbon\Carbon::parse($eh->date_update)->format('d/m/Y H:i') : (!empty($eh->created_at) ? \Carbon\Carbon::parse($eh->created_at)->format('d/m/Y H:i') : '—') }}</div>
+                                                        <svg class="details-summary-arrow w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
+                                                    </div>
+                                                </summary>
+                                                <div class="p-4 border rounded mt-2 bg-white">
+                                                    @if(!empty($eh->recepcion_id))
+                                                        <table class="w-full text-sm bg-white">
+                                                            <thead class="bg-gray-100">
+                                                                <tr>
+                                                                    <th class="p-2 text-left">Producto</th>
+                                                                    <th class="p-2 text-center">Cantidad recibida</th>
+                                                                    <th class="p-2 text-left">Recibido por</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr>
+                                                                    <td class="p-2">{{ $eh->producto_nombre ?? '—' }}</td>
+                                                                    <td class="p-2 text-center">{{ $eh->cantidad_recibido ?? 0 }}</td>
+                                                                    <td class="p-2">{{ $eh->reception_user ?? '—' }}</td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+
+                                                        @if($eh->estatus_id != 3 && (!empty($eh->comentario) || !empty($eh->user_name) || !empty($eh->user_id)))
+                                                            <div class="mt-3 text-sm text-gray-700">Usuario: {{ $eh->user_name ?? ($eh->user_id ?? '—') }}@if(!empty($eh->comentario)) — Comentario: {{ $eh->comentario }}@endif</div>
+                                                        @endif
+                                                    @else
+                                                        @if(isset($eh->estatus_id) && (int)$eh->estatus_id !== 3)
+                                                            <div class="text-sm text-gray-700">Usuario: {{ $eh->user_name ?? ($eh->user_id ?? '—') }}</div>
+                                                        @endif
+                                                        @if(!empty($eh->comentario))
+                                                            <div class="text-sm text-gray-700 mt-2">Comentario: {{ $eh->comentario }}</div>
+                                                        @endif
+                                                    @endif
+
+                                                    {{-- Si este estatus es el 3, mostrar fechas dentro del mismo panel del estatus --}}
+                                                    @if(isset($eh->estatus_id) && (int)$eh->estatus_id === 3)
+                                                        <div class="mt-3 p-3 bg-green-50 border rounded text-sm text-gray-700">
+                                                            <div>Fecha primer estatus: {{ $firstStatusDate ? $firstStatusDate->format('d/m/Y H:i') : '—' }}</div>
+                                                            <div>Fecha último estatus: {{ $lastStatusDate ? $lastStatusDate->format('d/m/Y H:i') : '—' }}</div>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </details>
+                                        @endforeach
+                                    </div>
+                                @else
                                     <div class="p-4 bg-gray-50 border rounded flex justify-between items-center mb-3">
                                         <div class="font-semibold">Orden creada</div>
                                         <div class="flex items-center gap-2">
-                                            <div class="text-sm text-gray-600">{{ optional($oc->created_at)->format('d/m/Y') }}</div>
+                                            <div class="text-sm text-gray-600">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
                                         </div>
                                     </div>
-                                    @if($recepcionesOC->count())
+                                    <div class="p-4 border rounded bg-white mb-3">
+                                        <div class="text-sm text-gray-700 font-medium">Usuario</div>
+                                        <div class="text-sm text-gray-700 mt-1">{{ session('user.name') ?? session('user.email') ?? '—' }}</div>
+                                    </div>
+                                @endif
+
+                                @if($recepcionesOC->count() && empty($hasRecepcionInEstatus))
                                     @foreach($recepcionesOC as $rec)
                                         <details class="mb-3">
                                             <summary class="p-4 bg-gray-50 border rounded flex justify-between items-center cursor-pointer">
                                                 <div class="font-semibold">Recepción</div>
                                                 <div class="flex items-center gap-2">
                                                     <div class="text-sm text-gray-600">{{ !empty($rec->created_at) ? \Carbon\Carbon::parse($rec->created_at)->format('d/m/Y H:i') : (!empty($rec->fecha) ? \Carbon\Carbon::parse($rec->fecha)->format('d/m/Y') : '—') }}</div>
-                                                    <svg class="details-summary-arrow w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
+                                                    <svg class="details-summary-arrow w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
                                                 </div>
                                             </summary>
                                             <div class="p-4 border rounded mt-2 bg-white">
-                                                <div class="text-sm text-gray-700">Producto: {{ $rec->name_produc }}</div>
-                                                <div class="text-sm text-gray-700">Cantidad recibida: {{ $rec->cantidad_recibido ?? 0 }}</div>
-                                                <div class="text-sm text-gray-700">Recibido por: {{ $rec->reception_user ?? '—' }}</div>
-                                            </div>
-                                        </details>
+                                                <table class="w-full text-sm bg-white">
+                                                    <thead class="bg-gray-100">
+                                                        <tr>
+                                                            <th class="p-2 text-left">Producto</th>
+                                                            <th class="p-2 text-center">Cantidad recibida</th>
+                                                            <th class="p-2 text-left">Recibido por</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="p-2">{{ $rec->name_produc }}</td>
+                                                            <td class="p-2 text-center">{{ $rec->cantidad_recibido ?? $rec->cantidad ?? 0 }}</td>
+                                                            <td class="p-2">{{ $rec->reception_user ?? '—' }}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </div>
+                                            </details>
                                     @endforeach
-                                @else
-                                    <div class="text-gray-600">No hay recepciones registradas para esta OC.</div>
                                 @endif
+
                             </div>
-                            {{-- Colocar aquí la casilla "Completado" debajo de las recepciones --}}
-                            @if(isset($estatusTextModal) && strtolower($estatusTextModal) === 'completada')
-                                <details class="mt-4">
-                                    <summary class="p-4 bg-green-50 border border-green-200 rounded flex justify-between items-center cursor-pointer">
-                                        <div class="font-semibold text-green-700">Completado</div>
-                                        <svg class="details-summary-arrow w-4 h-4 text-green-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
-                                    </summary>
-                                    <div class="p-4 border rounded mt-2 bg-white">
-                                        <div class="text-sm text-gray-700">Fecha creación: {{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
-                                        <div class="text-sm text-gray-700">Fecha completado: {{ !empty($lastReception) ? \Carbon\Carbon::parse($lastReception)->format('d/m/Y H:i') : '—' }}</div>
-                                    </div>
-                                </details>
-                            @endif
                         </div>
                     </div>
                 </div>
@@ -507,38 +630,7 @@
         }
         ocShowPage(1);
 
-        // Abrir/Cerrar Recibir
-        document.querySelectorAll('.btn-open-recibir').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const ocId = btn.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                    document.body.style.overflow = 'hidden';
-                }
-            });
-        });
-        document.querySelectorAll('.rc-close, .rc-cancel').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const ocId = btn.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (modal) {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.style.overflow = '';
-                }
-            });
-        });
-        document.querySelectorAll('[id^="modal-recibir-oc-"]').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal || e.target?.dataset?.close === '1') {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.style.overflow = '';
-                }
-            });
-        });
+        // Input sanitization delegated
         document.addEventListener('input', function(e){
             if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
                 const max = parseInt(e.target.max || '0', 10);
@@ -548,137 +640,142 @@
                 e.target.value = v;
             }
         });
-        document.querySelectorAll('.rc-save').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const ocId = btn.dataset.ocId;
+
+        // Delegated click handler for modal actions, rc-save and terminar
+        document.addEventListener('click', async function(e){
+            // open recibir modal
+            const btnRec = e.target.closest('.btn-open-recibir');
+            if (btnRec) {
+                const ocId = btnRec.dataset.ocId;
+                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                if (modal) {
+                    if (modal.parentNode !== document.body) document.body.appendChild(modal);
+                    modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden';
+                }
+                return;
+            }
+            // open ver modal
+            const btnVer = e.target.closest('.btn-open-ver');
+            if (btnVer) {
+                const ocId = btnVer.dataset.ocId;
+                const modal = document.getElementById(`modal-${ocId}`);
+                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                return;
+            }
+            // open estatus modal
+            const btnEstatus = e.target.closest('.btn-open-estatus-oc');
+            if (btnEstatus) {
+                const ocId = btnEstatus.dataset.ocId;
+                const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
+                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                return;
+            }
+            // open recibir from view
+            const btnRecFromView = e.target.closest('.btn-open-recibir-from-view');
+            if (btnRecFromView) {
+                const ocId = btnRecFromView.dataset.ocId;
+                const vModal = document.getElementById(`modal-${ocId}`);
+                if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
+                const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                if (rModal) { if (rModal.parentNode !== document.body) document.body.appendChild(rModal); rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                return;
+            }
+            // close recibir modal via buttons
+            const btnClose = e.target.closest('.rc-close, .rc-cancel');
+            if (btnClose) {
+                const ocId = btnClose.dataset.ocId;
+                if (ocId) {
+                    const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow = ''; }
+                }
+                return;
+            }
+            // backdrop close for any modal with data-close="1"
+            if (e.target && e.target.dataset && e.target.dataset.close === '1') {
+                const parent = e.target.closest('[id^="modal-"]');
+                if (parent) { parent.classList.add('hidden'); parent.classList.remove('flex'); document.body.style.overflow = ''; }
+                return;
+            }
+
+            // rc-save: guardar recepciones
+            const btnSave = e.target.closest('.rc-save');
+            if (btnSave) {
+                const ocId = btnSave.dataset.ocId;
                 const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
                 const rows = Array.from(modal.querySelectorAll('.rc-row'));
                 if (rows.length === 0) {
-                    modal.classList.add('hidden'); modal.classList.remove('flex');
                     await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
-                    modal.classList.remove('hidden'); modal.classList.add('flex');
                     return;
                 }
                 const items = rows.map(tr => {
                     const recId = tr.dataset.recId || null;
                     const prodId = parseInt(tr.dataset.productoId, 10);
-                    const total = parseInt(tr.dataset.total || '0', 10); // Cantidad OC
-                    const current = parseInt(tr.dataset.current || '0', 10); // Ya recibido acumulado
+                    const total = parseInt(tr.dataset.total || '0', 10);
+                    const current = parseInt(tr.dataset.current || '0', 10);
                     const inp = tr.querySelector('.rcx-input');
-                    const max = parseInt(inp?.max || '0', 10);
-                    let inc = parseInt(inp?.value || '0', 10); // A recibir ahora
                     if (!inp || inp.disabled) return null;
+                    const max = parseInt(inp.max || '0', 10);
+                    let inc = parseInt(inp.value || '0', 10);
                     if (isNaN(inc) || inc < 0) inc = 0;
                     if (inc > max) inc = max;
                     const nuevoAcumulado = Math.min(total, current + inc);
                     return { recId, prodId, total, current, inc, nuevoAcumulado };
                 }).filter(Boolean).filter(it => it.inc > 0);
                 if (items.length === 0) {
-                    modal.classList.add('hidden'); modal.classList.remove('flex');
                     await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
-                    modal.classList.remove('hidden'); modal.classList.add('flex');
                     return;
                 }
-                // Ocultar modal antes de mostrar confirmación para que el diálogo no quede detrás
-                modal.classList.add('hidden'); modal.classList.remove('flex');
                 const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
-                if (!confirm.isConfirmed) { modal.classList.remove('hidden'); modal.classList.add('flex'); return; }
+                if (!confirm.isConfirmed) return;
                 Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 try {
-                    // usuario actual (tomado de la sesión en el servidor y pasado al JS)
                     const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
-                    // enviar todos los items en una sola petición, incluyendo quién recibe
                     const payload = { items: items.map(it => ({
-                         recepcion_id: it.recId || undefined,
-                         orden_compra_id: it.recId ? undefined : ocId,
-                         producto_id: it.prodId,
-                         cantidad: it.total,
+                        recepcion_id: it.recId || undefined,
+                        orden_compra_id: it.recId ? undefined : ocId,
+                        producto_id: it.prodId,
+                        cantidad: it.total,
                         cantidad_recibido: it.nuevoAcumulado,
                         reception_user: receptionUser
-                     })) };
+                    })) };
 
                     const resp = await fetch("{{ route('recepciones.confirmar') }}", {
-                        method: 'POST',
-                        credentials: 'same-origin',
+                        method: 'POST', credentials: 'same-origin',
                         headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
-                     });
+                    });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
                     Swal.close();
                     await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'});
                     location.reload();
-                } catch (e) {
+                } catch (err) {
                     Swal.close();
-                    await Swal.fire({icon:'error', title:'Error', text: e.message || 'Ocurrió un error al guardar.'});
-                    modal.classList.remove('hidden'); modal.classList.add('flex');
+                    await Swal.fire({icon:'error', title:'Error', text: err.message || 'Ocurrió un error al guardar.'});
                 }
-            });
-        });
+                return;
+            }
 
-        // Cierre por backdrop para modales de Ver y abrir Recibir desde Ver
-        document.querySelectorAll('[data-modal="ver"]').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal || e.target?.dataset?.close === '1') {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.style.overflow = '';
+            // Terminar OC
+            const btnTerm = e.target.closest('.btn-terminar-oc');
+            if (btnTerm) {
+                const ocId = btnTerm.dataset.ocId;
+                const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
+                if (!confirmed.isConfirmed) return;
+                Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try {
+                    const resp = await fetch("{{ url('/ordenes_compra/terminar') }}/"+ocId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                    const data = await resp.json();
+                    if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
+                    Swal.close();
+                    await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' });
+                    location.reload();
+                } catch (err) {
+                    Swal.close();
+                    await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' });
                 }
-            });
-        });
-        document.querySelectorAll('.btn-open-recibir-from-view').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const ocId = btn.dataset.ocId;
-                const vModal = document.getElementById(`modal-${ocId}`);
-                if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
-                const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (rModal) { rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-            });
-        });
-
-        // Abrir/Cerrar Estatus OC
-        document.querySelectorAll('.btn-open-estatus-oc').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const ocId = btn.dataset.ocId;
-                const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                    document.body.style.overflow = 'hidden';
-                }
-            });
-        });
-        document.querySelectorAll('[id^="modal-estatus-oc-"]').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal || e.target?.dataset?.close === '1') {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.style.overflow = '';
-                }
-            });
-        });
-
-        // Abrir Ver
-        document.querySelectorAll('.btn-open-ver').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const ocId = btn.dataset.ocId;
-                const modal = document.getElementById(`modal-${ocId}`);
-                if (modal) {
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                    document.body.style.overflow = 'hidden';
-                }
-            });
-        });
-        // Cerrar modales por backdrop para modales de ver
-        document.querySelectorAll('[data-modal="ver"]').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal || e.target?.dataset?.close === '1') {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.style.overflow = '';
-                }
-            });
+                return;
+            }
         });
     });
 </script>

@@ -212,6 +212,34 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('ordenes_compra/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
 
+    // Ruta para terminar una orden (por id) — closure para evitar dependencia del método del controlador
+    Route::post('ordenes_compra/terminar/{id}', function (\Illuminate\Http\Request $request, $id) {
+        try {
+            \Illuminate\Support\Facades\DB::table('orden_compra_estatus')
+                ->where('orden_compra_id', $id)
+                ->where('activo', 1)
+                ->update(['activo' => 0, 'updated_at' => now()]);
+
+            $terminado = \Illuminate\Support\Facades\DB::table('estatus_orden_compra')->where('id', 3)->first()
+                ?? \Illuminate\Support\Facades\DB::table('estatus_orden_compra')->first();
+
+            \Illuminate\Support\Facades\DB::table('orden_compra_estatus')->insert([
+                'estatus_id' => $terminado->id ?? 3,
+                'orden_compra_id' => $id,
+                'recepcion_id' => null,
+                'activo' => 1,
+                'date_update' => now(),
+                'user_id' => session('user.id') ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    })->name('ordenes_compra.terminar');
+
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
