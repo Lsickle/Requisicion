@@ -116,7 +116,7 @@
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
-                            <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                            <a href="{{ route('ordenes_compra.pdf', $requisicionId) }}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                         </div>
@@ -345,7 +345,7 @@
                     <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-box"></i> Recibir productos
                     </button>
-                    <a href="{{ route('ordenes_compra.pdf', $oc->id) }}" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
+                    <a href="{{ route('ordenes_compra.pdf', $requisicionId) }}" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
                     </a>
                 </div>

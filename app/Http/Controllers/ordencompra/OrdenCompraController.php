@@ -801,7 +801,7 @@ class OrdenCompraController extends Controller
 
                 return response($bin, 200, [
                     'Content-Type' => 'application/pdf',
-                    'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                    'Content-Disposition' => 'attachment; filename="' . $fileName . '"'
                 ]);
             }
 
@@ -825,9 +825,10 @@ class OrdenCompraController extends Controller
                 }
             } catch (\Throwable $e) { /* noop */ }
 
+            $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
             return response($content, 200, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"'
             ]);
         }
 
@@ -896,6 +897,12 @@ class OrdenCompraController extends Controller
         $zip->close();
 
         return Response::download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+    }
+
+    // Compatibilidad: algunas rutas llaman a exportPDF; delegar a download()
+    public function exportPDF($requisicionId)
+    {
+        return $this->download($requisicionId);
     }
 
     // Añadir helper para construir los datos del PDF (usado por download/export)
@@ -992,21 +999,21 @@ class OrdenCompraController extends Controller
     {
         $candidates = [
             public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
         ];
 
         foreach ($candidates as $path) {
             if (file_exists($path)) {
                 $contents = file_get_contents($path);
-                $mime = function_exists('mime_content_type') ? mime_content_type($path) : null;
+                $mime = null;
+                if (function_exists('mime_content_type')) {
+                    $mime = mime_content_type($path);
+                }
                 if (empty($mime)) {
-                    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-                    $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
+                    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION) ?: '');
+                    if ($extension === 'svg') $mime = 'image/svg+xml';
+                    elseif ($extension === 'png') $mime = 'image/png';
+                    elseif ($extension === 'jpg' || $extension === 'jpeg') $mime = 'image/jpeg';
+                    else $mime = 'application/octet-stream';
                 }
                 return 'data:' . $mime . ';base64,' . base64_encode($contents);
             }

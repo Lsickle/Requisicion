@@ -31,15 +31,30 @@
         $currentTs = $activeTimestamp ?? ($allTimestamps->isNotEmpty() ? $allTimestamps->max() : null);
 
         // Deduplicar: conservar solo el más reciente por id, luego ordenar cronológicamente
-        $estatusFiltrados = $estatusOrdenados
-            ->sortByDesc(function($i){
-                return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
-            })
-            ->unique('id')
-            ->sortBy(function($i){
-                return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
-            })
-            ->values();
+        // Mantener múltiples registros para estatus 12 (entrega parcial).
+        // Para los demás estatus, conservar sólo el más reciente por id.
+        $estatusSortedDesc = $estatusOrdenados->sortByDesc(function($i){
+            return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
+        })->values();
+
+        $seenIds = collect();
+        $filtered = collect();
+        foreach ($estatusSortedDesc as $e) {
+            if (isset($e->id) && (int)$e->id === 12) {
+                // conservar todas las entradas 12
+                $filtered->push($e);
+            } else {
+                if (!$seenIds->contains($e->id)) {
+                    $seenIds->push($e->id);
+                    $filtered->push($e);
+                }
+            }
+        }
+
+        // Ordenar cronológicamente ascendente para mostrar en timeline
+        $estatusFiltrados = $filtered->sortBy(function($i){
+            return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
+        })->values();
 
         // Traer todas las entregas de la requisición para poder vincular a estatus 12 repetidos
         $entregasAll = DB::table('entrega')
