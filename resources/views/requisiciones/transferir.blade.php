@@ -37,7 +37,7 @@
                     $estatusActualId = $ultimoActivo->estatus_id ?? null;
                     $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
                 @endphp
-                <tr class="border-b hover:bg-gray-50 transition">
+                <tr class="border-b hover:bg-gray-50 transition" data-req-id="{{ $req->id }}" @if($req->name_user) data-owner-name="{{ $req->name_user }}" @endif>
                     <td class="p-3">#{{ $req->id }}</td>
                     <td class="p-3">{{ $req->created_at->format('d/m/Y') }}</td>
                     <td class="p-3">{{ $req->name_user ?? 'Desconocido' }}</td>
@@ -107,23 +107,24 @@ function toggleModal(id){
 function openTransferModal(id){
     const modal = document.getElementById(`transfer-modal-${id}`);
     if(!modal) return;
-    // populate users
-    fetch('/api/users-list')
-        .then(r => r.json())
-        .then(data => {
-            const sel = document.getElementById(`new-owner-select-${id}`);
-            if(!sel) return;
-            sel.innerHTML = '<option value="">-- Seleccionar usuario --</option>';
-            data.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u.id;
-                opt.textContent = `${u.name} <${u.email}>`;
-                sel.appendChild(opt);
-            });
-            modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow='hidden';
-        }).catch(err => {
-            Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron cargar usuarios' });
-        });
+
+    // populate current owner from server-rendered span or row data attributes
+    const currentSpan = document.getElementById(`current-owner-${id}`);
+    if (!currentSpan || !currentSpan.textContent.trim()){
+        const row = document.querySelector(`tr[data-req-id="${id}"]`);
+        if (row && row.dataset && row.dataset.ownerName) {
+            if (currentSpan) currentSpan.textContent = row.dataset.ownerName;
+        }
+    }
+
+    // reset select to a placeholder state; actual user loading can be implemented later
+    const sel = document.getElementById(`new-owner-select-${id}`);
+    const confirmBtn = document.getElementById(`confirm-transfer-${id}`);
+    if (sel) { sel.innerHTML = '<option value="">-- Cargar usuarios --</option>'; sel.disabled = false; }
+    if (confirmBtn) confirmBtn.disabled = false;
+
+    // open modal
+    modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow='hidden';
 }
 
 function closeTransferModal(id){
@@ -429,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
             <div class="flex justify-end gap-3 mt-4">
                 <button class="px-4 py-2 border rounded" onclick="closeTransferModal({{ $req->id }})">Cancelar</button>
-                <button class="px-4 py-2 bg-green-600 text-white rounded" onclick="submitTransfer({{ $req->id }})">Confirmar Transferencia</button>
+                <button class="px-4 py-2 bg-green-600 text-white rounded" id="confirm-transfer-{{ $req->id }}" onclick="submitTransfer({{ $req->id }})">Confirmar Transferencia</button>
             </div>
         </div>
     </div>
