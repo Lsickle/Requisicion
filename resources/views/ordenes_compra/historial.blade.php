@@ -59,6 +59,12 @@
                     if ($activeEstatusId) {
                         $estatusText = DB::table('estatus_orden_compra')->where('id', $activeEstatusId)->value('status_name') ?? '—';
                         $isTerminada = ((int)$activeEstatusId === 3);
+                        // Mostrar 'Creada' cuando el estatus activo es el id 1
+                        if ((int)$activeEstatusId === 1) {
+                            $estatusDisplay = 'Creada';
+                        } else {
+                            $estatusDisplay = $estatusText;
+                        }
                     } else {
                         $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
                         $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
@@ -70,10 +76,13 @@
                             $estatusText = 'Pendiente';
                         }
                         $isTerminada = false;
+                        // Asegurar etiqueta corta cuando no hay registro en orden_compra_estatus
+                        $estatusDisplay = ($estatusText === 'Orden creada') ? 'Creada' : $estatusText;
                     }
                 } catch (\Throwable $e) {
                     $estatusText = '—';
                     $isTerminada = false;
+                    $estatusDisplay = '—';
                 }
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
@@ -85,9 +94,6 @@
                     <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
                     <td class="p-3 text-right font-semibold">{{ number_format($ocTotal, 2) }}</td>
                     @php
-                        // Mostrar etiqueta corta y elegir color
-                        $estatusDisplay = $estatusText;
-                        if ($estatusText === 'Orden creada') $estatusDisplay = 'Creada';
                         // clase por defecto
                         $badgeClass = 'bg-gray-100 text-gray-800';
                         if (strtolower($estatusDisplay) === 'completada') $badgeClass = 'bg-green-100 text-green-700';
@@ -95,7 +101,9 @@
                         elseif (strtolower($estatusDisplay) === 'creada') $badgeClass = 'bg-blue-100 text-blue-800';
                     @endphp
                     <td class="p-3">
-                        <span class="inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">{{ $estatusDisplay }}</span>
+                        <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
+                            {!! implode('<br>', array_map('e', preg_split('/\s+/', $estatusDisplay))) !!}
+                        </span>
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 items-center">
