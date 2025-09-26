@@ -130,9 +130,6 @@
                         @endphp
                         <span class="status-badge px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">
                             <span>{{ $nombreEstatus }}</span>
-                            @if($sumRecibido)
-                                <small class="block text-[10px] mt-1">Recibido: {{ $sumRecibido }}</small>
-                            @endif
                         </span>
                     </td>
 
