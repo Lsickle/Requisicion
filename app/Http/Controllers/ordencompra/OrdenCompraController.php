@@ -991,11 +991,13 @@ class OrdenCompraController extends Controller
     private function resolveLogoDataUri(): ?string
     {
         $candidates = [
-            public_path('images/logo.png'),
-            public_path('images/logo.jpg'),
-            public_path('images/logo.jpeg'),
-            public_path('images/logo_empresa.png'),
-            public_path('images/logo_empresa.jpg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.svg'),
         ];
 
         foreach ($candidates as $path) {
@@ -1009,7 +1011,7 @@ class OrdenCompraController extends Controller
                 return 'data:' . $mime . ';base64,' . base64_encode($contents);
             }
         }
-        return asset('images/logo.png');
+        return asset('images/VigiaLogoC.svg');
     }
 
     // Historial público de órdenes de compra

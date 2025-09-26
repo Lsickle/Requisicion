@@ -187,7 +187,7 @@
 
 <body>
     {{-- Watermark usando $logo o fallback --}}
-    @php $wm = !empty($logo) ? $logo : asset('images/logo.png'); @endphp
+    @php $wm = !empty($logo) ? $logo : asset('images/VigiaLogoC.svg'); @endphp
     <div class="watermark"><img src="{{ $wm }}" alt="marca de agua"></div>
 
     <div class="content">
@@ -197,7 +197,7 @@
                 @if(!empty($logo))
                 <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
                 @else
-                <img src="{{ asset('images/logo.png') }}" class="logo" alt="Logo de la empresa">
+                <img src="{{ asset('images/VigiaLogoC.svg') }}" class="logo" alt="Logo de la empresa">
                 @endif
             </div>
 

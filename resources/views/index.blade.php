@@ -37,7 +37,7 @@
             <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
                 <div class="mb-6 md:mb-7">
-                    <img src="{{ asset('images/logo.jpg') }}" alt="Vigía Plus Logistics"
+                    <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics"
                         class="mx-auto h-10 md:h-12 rounded-lg">
                 </div>
 

@@ -60,7 +60,7 @@
 
  <body>
     {{-- Marca de agua (usar $logo si viene como data URI, si no fallback a asset) --}}
-    @php $watermarkSrc = !empty($logo) ? $logo : asset('images/logo.png'); @endphp
+    @php $watermarkSrc = !empty($logo) ? $logo : asset('images/VigiaLogoC.svg'); @endphp
     <div class="watermark"><img src="{{ $watermarkSrc }}" alt="marca de agua"></div>
 
      <div class="content">
@@ -71,7 +71,7 @@
             @if(!empty($logo))
                 <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
             @else
-                <img src="{{ asset('images/logo.png') }}" alt="Vigía Plus Logistics" class="logo">
+                <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics" class="logo">
             @endif
          </div>
          <div class="document-info">
