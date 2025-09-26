@@ -243,52 +243,108 @@ document.addEventListener('DOMContentLoaded', function(){
 @foreach($requisiciones as $req)
     <!-- Modal Ver -->
     <div id="modal-{{ $req->id }}" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $req->id }}')"></div>
-        <div class="relative w-full max-w-4xl">
-            <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
-                <button onclick="toggleModal('modal-{{ $req->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl" aria-label="Cerrar modal">&times;</button>
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Requisición #{{ $req->id }}</h2>
-                <!-- Información general y productos (copiado) -->
-                <section class="mb-8">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
-                        <div><span class="font-medium">Solicitante:</span> {{ $req->name_user ?? $req->user->name ?? 'Desconocido' }}</div>
-                        <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y') }}</div>
-                        <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}</div>
-                        <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
-                        @php
-                            $hist = $req->estatusHistorial;
-                            $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
-                            $estatusActualId = $ultimoActivo->estatus_id ?? null;
-                            $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
-                            $colorActual = 'bg-gray-500';
-                            switch($estatusActualId) {
-                                case 1: $colorActual = 'bg-blue-600'; break;
-                                case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
-                                case 5: $colorActual = 'bg-purple-600'; break;
-                                case 6: case 9: case 13: $colorActual = 'bg-red-600'; break;
-                                case 7: case 8: $colorActual = 'bg-indigo-600'; break;
-                                case 10: $colorActual = 'bg-green-600'; break;
-                                case 11: $colorActual = 'bg-orange-500'; break;
-                            }
-                        @endphp
-                        <div>
-                            <span class="font-medium">Estatus actual:</span>
-                            <span class="status-badge ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help">{{ $estatusActualNombre }}</span>
-                        </div>
-                    </div>
-                </section>
+         <!-- Fondo -->
+         <div class="absolute inset-0 bg-black/50" onclick="toggleModal('modal-{{ $req->id }}')"></div>
 
-                <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Detalle</h3>
-                        <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">{{ $req->detail_requisicion }}</div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-700 mb-3">Justificación</h3>
-                        <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">{{ $req->justify_requisicion }}</div>
-                    </div>
-                </section>
+         <!-- Contenido -->
+         <div class="relative w-full max-w-4xl">
+             <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-8 relative">
+
+                 <!-- Botón cerrar -->
+                 <button onclick="toggleModal('modal-{{ $req->id }}')"
+                     class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"
+                     aria-label="Cerrar modal">&times;</button>
+
+                 <!-- Título -->
+                 <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
+                     Requisición #{{ $req->id }}
+                 </h2>
+
+                 <!-- Información general -->
+                 <section class="mb-8">
+                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Información General</h3>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
+                         <div><span class="font-medium">Solicitante:</span> {{ $req->name_user ?? $req->user->name ??
+                             'Desconocido' }}</div>
+                         <div><span class="font-medium">Fecha:</span> {{ $req->created_at->format('d/m/Y') }}</div>
+                         <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}
+                         </div>
+                         <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
+                         @php
+                             $hist = $req->estatusHistorial;
+                             $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
+                             $estatusActualId = $ultimoActivo->estatus_id ?? null;
+                             $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
+                             $colorActual = 'bg-gray-500';
+                             switch($estatusActualId) {
+                                 case 1: $colorActual = 'bg-blue-600'; break;
+                                 case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
+                                 case 5: $colorActual = 'bg-purple-600'; break;
+                                 case 6: case 9: $colorActual = 'bg-red-600'; break;
+                                 case 7: case 8: $colorActual = 'bg-indigo-600'; break;
+                                 case 10: $colorActual = 'bg-green-600'; break;
+                                 case 11: $colorActual = 'bg-orange-500'; break;
+                             }
+                             // Descripciones iguales a la tabla (IDs 1-13)
+                             $descripcionesEstatusModal = [
+                                 1 => 'Requisición creada por el solicitante.',
+                                 2 => 'Revisado por compras; en espera de aprobación.',
+                                 3 => 'Aprobado por Gerencia; pasa a financiera.',
+                                 4 => 'Aprobado por Financiera; listo para generar OC.',
+                                 5 => 'Orden de compra generada.',
+                                 6 => 'Requisición cancelada.',
+                                 7 => 'Material recibido en bodega.',
+                                 8 => 'Material recibido por coordinador.',
+                                 9 => 'Rechazado por financiera.',
+                                 10 => 'Proceso completado.',
+                                 11 => 'Corregir la requisición.',
+                                 12 => 'Solo se ha entregado una parte de la requisición.',
+                                 13 => 'Rechazado por gerencia.',
+                             ];
+                             $tooltipModal = $descripcionesEstatusModal[$estatusActualId] ?? 'Pendiente por gestión.';
+                         @endphp
+                         <div>
+                             <span class="font-medium">Estatus actual:</span>
+                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
+                         </div>
+                         @php
+                             $registroComentarioModal = null;
+                             if ($req->estatusHistorial && $req->estatusHistorial->count()) {
+                                 $registroComentarioModal = $req->estatusHistorial->whereIn('estatus_id', [11, 9, 13])->sortByDesc('created_at')->first();
+                             }
+                             $boxClasses = '';
+                             if ($registroComentarioModal) {
+                                 $boxClasses = in_array($registroComentarioModal->estatus_id, [9,13])
+                                     ? 'bg-red-50 border border-red-200 text-red-800'
+                                     : 'bg-amber-50 border border-amber-200 text-amber-800';
+                             }
+                         @endphp
+                         @if(!empty($registroComentarioModal?->comentario))
+                             <div class="col-span-1 md:col-span-2 mt-2 rounded-lg p-3 text-sm {{ $boxClasses }}">
+                                 <strong>Motivo:</strong> {{ $registroComentarioModal->comentario }}
+                             </div>
+                         @endif
+                     </div>
+                 </section>
+
+                 <!-- Detalle y Justificación lado a lado -->
+                 <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <!-- Detalle -->
+                     <div>
+                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Detalle</h3>
+                         <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
+                             {{ $req->detail_requisicion }}
+                         </div>
+                     </div>
+
+                     <!-- Justificación -->
+                     <div>
+                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Justificación</h3>
+                         <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
+                             {{ $req->justify_requisicion }}
+                         </div>
+                     </div>
+                 </section>
 
                 <section class="mb-6">
                     <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
