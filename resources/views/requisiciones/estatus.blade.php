@@ -41,6 +41,15 @@
             })
             ->values();
 
+        // Traer todas las entregas de la requisición para poder vincular a estatus 12 repetidos
+        $entregasAll = DB::table('entrega')
+            ->where('requisicion_id', $requisicion->id)
+            ->whereNull('entrega.deleted_at')
+            ->join('productos', 'entrega.producto_id', '=', 'productos.id')
+            ->select('entrega.*', 'productos.name_produc')
+            ->orderBy('entrega.created_at', 'asc')
+            ->get();
+
         // Flujo normal
         $flujo = [
             1 => 2,
@@ -70,53 +79,60 @@
         @endphp 
 
         {{-- Mostrar estatus --}}
-        @foreach($estatusFiltrados as $item) 
+        @foreach($estatusFiltrados as $item)
             @php
-            // Decidir completado comparando timestamps pivot.created_at frente al currentTs calculado arriba
-            $itemCreated = (isset($item->pivot) && isset($item->pivot->created_at)) ? $item->pivot->created_at : null;
-            $itemTs = $itemCreated ? strtotime((string)$itemCreated) : null;
-            if ($itemTs !== null && $currentTs !== null) {
-                $isCompleted = $itemTs <= $currentTs;
-            } else {
-                // Fallback: considerar 7 como completado o cualquier id menor al actual
-                $isCompleted = ($item->id == 7) || ($item->id < $currentId);
-            }
-            $isCurrent = $item->id === $currentId;
-
-                // Colores especiales
+                // Flags y timestamps
+                $itemCreated = (isset($item->pivot) && isset($item->pivot->created_at)) ? $item->pivot->created_at : null;
+                $itemTs = $itemCreated ? strtotime((string)$itemCreated) : null;
+                if ($itemTs !== null && $currentTs !== null) {
+                    $isCompleted = $itemTs <= $currentTs;
+                } else {
+                    $isCompleted = ($item->id == 7) || ($item->id < $currentId);
+                }
+                $isCurrent = $item->id === $currentId;
                 $isRejected  = in_array($item->id, [9,13]);
                 $isCanceled  = $item->id === 6;
                 $isCorregir  = $item->id === 11;
+
+                // Preparar entregas relacionadas (solo para estatus 12)
+                $entregasRelacionadas = collect();
+                if (isset($item->id) && $item->id == 12) {
+                    $statusDate = isset($item->pivot->created_at) ? \Carbon\Carbon::parse($item->pivot->created_at)->toDateString() : null;
+                    if ($statusDate) {
+                        $entregasRelacionadas = $entregasAll->filter(function($e) use ($statusDate){
+                            return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
+                        })->values();
+                    }
+                }
             @endphp
 
             <div class="mb-6 ml-6 relative">
-                {{-- Iconos --}}
+                {{-- Icono izquierdo --}}
                 @if($isRejected || $isCanceled)
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-red-600 text-white shadow-md">
                         <i class="fas fa-times text-xs"></i>
                     </span>
                 @elseif($isCurrent && $isCorregir)
-                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-yellow-500 text-white shadow-md">
-                    <i class="fas fa-exclamation text-xs"></i>
-                </span>
+                    <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-yellow-500 text-white shadow-md">
+                        <i class="fas fa-exclamation text-xs"></i>
+                    </span>
                 @elseif($isCompleted)
                     <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white shadow-md">
                         <i class="fas fa-check text-xs"></i>
                     </span>
                 @elseif($isCurrent)
-                <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white shadow-md">
-                    <i class="fas fa-check text-xs"></i>
-                </span>
+                    <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white shadow-md">
+                        <i class="fas fa-check text-xs"></i>
+                    </span>
                 @endif
 
-                {{-- Tarjeta --}}
                 <div class="p-4 rounded-lg shadow-sm border 
                     @if($isRejected || $isCanceled) bg-red-50 border-red-300
                     @elseif($isCorregir && $isCurrent) bg-yellow-50 border-yellow-300
                     @elseif($isCompleted) bg-green-50 border-green-300
                     @elseif($isCurrent) bg-blue-50 border-blue-300
                     @endif">
-                    
+
                     <div class="flex justify-between items-start">
                         <div>
                             <h3 class="font-semibold 
@@ -141,10 +157,53 @@
                             @endif
 
                             @if(isset($item->pivot->comentario) && $item->pivot->comentario)
-                            <div class="mt-2 p-2 bg-white rounded border text-sm text-gray-700">
-                                <strong>Comentario:</strong> {{ $item->pivot->comentario }}
-                            </div>
+                                <div class="mt-2 p-2 bg-white rounded border text-sm text-gray-700">
+                                    <strong>Comentario:</strong> {{ $item->pivot->comentario }}
+                                </div>
                             @endif
+
+                            {{-- Entregas parciales: mostrar dentro de un <details> para comportamiento nativo --}}
+                            @if($entregasRelacionadas->isNotEmpty())
+                                <details class="mt-3 border rounded bg-white overflow-hidden">
+                                    <summary class="px-3 py-2 bg-blue-50 text-blue-800 cursor-pointer font-medium">Ver entregas parciales</summary>
+                                    <div class="p-3 text-sm bg-gray-50">
+                                        <table class="w-full text-sm bg-white rounded overflow-hidden border">
+                                            <thead class="bg-gray-100">
+                                                <tr>
+                                                    <th class="p-2 text-left">Producto</th>
+                                                    <th class="p-2 text-center">Cantidad total</th>
+                                                    <th class="p-2 text-center">Cantidad recibida</th>
+                                                    <th class="p-2 text-center">Cantidad faltante</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($entregasRelacionadas->groupBy('producto_id') as $productoId => $coleccion)
+                                                    @php
+                                                        $productoNombre = optional($coleccion->first())->name_produc ?? '—';
+                                                        $cantidadTotal = (int) (DB::table('producto_requisicion')
+                                                            ->where('id_requisicion', $requisicion->id)
+                                                            ->where('id_producto', $productoId)
+                                                            ->value('pr_amount') ?? 0);
+                                                        $cantidadRecibida = (int) DB::table('entrega')
+                                                            ->where('requisicion_id', $requisicion->id)
+                                                            ->where('producto_id', $productoId)
+                                                            ->whereNotNull('cantidad_recibido')
+                                                            ->sum('cantidad_recibido');
+                                                        $faltante = max(0, $cantidadTotal - $cantidadRecibida);
+                                                    @endphp
+                                                    <tr class="border-t">
+                                                        <td class="p-2">{{ $productoNombre }}</td>
+                                                        <td class="p-2 text-center">{{ $cantidadTotal }}</td>
+                                                        <td class="p-2 text-center">{{ $cantidadRecibida }}</td>
+                                                        <td class="p-2 text-center">{{ $faltante }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            @endif
+
                         </div>
 
                         @if($isCurrent)
