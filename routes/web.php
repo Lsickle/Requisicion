@@ -293,6 +293,9 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/ordenes/ensure-hashes/{requisicion}', [OrdenCompraVerifyController::class, 'ensureHashesForRequisition'])->name('ordenes_compra.ensure_hashes');
 });
 
+// Ruta para confirmar recepciones/entregas en lote desde la vista
+Route::post('/recepciones/confirmar-masivo', [RequisicionController::class, 'confirmarRecepcionesMasivo'])->name('recepciones.confirmar.masivo');
+
 Route::resource('nuevo_producto', NuevoProductoController::class);
 
 // Logout

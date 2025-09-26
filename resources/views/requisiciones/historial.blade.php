@@ -739,6 +739,7 @@
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify(payload)
             });
             const data = await resp.json().catch(() => null);
@@ -805,6 +806,7 @@
             const resp = await fetch(`/requisiciones/${reqId}/entregar`, {
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify({ requisicion_id: reqId, items, comentario: null })
               });
             const data = await resp.json();
@@ -847,29 +849,27 @@
 
         Swal.fire({ title: 'Guardando', text: 'Procesando recepciones...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const failures = [];
-            for (const it of items){
-                const payload = (tipo === 'entrega')
-                    ? { entrega_id: it.id, cantidad: it.cantidad, reception_user: receptionUser, reception_user_id: APP_SESSION_USER?.id ?? null, user_id: APP_SESSION_USER?.id ?? null, user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null }
-                    : { recepcion_id: it.id, cantidad: it.cantidad, reception_user: receptionUser, reception_user_id: APP_SESSION_USER?.id ?? null, user_id: APP_SESSION_USER?.id ?? null, user_name: APP_SESSION_USER?.name ?? APP_SESSION_USER?.email ?? null };
+            // Enviar todos los items en una sola petición para que el backend guarde recepción y usuario de sesión
+            const payload = {
+                tipo,
+                items,
+                reception_user: receptionUser,
+                reception_user_id: APP_SESSION_USER?.id ?? null
+            };
 
-                console.debug('guardarRecepcionesMasivo payload', payload);
+            const res = await fetch('/recepciones/confirmar-masivo', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
 
-                const res = await fetch(url, {
-                     method: 'POST',
-                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                     body: JSON.stringify(payload)
-                 });
-                 let result = null;
-                 try { result = await res.json(); } catch(e){ result = null; }
-                 if (!res.ok) {
-                     failures.push({ id: it.id, status: res.status, body: result });
-                 }
-            }
+            let result = null;
+            try { result = await res.json(); } catch(e) { result = null; }
 
-            if (failures.length) {
-                console.error('guardarRecepcionesMasivo failures', failures);
-                Swal.fire({icon:'error', title:'Error', text:`Fallo al guardar ${failures.length} registro(s). Revisa logs.`});
+            if (!res.ok) {
+                console.error('guardarRecepcionesMasivo error response', result);
+                Swal.fire({icon:'error', title:'Error', text: result?.message || 'Error al guardar recepciones'});
             } else {
                 Swal.fire({icon:'success', title:'¡Listo!', text:`Se han guardado todas las recepciones.`}).then(() => location.reload());
             }
