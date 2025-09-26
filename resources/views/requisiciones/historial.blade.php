@@ -102,40 +102,31 @@
 
                     <!-- Acciones -->
                     <td class="p-3 text-center">
-                        <div class="flex justify-center gap-2 flex-wrap">
-                            <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-1">
-                                <i class="fas fa-eye"></i> Ver
+                        <div class="flex justify-center gap-2 items-center">
+                            <button onclick="toggleModal('modal-{{ $req->id }}')" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver requisición" aria-label="Ver requisición">
+                                <i class="fas fa-eye"></i>
                             </button>
                             @if(in_array(($ultimoEstatusId ?? null), [8,12]))
-                            <button onclick="toggleModal('modal-recibir-{{ $req->id }}')"
-                                class="bg-green-700 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-800 transition flex items-center gap-1">
-                                <i class="fas fa-inbox"></i> Recibir productos
+                            <button onclick="toggleModal('modal-recibir-{{ $req->id }}')" class="bg-yellow-600 hover:bg-yellow-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Recibir productos" aria-label="Recibir productos">
+                                <i class="fas fa-box"></i>
                             </button>
                             @endif
                             @if($ultimoEstatusId == 11)
-                            <a href="{{ route('requisiciones.edit', $req->id) }}"
-                                class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-yellow-700 transition">
-                                Editar
+                            <a href="{{ route('requisiciones.edit', $req->id) }}" class="bg-yellow-500 hover:bg-yellow-600 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar requisición" aria-label="Editar requisición">
+                                <i class="fas fa-edit"></i>
                             </a>
                             @endif
-                            <a href="{{ route('requisiciones.pdf', $req->id) }}"
-                                class="bg-green-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-700 transition flex items-center gap-1">
-                                <i class="fas fa-file-pdf"></i> PDF
+                            <a href="{{ route('requisiciones.pdf', $req->id) }}" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                                <i class="fas fa-file-pdf"></i>
                             </a>
-                            
-                            <!-- Botón de Cancelar/Reenviar -->
                             @if(in_array(($ultimoEstatusId ?? null), [1,2,3,4]))
-                            <button onclick="cancelarRequisicion({{ $req->id }})"
-                                class="bg-red-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-700 transition flex items-center gap-1">
-                                <i class="fas fa-times"></i> Cancelar
+                            <button onclick="cancelarRequisicion({{ $req->id }})" class="bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Cancelar requisición" aria-label="Cancelar requisición">
+                                <i class="fas fa-times"></i>
                             </button>
                             @endif
-                            
                             @if($ultimoEstatusId == 6)
-                            <button onclick="reenviarRequisicion({{ $req->id }})"
-                                class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-indigo-700 transition flex items-center gap-1">
-                                <i class="fas fa-paper-plane"></i> Reenviar
+                            <button onclick="reenviarRequisicion({{ $req->id }})" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Reenviar requisición" aria-label="Reenviar requisición">
+                                <i class="fas fa-paper-plane"></i>
                             </button>
                             @endif
                         </div>

@@ -174,7 +174,7 @@
         </div>
         <div class="signature-box">
             <div class="signature-line"></div>
-            <p>Recibido por (Proveedor)</p>
+            <p>Elaborado por</p>
         </div>
         <div class="clear"></div>
     </div>
