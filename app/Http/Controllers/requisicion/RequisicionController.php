@@ -17,6 +17,7 @@ use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Session;
 
 class RequisicionController extends Controller
 {
@@ -454,6 +455,96 @@ class RequisicionController extends Controller
             ->get();
 
         return view('requisiciones.todas', compact('requisiciones'));
+    }
+
+    // Mostrar interfaz de transferencia (solo Admin requisicion)
+    public function transferIndex()
+    {
+        // Permiso explícito o rol 'Admin requisicion' permiten acceder
+        $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+        $hasTransferPerm = in_array(mb_strtolower('transferir titularidad', 'UTF-8'), $permissions, true);
+
+        // Fallback: detectar rol Admin requisicion en session.user.roles o user_roles
+        $rolesRaw = Session::get('user_roles') ?: (session('user.roles') ?? []);
+        $rolesNormalized = [];
+        if (is_array($rolesRaw)) {
+            foreach ($rolesRaw as $r) {
+                if (is_string($r)) { $rolesNormalized[] = $r; continue; }
+                if (is_array($r) && isset($r['roles'])) { $rolesNormalized[] = $r['roles']; continue; }
+                if (is_object($r) && isset($r->roles)) { $rolesNormalized[] = $r->roles; continue; }
+            }
+        }
+        $singleRole = session('user.role') ?? Session::get('user.role') ?? null;
+        $isAdmin = in_array('Admin requisicion', $rolesNormalized, true) || ($singleRole === 'Admin requisicion');
+        Log::info('transferIndex permission check', ['hasTransferPerm' => $hasTransferPerm, 'roles_normalized' => $rolesNormalized, 'singleRole' => $singleRole, 'isAdmin' => $isAdmin]);
+        if (!$hasTransferPerm && !$isAdmin) {
+            Log::warning('Acceso denegado a transferIndex', ['session_user' => session('user'), 'user_permissions' => Session::get('user_permissions'), 'user_roles' => Session::get('user_roles')]);
+            return redirect()->route('requisiciones.menu')->with('error', 'No tienes permisos para acceder a esta sección');
+        }
+
+        $requisiciones = Requisicion::with(['productos', 'estatusHistorial.estatusRelation'])->orderBy('created_at', 'desc')->get();
+        return view('requisiciones.transferir', compact('requisiciones'));
+    }
+
+    // Ejecutar transferencia de titularidad
+    public function transferir(Request $request, $id)
+    {
+        // Permiso explícito o rol 'Admin requisicion' para ejecución
+        $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+        $hasTransferPerm = in_array(mb_strtolower('transferir titularidad', 'UTF-8'), $permissions, true);
+
+        $rolesRaw = Session::get('user_roles') ?: (session('user.roles') ?? []);
+        $rolesNormalized = [];
+        if (is_array($rolesRaw)) {
+            foreach ($rolesRaw as $r) {
+                if (is_string($r)) { $rolesNormalized[] = $r; continue; }
+                if (is_array($r) && isset($r['roles'])) { $rolesNormalized[] = $r['roles']; continue; }
+                if (is_object($r) && isset($r->roles)) { $rolesNormalized[] = $r->roles; continue; }
+            }
+        }
+        $singleRole = session('user.role') ?? Session::get('user.role') ?? null;
+        $isAdmin = in_array('Admin requisicion', $rolesNormalized, true) || ($singleRole === 'Admin requisicion');
+        Log::info('transferir permission check', ['hasTransferPerm' => $hasTransferPerm, 'roles_normalized' => $rolesNormalized, 'singleRole' => $singleRole, 'isAdmin' => $isAdmin]);
+        if (!$hasTransferPerm && !$isAdmin) {
+            Log::warning('Acceso denegado a transferir', ['session_user' => session('user'), 'user_permissions' => Session::get('user_permissions'), 'user_roles' => Session::get('user_roles')]);
+            return response()->json(['success' => false, 'message' => 'No tienes permisos'], 403);
+        }
+
+        $newUserId = $request->input('new_user_id');
+        if (empty($newUserId)) {
+            return response()->json(['success' => false, 'message' => 'Usuario nuevo no especificado'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            $requisicion = Requisicion::findOrFail($id);
+            $oldOwner = $requisicion->user_id;
+            $userRow = DB::table('users')->where('id', $newUserId)->first();
+            if (!$userRow) {
+                return response()->json(['success' => false, 'message' => 'Usuario destino no encontrado'], 404);
+            }
+
+            $requisicion->user_id = $userRow->id;
+            $requisicion->name_user = $userRow->name;
+            $requisicion->email_user = $userRow->email;
+            $requisicion->save();
+
+            // Registrar en historial de estatus un comentario sobre la transferencia
+            Estatus_Requisicion::create([
+                'requisicion_id' => $requisicion->id,
+                'estatus_id' => $requisicion->ultimoEstatus->estatus_id ?? 1,
+                'estatus' => 1,
+                'date_update' => now(),
+                'comentario' => "Titularidad transferida de usuario {$oldOwner} a {$userRow->id} por Admin",
+            ]);
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Titularidad transferida correctamente']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error transferir titularidad: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al transferir titularidad'], 500);
+        }
     }
 
     public function entregarRequisicion(Request $request, $requisicionId)

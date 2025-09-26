@@ -74,6 +74,14 @@
             </li>
             @endif
 
+            @if($hasPermission('transferir titularidad'))
+            <li>
+                <a href="{{ route('requisiciones.transferir') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Transferir
+                    titularidad</a>
+            </li>
+            @endif
+
             @if($hasPermission('total requisiciones'))
             <li>
                 <a href="{{ route('requisiciones.todas') }}"

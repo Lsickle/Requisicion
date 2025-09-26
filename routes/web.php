@@ -291,6 +291,10 @@ Route::middleware([AuthSession::class])->group(function () {
 
     // Endpoint para generar/asegurar hashes de validación para órdenes de una requisición
     Route::post('/ordenes/ensure-hashes/{requisicion}', [OrdenCompraVerifyController::class, 'ensureHashesForRequisition'])->name('ordenes_compra.ensure_hashes');
+
+    // Transferir titularidad (solo Admin requisicion)
+    Route::get('/requisiciones/transferir', [RequisicionController::class, 'transferIndex'])->name('requisiciones.transferir');
+    Route::post('/requisiciones/{id}/transferir', [RequisicionController::class, 'transferir'])->name('requisiciones.transferir.post');
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista
