@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Estatus_Requisicion extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'estatus_requisicion';
 
@@ -16,7 +17,8 @@ class Estatus_Requisicion extends Model
         'requisicion_id',
         'estatus',
         'comentario',
-        'date_update'
+        'date_update',
+        'entrega_id'
     ];
 
     protected $dates = [
@@ -33,6 +35,11 @@ class Estatus_Requisicion extends Model
     public function requisicion()
     {
         return $this->belongsTo(Requisicion::class, 'requisicion_id');
+    }
+
+    public function entrega()
+    {
+        return $this->belongsTo(Entrega::class, 'entrega_id');
     }
 
     public function getFormattedCreatedAtAttribute()

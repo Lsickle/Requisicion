@@ -33,12 +33,12 @@
 
     <!-- Contenido principal -->
     <div class="flex-grow flex items-start justify-center px-4 pt-24 pb-6">
-        <div class="login w-full max-w-[17rem] sm:max-w-[20rem] md:max-w-[26rem]">
+        <div class="login w-full max-w-[17rem] sm:max-w-[25rem] md:max-w-[26rem]">
             <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
                 <div class="mb-6 md:mb-7">
                     <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics"
-                        class="mx-auto h-10 md:h-12 rounded-lg">
+                        class="mx-auto h-14 md:h-16 w-auto rounded-lg">
                 </div>
 
                 <!-- Formulario de login -->

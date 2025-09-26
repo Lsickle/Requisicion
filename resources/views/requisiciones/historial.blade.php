@@ -403,14 +403,14 @@
                 ->orderBy('e.id','asc')
                 ->get();
         } else {
-            // Solo traer recepciones pendientes de confirmación (cantidad_recibido IS NULL)
+            // Solo traer recepciones pendientes de confirmación: la tabla 'recepcion' no tiene cantidad_recibida
+            // así que consultamos los registros y usamos r.cantidad como referencia (la confirmación guarda cantidad en la tabla correspondiente)
             $recList = DB::table('recepcion as r')
                 ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
                 ->join('productos as p','p.id','=','r.producto_id')
-                ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibida')
+                ->select('r.id','p.name_produc','r.cantidad')
                 ->where('oc.requisicion_id', $req->id)
                 ->whereNull('r.deleted_at')
-                ->whereNull('r.cantidad_recibida')
                 ->orderBy('r.id','asc')
                 ->get();
         }
@@ -437,7 +437,7 @@
                             <td class="p-2">{{ $r->name_produc }}</td>
                             <td class="p-2 text-center">{{ $r->cantidad }}</td>
                             <td class="p-2 text-center">
-                                <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibida ?? 0 }}" class="w-24 border rounded p-1 text-center recx-input">
+                                <input type="number" min="0" max="{{ $r->cantidad }}" value="0" class="w-24 border rounded p-1 text-center recx-input">
                             </td>
                             {{-- <td class="p-2 text-center">
                                 <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" onclick="confirmarRecepcionItem({{ $r->id }}, this, '{{ $usarEntrega ? 'entrega' : 'recepcion' }}')">Guardar</button>

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->boolean('estatus')->default(0);  #estatus de la requisicion activa que trae por defecto 0
             $table->date('date_update')->nullable();  #fecha en la que se realizo el cambio de estatus
             $table->text('comentario')->nullable();  #comentario de la requisicion
+            $table->foreignId('entrega_id')->nullable()->constrained('entrega')->nullOnDelete(); #id de la entrega
             $table->timestamps();
             $table->softDeletes();
         });

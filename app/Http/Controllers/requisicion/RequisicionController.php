@@ -16,7 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema; // agregado
+use Illuminate\Support\Facades\Schema;
 
 class RequisicionController extends Controller
 {
@@ -50,13 +50,11 @@ class RequisicionController extends Controller
             'estatusHistorial.estatusRelation'
         ])->findOrFail($id);
 
-        // Verificar que la requisición está en estatus "Corregir"
         $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
-        if ($ultimoEstatus != 11) { // 11 = Corregir
+        if ($ultimoEstatus != 11) {
             return redirect()->route('requisiciones.historial')->with('error', 'Solo se pueden editar requisiciones en estatus "Corregir"');
         }
 
-        // Obtener el comentario de rechazo
         $comentarioRechazo = Estatus_Requisicion::where('requisicion_id', $id)
             ->where('estatus_id', 11)
             ->where('estatus', 1)
@@ -72,7 +70,6 @@ class RequisicionController extends Controller
     {
         $requisicion = Requisicion::findOrFail($id);
 
-        // Verificar que la requisición está en estatus "Corregir"
         $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
         if ($ultimoEstatus != 11) {
             return redirect()->route('requisiciones.historial')->with('error', 'Solo se pueden editar requisiciones en estatus "Corregir"');
@@ -109,7 +106,6 @@ class RequisicionController extends Controller
                 }
             }
 
-            // Actualizar la requisición
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -117,11 +113,9 @@ class RequisicionController extends Controller
             $requisicion->amount_requisicion = $totalRequisicion;
             $requisicion->save();
 
-            // Eliminar productos y centros anteriores
             $requisicion->productos()->detach();
             DB::table('centro_producto')->where('requisicion_id', $requisicion->id)->delete();
 
-            // Agregar nuevos productos y centros
             foreach ($validated['productos'] as $prod) {
                 $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
                 $requisicion->productos()->attach($prod['id'], [
@@ -140,7 +134,6 @@ class RequisicionController extends Controller
                 }
             }
 
-            // Cambiar estatus a "Iniciada" para reenviar a aprobación
             Estatus_Requisicion::where('requisicion_id', $requisicion->id)->update(['estatus' => 0]);
 
             $estatusIniciada = Estatus::where('status_name', 'Requisición creada')->first();
@@ -197,7 +190,6 @@ class RequisicionController extends Controller
                 }
             }
 
-            // Obtener información del usuario desde la SESIÓN
             $userId = session('user.id');
             $nombreUsuario = session('user.name', 'Usuario Desconocido');
             $emailUsuario = session('user.email', 'email@desconocido.com');
@@ -205,9 +197,9 @@ class RequisicionController extends Controller
 
             $requisicion = new Requisicion();
             $requisicion->user_id = $userId;
-            $requisicion->name_user = $nombreUsuario; // Guardar el nombre
-            $requisicion->email_user = $emailUsuario; // Guardar el email
-            $requisicion->operacion_user = $operacionUsuario; // Guardar la operación
+            $requisicion->name_user = $nombreUsuario;
+            $requisicion->email_user = $emailUsuario;
+            $requisicion->operacion_user = $operacionUsuario;
             $requisicion->Recobrable = $validated['Recobrable'];
             $requisicion->prioridad_requisicion = $validated['prioridad_requisicion'];
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
@@ -215,13 +207,12 @@ class RequisicionController extends Controller
             $requisicion->amount_requisicion = $totalRequisicion;
             $requisicion->save();
 
-            // 🔹 Asignar estatus inicial "Iniciada"
             $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
             if ($estatusInicial) {
                 Estatus_Requisicion::create([
                     'requisicion_id' => $requisicion->id,
                     'estatus_id'     => $estatusInicial->id,
-                    'estatus'        => 1, // activo
+                    'estatus'        => 1,
                     'date_update'    => now(),
                 ]);
             }
@@ -274,20 +265,12 @@ class RequisicionController extends Controller
             'estatusHistorial.estatusRelation'
         ])->findOrFail($id);
 
-        // Usar los datos guardados en la requisición en lugar de hacer una nueva consulta
         $nombreSolicitante = $requisicion->name_user;
         $emailSolicitante = $requisicion->email_user;
         $operacionSolicitante = $requisicion->operacion_user;
 
-        // Preparar logo como data URI para que DomPDF lo muestre sin depender de URLs remotas
         $logoData = null;
-        $candidates = [
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-            public_path('images/VigiaLogoC.svg'),
-        ];
+        $candidates = [public_path('images/VigiaLogoC.svg')];
         foreach ($candidates as $path) {
             if (file_exists($path)) {
                 $contents = file_get_contents($path);
@@ -325,7 +308,6 @@ class RequisicionController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Debug: Verificar qué datos se están obteniendo
         Log::info('Requisiciones con estatus:', [
             'count' => $requisiciones->count(),
             'data' => $requisiciones->map(function ($req) {
@@ -351,7 +333,7 @@ class RequisicionController extends Controller
             'estatusHistorial.estatusRelation'
         ])
             ->whereHas('ultimoEstatus', function ($query) {
-                $query->whereIn('estatus_id', [4, 5, 7, 8, 12]); // incluir 4,5,7,8,12
+                $query->whereIn('estatus_id', [4, 5, 7, 8, 12]);
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -366,7 +348,6 @@ class RequisicionController extends Controller
         try {
             $requisicion = Requisicion::findOrFail($id);
 
-            // Verificar que el usuario es el propietario de la requisición
             $userId = session('user.id');
             if ($requisicion->user_id != $userId) {
                 return response()->json([
@@ -375,7 +356,6 @@ class RequisicionController extends Controller
                 ], 403);
             }
 
-            // Verificar que no esté ya cancelada o en un estatus final
             $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
             if (in_array($ultimoEstatus, [6, 9, 10, 5])) {
                 return response()->json([
@@ -384,15 +364,13 @@ class RequisicionController extends Controller
                 ], 400);
             }
 
-            // Desactivar el estatus actual
             Estatus_Requisicion::where('requisicion_id', $requisicion->id)
                 ->update(['estatus' => 0]);
 
-            // Crear nuevo registro de estatus "Cancelada" (6)
             Estatus_Requisicion::create([
                 'requisicion_id' => $requisicion->id,
-                'estatus_id'     => 6, // Cancelada
-                'estatus'        => 1, // activo
+                'estatus_id'     => 6,
+                'estatus'        => 1,
                 'date_update'    => now(),
                 'comentario'     => 'Cancelada por el solicitante'
             ]);
@@ -414,9 +392,6 @@ class RequisicionController extends Controller
         }
     }
 
-    /**
-     * Reenviar una requisición cancelada (cambiar estatus a 1)
-     */
     public function reenviar($id)
     {
         DB::beginTransaction();
@@ -424,7 +399,6 @@ class RequisicionController extends Controller
         try {
             $requisicion = Requisicion::findOrFail($id);
 
-            // Verificar que el usuario es el propietario de la requisición
             $userId = session('user.id');
             if ($requisicion->user_id != $userId) {
                 return response()->json([
@@ -433,7 +407,6 @@ class RequisicionController extends Controller
                 ], 403);
             }
 
-            // Verificar que esté cancelada (estatus 6)
             $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
             if ($ultimoEstatus != 6) {
                 return response()->json([
@@ -442,15 +415,13 @@ class RequisicionController extends Controller
                 ], 400);
             }
 
-            // Desactivar el estatus actual (Cancelada)
             Estatus_Requisicion::where('requisicion_id', $requisicion->id)
                 ->update(['estatus' => 0]);
 
-            // Crear nuevo registro de estatus "Iniciada" (1)
             Estatus_Requisicion::create([
                 'requisicion_id' => $requisicion->id,
-                'estatus_id'     => 1, // Iniciada
-                'estatus'        => 1, // activo
+                'estatus_id'     => 1,
+                'estatus'        => 1,
                 'date_update'    => now(),
                 'comentario'     => 'Reenviada por el solicitante'
             ]);
@@ -485,7 +456,6 @@ class RequisicionController extends Controller
         return view('requisiciones.todas', compact('requisiciones'));
     }
 
-    // Agregar este método al controlador
     public function entregarRequisicion(Request $request, $requisicionId)
     {
         try {
@@ -501,10 +471,10 @@ class RequisicionController extends Controller
                 ], 400);
             }
 
-            // obtener usuario que registra la entrega desde session
             $userIdSession = session('user.id') ?? null;
             $userNameSession = session('user.name') ?? session('user.email') ?? null;
 
+            $entregaIds = [];
             foreach ($items as $item) {
                 $productoId = $item['producto_id'] ?? null;
                 $cantidad = (int)($item['cantidad'] ?? 0);
@@ -514,13 +484,11 @@ class RequisicionController extends Controller
                     return response()->json(['success' => false, 'message' => 'Datos de producto inválidos'], 400);
                 }
 
-                // Obtener cantidad total solicitada para este producto en la requisición
                 $totalReq = (int) DB::table('producto_requisicion')
                     ->where('id_requisicion', $requisicionId)
                     ->where('id_producto', $productoId)
                     ->value('pr_amount');
 
-                // Si existe distribución por centros, usar la suma de centro_producto.amount
                 $sumaCentros = (int) DB::table('centro_producto')
                     ->where('requisicion_id', $requisicionId)
                     ->where('producto_id', $productoId)
@@ -528,8 +496,6 @@ class RequisicionController extends Controller
 
                 if ($sumaCentros > 0) $totalReq = $sumaCentros;
 
-                // Cantidad ya registrada en entregas: contar entregas confirmadas (cantidad_recibido)
-                // y entregas pendientes (cantidad) usando la misma lógica que la UI.
                 $registrado = (int) (DB::table('entrega')
                     ->where('requisicion_id', $requisicionId)
                     ->where('producto_id', $productoId)
@@ -539,7 +505,6 @@ class RequisicionController extends Controller
 
                 $pendiente = max(0, $totalReq - $registrado);
 
-                // Log para depuración
                 Log::info('Entrega validación', [
                     'requisicion_id' => $requisicionId,
                     'producto_id' => $productoId,
@@ -562,34 +527,31 @@ class RequisicionController extends Controller
                     ], 400);
                 }
 
-                // Registrar entrega (pendiente de confirmación en cantidad_recibido)
-                // Guardar únicamente quien entrega (user_id, user_name).
-                // No aceptar ni almacenar reception_user desde la petición: debe guardarse al confirmar la recepción.
-                DB::table('entrega')->insert([
+                $insertId = DB::table('entrega')->insertGetId([
                     'requisicion_id' => $requisicionId,
                     'producto_id' => $productoId,
                     'cantidad' => $cantidad,
                     'cantidad_recibido' => null,
                     'fecha' => now()->toDateString(),
-                    // usuario que entrega (desde sesión)
                     'user_id' => $userIdSession,
                     'user_name' => $userNameSession,
-                    // reception_* dejar en NULL hasta que se confirme la recepción
                     'reception_user_id' => null,
                     'reception_user' => null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+
+                $entregaIds[] = $insertId;
             }
 
-            // Desactivar estatus previo y crear estatus 8
             Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
+            $entregaRef = !empty($entregaIds) ? $entregaIds[0] : null;
             Estatus_Requisicion::create([
                 'requisicion_id' => $requisicionId,
-                'estatus_id' => 8,
+                'estatus_id' => 12,
                 'estatus' => 1,
                 'comentario' => 'Entrega registrada desde módulo de requisiciones',
-                'user_id' => session('user.id'),
+                'entrega_id' => $entregaRef,
                 'date_update' => now(),
             ]);
 
@@ -618,16 +580,13 @@ class RequisicionController extends Controller
             $max = (int) $entrega->cantidad;
             $cantidad = min($cantidad, $max);
 
-            // Obtener receptor desde sesión (varias keys posibles)
             $sessionUser = session('user') ?? [];
-            // Preferir sesión; si no está disponible usar payload (por ejemplo AJAX sin cookies)
             $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? session('user_id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? $request->input('receptor_user_id') ?? null;
             $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_name') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
 
             $receiverId = $receiverId !== null ? (is_numeric($receiverId) ? (int)$receiverId : $receiverId) : null;
             $receiverName = is_string($receiverName) ? trim($receiverName) : $receiverName;
 
-            // Preparar datos a actualizar: cantidad recibida y solo columnas de receptor (no tocar quien entrega)
             $updateData = [];
             if (Schema::hasColumn('entrega', 'cantidad_recibido')) {
                 $updateData['cantidad_recibido'] = $cantidad;
@@ -635,7 +594,6 @@ class RequisicionController extends Controller
                 $updateData['cantidad_recibida'] = $cantidad;
             }
 
-            // columnas receptoras posibles
             $nameCols = ['reception_user', 'recepcion_user', 'receptor_user'];
             $idCols = ['reception_user_id', 'recepcion_user_id', 'receptor_user_id'];
 
@@ -693,16 +651,13 @@ class RequisicionController extends Controller
             $max = (int) $rec->cantidad;
             $cantidad = min($cantidad, $max);
 
-            // Obtener receptor desde sesión (varias keys posibles)
             $sessionUser = session('user') ?? [];
-            // Preferir sesión; si no está disponible usar payload (por ejemplo AJAX sin cookies)
             $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? session('user_id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? $request->input('receptor_user_id') ?? null;
             $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_name') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
 
             $receiverId = $receiverId !== null ? (is_numeric($receiverId) ? (int)$receiverId : $receiverId) : null;
             $receiverName = is_string($receiverName) ? trim($receiverName) : $receiverName;
 
-            // Preparar datos a actualizar: cantidad recibida y solo columnas de receptor
             $updateData = [];
             if (Schema::hasColumn('recepcion', 'cantidad_recibida')) {
                 $updateData['cantidad_recibida'] = $cantidad;
@@ -751,10 +706,6 @@ class RequisicionController extends Controller
         }
     }
 
-    /**
-     * Confirmar varias recepciones/entregas en una sola petición.
-     * Espera: { tipo: 'entrega'|'recepcion', items: [{id,cantidad}, ...] }
-     */
     public function confirmarRecepcionesMasivo(Request $request)
     {
         $tipo = $request->input('tipo', 'recepcion');
@@ -764,7 +715,6 @@ class RequisicionController extends Controller
             return response()->json(['success' => false, 'message' => 'No hay items para procesar'], 400);
         }
 
-        // Obtener receptor preferentemente desde sesión
         $sessionUser = session('user') ?? [];
         $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? null;
         $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? data_get($sessionUser, 'email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? null;
@@ -789,7 +739,6 @@ class RequisicionController extends Controller
                     continue;
                 }
 
-                // Construir update
                 $update = [];
                 foreach ($qtyCols as $c) {
                     if (Schema::hasColumn($table, $c)) { $update[$c] = $cantidad; break; }
@@ -825,10 +774,8 @@ class RequisicionController extends Controller
         }
     }
 
-    // Método para actualizar el estatus de una requisición
     private function setRequisicionStatus(int $requisicionId, int $estatusId, string $comentario = null)
     {
-        // Si el estatus activo ya es el mismo, no hacer nada
         $current = Estatus_Requisicion::where('requisicion_id', $requisicionId)
             ->where('estatus', 1)
             ->orderBy('date_update', 'desc')
@@ -838,7 +785,6 @@ class RequisicionController extends Controller
             return;
         }
 
-        // Desactivar estatus previos y crear nuevo registro para histórico
         Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
 
         Estatus_Requisicion::create([
@@ -847,20 +793,16 @@ class RequisicionController extends Controller
             'estatus'        => 1,
             'date_update'    => now(),
             'comentario'     => $comentario,
-            'user_id'        => session('user.id'),
         ]);
     }
 
-    // Verificar si una requisición está completa (todas las entregas registradas y confirmadas)
     private function isRequisitionComplete(int $requisicionId): bool
     {
-        // Obtener todos los productos de la requisición
         $productos = DB::table('producto_requisicion')
             ->where('id_requisicion', $requisicionId)
             ->pluck('id_producto');
 
         foreach ($productos as $productoId) {
-            // Verificar si hay entregas pendientes de confirmación
             $pendientes = DB::table('entrega')
                 ->where('requisicion_id', $requisicionId)
                 ->where('producto_id', $productoId)
