@@ -117,34 +117,36 @@
         </div>
 
         <!-- Filtro de categoría -->
-        <div class="mb-4">
+        <div class="mb-4 relative">
             <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-            <input list="categoriasList" id="categoriaFilter" class="w-full border rounded-lg p-2"
-                placeholder="Escribe o selecciona una categoría">
-            <datalist id="categoriasList">
+            <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
+            <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
                 @php
                 $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
                 @endphp
-                @foreach ($categoriasUnicas->take(5) as $categoria)
-                <option value="{{ $categoria }}"></option>
+                @foreach ($categoriasUnicas as $categoria)
+                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
+                    {{ $categoria }}
+                </div>
                 @endforeach
-            </datalist>
+            </div>
         </div>
 
         <!-- Selección de producto y cantidad -->
         <div class="grid grid-cols-3 gap-4 items-end">
-            <div>
+            <div class="relative">
                 <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-                <input list="productosList" id="productoSelect" class="w-full border rounded-lg p-2"
-                    placeholder="Escribe o selecciona un producto">
-                <datalist id="productosList">
-                    @foreach ($productos->take(5) as $p)
-                    <option value="{{ $p->name_produc }} ({{ $p->unit_produc }})" data-id="{{ $p->id }}"
+                <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
+                <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
+                    @foreach ($productos as $p)
+                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
+                        onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
                         data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
                         data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                    </option>
+                        {{ $p->name_produc }} ({{ $p->unit_produc }})
+                    </div>
                     @endforeach
-                </datalist>
+                </div>
             </div>
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
@@ -241,7 +243,7 @@
 
 @section('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
     const $ = s => document.querySelector(s);
     const $$ = s => document.querySelectorAll(s);
 
@@ -310,51 +312,179 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ====== Categorías ======
-    categoriaFilter.setAttribute("list", "categoriasList");
-    categoriaFilter.addEventListener("input", () => {
-        renderDatalist(categoriaFilter, categoriasList, categorias, c => c);
-        // Al cambiar la categoría, filtrar productos
+    // Nota: usamos dropdowns personalizados; no usar los atributos datalist/renderDatalist aquí.
+    // Los listeners para input/focus se gestionan más abajo para los dropdowns personalizados.
+
+    // Mostrar/filtrar opciones (implementación consolidada)
+    const categoriasListDiv = document.getElementById('categoriasList');
+    const productosListDiv = document.getElementById('productosList');
+
+    // Re-attach option handlers to allow multiple selections and prevent dropdown from disappearing permanently
+    function attachOptionHandlers() {
+        if (categoriasListDiv) {
+            categoriasListDiv.querySelectorAll('div').forEach(div => {
+                // remove previous to avoid duplicates
+                if (div._handler) div.removeEventListener('mousedown', div._handler);
+                const handler = function(e) {
+                    e.preventDefault();
+                    // use global seleccionarOpcion (pass event so it can stop propagation)
+                    window.seleccionarOpcion && window.seleccionarOpcion(e, div, 'categoriaFilter');
+                };
+                div._handler = handler;
+                div.addEventListener('mousedown', handler);
+            });
+        }
+        if (productosListDiv) {
+            productosListDiv.querySelectorAll('div').forEach(div => {
+                if (div._handlerProd) div.removeEventListener('mousedown', div._handlerProd);
+                const handler = function(e) {
+                    e.preventDefault();
+                    window.seleccionarOpcion && window.seleccionarOpcion(e, div, 'productoSelect');
+                };
+                div._handlerProd = handler;
+                div.addEventListener('mousedown', handler);
+            });
+        }
+    }
+
+    // Attach once on load
+    attachOptionHandlers();
+
+    function filtrarDropdown(input, listId) {
+        const dropdown = document.getElementById(listId);
+        const filtro = (input.value || '').toLowerCase();
+        let hayCoincidencias = false;
+
+        dropdown.querySelectorAll('div').forEach(opcion => {
+            const txt = (opcion.textContent || '').toLowerCase();
+            if (txt.includes(filtro)) {
+                opcion.style.display = 'block';
+                hayCoincidencias = true;
+            } else {
+                opcion.style.display = 'none';
+            }
+        });
+
+        dropdown.style.display = hayCoincidencias ? 'block' : 'none';
+    }
+
+    // Mostrar dropdown al enfocar
+    categoriaFilter.addEventListener('focus', function() {
+        filtrarDropdown(this, 'categoriasList');
+    });
+    productoSelect.addEventListener('focus', function() {
+        filtrarDropdown(this, 'productosList');
+        // Si hay categoría escrita, aplicar filtro de categoría también
         filtrarProductosPorCategoria();
     });
 
-    // ====== Productos ======
-    productoSelect.setAttribute("list", "productosList");
-    productoSelect.addEventListener("input", () => {
-        filtrarProductosPorCategoria();
-        mostrarUnidadSeleccionada();
-    });
-
+    // Filtrar productos teniendo en cuenta categoría y texto
     function filtrarProductosPorCategoria() {
-        const categoriaSeleccionada = categoriaFilter.value;
-        let filtrados = productosData;
-        if (categoriaSeleccionada && categorias.includes(categoriaSeleccionada)) {
-            filtrados = filtrados.filter(p => p.categoria === categoriaSeleccionada);
-        }
-        renderDatalist(productoSelect, productosList, filtrados, p => `${p.nombre} (${p.unidad})`);
-    }
+        const categoriaSeleccionada = (categoriaFilter.value || '').trim();
+        const texto = (productoSelect.value || '').toLowerCase();
+        let hay = false;
 
-    function mostrarUnidadSeleccionada() {
-        const texto = productoSelect.value;
-        const prod = productosData.find(p => `${p.nombre} (${p.unidad})` === texto);
-        if (prod) {
-            unidadMedidaSpan.textContent = 'Unidad: ' + prod.unidad;
+        productosListDiv.querySelectorAll('div').forEach(item => {
+            const cat = (item.getAttribute('data-categoria') || '').toString();
+            const txt = (item.textContent || '').toLowerCase();
+            const matchesCat = !categoriaSeleccionada || cat === categoriaSeleccionada;
+            const matchesText = txt.includes(texto);
+            if (matchesCat && matchesText) {
+                item.style.display = 'block';
+                hay = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Mostrar el dropdown de productos solo si el input de producto tiene el foco
+        if (document.activeElement === productoSelect) {
+            productosListDiv.style.display = hay ? 'block' : 'none';
         } else {
-            unidadMedidaSpan.textContent = 'Unidad: -';
+            productosListDiv.style.display = 'none';
         }
     }
 
-    // Inicializar datalist al abrir modal
-    abrirBtn.addEventListener('click', () => {
-        renderDatalist(categoriaFilter, categoriasList, categorias, c => c);
+    // Seleccionar una opción (actualiza datos para producto)
+    // Exponer función global para onclick inline
+    window.seleccionarOpcion = function(e, element, inputId) {
+        // evitar que el click burste el handler de documento
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        const input = document.getElementById(inputId);
+        input.value = element.textContent.trim();
+         // Si es producto, guardar metadatos
+         if (inputId === 'productoSelect') {
+             input.dataset.id = element.getAttribute('data-id') || '';
+             input.dataset.nombre = element.getAttribute('data-nombre') || '';
+             input.dataset.proveedor = element.getAttribute('data-proveedor') || '';
+             input.dataset.categoria = element.getAttribute('data-categoria') || '';
+             input.dataset.unidad = element.getAttribute('data-unidad') || '';
+             unidadMedidaSpan.textContent = input.dataset.unidad ? 'Unidad: ' + input.dataset.unidad : 'Unidad: -';
+         }
+         // Si es categoría, aplicar filtro en productos
+         if (inputId === 'categoriaFilter') {
+             filtrarProductosPorCategoria();
+         }
+        // ocultar dropdown del input seleccionado (categoria o producto)
+        if (element && element.parentElement) element.parentElement.style.display = 'none';
+         // mantener foco para permitir borrar/editar inmediatamente
+         input.focus();
+     }
+
+    // Actualizar filtros en input events
+    categoriaFilter.addEventListener('input', function() {
+        // asegurar que el dropdown de categorías se muestre al escribir o borrar
+        categoriasListDiv.style.display = 'block';
+        filtrarDropdown(this, 'categoriasList');
+        // actualizar listado oculto de productos, pero no mostrar el dropdown de productos
         filtrarProductosPorCategoria();
-        mostrarUnidadSeleccionada();
+    });
+    // Mostrar dropdown también al presionar Backspace/Delete para permitir re-aparecer
+    categoriaFilter.addEventListener('keydown', function(evt) {
+        if (evt.key === 'Backspace' || evt.key === 'Delete') {
+            categoriasListDiv.style.display = 'block';
+            // pequeño retardo para que el input.value ya refleje el cambio
+            setTimeout(() => filtrarDropdown(this, 'categoriasList'), 0);
+            filtrarProductosPorCategoria();
+        }
+    });
+    categoriaFilter.addEventListener('keyup', function() {
+        if ((this.value || '').trim() === '') {
+            categoriasListDiv.style.display = 'block';
+            filtrarDropdown(this, 'categoriasList');
+            filtrarProductosPorCategoria();
+        }
+    });
+    productoSelect.addEventListener('input', function() {
+        productosListDiv.style.display = 'block';
+        filtrarProductosPorCategoria();
+    });
+    productoSelect.addEventListener('keyup', function() {
+        if ((this.value || '').trim() === '') {
+            productosListDiv.style.display = 'block';
+            filtrarProductosPorCategoria();
+        }
+    });
+
+    // Ocultar al hacer click fuera
+    document.addEventListener('click', function(e) {
+        // categorías
+        if (!categoriasListDiv.contains(e.target) && !categoriaFilter.contains(e.target)) {
+            categoriasListDiv.style.display = 'none';
+        }
+        // productos
+        if (!productosListDiv.contains(e.target) && !productoSelect.contains(e.target)) {
+            productosListDiv.style.display = 'none';
+        }
     });
 
     // Event listeners para abrir/cerrar modales
     abrirBtn.addEventListener('click', () => {
         modalProducto.classList.remove('hidden');
         resetModalProducto();
+        // reattach handlers in case markup refreshed
+        attachOptionHandlers();
     });
     
     cerrarBtn.addEventListener('click', () => {
