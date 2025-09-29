@@ -86,6 +86,7 @@
                             <th class="px-4 py-2 text-left">Proveedor</th>
                             <th class="px-4 py-2 text-left">Stock</th>
                             <th class="px-4 py-2 text-left">Precio</th>
+                            <th class="px-4 py-2 text-left">IVA</th>
                             <th class="px-4 py-2 text-left">Estado</th>
                             <th class="px-4 py-2 text-center">Acciones</th>
                         </tr>
@@ -98,6 +99,7 @@
                             <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
                             <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
                             <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
+                            <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
                             <td class="px-4 py-2">
                                 @if($producto->trashed())
                                 <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
@@ -128,7 +130,7 @@
                                     </form>
                                     @else
                                     <button
-                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
+                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, {{ $producto->iva ?? 0 }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
                                         class="text-blue-600 hover:text-blue-800" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -387,6 +389,11 @@
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">IVA (%)</label>
+                                <input type="number" id="iva" name="iva" step="0.01" min="0" class="w-full px-3 py-2 border rounded-md" value="0">
+                                <span id="iva_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
                             <div class="relative mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
                                 <div class="relative">
@@ -642,6 +649,12 @@
                                 <span id="solicitud_price_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">IVA (%)</label>
+                                <input type="number" id="solicitud_iva" name="iva" step="0.01" min="0" value="0" class="w-full px-3 py-2 border rounded-md">
+                                <span id="solicitud_iva_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+
                             <!-- Unidad de medida -->
                             <div class="relative mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida *</label>
@@ -802,6 +815,18 @@
     }
 
     function openEditModal(id, nombre, categoria, proveedorId, stock, precio, unidad, descripcion) {
+        // backward compatible: support signature with iva param
+        let ivaParam = 0;
+        if (arguments.length === 9) {
+            // new signature: id, nombre, categoria, proveedorId, stock, precio, iva, unidad, descripcion
+            ivaParam = arguments[6];
+            precio = arguments[5];
+            unidad = arguments[7];
+            descripcion = arguments[8];
+        } else if (arguments.length === 8) {
+            // old signature
+            ivaParam = 0;
+        }
         document.getElementById('modalTitle').textContent = 'Editar Producto';
         document.getElementById('productId').value = id;
         document.getElementById('formMethod').value = 'PUT';
@@ -810,6 +835,7 @@
         document.getElementById('name_produc').value = nombre;
         document.getElementById('stock_produc').value = stock;
         document.getElementById('price_produc').value = precio;
+        document.getElementById('iva').value = ivaParam;
         const uIn = document.getElementById('unit_input');
         const uHidden = document.getElementById('unit_produc');
         if (uIn) uIn.value = unidad;
@@ -980,6 +1006,7 @@
         const stock_produc = document.getElementById('stock_produc');
         const price_produc = document.getElementById('price_produc');
         const unit_produc = document.getElementById('unit_produc');
+        const ivaElem = document.getElementById('iva');
         
         if (!name_produc.value.trim()) {
             document.getElementById('name_produc_error').textContent = 'El nombre del producto es requerido';
@@ -1008,6 +1035,12 @@
         if (!price_produc.value || price_produc.value < 0) {
             document.getElementById('price_produc_error').textContent = 'El precio debe ser un número válido mayor o igual a 0';
             document.getElementById('price_produc_error').classList.remove('hidden');
+            isValid = false;
+        }
+        
+        if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) {
+            document.getElementById('iva_error').textContent = 'El IVA debe ser un número válido mayor o igual a 0';
+            document.getElementById('iva_error').classList.remove('hidden');
             isValid = false;
         }
         
@@ -1470,7 +1503,7 @@
         }
     });
     // ===== Inicializar selects personalizados (Producto y Solicitud) =====
-    document.addEventListener('DOMContentLoaded', function(){
+ document.addEventListener('DOMContentLoaded', function(){
         // Producto - Proveedor
         const provIn = document.getElementById('proveedor_input');
         const provDrop = document.getElementById('proveedor_dropdown');
@@ -1593,7 +1626,7 @@
                 sCatIn.value = val;
                 if (sCatHidden) sCatHidden.value = val;
                 sCatDrop.classList.add('hidden');
-                if (sCatErr) sCatErr.classList.add('hidden');
+                if (sCatErr) sCatErr.classList.remove('hidden');
             });
         }
 
@@ -1616,6 +1649,12 @@
                 if (suErr) suErr.classList.add('hidden');
             });
         }
+    });
+    
+    // Cuando se abre el modal de añadir desde solicitud, asegurarse de que el campo IVA esté disponible
+    document.addEventListener('DOMContentLoaded', function(){
+        const solIva = document.getElementById('solicitud_iva');
+        if (solIva) solIva.value = solIva.value || 0;
     });
         </script>
 

@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Producto extends Model
 {
     use HasFactory, SoftDeletes;
-    use HasFactory;
 
     protected $table = 'productos';
 
@@ -23,7 +22,13 @@ class Producto extends Model
         'stock_produc',
         'description_produc',
         'price_produc',
+        'iva',
         'unit_produc'
+    ];
+
+    protected $casts = [
+        'price_produc' => 'decimal:2',
+        'iva' => 'decimal:2',
     ];
 
     protected static function booted()

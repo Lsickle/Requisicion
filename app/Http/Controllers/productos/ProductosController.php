@@ -80,6 +80,7 @@ class ProductosController extends Controller
                 'proveedor_id' => 'required|exists:proveedores,id',
                 'stock_produc' => 'required|integer|min:0',
                 'price_produc' => 'required|numeric|min:0',
+                'iva' => 'nullable|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
                 'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
             ]);
@@ -91,7 +92,8 @@ class ProductosController extends Controller
                     ->with('error', 'Por favor, corrige los errores en el formulario.');
             }
 
-            Producto::create($request->all());
+            // Guardar solo campos permitidos
+            Producto::create($request->only(['proveedor_id','categoria_produc','name_produc','stock_produc','description_produc','price_produc','unit_produc','iva']));
 
             // Si viene de una solicitud, eliminar la solicitud
             if ($request->has('solicitud_id') && $request->solicitud_id) {
@@ -158,6 +160,7 @@ public function storeProveedor(Request $request)
                 'stock_produc' => 'required|integer|min:0',
                 'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
                 'price_produc' => 'required|numeric|min:0',
+                'iva' => 'nullable|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
             ]);
 
@@ -169,14 +172,15 @@ public function storeProveedor(Request $request)
             }
 
             $producto->update([
-                'proveedor_id' => $request->proveedor_id,
-                'categoria_produc' => $request->categoria_produc,
-                'name_produc' => $request->name_produc,
-                'stock_produc' => $request->stock_produc,
-                'description_produc' => $request->description_produc,
-                'price_produc' => $request->price_produc,
-                'unit_produc' => $request->unit_produc,
-            ]);
+                 'proveedor_id' => $request->proveedor_id,
+                 'categoria_produc' => $request->categoria_produc,
+                 'name_produc' => $request->name_produc,
+                 'stock_produc' => $request->stock_produc,
+                 'description_produc' => $request->description_produc,
+                 'price_produc' => $request->price_produc,
+                'iva' => $request->iva ?? 0,
+                 'unit_produc' => $request->unit_produc,
+             ]);
 
             return redirect()->route('productos.gestor')->with('success', 'Producto actualizado exitosamente.');
         } catch (\Exception $e) {

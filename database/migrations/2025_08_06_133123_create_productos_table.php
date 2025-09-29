@@ -19,6 +19,7 @@ return new class extends Migration
             $table->integer('stock_produc'); #stock del producto
             $table->text('description_produc'); #descripcion 
             $table->decimal('price_produc'); #precio del producto
+            $table->decimal('iva')->nullable(); #iva del producto
             $table->text('unit_produc'); #unidad de medida del producto
             $table->timestamps();
             $table->softDeletes();
