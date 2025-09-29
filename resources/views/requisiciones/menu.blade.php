@@ -55,7 +55,7 @@
 
             @if($hasPermission('solicitar producto'))
             <!-- Solicitar Nuevo Producto -->
-            <div class="w-full max-w-sm min-h-[300px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 flex flex-col justify-between">
+            <div class="w-full max-w-sm min-h-[315px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
                         <i class="fas fa-box text-purple-600 text-2xl"></i>
@@ -71,7 +71,7 @@
 
             @if($hasPermission('ver requisicion'))
             <!-- Historial de Requisiciones -->
-            <div class="w-full max-w-sm min-h-[300px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 flex flex-col justify-between">
+            <div class="w-full max-w-sm min-h-[315px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                         <i class="fas fa-list text-green-600 text-2xl"></i>

@@ -173,6 +173,7 @@
             <p>Autorizado por</p>
         </div>
         <div class="signature-box">
+            <p class="font-semibold mb-2">{{ $orden->oc_user ?? session('user.name') ?? 'N/A' }}</p>
             <div class="signature-line"></div>
             <p>Elaborado por</p>
         </div>

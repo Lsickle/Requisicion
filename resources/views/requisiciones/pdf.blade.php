@@ -273,8 +273,9 @@
         <!-- Firmas -->
         <div class="signatures">
             <div class="signature-box">
+                <p class="font-semibold mb-2">{{ $requisicion->name_user ?? 'Desconocido' }}</p>
                 <div class="signature-line"></div>
-                <p>Solicitante</p>
+                <p class="mt-2">Solicitante</p>
             </div>
             <div class="clear"></div>
         </div>

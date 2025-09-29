@@ -116,48 +116,46 @@
             <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
-        <!-- Filtro de categoría -->
+        <!-- Selección de producto (mayor ancho) -->
         <div class="mb-4 relative">
-            <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-            <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
-            <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
-                @php
-                $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
-                @endphp
-                @foreach ($categoriasUnicas as $categoria)
-                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
-                    {{ $categoria }}
+            <label class="block text-gray-600 font-semibold mb-1">Producto</label>
+            <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
+            <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
+                @foreach ($productos as $p)
+                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
+                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
+                    data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
+                    data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
+                    {{ $p->name_produc }} ({{ $p->unit_produc }})
                 </div>
                 @endforeach
             </div>
         </div>
 
-        <!-- Selección de producto y cantidad -->
-        <div class="grid grid-cols-3 gap-4 items-end">
+        <!-- Filtro de categoría y Cantidad -->
+        <div class="grid grid-cols-3 gap-4 items-end mb-4">
             <div class="relative">
-                <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-                <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
-                <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                    @foreach ($productos as $p)
-                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
-                        onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                        data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
-                        data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                        {{ $p->name_produc }} ({{ $p->unit_produc }})
+                <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
+                <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
+                <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
+                    @php
+                    $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
+                    @endphp
+                    @foreach ($categoriasUnicas as $categoria)
+                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
+                        {{ $categoria }}
                     </div>
                     @endforeach
                 </div>
             </div>
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
-                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1"
-                    placeholder="Ej: 100">
+                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
             </div>
             <div class="flex items-center">
                 <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
             </div>
         </div>
-
 
         <div class="flex justify-end mt-6">
             <button type="button" id="siguienteModalBtn"
@@ -351,6 +349,18 @@
                     window.seleccionarOpcion && window.seleccionarOpcion(e, div, 'productoSelect');
                 };
                 div._handlerProd = handler;
+                div.addEventListener('mousedown', handler);
+            });
+        }
+        // centros
+        if (typeof centrosDropdown !== 'undefined' && centrosDropdown) {
+            centrosDropdown.querySelectorAll('div').forEach(div => {
+                if (div._handlerCentro) div.removeEventListener('mousedown', div._handlerCentro);
+                const handler = function(e) {
+                    e.preventDefault();
+                    window.seleccionarCentro && window.seleccionarCentro(e, div);
+                };
+                div._handlerCentro = handler;
                 div.addEventListener('mousedown', handler);
             });
         }
@@ -588,6 +598,8 @@
         // Cambiar de modal
         modalProducto.classList.add('hidden');
         modalDistribucion.classList.remove('hidden');
+        // asegurar handlers para el dropdown de centros
+        attachOptionHandlers();
     });
     
     volverBtn.addEventListener('click', () => {
@@ -629,6 +641,12 @@
     function resetModalDistribucion() {
         centroSelect.value = '';
         cantidadCentroInput.value = '';
+        if (typeof centrosDropdown !== 'undefined' && centrosDropdown) {
+            centrosDropdown.style.display = 'none';
+        }
+        if (typeof centroFilter !== 'undefined' && centroFilter) {
+            centroFilter.value = '';
+        }
         productoActual = null;
         cantidadTotal = 0;
         cantidadAsignada = 0;

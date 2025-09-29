@@ -18,8 +18,12 @@ class OrdenCompraFactory extends Factory
         $hashSource = '1|' . $orderOc . '|' . number_format($subtotal, 2) . '|' . now()->toDateTimeString();
         $validationHash = hash_hmac('sha256', $hashSource, $secret);
 
+        // intentar usar una requisicion existente
+        $requisicionId = Requisicion::inRandomOrder()->value('id') ?: Requisicion::factory();
+
         return [
-            'requisicion_id' => Requisicion::factory(),
+            'requisicion_id' => $requisicionId,
+            'oc_user' => $this->faker->name(),
             'observaciones'  => $this->faker->optional()->sentence(),
             'date_oc'        => $this->faker->date(),
             'methods_oc'     => $this->faker->randomElement(['Transferencia','Efectivo','Crédito']),

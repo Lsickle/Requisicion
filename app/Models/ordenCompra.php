@@ -17,6 +17,7 @@ class OrdenCompra extends Model
 
     protected $fillable = [
         'requisicion_id',
+        'oc_user',
         'observaciones',
         'date_oc',
         'methods_oc',
@@ -27,6 +28,7 @@ class OrdenCompra extends Model
 
     // Permitir cargar/guardar PDF en la orden (sin casts especiales)
     protected $casts = [
+        'date_oc' => 'date',
         // no class cast for binary blobs; store raw string/blob
     ];
 

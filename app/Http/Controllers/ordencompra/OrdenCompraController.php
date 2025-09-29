@@ -202,6 +202,8 @@ class OrdenCompraController extends Controller
             try {
                 $dirty = false;
                 if (Schema::hasColumn('orden_compras', 'user_id') && $sessionUserId) { $orden->user_id = $sessionUserId; $dirty = true; }
+                // Guardar nombre del creador en 'oc_user' si la columna existe
+                if (Schema::hasColumn('orden_compras', 'oc_user') && $sessionUserName) { $orden->oc_user = $sessionUserName; $dirty = true; }
                 if (Schema::hasColumn('orden_compras', 'name_user') && $sessionUserName) { $orden->name_user = $sessionUserName; $dirty = true; }
                 if (Schema::hasColumn('orden_compras', 'user_name') && $sessionUserName) { $orden->user_name = $sessionUserName; $dirty = true; }
                 if (Schema::hasColumn('orden_compras', 'email_user') && $sessionUserEmail) { $orden->email_user = $sessionUserEmail; $dirty = true; }
