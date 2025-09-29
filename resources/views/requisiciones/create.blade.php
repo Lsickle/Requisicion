@@ -1,17 +1,14 @@
 @extends('layouts.app')
 
 @section('title', 'Crear Requisición')
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome para iconos -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
 @section('content')
-<x-sidebar/>
+<x-sidebar />
 <div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white shadow-xl rounded-2xl p-6">
-        <h1 class="text-2xl font-bold text-gray-700 mb-6">Crear Requisición</h1>
+        <div class="flex justify-center items-center gap-8 py-4 mb-8">
+            <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
+            <h1 class="text-3xl font-bold text-gray-700">Crear Requisición</h1>
+        </div>
 
         @if (session('success'))
         <script>
@@ -47,8 +44,10 @@
                     <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
                     <select name="Recobrable" class="w-full border rounded-lg p-2" required>
                         <option value="">-- Selecciona --</option>
-                        <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable</option>
-                        <option value="No recobrable" {{ old('Recobrable')=='No recobrable' ? 'selected' : '' }}>No recobrable</option>
+                        <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable
+                        </option>
+                        <option value="No recobrable" {{ old('Recobrable')=='No recobrable' ? 'selected' : '' }}>No
+                            recobrable</option>
                     </select>
                 </div>
                 <div>
@@ -56,7 +55,8 @@
                     <select name="prioridad_requisicion" class="w-full border rounded-lg p-2" required>
                         <option value="">-- Selecciona --</option>
                         <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja</option>
-                        <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media</option>
+                        <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media
+                        </option>
                         <option value="alta" {{ old('prioridad_requisicion')=='alta' ? 'selected' : '' }}>Alta</option>
                     </select>
                 </div>
@@ -64,19 +64,22 @@
 
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Justificación</label>
-                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2" required>{{ old('justify_requisicion') }}</textarea>
+                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2"
+                    required>{{ old('justify_requisicion') }}</textarea>
             </div>
 
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Detalles Adicionales</label>
-                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2" required>{{ old('detail_requisicion') }}</textarea>
+                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2"
+                    required>{{ old('detail_requisicion') }}</textarea>
             </div>
 
             <hr class="my-4">
 
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
-                <button type="button" id="abrirModalBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
+                <button type="button" id="abrirModalBtn"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
                     + Añadir Producto
                 </button>
             </div>
@@ -96,7 +99,8 @@
             </div>
 
             <div class="flex justify-end">
-                <button type="submit" id="submitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
+                <button type="submit" id="submitBtn"
+                    class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
                     Guardar Requisición
                 </button>
             </div>
@@ -115,45 +119,47 @@
         <!-- Filtro de categoría -->
         <div class="mb-4">
             <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-            <select id="categoriaFilter" class="w-full border rounded-lg p-2">
-                <option value="">-- Todas las categorías --</option>
+            <input list="categoriasList" id="categoriaFilter" class="w-full border rounded-lg p-2"
+                placeholder="Escribe o selecciona una categoría">
+            <datalist id="categoriasList">
                 @php
-                    $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
+                $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
                 @endphp
-                @foreach ($categoriasUnicas as $categoria)
-                    <option value="{{ $categoria }}">{{ $categoria }}</option>
+                @foreach ($categoriasUnicas->take(5) as $categoria)
+                <option value="{{ $categoria }}"></option>
                 @endforeach
-            </select>
+            </datalist>
         </div>
 
         <!-- Selección de producto y cantidad -->
         <div class="grid grid-cols-3 gap-4 items-end">
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-                <select id="productoSelect" class="w-full border rounded-lg p-2">
-                    <option value="">-- Selecciona producto --</option>
-                    @foreach ($productos as $p)
-                    <option value="{{ $p->id }}" 
-                            data-nombre="{{ $p->name_produc }}"
-                            data-proveedor="{{ $p->proveedor_id ?? '' }}" 
-                            data-categoria="{{ $p->categoria_produc }}"
-                            data-unidad="{{ $p->unit_produc }}">
-                        {{ $p->name_produc }} ({{ $p->unit_produc }})
+                <input list="productosList" id="productoSelect" class="w-full border rounded-lg p-2"
+                    placeholder="Escribe o selecciona un producto">
+                <datalist id="productosList">
+                    @foreach ($productos->take(5) as $p)
+                    <option value="{{ $p->name_produc }} ({{ $p->unit_produc }})" data-id="{{ $p->id }}"
+                        data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
+                        data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
                     </option>
                     @endforeach
-                </select>
+                </datalist>
             </div>
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
-                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
+                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1"
+                    placeholder="Ej: 100">
             </div>
             <div class="flex items-center">
                 <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
             </div>
         </div>
 
+
         <div class="flex justify-end mt-6">
-            <button type="button" id="siguienteModalBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+            <button type="button" id="siguienteModalBtn"
+                class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                 Siguiente <i class="ml-1 fas fa-arrow-right"></i>
             </button>
         </div>
@@ -170,7 +176,8 @@
 
         <div class="mb-4 p-3 bg-gray-50 rounded-lg">
             <p class="font-semibold" id="productoSeleccionadoNombre"></p>
-            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> <span id="productoSeleccionadoUnidad"></span></p>
+            <p class="text-sm">Cantidad total: <span id="productoSeleccionadoCantidad" class="font-bold">0</span> <span
+                    id="productoSeleccionadoUnidad"></span></p>
         </div>
 
         <!-- Distribución por centros -->
@@ -190,26 +197,32 @@
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
-                    <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 50">
+                    <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1"
+                        placeholder="Ej: 50">
                 </div>
                 <div>
-                    <button type="button" id="agregarCentroBtn" class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                    <button type="button" id="agregarCentroBtn"
+                        class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                         Agregar
                     </button>
                 </div>
             </div>
 
             <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span id="unidadDisponible"></span>
+                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span
+                    id="unidadDisponible"></span>
             </div>
 
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto"></ul>
+            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto">
+            </ul>
 
             <div class="flex justify-between mt-6">
-                <button type="button" id="volverModalBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+                <button type="button" id="volverModalBtn"
+                    class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
                     <i class="fas fa-arrow-left mr-1"></i> Volver
                 </button>
-                <button type="button" id="guardarProductoBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                <button type="button" id="guardarProductoBtn"
+                    class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                     Guardar Producto
                 </button>
             </div>
@@ -270,6 +283,74 @@ document.addEventListener('DOMContentLoaded', function() {
     let cantidadAsignada = 0;
     let unidadMedida = '';
 
+    // ====== Datos iniciales de Laravel ======
+    const categorias = @json($productos->pluck('categoria_produc')->unique()->sort()->values());
+    const productosData = [
+        @foreach($productos as $p)
+        {
+            id: {{ json_encode($p->id) }},
+            nombre: {!! json_encode($p->name_produc) !!},
+            unidad: {!! json_encode($p->unit_produc) !!},
+            proveedor: {!! json_encode($p->proveedor_id) !!},
+            categoria: {!! json_encode($p->categoria_produc) !!}
+        },
+        @endforeach
+    ];
+
+    // ====== Función para rellenar datalist limitado ======
+    function renderDatalist(input, datalist, items, formatFn) {
+        const value = input.value.toLowerCase();
+        datalist.innerHTML = "";
+        let filtered = items.filter(item => formatFn(item).toLowerCase().includes(value));
+        filtered = filtered.slice(0, 15);
+        filtered.forEach(item => {
+            const option = document.createElement("option");
+            option.value = formatFn(item);
+            datalist.appendChild(option);
+        });
+    }
+
+    // ====== Categorías ======
+    categoriaFilter.setAttribute("list", "categoriasList");
+    categoriaFilter.addEventListener("input", () => {
+        renderDatalist(categoriaFilter, categoriasList, categorias, c => c);
+        // Al cambiar la categoría, filtrar productos
+        filtrarProductosPorCategoria();
+    });
+
+    // ====== Productos ======
+    productoSelect.setAttribute("list", "productosList");
+    productoSelect.addEventListener("input", () => {
+        filtrarProductosPorCategoria();
+        mostrarUnidadSeleccionada();
+    });
+
+    function filtrarProductosPorCategoria() {
+        const categoriaSeleccionada = categoriaFilter.value;
+        let filtrados = productosData;
+        if (categoriaSeleccionada && categorias.includes(categoriaSeleccionada)) {
+            filtrados = filtrados.filter(p => p.categoria === categoriaSeleccionada);
+        }
+        renderDatalist(productoSelect, productosList, filtrados, p => `${p.nombre} (${p.unidad})`);
+    }
+
+    function mostrarUnidadSeleccionada() {
+        const texto = productoSelect.value;
+        const prod = productosData.find(p => `${p.nombre} (${p.unidad})` === texto);
+        if (prod) {
+            unidadMedidaSpan.textContent = 'Unidad: ' + prod.unidad;
+        } else {
+            unidadMedidaSpan.textContent = 'Unidad: -';
+        }
+    }
+
+    // Inicializar datalist al abrir modal
+    abrirBtn.addEventListener('click', () => {
+        renderDatalist(categoriaFilter, categoriasList, categorias, c => c);
+        filtrarProductosPorCategoria();
+        mostrarUnidadSeleccionada();
+    });
+
     // Event listeners para abrir/cerrar modales
     abrirBtn.addEventListener('click', () => {
         modalProducto.classList.remove('hidden');
@@ -286,63 +367,41 @@ document.addEventListener('DOMContentLoaded', function() {
         resetModalDistribucion();
     });
     
-    // Mostrar unidad de medida al seleccionar producto
-    productoSelect.addEventListener('change', function() {
-        if (this.value) {
-            const selectedOption = this.selectedOptions[0];
-            unidadMedida = selectedOption.dataset.unidad;
-            unidadMedidaSpan.textContent = `Unidad: ${unidadMedida}`;
-        } else {
-            unidadMedida = '';
-            unidadMedidaSpan.textContent = 'Unidad: -';
-        }
-    });
-    
     siguienteBtn.addEventListener('click', () => {
-        const productoId = productoSelect.value;
+        const productoTexto = productoSelect.value;
+        const prodSeleccionado = productosData.find(p => `${p.nombre} (${p.unidad})` === productoTexto);
         cantidadTotal = parseInt(cantidadTotalInput.value);
-        
-        if (!productoId) {
+        if (!prodSeleccionado) {
             mostrarError('Debes seleccionar un producto.');
             return;
         }
-        
         if (!cantidadTotal || cantidadTotal < 1) {
             mostrarError('Debes ingresar una cantidad válida.');
             return;
         }
-        
-        if (productos.some(p => p.id === productoId)) {
+        if (productos.some(p => p.id === prodSeleccionado.id)) {
             mostrarError('Este producto ya fue agregado.');
             return;
         }
-        
-        // Obtener datos del producto seleccionado
-        const selectedOption = productoSelect.selectedOptions[0];
-        const unidad = selectedOption.dataset.unidad;
-        
         // Configurar producto actual
-        productoActual = { 
-            id: productoId, 
-            nombre: selectedOption.dataset.nombre, 
-            proveedorId: selectedOption.dataset.proveedor || null, 
-            cantidadTotal, 
-            unidad,
-            centros: [] 
+        productoActual = {
+            id: prodSeleccionado.id,
+            nombre: prodSeleccionado.nombre,
+            proveedorId: prodSeleccionado.proveedor || null,
+            cantidadTotal,
+            unidad: prodSeleccionado.unidad,
+            centros: []
         };
-        
         cantidadAsignada = 0;
-        unidadMedida = unidad;
-        
+        unidadMedida = prodSeleccionado.unidad;
         // Actualizar información en modal de distribución
-        productoSeleccionadoNombre.textContent = selectedOption.dataset.nombre;
+        productoSeleccionadoNombre.textContent = prodSeleccionado.nombre;
         productoSeleccionadoCantidad.textContent = cantidadTotal;
-        productoSeleccionadoUnidad.textContent = unidad;
+        productoSeleccionadoUnidad.textContent = prodSeleccionado.unidad;
         cantidadDisponibleSpan.textContent = cantidadTotal;
-        unidadDisponibleSpan.textContent = unidad;
+        unidadDisponibleSpan.textContent = prodSeleccionado.unidad;
         totalAsignadoSpan.textContent = cantidadAsignada;
         centrosList.innerHTML = '';
-        
         // Cambiar de modal
         modalProducto.classList.add('hidden');
         modalDistribucion.classList.remove('hidden');
@@ -352,20 +411,6 @@ document.addEventListener('DOMContentLoaded', function() {
         modalDistribucion.classList.add('hidden');
         modalProducto.classList.remove('hidden');
         resetModalDistribucion();
-    });
-
-    // Filtrar productos por categoría
-    categoriaFilter.addEventListener('change', () => {
-        const categoriaSeleccionada = categoriaFilter.value;
-        const opcionesProductos = productoSelect.querySelectorAll('option');
-        
-        opcionesProductos.forEach(opcion => {
-            if (opcion.value === '') return;
-            opcion.style.display = (categoriaSeleccionada === '' || opcion.dataset.categoria === categoriaSeleccionada) ? '' : 'none';
-        });
-        
-        productoSelect.value = '';
-        unidadMedidaSpan.textContent = 'Unidad: -';
     });
 
     function mostrarError(mensaje) {
