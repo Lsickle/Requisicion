@@ -211,7 +211,8 @@
                                     data-nombre="{{ $producto->name_produc }}"
                                     data-unidad="{{ $producto->unit_produc }}"
                                     data-stock="{{ $producto->stock_produc }}"
-                                    data-proveedor="{{ $producto->proveedor_id ?? '' }}">
+                                    data-proveedor="{{ $producto->proveedor_id ?? '' }}"
+                                    data-iva="{{ $producto->iva ?? 0 }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
                                     $producto->pivot->pr_amount ?? 1 }}
                                 </option>
@@ -221,7 +222,8 @@
                                 @if(isset($lineasDistribuidas) && $lineasDistribuidas->count())
                                 <optgroup label="Líneas distribuidas pendientes">
                                     @foreach($lineasDistribuidas as $ld)
-                                        <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}">
+                                        <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}"
+                                            data-iva="{{ $ld->iva ?? 0 }}">
                                             {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
                                         </option>
                                     @endforeach
@@ -340,12 +342,13 @@
                         <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-fixed">
                             <thead class="bg-gray-100 sticky top-0 z-10">
                                 <tr>
-                                    <th class="p-3 text-left" style="width:48%">Producto</th>
+                                    <th class="p-3 text-left" style="width:30%">Producto</th>
                                     <th class="p-3 text-center" style="width:70px">Total</th>
                                     <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                    <th class="p-3 text-center" style="width:70px">IVA</th>
                                     <th class="p-3 text-center" style="width:100px">Sacado</th>
                                     <th class="p-3 text-center" style="width:110px">Stock</th>
-                                    <th class="p-3" style="width:30%">Distribución por Centros</th>
+                                    <th class="p-3" style="width:30%">Distribución</th>
                                     <th class="p-3 text-center" style="width:90px">Acciones</th>
                                 </tr>
                             </thead>
@@ -810,6 +813,7 @@
         const unidad = selectedOption.dataset.unidad || '';
         const cantidadOriginal = parseInt(selectedOption.dataset.cantidad || '1', 10);
         const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
+        const iva = parseFloat(selectedOption.dataset.iva ?? '0');
         const ocpId = selectedOption.dataset.ocpId || null;
         const rowKey = `${productoId}-${ocpId||'0'}`;
 
@@ -822,10 +826,10 @@
             proveedorSelect.value = proveedorId;
         }
 
-        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1');
+        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva);
     }
 
-    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false) {
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0) {
         const table = document.getElementById('productos-table');
         const rowId = `producto-${rowKey}`;
         if (document.getElementById(rowId)) return;
@@ -858,28 +862,43 @@
         row.id = rowId;
         row.innerHTML = `
             <td class="p-3">
-                ${productoNombre} ${esDistribuido && proveedorId ? `<span class="text-xs text-gray-500">(Distribuido)</span>`:''}
+                <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div
+                    </div>
+                </div>
                 <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}">
+                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}">
+                <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
                 ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
             </td>
-            <td class="p-3 text-center">
+            <td class="p-3 text-center align-middle">
                 <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadParaComprar}" 
-                    class="w-14 border rounded p-1 text-center cantidad-total" 
+                    class="w-16 border rounded p-1 text-center cantidad-total" 
                     id="cantidad-total-${rowKey}" 
                     onchange="onCantidadTotalChange('${rowKey}')" required>
             </td>
+            <td class="p-3 text-center">${unidad}</td>
+            <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
             <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
-             <td class="p-3 text-center">${unidad}</td>
-             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
-             <td class="p-3">
-                 <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                    ${centrosHtml}
-                 </div>
-             </td>
-             <td class="p-3 text-center space-x-2">
-                 <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" 
-                     class="bg-red-500 text-white px-3 py-1 rounded-lg mb-1">Quitar</button>
+            <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
+            <td class="p-3">
+                <div class="max-h-40 overflow-y-auto">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        ${centrosHtml}
+                    </div>
+                </div>
+            </td>
+            <td class="p-3 text-center align-middle">
+                <div class="flex flex-col items-center gap-2">
+                  <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <input type="checkbox" name="productos[${rowKey}][apply_iva]" class="apply-iva-checkbox form-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="1">
+                    <span class="ml-1">Aplicar IVA</span>
+                  </label>
+                  <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" title="Quitar producto" class="flex items-center gap-2 px-4 py-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md text-sm">
+                    <span class="font-medium">Quitar</span>
+                  </button>
+                </div>
              </td>
          `;
         table.appendChild(row);
@@ -981,6 +1000,7 @@
             const nombre = inputHidden?.dataset?.nombre || '';
             const cantidad = inputHidden?.dataset?.cantidad || 0;
             const stock = inputHidden?.dataset?.stock || 0;
+            const iva = inputHidden?.dataset?.iva || 0;
             const esDistribuido = !!ocpId;
             const productoId = inputHidden?.value;
 
@@ -995,6 +1015,7 @@
             opt.dataset.nombre = nombre;
             opt.dataset.cantidad = cantidad;
             opt.dataset.stock = stock;
+            opt.dataset.iva = iva;
             if (esDistribuido) {
                 opt.dataset.distribuido = '1';
                 opt.dataset.ocpId = ocpId;
@@ -1095,6 +1116,8 @@
             if (selectedOption && selectedOption.dataset.proveedor) {
                 proveedorSelect.value = selectedOption.dataset.proveedor;
             }
+            const ivaSpan = document.getElementById('producto-iva');
+            if (ivaSpan) ivaSpan.textContent = `${parseFloat(selectedOption?.dataset?.iva || '0')}%`;
         });
     }
 
@@ -1286,7 +1309,7 @@
                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                     body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })
                 });
-                const data = await resp.json();
+                               const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
 
                 // No insertar las opciones distribuidas en el selector de la página actual

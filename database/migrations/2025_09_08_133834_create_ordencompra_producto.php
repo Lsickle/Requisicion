@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignId('proveedor_id')->nullable()->constrained('proveedores')->onDelete('cascade'); #id de proveedores (nullable)
             $table->integer('total')->nullable(); #cantidad de la orden de compra
             $table->string('stock_e')->nullable(); #salido de stock
+            $table->decimal('apply_iva')->nullable(); #aplicación de iva
             $table->timestamps();
             $table->softDeletes();
         });

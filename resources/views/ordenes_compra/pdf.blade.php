@@ -118,10 +118,11 @@
                     <th width="5%">#</th>
                     <th width="20%">Producto</th>
                     <th width="35%">Descripción</th>
-                    <th width="10%">Unidad</th>
-                    <th width="10%">Cantidad</th>
-                    <th width="10%">Valor Unitario</th>
-                    <th width="10%">Total</th>
+                    <th width="8%">Unidad</th>
+                    <th width="8%">Cantidad</th>
+                    <th width="8%">IVA</th>
+                    <th width="8%">Valor Unitario</th>
+                    <th width="10%">Total (c/ IVA)</th>
                 </tr>
             </thead>
             <tbody>
@@ -132,8 +133,9 @@
                     <td>{{ $item['description_produc'] }}</td>
                     <td>{{ $item['unit_produc'] }}</td>
                     <td>{{ number_format($item['po_amount'], 0) }}</td>
-                    <td class="text-right">${{ number_format($item['precio_unitario'], 2) }}</td>
-                    <td class="text-right">${{ number_format($item['po_amount'] * $item['precio_unitario'], 2) }}</td>
+                    <td>{{ isset($item['iva']) && $item['iva']>0 ? $item['iva'].'%' : '0%' }}</td>
+                    <td class="text-right">${{ number_format($item['precio_unitario_con_iva'] ?? $item['precio_unitario'], 2) }}</td>
+                    <td class="text-right">${{ number_format($item['po_amount'] * ($item['precio_unitario_con_iva'] ?? $item['precio_unitario']), 2) }}</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -150,12 +152,12 @@
              <div class="total-value">${{ number_format($subtotal, 2) }}</div>
          </div>
          <div class="total-row">
-             <div class="total-label">IVA (0%):</div>
-             <div class="total-value">$0.00</div>
+             <div class="total-label">IVA:</div>
+             <div class="total-value">${{ number_format($iva_total ?? 0, 2) }}</div>
          </div>
          <div class="total-row">
              <div class="total-label">TOTAL A PAGAR:</div>
-             <div class="total-value">${{ number_format($subtotal, 2) }}</div>
+             <div class="total-value">${{ number_format($total ?? $subtotal, 2) }}</div>
          </div>
      </div>
     <div class="clear"></div>

@@ -170,6 +170,8 @@ class OrdenCompraController extends Controller
             'productos.*.cantidad' => 'required|integer|min:1',
             'productos.*.centros' => 'nullable|array',
             'productos.*.centros.*' => 'nullable|integer|min:0',
+            'productos.*.iva' => 'nullable|numeric',
+            'productos.*.apply_iva' => 'nullable|boolean',
             'productos.*.stock_e' => 'nullable|integer|min:0',
         ]);
 
@@ -258,6 +260,12 @@ class OrdenCompraController extends Controller
                     if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
                         $ocp->total = $cantidadIngresada;
                     }
+                    // Aplicar IVA si seleccionó la casilla: guardar el valor numérico del IVA; si no, dejar null
+                    if (!empty($productoData['apply_iva'])) {
+                        $ocp->apply_iva = isset($productoData['iva']) ? (float)$productoData['iva'] : null;
+                    } else {
+                        $ocp->apply_iva = null;
+                    }
                     $ocp->orden_compras_id = $orden->id;
                     if ($stockE !== null) { $ocp->stock_e = $stockE; }
                     $ocp->save();
@@ -297,6 +305,7 @@ class OrdenCompraController extends Controller
                     'proveedor_id'     => $request->proveedor_id,
                     'total'            => $cantidadIngresada,
                     'stock_e'          => $stockE,
+                    'apply_iva'        => !empty($productoData['apply_iva']) ? (isset($productoData['iva']) ? (float)$productoData['iva'] : null) : null,
                 ]);
 
                 if ($stockE !== null && $stockE > 0) {
@@ -661,6 +670,7 @@ class OrdenCompraController extends Controller
                 if ($ordenProducto) {
                     $ordenProducto->update([
                         'total' => $productoData['cantidad'] ?? 0,
+                        'apply_iva' => !empty($productoData['apply_iva']) ? (isset($productoData['iva']) ? (float)$productoData['iva'] : null) : null,
                     ]);
                 }
 
@@ -914,17 +924,35 @@ class OrdenCompraController extends Controller
 
         $items = [];
         $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
+        $ivaTotal = 0;
+        $subtotal = 0;
         foreach ($porProducto as $productoId => $lineas) {
             $producto = optional($lineas->first())->producto;
             $cantidad = (int) $lineas->sum('total');
             if ($producto) {
+                // Determinar si alguna línea tiene apply_iva y usar el primer valor no nulo
+                $ivaPercent = 0;
+                foreach ($lineas as $ln) {
+                    if (!is_null($ln->apply_iva) && $ln->apply_iva !== '') { $ivaPercent = (float)$ln->apply_iva; break; }
+                }
+                $precioUnitario = (float) ($producto->price_produc ?? 0);
+                $precioUnitarioConIva = $precioUnitario;
+                if ($ivaPercent > 0) {
+                    $precioUnitarioConIva = round($precioUnitario * (1 + ($ivaPercent / 100)), 2);
+                }
+                // Acumular subtotales e IVA
+                $subtotal += ($cantidad * $precioUnitario);
+                $ivaTotal += ($cantidad * $precioUnitario * ($ivaPercent / 100));
+
                 $items[] = [
                     'producto_id' => $producto->id,
                     'name_produc' => $producto->name_produc,
                     'description_produc' => $producto->description_produc ?? '',
                     'unit_produc' => $producto->unit_produc ?? '',
                     'po_amount' => $cantidad,
-                    'precio_unitario' => (float) ($producto->price_produc ?? 0),
+                    'precio_unitario' => $precioUnitario,
+                    'iva' => $ivaPercent,
+                    'precio_unitario_con_iva' => $precioUnitarioConIva,
                 ];
             }
         }
@@ -943,26 +971,25 @@ class OrdenCompraController extends Controller
             ];
         }
 
-        $subtotal = 0;
-        foreach ($items as $i) {
-            $subtotal += ($i['po_amount'] * $i['precio_unitario']);
-        }
+        $total = $subtotal + $ivaTotal;
 
-        return [
-            'orden' => $orden,
-            'proveedor' => $proveedor,
-            'items' => $items,
-            'distribucion' => $distribucion,
-            'subtotal' => $subtotal,
-            'observaciones' => $orden->observaciones,
-            'fecha_actual' => now()->format('d/m/Y H:i'),
-            'logo' => $this->resolveLogoDataUri(),
-            'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
-            'methods_oc' => $orden->methods_oc,
-            'plazo_oc' => $orden->plazo_oc,
-        ];
-        
-    }
+         return [
+             'orden' => $orden,
+             'proveedor' => $proveedor,
+             'items' => $items,
+             'distribucion' => $distribucion,
+             'subtotal' => $subtotal,
+             'iva_total' => $ivaTotal,
+             'total' => $total,
+             'observaciones' => $orden->observaciones,
+             'fecha_actual' => now()->format('d/m/Y H:i'),
+             'logo' => $this->resolveLogoDataUri(),
+             'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
+             'methods_oc' => $orden->methods_oc,
+             'plazo_oc' => $orden->plazo_oc,
+         ];
+         
+     }
 
     
     // Marcar una orden como terminada (estatus id 3)

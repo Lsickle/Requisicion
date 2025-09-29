@@ -19,6 +19,7 @@ class OrdenCompraProducto extends Model
         'proveedor_id',
         'total',
         'stock_e',
+        'apply_iva',
     ];
 
     protected $dates = [
