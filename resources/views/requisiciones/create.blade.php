@@ -190,12 +190,17 @@
             <div class="grid grid-cols-3 gap-4 items-end">
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Centro</label>
-                    <select id="centroSelect" class="w-full border rounded-lg p-2">
-                        <option value="">-- Selecciona centro --</option>
-                        @foreach ($centros as $c)
-                        <option value="{{ $c->id }}" data-nombre="{{ $c->name_centro }}">{{ $c->name_centro }}</option>
-                        @endforeach
-                    </select>
+                    <div class="relative">
+                        <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un centro" autocomplete="off">
+                        <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
+                        <div id="centrosDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
+                            @foreach ($centros as $c)
+                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $c->id }}" data-nombre="{{ $c->name_centro }}" onclick="seleccionarCentro(event, this)">
+                                {{ $c->name_centro }}
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
@@ -278,6 +283,10 @@
     const productoSeleccionadoCantidad = $('#productoSeleccionadoCantidad');
     const productoSeleccionadoUnidad = $('#productoSeleccionadoUnidad');
     const unidadMedidaSpan = $('#unidadMedida');
+
+    // Elementos adicionales para centros
+    const centroFilter = $('#centroFilter');
+    const centrosDropdown = $('#centrosDropdown');
 
     let productos = [];
     let productoActual = null;
@@ -377,6 +386,9 @@
         // Si hay categoría escrita, aplicar filtro de categoría también
         filtrarProductosPorCategoria();
     });
+    centroFilter.addEventListener('focus', () => {
+        centrosDropdown.style.display = 'block';
+    });
 
     // Filtrar productos teniendo en cuenta categoría y texto
     function filtrarProductosPorCategoria() {
@@ -405,6 +417,31 @@
         }
     }
 
+    // Filtrar centros
+    if (centroFilter) {
+        centroFilter.addEventListener('focus', () => {
+            centrosDropdown.style.display = 'block';
+        });
+        centroFilter.addEventListener('input', function() {
+            const filtro = (this.value || '').toLowerCase();
+            let any = false;
+            centrosDropdown.querySelectorAll('div').forEach(div => {
+                const txt = (div.textContent || '').toLowerCase();
+                if (txt.includes(filtro)) {
+                    div.style.display = 'block'; any = true;
+                } else {
+                    div.style.display = 'none';
+                }
+            });
+            centrosDropdown.style.display = any ? 'block' : 'none';
+        });
+        centroFilter.addEventListener('keydown', function(evt) {
+            if (evt.key === 'Backspace' || evt.key === 'Delete') {
+                setTimeout(() => centroFilter.dispatchEvent(new Event('input')), 0);
+            }
+        });
+    }
+
     // Seleccionar una opción (actualiza datos para producto)
     // Exponer función global para onclick inline
     window.seleccionarOpcion = function(e, element, inputId) {
@@ -431,6 +468,18 @@
          // mantener foco para permitir borrar/editar inmediatamente
          input.focus();
      }
+
+    // Seleccionar centro
+    window.seleccionarCentro = function(e, element) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
+        const id = element.getAttribute('data-id');
+        const nombre = element.getAttribute('data-nombre') || element.textContent.trim();
+        $('#centroSelect').value = id;
+        $('#centroFilter').value = nombre;
+        centrosDropdown.style.display = 'none';
+        $('#centroFilter').focus();
+    }
 
     // Actualizar filtros en input events
     categoriaFilter.addEventListener('input', function() {
@@ -476,6 +525,10 @@
         // productos
         if (!productosListDiv.contains(e.target) && !productoSelect.contains(e.target)) {
             productosListDiv.style.display = 'none';
+        }
+        // centros
+        if (!centrosDropdown.contains(e.target) && !centroFilter.contains(e.target)) {
+            centrosDropdown.style.display = 'none';
         }
     });
 
@@ -630,44 +683,32 @@
 
     agregarCentroBtn.addEventListener('click', () => {
         if (!productoActual) return;
-        
-        const centroId = centroSelect.value;
+        const centroIdVal = $('#centroSelect').value;
+        const centroNombre = $('#centroFilter').value;
         const cantidadCentro = parseInt(cantidadCentroInput.value);
         const cantidadRestante = cantidadTotal - cantidadAsignada;
-        
-        if (!centroId) {
+
+        if (!centroIdVal) {
             mostrarError('Debes seleccionar un centro de costo.');
             return;
         }
-        
         if (!cantidadCentro || cantidadCentro < 1) {
             mostrarError('Debes ingresar una cantidad válida.');
             return;
         }
-        
         if (cantidadCentro > cantidadRestante) {
             mostrarError(`No puedes asignar más de ${cantidadRestante} ${unidadMedida}.`);
             return;
         }
-        
-        // Verificar si el centro ya existe
-        const idx = productoActual.centros.findIndex(c => c.id === centroId);
-        
+
+        const idx = productoActual.centros.findIndex(c => c.id === centroIdVal);
         if (idx >= 0) {
-            // Si el centro ya existe, sumar la cantidad
             productoActual.centros[idx].cantidad += cantidadCentro;
         } else {
-            // Si es un centro nuevo, agregarlo
-            productoActual.centros.push({ 
-                id: centroId, 
-                nombre: centroSelect.selectedOptions[0].dataset.nombre, 
-                cantidad: cantidadCentro 
-            });
+            productoActual.centros.push({ id: centroIdVal, nombre: centroNombre, cantidad: cantidadCentro });
         }
-        
+
         cantidadAsignada += cantidadCentro;
-        
-        // Actualizar la lista de centros
         centrosList.innerHTML = '';
         productoActual.centros.forEach(c => {
             const li = document.createElement('li');
@@ -678,10 +719,11 @@
             `;
             centrosList.appendChild(li);
         });
-        
+
         actualizarResumen();
         cantidadCentroInput.value = '';
-        centroSelect.value = '';
+        $('#centroSelect').value = '';
+        $('#centroFilter').value = '';
     });
 
     guardarProductoBtn.addEventListener('click', () => {
