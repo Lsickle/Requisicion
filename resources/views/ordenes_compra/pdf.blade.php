@@ -133,9 +133,17 @@
                     <td>{{ $item['description_produc'] }}</td>
                     <td>{{ $item['unit_produc'] }}</td>
                     <td>{{ number_format($item['po_amount'], 0) }}</td>
-                    <td>{{ isset($item['iva']) && $item['iva']>0 ? $item['iva'].'%' : '0%' }}</td>
-                    <td class="text-right">${{ number_format($item['precio_unitario_con_iva'] ?? $item['precio_unitario'], 2) }}</td>
-                    <td class="text-right">${{ number_format($item['po_amount'] * ($item['precio_unitario_con_iva'] ?? $item['precio_unitario']), 2) }}</td>
+                    @php
+                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje (p.ej. 12)
+                        $ivaRate = $ivaPercent / 100;
+                        $unitPrice = (float)($item['precio_unitario'] ?? 0);
+                        $unitIva = round($unitPrice * $ivaRate, 2);
+                        $unitWithIva = round($unitPrice + $unitIva, 2);
+                        $lineTotalWithIva = round($unitWithIva * (int)$item['po_amount'], 2);
+                    @endphp
+                    <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%': '0%' }}</td>
+                    <td class="text-right">${{ number_format($unitPrice, 2) }}<br><small>+ IVA ${{ number_format($unitIva,2) }}</small></td>
+                    <td class="text-right">${{ number_format($lineTotalWithIva, 2) }}</td>
                 </tr>
                 @endforeach
             </tbody>

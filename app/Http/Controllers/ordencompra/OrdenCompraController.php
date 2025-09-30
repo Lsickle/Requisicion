@@ -262,7 +262,17 @@ class OrdenCompraController extends Controller
                     }
                     // Aplicar IVA si seleccionó la casilla: guardar el valor numérico del IVA; si no, dejar null
                     if (!empty($productoData['apply_iva'])) {
-                        $ocp->apply_iva = isset($productoData['iva']) ? (float)$productoData['iva'] : null;
+                        // Preferir valor enviado en el formulario; si no, usar IVA del producto; almacenar como fracción (p.ej. 12% => 0.12)
+                        $rate = null;
+                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
+                            $rate = (float)$productoData['iva'];
+                        } else {
+                            $prodTmp = Producto::find($productoId);
+                            $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
+                        }
+                        // si el rate viene como porcentaje (>1) convertir a fracción
+                        $frac = ($rate > 1) ? ($rate / 100.0) : $rate;
+                        $ocp->apply_iva = ($frac > 0) ? $frac : null;
                     } else {
                         $ocp->apply_iva = null;
                     }
@@ -298,6 +308,18 @@ class OrdenCompraController extends Controller
                 }
 
                 // Línea normal: usar el proveedor del formulario
+                // Calcular apply_iva como fracción si corresponde
+                $applyFrac = null;
+                if (!empty($productoData['apply_iva'])) {
+                    if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
+                        $rate = (float)$productoData['iva'];
+                    } else {
+                        $prodTmp = Producto::find($productoId);
+                        $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
+                    }
+                    $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                }
+
                 OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,
@@ -305,7 +327,7 @@ class OrdenCompraController extends Controller
                     'proveedor_id'     => $request->proveedor_id,
                     'total'            => $cantidadIngresada,
                     'stock_e'          => $stockE,
-                    'apply_iva'        => !empty($productoData['apply_iva']) ? (isset($productoData['iva']) ? (float)$productoData['iva'] : null) : null,
+                    'apply_iva'        => $applyFrac,
                 ]);
 
                 if ($stockE !== null && $stockE > 0) {
@@ -668,9 +690,20 @@ class OrdenCompraController extends Controller
                     ->first();
 
                 if ($ordenProducto) {
+                    // calcular fracción de IVA al actualizar
+                    $applyFrac = null;
+                    if (!empty($productoData['apply_iva'])) {
+                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
+                            $rate = (float)$productoData['iva'];
+                        } else {
+                            $prodTmp = Producto::find($productoId);
+                            $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
+                        }
+                        $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                    }
                     $ordenProducto->update([
                         'total' => $productoData['cantidad'] ?? 0,
-                        'apply_iva' => !empty($productoData['apply_iva']) ? (isset($productoData['iva']) ? (float)$productoData['iva'] : null) : null,
+                        'apply_iva' => $applyFrac,
                     ]);
                 }
 
@@ -930,19 +963,31 @@ class OrdenCompraController extends Controller
             $producto = optional($lineas->first())->producto;
             $cantidad = (int) $lineas->sum('total');
             if ($producto) {
-                // Determinar si alguna línea tiene apply_iva y usar el primer valor no nulo
-                $ivaPercent = 0;
+                // Determinar tasa de IVA (fracción). Priorizar apply_iva almacenado; convertir si viene como porcentaje por error.
+                $ivaRate = 0.0; // fracción, p.ej. 0.12
                 foreach ($lineas as $ln) {
-                    if (!is_null($ln->apply_iva) && $ln->apply_iva !== '') { $ivaPercent = (float)$ln->apply_iva; break; }
+                    if (isset($ln->apply_iva) && $ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
+                        $val = (float)$ln->apply_iva;
+                        // Si por alguna razón se guardó como porcentaje (p.ej. 12) convertir a fracción
+                        $ivaRate = ($val > 1) ? ($val / 100.0) : $val;
+                        break;
+                    }
                 }
+                // Si no se obtuvo de las líneas, usar valor del producto (puede ser % o fracción)
+                if ($ivaRate <= 0 && isset($producto->iva) && is_numeric($producto->iva)) {
+                    $pv = (float)$producto->iva;
+                    $ivaRate = ($pv > 1) ? ($pv / 100.0) : $pv;
+                }
+
                 $precioUnitario = (float) ($producto->price_produc ?? 0);
-                $precioUnitarioConIva = $precioUnitario;
-                if ($ivaPercent > 0) {
-                    $precioUnitarioConIva = round($precioUnitario * (1 + ($ivaPercent / 100)), 2);
-                }
-                // Acumular subtotales e IVA
-                $subtotal += ($cantidad * $precioUnitario);
-                $ivaTotal += ($cantidad * $precioUnitario * ($ivaPercent / 100));
+                $precioUnitarioConIva = round($precioUnitario * (1 + $ivaRate), 2);
+
+                $lineSubtotal = $precioUnitario * $cantidad;
+                $lineTotalConIva = $precioUnitarioConIva * $cantidad;
+                $lineIvaImport = $lineTotalConIva - $lineSubtotal;
+
+                $subtotal += $lineSubtotal;
+                $ivaTotal += $lineIvaImport;
 
                 $items[] = [
                     'producto_id' => $producto->id,
@@ -951,8 +996,9 @@ class OrdenCompraController extends Controller
                     'unit_produc' => $producto->unit_produc ?? '',
                     'po_amount' => $cantidad,
                     'precio_unitario' => $precioUnitario,
-                    'iva' => $ivaPercent,
+                    'iva' => $ivaRate * 100, // porcentaje para mostrar
                     'precio_unitario_con_iva' => $precioUnitarioConIva,
+                    'total_con_iva' => $lineTotalConIva,
                 ];
             }
         }
