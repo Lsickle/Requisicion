@@ -295,6 +295,10 @@ Route::middleware([AuthSession::class])->group(function () {
     // Transferir titularidad (solo Admin requisicion)
     Route::get('/requisiciones/transferir', [RequisicionController::class, 'transferIndex'])->name('requisiciones.transferir');
     Route::post('/requisiciones/{id}/transferir', [RequisicionController::class, 'transferir'])->name('requisiciones.transferir.post');
+
+    // Endpoint para obtener usuarios desde servicio VPL_CORE (proxy)
+    Route::get('requisiciones/usuarios-external', [\App\Http\Controllers\requisicion\RequisicionController::class, 'fetchExternalUsers'])
+        ->name('requisiciones.usuarios_external');
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista

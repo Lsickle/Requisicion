@@ -673,7 +673,7 @@ class RequisicionController extends Controller
 
             $sessionUser = session('user') ?? [];
             $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? session('user_id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? $request->input('receptor_user_id') ?? null;
-            $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_name') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
+            $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_email') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
 
             $receiverId = $receiverId !== null ? (is_numeric($receiverId) ? (int)$receiverId : $receiverId) : null;
             $receiverName = is_string($receiverName) ? trim($receiverName) : $receiverName;
@@ -910,5 +910,159 @@ class RequisicionController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * Obtener usuarios desde servicio VPL_CORE /api/usuarios y devolverlos al cliente (proxy)
+     */
+    public function fetchExternalUsers(Request $request)
+    {
+        $base = rtrim(env('VPL_CORE', ''), '\\/');
+        if (empty($base)) {
+            return response()->json(['ok' => false, 'message' => 'VPL_CORE no configurado'], 500);
+        }
+
+        $url = $base . '/api/usuarios';
+
+        try {
+            $token = session('api_token') ?? null;
+
+            $client = Http::withOptions([
+                'force_ip_resolve' => 'v4',
+                'connect_timeout' => 10,
+                'timeout' => 60,
+            ])->withoutVerifying();
+
+            if ($token) {
+                $client = $client->withToken($token);
+            }
+
+            // Modo inspección para ver headers y body de la primera respuesta
+            if ($request->query('inspect')) {
+                $respInspect = $client->get($url, ['per_page' => 10, 'page' => 1]);
+                return response()->json([
+                    'status' => $respInspect->status(),
+                    'headers' => $respInspect->headers(),
+                    'body_raw' => $respInspect->body(),
+                    'body_json' => $respInspect->json(),
+                ]);
+            }
+
+            $perPage = 200;
+            $usersRaw = [];
+            $usedIds = [];
+
+            $nextUrl = null;
+            $page = 1;
+            $iterations = 0;
+            $maxIterations = 200;
+            $pageUsers = [];
+
+            do {
+                if ($nextUrl) {
+                    $resp = $client->get($nextUrl);
+                } else {
+                    $resp = $client->get($url, ['per_page' => $perPage, 'page' => $page]);
+                }
+
+                if (!$resp->ok()) {
+                    Log::warning('fetchExternalUsers page request failed', ['page' => $page, 'nextUrl' => $nextUrl, 'status' => $resp->status(), 'body' => $resp->body()]);
+                    if ($iterations === 0) {
+                        $msg = $resp->status() === 401 ? 'No autorizado al consultar servicio externo (token inválido).' : 'Error al consultar servicio externo';
+                        return response()->json(['ok' => false, 'message' => $msg, 'status' => $resp->status()], 502);
+                    }
+                    break;
+                }
+
+                $payload = $resp->json();
+                $pageUsers = [];
+
+                // extraer usuarios (varios formatos)
+                if (is_array($payload) && isset($payload['data']) && is_array($payload['data'])) {
+                    $pageUsers = $payload['data'];
+                } elseif (is_array($payload) && isset($payload['usuarios']) && is_array($payload['usuarios'])) {
+                    $pageUsers = $payload['usuarios'];
+                } elseif (is_array($payload) && isset($payload['users']) && is_array($payload['users'])) {
+                    $pageUsers = $payload['users'];
+                } elseif (is_array($payload) && array_values($payload) === $payload) {
+                    $pageUsers = $payload;
+                } elseif (isset($payload['user']) && (is_array($payload['user']) || is_object($payload['user']))) {
+                    $u = $payload['user'];
+                    $pageUsers = [is_object($u) ? (array)$u : $u];
+                }
+
+                if (!is_array($pageUsers)) $pageUsers = [];
+
+                // merge evitando duplicados por id y contar nuevos añadidos
+                $newAdded = 0;
+                foreach ($pageUsers as $u) {
+                    $id = $u['id'] ?? $u['user_id'] ?? $u['usuario_id'] ?? null;
+                    if (!$id) continue;
+                    if (isset($usedIds[$id])) continue;
+                    $usedIds[$id] = true;
+                    $usersRaw[] = $u;
+                    $newAdded++;
+                }
+
+                // Determinar siguiente página: Link header o payload.links.next o meta
+                $nextUrl = null;
+                $linkHeader = $resp->header('Link');
+                if ($linkHeader && preg_match('/<([^>]+)>;\s*rel="next"/i', $linkHeader, $m)) {
+                    $nextUrl = $m[1];
+                } elseif (is_array($payload) && isset($payload['links']) && !empty($payload['links']['next'])) {
+                    $nextUrl = $payload['links']['next'];
+                } elseif (is_array($payload) && isset($payload['meta']) && isset($payload['meta']['current_page']) && isset($payload['meta']['last_page'])) {
+                    if ((int)$payload['meta']['current_page'] < (int)$payload['meta']['last_page']) {
+                        $page = (int)$payload['meta']['current_page'] + 1;
+                        $nextUrl = null;
+                    } else {
+                        $nextUrl = null;
+                    }
+                } else {
+                    // Si no hay info de next, pero obtuvimos resultados, intentar siguiente page++ hasta que respuesta esté vacía o no agregue nuevos
+                    if ($newAdded > 0 && count($pageUsers) > 0) {
+                        $page = ((int)$page) + 1;
+                        $nextUrl = null;
+                    } else {
+                        $nextUrl = null;
+                    }
+                }
+
+                // Normalizar nextUrl si es relativa
+                if ($nextUrl && !preg_match('#^https?://#i', $nextUrl)) {
+                    $nextUrl = rtrim($base, '/') . '/' . ltrim($nextUrl, '/');
+                }
+
+                $iterations++;
+
+                // detener si no se agregaron usuarios nuevos en esta iteración
+                if ($newAdded === 0 && !$nextUrl) break;
+
+            } while (($nextUrl || $iterations < $maxIterations) && $iterations < $maxIterations);
+
+            // mapear
+            $mapped = array_map(function ($u) {
+                return [
+                    'id' => $u['id'] ?? $u['user_id'] ?? $u['usuario_id'] ?? null,
+                    'name' => $u['name'] ?? $u['nombre'] ?? ($u['email'] ?? 'Usuario'),
+                    'email' => $u['email'] ?? null,
+                ];
+            }, $usersRaw);
+
+            $mapped = array_values(array_filter($mapped, fn($x) => isset($x['id'])));
+
+            Log::info('fetchExternalUsers mapped count', ['count' => count($mapped)]);
+
+            if (empty($mapped)) {
+                Log::info('fetchExternalUsers returned empty or unexpected payload', ['url' => $url, 'body' => isset($resp) ? $resp->body() : null]);
+                return response()->json(['ok' => false, 'message' => 'No se encontraron usuarios en la respuesta del servicio externo'], 200);
+            }
+
+            return response()->json(['ok' => true, 'users' => $mapped]);
+
+        } catch (\Throwable $e) {
+            Log::error('fetchExternalUsers error: ' . $e->getMessage(), ['exception' => $e]);
+            return response()->json(['ok' => false, 'message' => 'Error al consultar servicio externo: ' . $e->getMessage()], 500);
+        }
     }
 }

@@ -98,6 +98,18 @@
         <div class="clear"></div>
     </div>
 
+    <!-- Nuevo: Centro de Costo / Operación de la requisición -->
+    <div class="info-section">
+        <div class="info-box">
+            <h4>Centro de Costo</h4>
+            <div class="info-item">
+                <strong>Operación:</strong>
+                {{ optional(optional($orden)->requisicion)->operacion_user ?? optional(optional($orden)->requisicion)->operacion->nombre ?? ($orden->operacion ?? 'N/A') }}
+            </div>
+        </div>
+        <div class="clear"></div>
+    </div>
+
     @php
         // Paginación de productos para el PDF
         $rowsPerPage = 18; // ajustar si es necesario
@@ -199,7 +211,7 @@
             @endif
         </div>
         <div class="document-info">
-            <div class="title">Distribución por Centros - Orden #{{ $orden->order_oc ?? $orden->id }}</div>
+            <div class="title">Distribución por Centros/subcentros - Orden #{{ $orden->order_oc ?? $orden->id }}</div>
             <div><strong>Fecha:</strong> {{ $date_oc }}</div>
         </div>
         <div class="clear"></div>
@@ -225,7 +237,7 @@
         <thead>
             <tr>
                 <th width="25%">Producto</th>
-                <th width="55%">Distribución por Centro</th>
+                <th width="55%">Distribución por Centro/subcentros</th>
                 <th width="20%" class="text-right">Total</th>
             </tr>
         </thead>
