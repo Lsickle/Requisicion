@@ -18,11 +18,9 @@ use App\Models\OrdenCompraEstatus;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
-use ZipArchive;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
-use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
-use App\Http\Controllers\requisicion\RequisicionController; 
+use Illuminate\Support\Facades\Mail;
 
 
 class OrdenCompraController extends Controller
@@ -499,7 +497,7 @@ class OrdenCompraController extends Controller
             $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':'Cambio automático al descargar OC'); 
         } catch (\Throwable $e) {}
         
-        $zip = new ZipArchive();
+        $zip = new \ZipArchive();
         $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
         $zipPath = storage_path('app/temp/' . $zipFileName);
 
@@ -507,7 +505,7 @@ class OrdenCompraController extends Controller
             mkdir(dirname($zipPath), 0755, true);
         }
 
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === TRUE) {
             foreach ($ordenes as $orden) {
                 // Siempre obtener el binario correcto: si pdf_file está guardado en base64, decodificarlo
                 if (!empty($orden->pdf_file)) {
@@ -558,7 +556,8 @@ class OrdenCompraController extends Controller
                     }
                 } catch (\Throwable $e) { /* noop */ }
 
-                $zip->addFromString('orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf', $content);
+                $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
+                $zip->addFromString($fileName, $content);
             }
             $zip->close();
 
@@ -878,7 +877,7 @@ class OrdenCompraController extends Controller
         }
 
         // Varias órdenes: generar ZIP
-        $zip = new ZipArchive();
+        $zip = new \ZipArchive();
         $zipFileName = 'ordenes_compra_requisicion_' . $requisicionId . '.zip';
         $zipPath = storage_path('app/temp/' . $zipFileName);
 
@@ -886,7 +885,7 @@ class OrdenCompraController extends Controller
             mkdir(dirname($zipPath), 0755, true);
         }
 
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== TRUE) {
             return redirect()->back()->with('error', 'No se pudo crear el ZIP.');
         }
 
@@ -1282,6 +1281,30 @@ class OrdenCompraController extends Controller
 
                     if ((int)$currentActive !== (int)$desiredStatus) {
                         $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
+
+                        // Si el nuevo estatus es 7 (Material recibido en bodega), enviar email al solicitante
+                        if ((int)$desiredStatus === 7) {
+                            try {
+                                $requisicion = Requisicion::find($reqId);
+                                if ($requisicion && !empty($requisicion->email_user)) {
+                                    $productNames = DB::table('producto_requisicion as pr')
+                                        ->join('productos as p', 'pr.id_producto', '=', 'p.id')
+                                        ->where('pr.id_requisicion', $reqId)
+                                        ->pluck('p.name_produc')
+                                        ->toArray();
+
+                                    $lista = !empty($productNames) ? implode(', ', $productNames) : 'Productos disponibles';
+                                    $subject = "Material recibido en bodega - Requisición #{$reqId}";
+                                    $body = "El/los producto(s) solicitado(s): {$lista} han sido recibidos en bodega. Por favor, pase a recogerlos.";
+
+                                    Mail::raw($body, function ($message) use ($requisicion, $subject) {
+                                        $message->to($requisicion->email_user)->subject($subject);
+                                    });
+                                }
+                            } catch (\Throwable $e) {
+                                Log::warning('Error enviando notificación por estatus 7 para requisicion '.$reqId.': '.$e->getMessage());
+                            }
+                        }
                     }
                  
              }

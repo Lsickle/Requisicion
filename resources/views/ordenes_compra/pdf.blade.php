@@ -129,7 +129,7 @@
                 <tr>
                     <th width="5%">#</th>
                     <th width="20%">Producto</th>
-                    <th width="35%">Descripción</th>
+                    <th width="30%">Descripción</th>
                     <th width="8%">Unidad</th>
                     <th width="8%">Cantidad</th>
                     <th width="8%">IVA</th>

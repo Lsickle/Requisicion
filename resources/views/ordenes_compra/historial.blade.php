@@ -57,32 +57,33 @@
                         ->value('estatus_id');
 
                     if ($activeEstatusId) {
-                        $estatusText = DB::table('estatus_orden_compra')->where('id', $activeEstatusId)->value('status_name') ?? '—';
-                        $isTerminada = ((int)$activeEstatusId === 3);
-                        // Mostrar 'Creada' cuando el estatus activo es el id 1
-                        if ((int)$activeEstatusId === 1) {
+                        // Forzar etiqueta 'Completada' para estatus id 3
+                        if ((int)$activeEstatusId === 3) {
+                            $estatusDisplay = 'Completada';
+                            $isTerminada = true;
+                        } elseif ((int)$activeEstatusId === 1) {
                             $estatusDisplay = 'Creada';
+                            $isTerminada = false;
                         } else {
+                            $estatusText = DB::table('estatus_orden_compra')->where('id', $activeEstatusId)->value('status_name') ?? '—';
                             $estatusDisplay = $estatusText;
+                            $isTerminada = false;
                         }
                     } else {
                         $totOrdered = (int) DB::table('ordencompra_producto')->where('orden_compras_id', $oc->id)->whereNull('deleted_at')->sum('total');
                         $totReceived = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
                         if ($totReceived <= 0) {
-                            $estatusText = 'Orden creada';
+                            $estatusDisplay = 'Creada';
                         } elseif ($totReceived >= $totOrdered && $totOrdered > 0) {
-                            $estatusText = 'Completada';
+                            $estatusDisplay = 'Completada';
                         } else {
-                            $estatusText = 'Pendiente';
+                            $estatusDisplay = 'Pendiente';
                         }
                         $isTerminada = false;
-                        // Asegurar etiqueta corta cuando no hay registro en orden_compra_estatus
-                        $estatusDisplay = ($estatusText === 'Orden creada') ? 'Creada' : $estatusText;
                     }
                 } catch (\Throwable $e) {
-                    $estatusText = '—';
-                    $isTerminada = false;
                     $estatusDisplay = '—';
+                    $isTerminada = false;
                 }
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
@@ -95,10 +96,18 @@
                     <td class="p-3 text-right font-semibold">{{ number_format($ocTotal, 2) }}</td>
                     @php
                         // clase por defecto
+                        $estatusLower = strtolower(trim((string)$estatusDisplay));
                         $badgeClass = 'bg-gray-100 text-gray-800';
-                        if (strtolower($estatusDisplay) === 'completada') $badgeClass = 'bg-green-100 text-green-700';
-                        elseif (strtolower($estatusDisplay) === 'pendiente') $badgeClass = 'bg-amber-100 text-amber-700';
-                        elseif (strtolower($estatusDisplay) === 'creada') $badgeClass = 'bg-blue-100 text-blue-800';
+                        if ($estatusLower === 'completada' || $estatusLower === 'completado') {
+                            $badgeClass = 'bg-green-100 text-green-700';
+                        } elseif (strpos($estatusLower, 'recib') !== false) {
+                            // cualquier etiqueta que contenga 'recib' -> Recibido (amarillo)
+                            $badgeClass = 'bg-amber-100 text-amber-700';
+                        } elseif ($estatusLower === 'pendiente') {
+                            $badgeClass = 'bg-amber-100 text-amber-700';
+                        } elseif ($estatusLower === 'creada') {
+                            $badgeClass = 'bg-blue-100 text-blue-800';
+                        }
                     @endphp
                     <td class="p-3">
                         <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
@@ -113,10 +122,6 @@
                             @if(!($isTerminada ?? false))
                             <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-recibir bg-yellow-600 hover:bg-yellow-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Recibir productos" aria-label="Recibir productos">
                                 <i class="fas fa-box"></i>
-                            </button>
-                            @else
-                            <button type="button" disabled class="bg-gray-300 text-gray-600 rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Orden terminada" aria-label="Orden terminada">
-                                <i class="fas fa-ban"></i>
                             </button>
                             @endif
                             @if(!($isTerminada ?? false))
@@ -396,7 +401,7 @@
                                     ->leftJoin('productos as p','p.id','=','r.producto_id')
                                     ->where('oce.orden_compra_id', $oc->id)
                                     ->whereNull('oce.deleted_at')
-                                    ->select('oce.*','e.status_name','oce.estatus_id', 'r.id as recepcion_id', 'p.name_produc as producto_nombre', 'r.cantidad_recibido', 'r.reception_user')
+                                    ->select('oce.*','e.status_name','oce.estatus_id', 'r.id as recepcion_id', 'p.name_produc as producto_nombre', 'r.cantidad_recibido', 'r.reception_user', 'r.created_at as recepcion_created_at')
                                     ->orderBy('oce.created_at','asc')
                                     ->get();
 
@@ -435,17 +440,49 @@
                                 @if(isset($estatusHist) && $estatusHist->count())
                                     <div class="mb-4">
                                         <h4 class="font-semibold mb-2">Estatus registrados</h4>
-                                        @foreach($estatusHist as $eh)
+                                        @php
+                                            // Agrupar por fecha de recepción (truncada a minutos) y usuario para unir paneles que ocurrieron al mismo tiempo por la misma persona
+                                            $estatusGrouped = collect($estatusHist)->groupBy(function($row){
+                                                if (!empty($row->recepcion_id)) {
+                                                    $ts = $row->recepcion_created_at ?? null;
+                                                    try {
+                                                        $timeKey = $ts ? \Carbon\Carbon::parse($ts)->format('Y-m-d H:i') : 'no_ts';
+                                                    } catch (\Throwable $e) {
+                                                        $timeKey = 'no_ts';
+                                                    }
+                                                    $user = trim((string)($row->reception_user ?? 'no_user'));
+                                                    // safe user key
+                                                    $userKey = preg_replace('/[^A-Za-z0-9_\-]/', '_', $user);
+                                                    return 'rec_'.$timeKey.'_'.$userKey;
+                                                }
+                                                return 'est_'.$row->id;
+                                            });
+                                        @endphp
+
+                                        @foreach($estatusGrouped as $groupKey => $group)
+                                            @php
+                                                $firstRow = $group->first();
+                                                $isRecepcionGroup = !empty($firstRow->recepcion_id);
+                                                $displayName = $firstRow->status_name ?? '—';
+                                                // Preferir fecha de la recepción si existe
+                                                if ($isRecepcionGroup && !empty($firstRow->recepcion_created_at)) {
+                                                    $displayDate = \Carbon\Carbon::parse($firstRow->recepcion_created_at)->format('d/m/Y H:i');
+                                                } else {
+                                                    $displayDate = !empty($firstRow->date_update) ? \Carbon\Carbon::parse($firstRow->date_update)->format('d/m/Y H:i') : (!empty($firstRow->created_at) ? \Carbon\Carbon::parse($firstRow->created_at)->format('d/m/Y H:i') : '—');
+                                                }
+                                            @endphp
+
                                             <details class="mb-2">
                                                 <summary class="p-4 bg-gray-50 border rounded flex justify-between items-center cursor-pointer">
-                                                    <div class="font-medium">{{ $eh->status_name }}</div>
+                                                    <div class="font-medium">{{ $displayName }}</div>
                                                     <div class="flex items-center gap-2">
-                                                        <div class="text-sm text-gray-600">{{ !empty($eh->date_update) ? \Carbon\Carbon::parse($eh->date_update)->format('d/m/Y H:i') : (!empty($eh->created_at) ? \Carbon\Carbon::parse($eh->created_at)->format('d/m/Y H:i') : '—') }}</div>
+                                                        <div class="text-sm text-gray-600">{{ $displayDate }}</div>
                                                         <svg class="details-summary-arrow w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd"></path></svg>
                                                     </div>
                                                 </summary>
+
                                                 <div class="p-4 border rounded mt-2 bg-white">
-                                                    @if(!empty($eh->recepcion_id))
+                                                    @if($isRecepcionGroup)
                                                         <table class="w-full text-sm bg-white">
                                                             <thead class="bg-gray-100">
                                                                 <tr>
@@ -455,29 +492,30 @@
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                <tr>
-                                                                    <td class="p-2">{{ $eh->producto_nombre ?? '—' }}</td>
-                                                                    <td class="p-2 text-center">{{ $eh->cantidad_recibido ?? 0 }}</td>
-                                                                    <td class="p-2">{{ $eh->reception_user ?? '—' }}</td>
-                                                                </tr>
+                                                                @foreach($group as $row)
+                                                                    <tr>
+                                                                        <td class="p-2">{{ $row->producto_nombre ?? '—' }}</td>
+                                                                        <td class="p-2 text-center">{{ $row->cantidad_recibido ?? $row->cantidad ?? 0 }}</td>
+                                                                        <td class="p-2">{{ $row->reception_user ?? '—' }}</td>
+                                                                    </tr>
+                                                                @endforeach
                                                             </tbody>
                                                         </table>
 
-                                                        {{-- Mostrar sólo comentario para entradas de recepción; el usuario ya aparece en la tabla (reception_user) --}}
-                                                        @if($eh->estatus_id != 3 && !empty($eh->comentario))
-                                                            <div class="mt-3 text-sm text-gray-700">Comentario: {{ $eh->comentario }}</div>
+                                                        @if($firstRow->estatus_id != 3 && !empty($firstRow->comentario))
+                                                            <div class="mt-3 text-sm text-gray-700">Comentario: {{ $firstRow->comentario }}</div>
                                                         @endif
                                                     @else
-                                                        @if(isset($eh->estatus_id) && (int)$eh->estatus_id !== 3)
-                                                            <div class="text-sm text-gray-700">Usuario: {{ $eh->user_name ?? ($eh->user_id ?? '—') }}</div>
+                                                        {{-- entradas que no son recepciones (comentarios / usuarios) --}}
+                                                        @if(isset($firstRow->estatus_id) && (int)$firstRow->estatus_id !== 3)
+                                                            <div class="text-sm text-gray-700">Usuario: {{ $firstRow->user_name ?? ($firstRow->user_id ?? '—') }}</div>
                                                         @endif
-                                                        @if(!empty($eh->comentario))
-                                                            <div class="text-sm text-gray-700 mt-2">Comentario: {{ $eh->comentario }}</div>
+                                                        @if(!empty($firstRow->comentario))
+                                                            <div class="text-sm text-gray-700 mt-2">Comentario: {{ $firstRow->comentario }}</div>
                                                         @endif
                                                     @endif
 
-                                                    {{-- Si este estatus es el 3, mostrar fechas dentro del mismo panel del estatus --}}
-                                                    @if(isset($eh->estatus_id) && (int)$eh->estatus_id === 3)
+                                                    @if(isset($firstRow->estatus_id) && (int)$firstRow->estatus_id === 3)
                                                         <div class="mt-3 p-3 bg-green-50 border rounded text-sm text-gray-700">
                                                             <div>Fecha primer estatus: {{ $firstStatusDate ? $firstStatusDate->format('d/m/Y H:i') : '—' }}</div>
                                                             <div>Fecha último estatus: {{ $lastStatusDate ? $lastStatusDate->format('d/m/Y H:i') : '—' }}</div>
@@ -486,6 +524,7 @@
                                                 </div>
                                             </details>
                                         @endforeach
+                                 
                                     </div>
                                 @else
                                     <div class="p-4 bg-gray-50 border rounded flex justify-between items-center mb-3">
