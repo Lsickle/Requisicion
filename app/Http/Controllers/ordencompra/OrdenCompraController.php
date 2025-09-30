@@ -974,9 +974,9 @@ class OrdenCompraController extends Controller
                     }
                 }
                 // Si no se obtuvo de las líneas, usar valor del producto (puede ser % o fracción)
-                if ($ivaRate <= 0 && isset($producto->iva) && is_numeric($producto->iva)) {
-                    $pv = (float)$producto->iva;
-                    $ivaRate = ($pv > 1) ? ($pv / 100.0) : $pv;
+                // No hacer fallback automático al campo del producto: si no hay apply_iva explícito, no aplicar IVA
+                if ($ivaRate <= 0) {
+                    $ivaRate = 0.0;
                 }
 
                 $precioUnitario = (float) ($producto->price_produc ?? 0);

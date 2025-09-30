@@ -40,10 +40,10 @@
          .info-box.right { float: right; }
          .info-box h4 { background-color: #f5f5f5; padding: 5px 10px; margin: 0 0 10px 0; border-left: 4px solid #2c3e50; font-size: 14px; }
          .info-item { margin-bottom: 5px; }
-         .product-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-         .product-table th { background-color: #2c3e50; color: white; padding: 8px; text-align: left; font-size: 11px; }
-         .product-table td { padding: 6px; border-bottom: 1px solid #ddd; font-size: 10px; }
-         .product-table tr:nth-child(even) { background-color: #f9f9f9; }
+         .product-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; background: transparent; }
+         .product-table th { background-color: rgba(44,62,80,0.95); color: white; padding: 8px; text-align: left; font-size: 11px; }
+         .product-table td { padding: 6px; border-bottom: 1px solid rgba(0,0,0,0.08); font-size: 10px; background: transparent; }
+         .product-table tr:nth-child(even) { background-color: transparent; }
          .totals { float: right; width: 300px; margin-top: 10px; }
          .total-row { overflow: hidden; margin-bottom: 5px; }
          .total-label { float: left; width: 70%; text-align: right; padding-right: 10px; font-weight: bold; }
@@ -134,6 +134,7 @@
                     <td>{{ $item['unit_produc'] }}</td>
                     <td>{{ number_format($item['po_amount'], 0) }}</td>
                     @php
+                        // El IVA mostrado y usado debe provenir exclusivamente de apply_iva guardado en la DB (item['iva'] viene de buildPdfData)
                         $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje (p.ej. 12)
                         $ivaRate = $ivaPercent / 100;
                         $unitPrice = (float)($item['precio_unitario'] ?? 0);
