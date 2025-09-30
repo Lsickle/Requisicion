@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
+@section('title', 'Verificar PDF de Orden de Compra')
+
 @section('content')
+
 <x-sidebar/>
 
 <div class="max-w-2xl mx-auto p-6 mt-20">
