@@ -536,6 +536,13 @@
         rows.slice(start, end).forEach(r => r.style.display = '');
 
         renderPagination(totalPages);
+        // NUEVO: actualizar info
+        const infoEl = document.getElementById('paginationInfoAll');
+        if (infoEl) {
+            const total = rows.length;
+            const showing = Math.min(end, total);
+            infoEl.textContent = `Mostrando ${showing} de ${total}`;
+        }
     }
 
     function renderPagination(totalPages){
@@ -793,3 +800,21 @@
     }
 </script>
 @endsection
+
+<!-- Agregar span dentro de la barra de paginación -->
+{{-- Reemplazo parcial de la barra de paginación para insertar el indicador --}}
+<script>
+// Inyectar el span después de que el DOM cargue si no existe (fallback por si el html cacheado)
+document.addEventListener('DOMContentLoaded', ()=>{
+    const bar = document.getElementById('paginationBar');
+    if (bar && !document.getElementById('paginationInfoAll')) {
+        const leftBox = bar.querySelector('div.text-sm');
+        if (leftBox) {
+            const span = document.createElement('span');
+            span.id = 'paginationInfoAll';
+            span.className = 'ml-4 text-sm text-gray-600';
+            leftBox.appendChild(span);
+        }
+    }
+});
+</script>

@@ -89,23 +89,21 @@
                      @endforelse
                  </div>
 
-                <!-- (paginación movida al pie) -->
-             </div>
-
-            <!-- Paginación inferior -->
-            <div class="flex items-center justify-between mt-4" id="paginationBarAprob">
-                <div class="text-sm text-gray-600">
-                    Mostrar
-                    <select id="pageSizeSelectAprob" class="border rounded px-2 py-1">
-                        <option value="5">5</option>
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                    </select>
-                    por página
+                <!-- Paginación inferior -->
+                <div class="flex items-center justify-between mt-4" id="paginationBarAprob">
+                    <div class="text-sm text-gray-600">
+                        Mostrar
+                        <select id="pageSizeSelectAprob" class="border rounded px-2 py-1">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                        por página
+                        <span id="paginationInfoAprob" class="ml-4 text-sm text-gray-600"></span>
+                    </div>
+                    <div class="flex flex-wrap gap-1" id="paginationControlsAprob"></div>
                 </div>
-                <div class="flex flex-wrap gap-1" id="paginationControlsAprob"></div>
-            </div>
          </div>
      </div>
  </div>
@@ -355,6 +353,12 @@ document.addEventListener('DOMContentLoaded', function(){
         items.slice(start, end).forEach(el => el.style.display = '');
 
         renderPagination(totalPages);
+        const info = document.getElementById('paginationInfoAprob');
+        if (info) {
+            const total = items.length;
+            const showing = Math.min(end, total);
+            info.textContent = `Mostrando ${showing} de ${total}`;
+        }
     }
 
     function renderPagination(totalPages){

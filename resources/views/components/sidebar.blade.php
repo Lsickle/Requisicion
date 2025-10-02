@@ -46,7 +46,7 @@
             <li>
                 <a href="{{ route('requisiciones.historial') }}"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
-                    de Requisiciones</a>
+                    de mis Requisiciones</a>
             </li>
             @endif
 

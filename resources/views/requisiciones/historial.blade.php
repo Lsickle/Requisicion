@@ -150,6 +150,7 @@
             por página
         </div>
         <div class="flex flex-wrap gap-1" id="paginationControls"></div>
+        <span id="paginationInfoHist" class="ml-4 text-sm text-gray-600"></span>
     </div>
  
      <!-- ===== Modales fuera de la tabla para evitar desbordes y HTML inválido ===== -->
@@ -508,6 +509,12 @@
         rows.slice(start, end).forEach(r => r.style.display = '');
 
         renderPagination(totalPages);
+        const infoEl = document.getElementById('paginationInfoHist');
+        if (infoEl) {
+            const total = rows.length;
+            const showing = Math.min(end, total);
+            infoEl.textContent = `Mostrando ${showing} de ${total}`;
+        }
     }
 
     function renderPagination(totalPages){
@@ -871,3 +878,18 @@
     }
 </script>
 @endsection
+
+<script>
+document.addEventListener('DOMContentLoaded', ()=>{
+    const bar = document.getElementById('paginationBar');
+    if (bar && !document.getElementById('paginationInfoHist')) {
+        const leftBox = bar.querySelector('div.text-sm');
+        if (leftBox) {
+            const span = document.createElement('span');
+            span.id = 'paginationInfoHist';
+            span.className = 'ml-4 text-sm text-gray-600';
+            leftBox.appendChild(span);
+        }
+    }
+});
+</script>

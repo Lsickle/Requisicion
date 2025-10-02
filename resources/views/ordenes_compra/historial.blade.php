@@ -634,6 +634,12 @@
         rows.slice(start, end).forEach(r => r.style.display = '');
 
         ocRenderPagination(totalPages);
+        const infoEl = document.getElementById('paginationInfoOC');
+        if (infoEl) {
+            const total = rows.length;
+            const showing = Math.min(end, total);
+            infoEl.textContent = `Mostrando ${showing} de ${total}`;
+        }
     }
 
     function ocRenderPagination(totalPages){
@@ -834,3 +840,18 @@
         .details-summary-arrow{ transition: transform .18s ease; }
         details[open] .details-summary-arrow{ transform: rotate(180deg); }
     </style>
+<script>
+// Inyectar span de info de paginación de OC si falta
+document.addEventListener('DOMContentLoaded', () => {
+    const bar = document.getElementById('paginationBarOC');
+    if (bar && !document.getElementById('paginationInfoOC')) {
+        const leftBox = bar.querySelector('div.text-sm');
+        if (leftBox) {
+            const span = document.createElement('span');
+            span.id = 'paginationInfoOC';
+            span.className = 'ml-4 text-sm text-gray-600';
+            leftBox.appendChild(span);
+        }
+    }
+});
+</script>
