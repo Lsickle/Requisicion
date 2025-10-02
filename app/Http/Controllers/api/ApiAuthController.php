@@ -61,11 +61,15 @@ class ApiAuthController extends Controller
             Session::put('user_roles', $permissionData['roles']);
             Session::put('user_permissions', $permissionData['permissions']);
 
-            Log::info('Usuario autenticado: ' . json_encode(session('user')));
-            Log::info('Roles: ' . json_encode($permissionData['roles']));
-            Log::info('Permisos: ' . json_encode($permissionData['permissions']));
+            // Normalizar (minúsculas y sin espacios extremos) para comparación robusta
+            $normalize = function($txt){
+                $t = mb_strtolower(trim($txt), 'UTF-8');
+                // reemplazos básicos de acentos comunes
+                $t = str_replace(['á','é','í','ó','ú','ä','ë','ï','ö','ü'], ['a','e','i','o','u','a','e','i','o','u'], $t);
+                return $t;
+            };
 
-            // Permisos válidos de la sidebar
+            // Permisos válidos de la sidebar (originales)
             $validPermissions = [
                 'crear requisicion',
                 'ver requisicion',
@@ -80,9 +84,16 @@ class ApiAuthController extends Controller
                 'requisicionesxorden',
             ];
 
-            // Si el usuario tiene al menos 1 de esos permisos → entra
-            $userPermissions = $permissionData['permissions'];
-            $hasAccess = count(array_intersect($validPermissions, $userPermissions)) > 0;
+            $validNormalized = array_map($normalize, $validPermissions);
+            $userPermissionsNormalized = array_map($normalize, $permissionData['permissions']);
+
+            $hasAccess = count(array_intersect($validNormalized, $userPermissionsNormalized)) > 0;
+
+            Log::info('Permisos normalizados', [
+                'valid' => $validNormalized,
+                'user' => $userPermissionsNormalized,
+                'hasAccess' => $hasAccess
+            ]);
 
             if ($hasAccess) {
                 return redirect()->route('requisiciones.menu');

@@ -41,7 +41,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($requisiciones as $req)
+                            @forelse($requisicionesFiltradas as $req)
                             <tr class="aprob-item border-b hover:bg-gray-50 transition" data-id="{{ $req->id }}">
                                  <td class="px-4 py-2">{{ $req->id }}</td>
                                  <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
@@ -55,16 +55,11 @@
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
                                 <td class="px-4 py-2 text-center">
-                                    <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                        class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
-                                        Ver
-                                    </button>
+                                    <button onclick="toggleModal('modal-{{ $req->id }}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
                                 </td>
                             </tr>
                             @empty
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones pendientes</td>
-                            </tr>
+                            <tr><td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones para sus operaciones</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -72,22 +67,19 @@
 
                 <!-- Vista móvil -->
                 <div class="md:hidden space-y-4">
-                    @forelse($requisiciones as $req)
-                    <div class="aprob-item bg-white rounded-lg shadow p-4" data-id="{{ $req->id }}">
-                         <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
-                         <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
-                         <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                         <div class="mt-3">
-                             <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                 class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">
-                                 Ver
-                             </button>
-                         </div>
-                     </div>
-                     @empty
-                     <p class="text-center text-gray-500">No hay requisiciones pendientes</p>
-                     @endforelse
-                 </div>
+                    @forelse($requisicionesFiltradas as $req)
+                        <div class="aprob-item bg-white rounded-lg shadow p-4" data-id="{{ $req->id }}">
+                            <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
+                            <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
+                            <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                            <div class="mt-3">
+                                <button onclick="toggleModal('modal-{{ $req->id }}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-center text-gray-500">No hay requisiciones para sus operaciones</p>
+                    @endforelse
+                </div>
 
                 <!-- Paginación inferior -->
                 <div class="flex items-center justify-between mt-4" id="paginationBarAprob">
@@ -109,7 +101,7 @@
  </div>
 
 <!-- Modales -->
-@foreach($requisiciones as $req)
+@foreach($requisicionesFiltradas as $req)
 <div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div class="flex-1 overflow-y-auto p-6 relative">
@@ -199,17 +191,24 @@
         <!-- Botones Aprobar/Rechazar -->
         <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
             @php
-                $estatusAprobar = $estatusOptions->keys()->first();
-                $estatusRechazar = 9;
+                $estatusActual = $req->ultimoEstatus->estatus_id ?? null;
+                $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
+                $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+                $especial = in_array($opNorm, ['tecnologia','compras']);
+                $estatusAprobar = null;
+                if ($estatusActual === 1) {
+                    $estatusAprobar = $especial ? 3 : 2; // salto directo si operación especial
+                } elseif ($estatusActual === 2) {
+                    $estatusAprobar = 3;
+                } elseif ($estatusActual === 3) {
+                    $estatusAprobar = 4;
+                }
+                $estatusRechazar = 9; // siempre se envía como 9 y la lógica del backend decide la transición final
             @endphp
-            <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" 
-                data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">
-                Aprobar
-            </button>
-            <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" 
-                data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}" data-action="rechazar">
-                Rechazar
-            </button>
+            @if($estatusAprobar)
+                <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">Aprobar</button>
+            @endif
+            <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}" data-action="rechazar">Rechazar</button>
         </div>
     </div>
 </div>
