@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use App\Models\Requisicion;
 use App\Models\Estatus;
 use App\Models\Estatus_Requisicion;
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 
 class Estatus_RequisicionSeeder extends Seeder
 {
