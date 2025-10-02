@@ -510,40 +510,74 @@ class RequisicionController extends Controller
             return response()->json(['success' => false, 'message' => 'No tienes permisos'], 403);
         }
 
-        $newUserId = $request->input('new_user_id');
-        if (empty($newUserId)) {
-            return response()->json(['success' => false, 'message' => 'Usuario nuevo no especificado'], 400);
+        // Obtener datos directamente de los campos hidden
+        $providedUserId = $request->input('new_user_id');
+        $providedName = $request->input('name_user');
+        $providedEmail = $request->input('email_user');
+        $providedOperacion = $request->input('operacion_user');
+
+        // Validación más estricta
+        if (empty($providedUserId) || empty($providedName)) {
+            $msg = 'Datos de usuario destino incompletos. Se requiere user_id y name_user.';
+            Log::warning('transferir: datos incompletos', [
+                'user_id' => $providedUserId, 
+                'name_user' => $providedName,
+                'email' => $providedEmail,
+                'operacion' => $providedOperacion,
+                'request_all' => $request->all()
+            ]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msg], 400);
+            }
+            return redirect()->back()->withInput()->with('error', $msg);
         }
 
         DB::beginTransaction();
         try {
             $requisicion = Requisicion::findOrFail($id);
             $oldOwner = $requisicion->user_id;
-            $userRow = DB::table('users')->where('id', $newUserId)->first();
-            if (!$userRow) {
-                return response()->json(['success' => false, 'message' => 'Usuario destino no encontrado'], 404);
-            }
+            $oldOwnerName = $requisicion->name_user;
 
-            $requisicion->user_id = $userRow->id;
-            $requisicion->name_user = $userRow->name;
-            $requisicion->email_user = $userRow->email;
+            // Reescribir los campos de la requisición
+            $requisicion->user_id = $providedUserId;
+            $requisicion->name_user = $providedName;
+            $requisicion->email_user = $providedEmail ?? $requisicion->email_user;
+            $requisicion->operacion_user = $providedOperacion ?? $requisicion->operacion_user;
             $requisicion->save();
 
-            // Registrar en historial de estatus un comentario sobre la transferencia
+            // Registrar en historial
             Estatus_Requisicion::create([
                 'requisicion_id' => $requisicion->id,
                 'estatus_id' => $requisicion->ultimoEstatus->estatus_id ?? 1,
                 'estatus' => 1,
                 'date_update' => now(),
-                'comentario' => "Titularidad transferida de usuario {$oldOwner} a {$userRow->id} por Admin",
+                'comentario' => "Titularidad transferida de usuario {$oldOwner} ({$oldOwnerName}) a {$providedUserId} ({$providedName}) por " . (session('user.name') ?? session('user.id') ?? 'Sistema'),
             ]);
 
             DB::commit();
-            return response()->json(['success' => true, 'message' => 'Titularidad transferida correctamente']);
+            
+            $successMsg = 'Titularidad transferida correctamente';
+            Log::info('Transferencia exitosa', [
+                'requisicion_id' => $id,
+                'old_owner' => $oldOwner,
+                'old_owner_name' => $oldOwnerName,
+                'new_owner' => $providedUserId,
+                'new_name' => $providedName
+            ]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+            return redirect()->back()->with('success', $successMsg);
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Error transferir titularidad: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Error al transferir titularidad'], 500);
+            $errMsg = 'Error al transferir titularidad: ' . $e->getMessage();
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $errMsg], 500);
+            }
+            return redirect()->back()->withInput()->with('error', $errMsg);
         }
     }
 
@@ -956,7 +990,6 @@ class RequisicionController extends Controller
             $page = 1;
             $iterations = 0;
             $maxIterations = 200;
-            $pageUsers = [];
 
             do {
                 if ($nextUrl) {
@@ -993,7 +1026,6 @@ class RequisicionController extends Controller
 
                 if (!is_array($pageUsers)) $pageUsers = [];
 
-                // merge evitando duplicados por id y contar nuevos añadidos
                 $newAdded = 0;
                 foreach ($pageUsers as $u) {
                     $id = $u['id'] ?? $u['user_id'] ?? $u['usuario_id'] ?? null;
@@ -1004,7 +1036,7 @@ class RequisicionController extends Controller
                     $newAdded++;
                 }
 
-                // Determinar siguiente página: Link header o payload.links.next o meta
+                // Determinar siguiente página
                 $nextUrl = null;
                 $linkHeader = $resp->header('Link');
                 if ($linkHeader && preg_match('/<([^>]+)>;\s*rel="next"/i', $linkHeader, $m)) {
@@ -1019,7 +1051,6 @@ class RequisicionController extends Controller
                         $nextUrl = null;
                     }
                 } else {
-                    // Si no hay info de next, pero obtuvimos resultados, intentar siguiente page++ hasta que respuesta esté vacía o no agregue nuevos
                     if ($newAdded > 0 && count($pageUsers) > 0) {
                         $page = ((int)$page) + 1;
                         $nextUrl = null;
@@ -1028,14 +1059,11 @@ class RequisicionController extends Controller
                     }
                 }
 
-                // Normalizar nextUrl si es relativa
                 if ($nextUrl && !preg_match('#^https?://#i', $nextUrl)) {
                     $nextUrl = rtrim($base, '/') . '/' . ltrim($nextUrl, '/');
                 }
 
                 $iterations++;
-
-                // detener si no se agregaron usuarios nuevos en esta iteración
                 if ($newAdded === 0 && !$nextUrl) break;
 
             } while (($nextUrl || $iterations < $maxIterations) && $iterations < $maxIterations);
@@ -1046,6 +1074,7 @@ class RequisicionController extends Controller
                     'id' => $u['id'] ?? $u['user_id'] ?? $u['usuario_id'] ?? null,
                     'name' => $u['name'] ?? $u['nombre'] ?? ($u['email'] ?? 'Usuario'),
                     'email' => $u['email'] ?? null,
+                    'operacion_user' => $u['operacion_user'] ?? $u['operacion'] ?? $u['operaciones'] ?? null,
                 ];
             }, $usersRaw);
 

@@ -18,17 +18,17 @@ class ProductoSeeder extends Seeder
             Proveedor::factory()->count(10)->create();
         }
 
-        // Crear 50 productos
-        Producto::factory()->count(50)->create();
+        // Crear 1 producto
+        Producto::factory()->count(10)->create();
 
         // Mostrar información en consola
         $this->command->info('Productos creados:');
         $this->command->table(
-            ['ID', 'Nombre', 'Categoría', 'Proveedor ID', 'Precio'],
+            ['ID', 'Nombre', 'Categoría', 'Proveedor ID', 'Precio', 'IVA'],
             Producto::query()
                 ->orderBy('id')
                 ->limit(10)
-                ->get(['id', 'name_produc', 'categoria_produc', 'proveedor_id', 'price_produc'])
+                ->get(['id', 'name_produc', 'categoria_produc', 'proveedor_id', 'price_produc', 'iva'])
                 ->toArray()
         );
     }

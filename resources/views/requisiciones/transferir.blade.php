@@ -3,6 +3,7 @@
 @section('title', 'Transferir Titularidad')
 
 @section('content')
+
 <x-sidebar />
 
 <div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
@@ -284,15 +285,173 @@
             <h3 class="text-lg font-semibold mb-4">Transferir titularidad - Requisición #{{ $req->id }}</h3>
             <p class="mb-3"><strong>Propietario actual:</strong> <span id="current-owner-{{ $req->id }}">{{ $req->name_user }}</span></p>
 
-            <label class="block text-sm font-medium mb-2">Selecciona nuevo propietario</label>
-            <select id="new-owner-select-{{ $req->id }}" class="w-full border rounded px-3 py-2">
-                <option value="">-- Seleccionar usuario --</option>
-            </select>
+            <form id="transfer-form-{{ $req->id }}" action="{{ route('requisiciones.transferir', $req->id) }}" method="POST">
+                @csrf
+                
+                <label class="block text-sm font-medium mb-2">Selecciona nuevo propietario</label>
+                <select id="new-owner-select-{{ $req->id }}" name="user_id" class="w-full border rounded px-3 py-2">
+                    <option value="">-- Seleccionar usuario --</option>
+                </select>
 
-            <div class="flex justify-end gap-3 mt-4">
-                <button class="px-4 py-2 border rounded" onclick="closeTransferModal({{ $req->id }})">Cancelar</button>
-                <button class="px-4 py-2 bg-green-600 text-white rounded" id="confirm-transfer-{{ $req->id }}" onclick="submitTransfer({{ $req->id }})">Confirmar Transferencia</button>
-            </div>
+                {{-- Solo estos campos hidden son necesarios --}}
+                <input type="hidden" name="new_user_id" id="new_user_id-{{ $req->id }}" value="">
+                <input type="hidden" name="name_user" id="name_user-{{ $req->id }}" value="">
+                <input type="hidden" name="email_user" id="email_user-{{ $req->id }}" value="">
+                <input type="hidden" name="operacion_user" id="operacion_user-{{ $req->id }}" value="">
+
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" class="px-4 py-2 border rounded" onclick="closeTransferModal({{ $req->id }})">Cancelar</button>
+                    <button type="button" class="px-4 py-2 bg-green-600 text-white rounded" id="confirm-transfer-{{ $req->id }}" onclick="submitTransfer({{ $req->id }})">Confirmar Transferencia</button>
+                </div>
+            </form>
         </div>
     </div>
 @endforeach
+
+<script>
+    // Utility functions for transfer modals
+    async function populateUsersForModal(reqId) {
+        const sel = document.getElementById('new-owner-select-' + reqId);
+        if (!sel) return;
+        if (sel.dataset.populated === '1') return;
+        
+        try {
+            const resp = await fetch(window.ReqTransferConfig?.usersUrl || '/requisiciones/usuarios_external', { 
+                headers: { 'Accept': 'application/json' } 
+            });
+            if (!resp.ok) throw new Error('No se pudo obtener la lista de usuarios');
+            
+            const payload = await resp.json();
+            let users = [];
+            
+            if (Array.isArray(payload)) {
+                users = payload;
+            } else if (payload && Array.isArray(payload.users)) {
+                users = payload.users;
+            } else if (payload && Array.isArray(payload.data)) {
+                users = payload.data;
+            } else if (payload && payload.ok && Array.isArray(payload.users)) {
+                users = payload.users;
+            }
+
+            sel.innerHTML = '<option value="">-- Seleccionar usuario --</option>';
+            (users || []).forEach(u => {
+                const opt = document.createElement('option');
+                const idVal = u.id ?? u.user_id ?? u.usuario_id ?? '';
+                const nameVal = u.name ?? u.nombre ?? u.name_user ?? u.email ?? '';
+                const emailVal = u.email ?? u.email_user ?? '';
+                const operVal = u.operacion_user ?? u.operacion ?? u.operaciones ?? '';
+                
+                // valor combinado: id|||name|||email|||operacion
+                const combined = [idVal, nameVal, emailVal, operVal].map(x => (x === null || x === undefined) ? '' : String(x)).join('|||');
+                opt.value = combined;
+                opt.text = nameVal || ('Usuario ' + (idVal ?? ''));
+                // datos explícitos para uso en submit
+                opt.dataset.id = idVal !== null && idVal !== undefined ? String(idVal) : '';
+                opt.dataset.name = nameVal || '';
+                opt.dataset.email = emailVal || '';
+                opt.dataset.operacion = operVal || '';
+                sel.appendChild(opt);
+            });
+             sel.dataset.populated = '1';
+        } catch (e) {
+            console.error('Error cargando usuarios:', e);
+            alert('Error al cargar la lista de usuarios');
+        }
+    }
+
+    function openTransferModal(reqId) {
+        const modal = document.getElementById('transfer-modal-' + reqId);
+        if (!modal) return;
+        populateUsersForModal(reqId);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeTransferModal(reqId) {
+        const modal = document.getElementById('transfer-modal-' + reqId);
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.style.overflow = '';
+    }
+
+    async function submitTransfer(reqId) {
+        const sel = document.getElementById('new-owner-select-' + reqId);
+        if (!sel) return alert('Selector no encontrado');
+        const selected = sel.options[sel.selectedIndex];
+        if (!selected || !selected.value) return alert('Selecciona un usuario para transferir');
+
+        const form = document.getElementById('transfer-form-' + reqId);
+        if (!form) return alert('Formulario no encontrado');
+
+        // Parsear los datos del usuario seleccionado
+        const parts = (selected.value || '').split('|||');
+        const parsedId = parts[0] ?? '';
+        const parsedName = parts[1] ?? '';
+        const parsedEmail = parts[2] ?? '';
+        const parsedOper = parts[3] ?? '';
+
+        // Llenar los campos hidden con los datos parseados
+        document.getElementById('new_user_id-' + reqId).value = parsedId || selected.dataset.id || '';
+        document.getElementById('name_user-' + reqId).value = parsedName || selected.text || '';
+        document.getElementById('email_user-' + reqId).value = parsedEmail || selected.dataset.email || '';
+        document.getElementById('operacion_user-' + reqId).value = parsedOper || selected.dataset.operacion || '';
+
+        console.log('Datos a enviar:', {
+            new_user_id: document.getElementById('new_user_id-' + reqId).value,
+            name_user: document.getElementById('name_user-' + reqId).value,
+            email_user: document.getElementById('email_user-' + reqId).value,
+            operacion_user: document.getElementById('operacion_user-' + reqId).value
+        });
+
+        // Enviar por fetch como JSON con payload explícito para garantizar que elbackend reciba name/email/operacion
+        const payload = {
+            new_user_id: document.getElementById('new_user_id-' + reqId).value,
+            name_user: document.getElementById('name_user-' + reqId).value,
+            email_user: document.getElementById('email_user-' + reqId).value,
+            operacion_user: document.getElementById('operacion_user-' + reqId).value,
+            // incluir también el valor crudo del select por compatibilidad
+            user_id: selected.value || selected.dataset.id || parsedId
+        };
+
+        console.log('Enviando payload JSON:', payload, 'to', form.action);
+
+        try {
+            const resp = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': window.ReqTransferConfig.csrfToken || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload),
+                credentials: 'same-origin'
+            });
+
+            const text = await resp.text();
+            let data = null;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+
+            console.log('Respuesta transferir:', { status: resp.status, ok: resp.ok, bodyText: text, parsed: data });
+
+            if (!resp.ok) {
+                const msg = (data && data.message) ? data.message : ('HTTP ' + resp.status);
+                alert(msg || 'Error en la transferencia');
+                return;
+            }
+
+            if (data && data.success) {
+                alert(data.message || 'Titularidad transferida correctamente');
+                window.location.reload();
+                return;
+            }
+
+            alert((data && data.message) ? data.message : 'Respuesta inválida');
+        } catch (e) {
+            console.error('submitTransfer error', e);
+            alert('Error de conexión: ' + (e && e.message ? e.message : 'desconocido'));
+        }
+     }
+ </script>
