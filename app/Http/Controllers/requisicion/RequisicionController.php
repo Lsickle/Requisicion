@@ -159,6 +159,7 @@ class RequisicionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'operacion_user' => 'required|string|max:255',
             'Recobrable' => 'required|in:Recobrable,No recobrable',
             'prioridad_requisicion' => 'required|in:baja,media,alta',
             'justify_requisicion' => 'required|string|min:3|max:500',
@@ -173,6 +174,7 @@ class RequisicionController extends Controller
             'productos.*.centros.*.id' => 'required|exists:centro,id',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
+            'operacion_user.required' => 'Debe seleccionar una operación.',
             'productos.required' => 'Agrega al menos un producto.',
             'productos.*.requisicion_amount.required' => 'La cantidad total por producto es obligatoria.',
         ]);
@@ -194,7 +196,8 @@ class RequisicionController extends Controller
             $userId = session('user.id');
             $nombreUsuario = session('user.name', 'Usuario Desconocido');
             $emailUsuario = session('user.email', 'email@desconocido.com');
-            $operacionUsuario = session('user.operaciones', 'Operación no definida');
+            // Obtener operación desde el formulario (ya validada) en lugar de la sesión
+            $operacionUsuario = trim($validated['operacion_user']);
 
             $requisicion = new Requisicion();
             $requisicion->user_id = $userId;

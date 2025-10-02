@@ -39,6 +39,52 @@
         <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
             @csrf
 
+            <!-- Campo Operación con búsqueda -->
+            <div>
+                <label class="block text-gray-600 font-semibold mb-1">Centro de costo</label>
+                <div class="relative">
+                    <input type="text" id="operacionFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
+                    <input type="hidden" name="operacion_user" id="operacionSelect" value="{{ old('operacion_user') }}" required>
+                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
+                        @php $operacionesLista = [
+                            'Calidad',
+                            'Cedi Frio',
+                            'Cedi Frio - Mantenimiento',
+                            'Cedi Frio Agrofrut',
+                            'Cedi Frio Calypso',
+                            'Cedi Frio Food Box',
+                            'Cedi Frio Ibazan',
+                            'Cedi Frio Kikes',
+                            'Cedi Frio La Fazenda',
+                            'Cedi Frio Todos Comemos',
+                            'Compras',
+                            'Cumbria',
+                            'Financiera',
+                            'HSEQ',
+                            'Huawei',
+                            'Inventarios',
+                            'Kw',
+                            'Macmillan',
+                            'Mary Kay',
+                            'Mattel',
+                            'Mejoramiento Contínuo',
+                            'Naos',
+                            'Oriflame',
+                            'Ortopedicos Futuro',
+                            'Seguridad',
+                            'Sony',
+                            'Talento Humano',
+                            'Tecnología',
+                            'Tranportes Vigia',
+                            'Transportes',
+                        ]; @endphp
+                        @foreach($operacionesLista as $op)
+                        <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
@@ -187,7 +233,7 @@
 
             <div class="grid grid-cols-3 gap-4 items-end">
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Centro</label>
+                    <label class="block text-gray-600 font-semibold mb-1">Subcentros</label>
                     <div class="relative">
                         <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un centro" autocomplete="off">
                         <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
@@ -540,6 +586,11 @@
         if (!centrosDropdown.contains(e.target) && !centroFilter.contains(e.target)) {
             centrosDropdown.style.display = 'none';
         }
+        // operaciones
+        const operacionesDropdown = document.getElementById('operacionesDropdown');
+        if (operacionesDropdown && !operacionesDropdown.contains(e.target) && !operacionFilter.contains(e.target)) {
+            operacionesDropdown.classList.add('hidden');
+        }
     });
 
     // Event listeners para abrir/cerrar modales
@@ -776,6 +827,66 @@
         
         // El formulario se enviará normalmente después de esto
     });
+
+    // Campo Operación: selección y búsqueda
+    const operacionFilter = document.getElementById('operacionFilter');
+    const operacionesDropdown = document.getElementById('operacionesDropdown');
+    const operacionSelectHidden = document.getElementById('operacionSelect');
+
+    // Mostrar dropdown al enfocar
+    if (operacionFilter) {
+        operacionFilter.addEventListener('focus', () => {
+            filtrarOperaciones();
+            operacionesDropdown.classList.remove('hidden');
+        });
+        operacionFilter.addEventListener('input', () => filtrarOperaciones());
+        operacionFilter.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                setTimeout(filtrarOperaciones,0);
+            }
+        });
+    }
+
+    window.seleccionarOperacion = function(e, el){
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        const val = el.getAttribute('data-value');
+        operacionFilter.value = val;
+        operacionSelectHidden.value = val;
+        operacionesDropdown.classList.add('hidden');
+        operacionFilter.focus();
+    };
+
+    function filtrarOperaciones(){
+        const filtro = (operacionFilter.value || '').toLowerCase();
+        let any = false;
+        operacionesDropdown.querySelectorAll('div[data-value]').forEach(div => {
+            const t = (div.textContent||'').toLowerCase();
+            if (!filtro || t.includes(filtro)) { div.style.display='block'; any = true; } else { div.style.display='none'; }
+        });
+        if (!any) { operacionesDropdown.classList.add('hidden'); } else { operacionesDropdown.classList.remove('hidden'); }
+    }
+
+    // Cerrar al hacer click fuera
+    document.addEventListener('click', (e)=>{
+        if (operacionesDropdown && !operacionesDropdown.contains(e.target) && !operacionFilter.contains(e.target)) {
+            operacionesDropdown.classList.add('hidden');
+        }
+    });
+
+    // Validar antes de enviar
+    requisicionForm.addEventListener('submit', function(ev){
+        if (!operacionSelectHidden.value) {
+            ev.preventDefault();
+            Swal.fire({icon:'error', title:'Operación requerida', text:'Debe seleccionar una operación.'});
+            operacionFilter.focus();
+            return;
+        }
+    }, {capture:true});
+
+    // Si había old() valor pero input vacío, sincronizar
+    if (operacionSelectHidden.value && !operacionFilter.value) {
+        operacionFilter.value = operacionSelectHidden.value;
+    }
 });
 </script>
 @endsection

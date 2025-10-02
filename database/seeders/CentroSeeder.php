@@ -10,14 +10,14 @@ class CentroSeeder extends Seeder
     public function run()
     {
         $centros = [
-            'MARY KAY', 'COLTABACO', 'ADMINISTRACION', 'CEDI FRIO', 'ORIFLAME',
-            'INVENTARIOS', 'HUAWEI', 'MULTICLIENTE 1E', 'OVERHEAD', 'MATTEL',
-            'NAOS', 'ORTOPEDICOS', 'COMERCIAL', 'MULTICLIENTE 12G', 'MANTENIMIENTO',
-            'SONY', 'TRANSPORTES', 'SEGURIDAD', 'MAC MILLAN', 'TECNOLOGIA',
-            'INNOVACION Y DESARROLLO', 'MULTICLIENTE', 'KW COLOMBIA', 'LAFAZENDA',
-            'MC MILLAN', 'HSEQ', 'TODOS COMEMOS', 'KIKES', 'MEJORAMIENTO CONTINUO',
-            'CALIDAD', 'FRIO', 'COMPRAS', 'ORTOPEDICOS FUTURO',
-            'AGROFRUT', 'TALENTO HUMANO', 'SULFOQUIMICA'
+            'Mary kay', 'Coltabaco', 'Administración', 'Cedi Frio',
+            'Oriflame', 'Inventarios', 'Huawei', 'Overhead', 'Mattel',
+            'Naos', 'Ortopedicos', 'Comercial', 'Mantenimiento', 'Sony',
+            'Transportes', 'Seguridad', 'Mac Millan', 'Tecnologia', 'Kw Colombia',
+            'Lafazenda', 'HSEQ', 'Todos comemos', 'Kikes', 'Mejoramiento continuo',
+            'Calidad', 'Compras', 'Ortopedicos Futuro', 'Agrofruit',
+            'Talento humano', 'Calypso', 'Ibazan', 'Financiero', 
+            'Gerencia General', 'Corporativo', 'Proyectos', 'Operaciones',
         ];
 
         foreach ($centros as $centro) {
