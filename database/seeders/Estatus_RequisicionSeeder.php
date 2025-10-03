@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\requisicion;
-use App\Models\estatus;
+use App\Models\Requisicion;
+use App\Models\Estatus;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Support\Carbon;
 

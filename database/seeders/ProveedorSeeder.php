@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\proveedor;
+use App\Models\Proveedor;
 
 class ProveedorSeeder extends Seeder
 {

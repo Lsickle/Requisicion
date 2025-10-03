@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\estatus;
+use App\Models\Estatus;
 use Carbon\Carbon;
 
 class EstatusSeeder extends Seeder

@@ -3,9 +3,9 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\centro;
-use App\Models\producto;
-use App\Models\requisicion;
+use App\Models\Centro;
+use App\Models\Producto;
+use App\Models\Requisicion;
 use Illuminate\Support\Facades\DB;
 
 class CentroProductoSeeder extends Seeder
