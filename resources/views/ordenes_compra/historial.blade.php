@@ -358,9 +358,9 @@
                     <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-box"></i> Recibir productos
                     </button>
-                    <a href="{{ route('ordenes_compra.pdf', $requisicionId) }}" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
+                    <button type="button" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1 btn-download-pdf" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
-                    </a>
+                    </button>
                 </div>
                 <!-- Modal Estatus para esta OC -->
                 @php
@@ -697,6 +697,40 @@
 
         // Delegated click handler for modal actions, rc-save and terminar
         document.addEventListener('click', async function(e){
+            // Descargar PDF directamente
+            const pdfBtn = e.target.closest('.btn-download-pdf');
+            if (pdfBtn) {
+                const ocId = pdfBtn.dataset.ocId;
+                if (!ocId) return;
+                try {
+                    Swal.fire({ title: 'Generando PDF', text: 'Espere un momento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    const url = `/ordenes_compra/${ocId}/pdf`;
+                    const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/pdf' }, credentials: 'same-origin' });
+                    if (!resp.ok) {
+                        let errText;
+                        try { errText = (await resp.json()).message; } catch(_) { errText = await resp.text(); }
+                        throw new Error(errText || `Error ${resp.status}`);
+                    }
+                    const blob = await resp.blob();
+                    const cd = resp.headers.get('Content-Disposition') || '';
+                    let filename = `OC-${ocId}.pdf`;
+                    const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+                    if (match) filename = decodeURIComponent(match[1] || match[2] || filename);
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                    link.remove();
+                    Swal.close();
+                } catch (err) {
+                    Swal.close();
+                    Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'No se pudo descargar el PDF' });
+                }
+                return;
+            }
+
             // open recibir modal
             const btnRec = e.target.closest('.btn-open-recibir');
             if (btnRec) {

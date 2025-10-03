@@ -8,7 +8,7 @@ use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use App\Models\Nuevo_Producto;
+use App\Models\Nuevo_producto;
 
 class ProductosController extends Controller
 {
