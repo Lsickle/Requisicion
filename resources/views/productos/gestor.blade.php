@@ -110,7 +110,7 @@
                             <td class="px-4 py-2 text-center">
                                 <div class="flex justify-center space-x-2">
                                     @if($producto->trashed())
-                                    <form action="{{ route('productos.restore', $producto->id) }}" method="POST"
+                                    <form action="{{ route('productos.restore', [$producto->id], false) }}" method="POST"
                                         class="inline" onsubmit="showLoading(event)">
                                         @csrf
                                         @method('POST')
@@ -119,7 +119,7 @@
                                             <i class="fas fa-undo"></i>
                                         </button>
                                     </form>
-                                    <form action="{{ route('productos.forceDelete', $producto->id) }}" method="POST"
+                                    <form action="{{ route('productos.forceDelete', [$producto->id], false) }}" method="POST"
                                         class="inline" onsubmit="return confirmDelete(event)">
                                         @csrf
                                         @method('DELETE')
@@ -134,7 +134,7 @@
                                         class="text-blue-600 hover:text-blue-800" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <form action="{{ route('productos.destroy', $producto->id) }}" method="POST"
+                                    <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
                                         class="inline" onsubmit="return confirmDelete(event)">
                                         @csrf
                                         @method('DELETE')
@@ -191,7 +191,7 @@
                         <td class="px-4 py-2 text-center">
                             <div class="flex justify-center space-x-2">
                                 @if($solicitud->trashed())
-                                <form action="{{ route('nuevo_producto.restore', $solicitud->id) }}" method="POST"
+                                <form action="{{ route('nuevo_producto.restore', [$solicitud->id], false) }}" method="POST"
                                     onsubmit="showLoading(event)">
                                     @csrf
                                     @method('POST')
@@ -199,7 +199,7 @@
                                         <i class="fas fa-undo"></i>
                                     </button>
                                 </form>
-                                <form action="{{ route('nuevo_producto.forceDelete', $solicitud->id) }}" method="POST"
+                                <form action="{{ route('nuevo_producto.forceDelete', [$solicitud->id], false) }}" method="POST"
                                     onsubmit="return confirmDelete(event)">
                                     @csrf
                                     @method('DELETE')
@@ -216,7 +216,7 @@
                                 </button>
 
                                 <!-- Botón Rechazar solicitud (icono minimalista) -->
-                                <form action="{{ route('nuevo_producto.destroy', $solicitud->id) }}" method="POST"
+                                <form action="{{ route('nuevo_producto.destroy', [$solicitud->id], false) }}" method="POST"
                                     onsubmit="return confirmDelete(event)" class="inline">
                                     @csrf
                                     @method('DELETE')
@@ -268,7 +268,7 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <form id="productForm" action="{{ route('productos.store') }}" method="POST"
+                    <form id="productForm" action="{{ route('productos.store', [], false) }}" method="POST"
                         onsubmit="return validateProductForm()">
                         @csrf
                         <input type="hidden" id="formMethod" name="_method" value="POST">
@@ -547,7 +547,7 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <form id="addFromSolicitudForm" action="{{ route('productos.store') }}" method="POST"
+                    <form id="addFromSolicitudForm" action="{{ route('productos.store', [], false) }}" method="POST"
                         onsubmit="return validateAddFromSolicitudForm()">
                         @csrf
                         <input type="hidden" id="solicitudId" name="solicitud_id" value="">
@@ -779,7 +779,7 @@
             document.getElementById('modalTitle').textContent = 'Nuevo Producto';
             document.getElementById('productId').value = '';
             document.getElementById('formMethod').value = 'POST';
-            document.getElementById('productForm').action = "{{ route('productos.store') }}";
+            document.getElementById('productForm').action = "{{ route('productos.store', [], false) }}";
             document.getElementById('productForm').reset();
             // Limpiar campos de búsqueda
             document.getElementById('proveedor_input').value = '';
@@ -830,7 +830,7 @@
         document.getElementById('modalTitle').textContent = 'Editar Producto';
         document.getElementById('productId').value = id;
         document.getElementById('formMethod').value = 'PUT';
-        document.getElementById('productForm').action = "{{ url('productos') }}/" + id;
+        document.getElementById('productForm').action = '/productos/' + id;
         
         document.getElementById('name_produc').value = nombre;
         document.getElementById('stock_produc').value = stock;
@@ -1213,7 +1213,7 @@
 
         showLoading();
 
-        fetch('{{ route("proveedores.store") }}', {
+        fetch('{{ route("proveedores.store", [], false) }}', {
             method: 'POST',
             body: formData
         })
