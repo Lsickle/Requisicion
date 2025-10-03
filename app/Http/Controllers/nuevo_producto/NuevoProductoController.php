@@ -4,7 +4,7 @@ namespace App\Http\Controllers\nuevo_producto;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Nuevo_Producto;
+use App\Models\Nuevo_producto;
 use Illuminate\Support\Facades\DB;
 use App\Jobs\NuevoProductoSolicitadoJob;
 
@@ -15,7 +15,7 @@ class NuevoProductoController extends Controller
      */
     public function index()
     {
-        $productos = Nuevo_Producto::withTrashed()->orderBy('nombre')->get();
+        $productos = Nuevo_producto::withTrashed()->orderBy('nombre')->get();
         return view('requisiciones.menu', compact('productos'));
     }
 
@@ -45,7 +45,7 @@ class NuevoProductoController extends Controller
             $emailUser = session('user.email') ?? 'no-email@dominio.com';
 
             // Crear registro incluyendo nombre y email del usuario
-            $nuevoProducto = Nuevo_Producto::create([
+            $nuevoProducto = Nuevo_producto::create([
                 'nombre'      => $validated['nombre'],
                 'descripcion' => $validated['descripcion'],
                 'name_user'   => $nameUser,
@@ -70,7 +70,7 @@ class NuevoProductoController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Nuevo_Producto $nuevoProducto)
+    public function show(Nuevo_producto $nuevoProducto)
     {
         return view('nuevo_producto.show', compact('nuevoProducto'));
     }
@@ -78,7 +78,7 @@ class NuevoProductoController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Nuevo_Producto $nuevoProducto)
+    public function edit(Nuevo_producto $nuevoProducto)
     {
         return view('nuevo_producto.edit', compact('nuevoProducto'));
     }
@@ -86,7 +86,7 @@ class NuevoProductoController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Nuevo_Producto $nuevoProducto)
+    public function update(Request $request, Nuevo_producto $nuevoProducto)
     {
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
@@ -99,7 +99,7 @@ class NuevoProductoController extends Controller
             ->with('success', 'Solicitud de producto actualizada exitosamente.');
     }
 
-    public function destroy(Nuevo_Producto $nuevoProducto)
+    public function destroy(Nuevo_producto $nuevoProducto)
     {
         $nuevoProducto->delete();
         return redirect()->route('productos.gestor')
@@ -108,7 +108,7 @@ class NuevoProductoController extends Controller
 
     public function restore($id)
     {
-        $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
+        $producto = Nuevo_producto::withTrashed()->findOrFail($id);
         $producto->restore();
 
         return redirect()->route('productos.gestor')
@@ -120,7 +120,7 @@ class NuevoProductoController extends Controller
      */
     public function forceDelete($id)
     {
-        $producto = Nuevo_Producto::withTrashed()->findOrFail($id);
+        $producto = Nuevo_producto::withTrashed()->findOrFail($id);
         $producto->forceDelete();
 
         return redirect()->route('productos.gestor')
