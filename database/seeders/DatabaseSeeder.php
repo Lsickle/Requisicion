@@ -2,10 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Estatus;
-use App\Models\Estatus_Requisicion;
-use App\Models\EstatusOrdenCompra;
-use App\Models\OrdenCompra;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder

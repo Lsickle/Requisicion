@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\OrdenCompra;
-use App\Models\Producto;
-use App\Models\Proveedor;
+use App\Models\producto;
+use App\Models\proveedor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Seeder;
 
