@@ -31,7 +31,7 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'proveedores', 'solicitudes'));
     }
@@ -63,7 +63,7 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_Producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores', 'solicitudes'));
     }
