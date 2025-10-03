@@ -12,6 +12,7 @@
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <script>
         tailwind.config = {
             theme: {
@@ -37,12 +38,12 @@
             <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
                 <div class="mb-6 md:mb-7">
-                    <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics"
+                    <img src="/images/VigiaLogoC.svg" alt="Vigía Plus Logistics"
                         class="mx-auto h-14 md:h-16 w-auto rounded-lg">
                 </div>
 
                 <!-- Formulario de login -->
-                <form id="loginForm" method="POST" action="{{ route('api.login') }}">
+                <form id="loginForm" method="POST" action="/auth/api-login">
                     @csrf
                     <div class="mb-5">
                         <label for="email" class="block text-gray-700 text-sm font-medium mb-2">Correo
