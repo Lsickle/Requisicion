@@ -1265,6 +1265,52 @@
         });
     }
 
+    // NUEVO: Validación modal "Añadir desde Solicitud"
+    function validateAddFromSolicitudForm() {
+        // ocultar errores previos
+        const errIds = [
+            'solicitud_name_produc_error', 'solicitud_categoria_produc_error', 'solicitud_proveedor_id_error',
+            'solicitud_stock_produc_error', 'solicitud_price_produc_error', 'solicitud_iva_error',
+            'solicitud_unit_produc_error', 'solicitud_description_produc_error'
+        ];
+        errIds.forEach(id => { const el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.textContent = ''; } });
+
+        let ok = true;
+        const nameEl = document.getElementById('solicitud_name_produc');
+        const catHidden = document.getElementById('solicitud_categoria_produc');
+        const provHidden = document.getElementById('solicitud_proveedor_id');
+        const stockEl = document.getElementById('solicitud_stock_produc');
+        const priceEl = document.getElementById('solicitud_price_produc');
+        const ivaEl = document.getElementById('solicitud_iva');
+        const unitHidden = document.getElementById('solicitud_unit_produc');
+        const descEl = document.getElementById('solicitud_description_produc');
+
+        if (!nameEl.value.trim()) { const e = document.getElementById('solicitud_name_produc_error'); e.textContent = 'Requerido'; e.classList.remove('hidden'); ok = false; }
+        if (!catHidden.value) { const e = document.getElementById('solicitud_categoria_produc_error'); e.textContent = 'Seleccione una categoría'; e.classList.remove('hidden'); ok = false; }
+        if (!provHidden.value) { const e = document.getElementById('solicitud_proveedor_id_error'); e.textContent = 'Seleccione un proveedor'; e.classList.remove('hidden'); ok = false; }
+
+        const stockVal = parseInt(stockEl.value, 10);
+        if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('solicitud_stock_produc_error'); e.textContent = 'Stock inválido'; e.classList.remove('hidden'); ok = false; }
+
+        const priceVal = parseFloat(priceEl.value);
+        if (isNaN(priceVal) || priceVal < 0) { const e = document.getElementById('solicitud_price_produc_error'); e.textContent = 'Precio inválido'; e.classList.remove('hidden'); ok = false; }
+
+        const ivaVal = parseFloat(ivaEl.value);
+        if (isNaN(ivaVal) || ivaVal < 0) { const e = document.getElementById('solicitud_iva_error'); e.textContent = 'IVA inválido'; e.classList.remove('hidden'); ok = false; }
+
+        if (!unitHidden.value.trim()) { const e = document.getElementById('solicitud_unit_produc_error'); e.textContent = 'Seleccione una unidad'; e.classList.remove('hidden'); ok = false; }
+        if (!descEl.value.trim()) { const e = document.getElementById('solicitud_description_produc_error'); e.textContent = 'Descripción requerida'; e.classList.remove('hidden'); ok = false; }
+
+        return ok;
+    }
+
+    function submitAddFromSolicitudForm() {
+        if (validateAddFromSolicitudForm()) {
+            showLoading();
+            document.getElementById('addFromSolicitudForm').submit();
+        }
+    }
+
     // Actualizar select de proveedores en todos los formularios
     function updateProveedoresSelect(proveedores) {
         const selectElements = [
@@ -1427,7 +1473,7 @@
     }
 
     // ===== Paginación Solicitudes =====
-    let solCurrentPage = 1;
+    let solCurrentPage =  1;
     let solPageSize = 10;
 
     function solGetAllRows(){
@@ -1626,7 +1672,7 @@
                 sCatIn.value = val;
                 if (sCatHidden) sCatHidden.value = val;
                 sCatDrop.classList.add('hidden');
-                if (sCatErr) sCatErr.classList.remove('hidden');
+                if (sCatErr) sCatErr.classList.add('hidden');
             });
         }
 

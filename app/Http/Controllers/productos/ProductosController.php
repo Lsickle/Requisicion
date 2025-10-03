@@ -97,7 +97,7 @@ class ProductosController extends Controller
 
             // Si viene de una solicitud, eliminar la solicitud
             if ($request->has('solicitud_id') && $request->solicitud_id) {
-                $solicitud = Nuevo_Producto::find($request->solicitud_id);
+                $solicitud = Nuevo_producto::find($request->solicitud_id);
                 if ($solicitud) {
                     $solicitud->delete();
                 }
@@ -237,7 +237,7 @@ public function storeProveedor(Request $request)
     public function getSolicitudData($id)
     {
         try {
-            $solicitud = Nuevo_Producto::findOrFail($id);
+            $solicitud = Nuevo_producto::findOrFail($id);
             return response()->json($solicitud);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Solicitud no encontrada'], 404);
