@@ -330,10 +330,6 @@
     </div>
 
     <div class="mt-8 flex gap-3 justify-center">
-        <a href="{{ route('requisiciones.historial') }}"
-            class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center">
-            <i class="fas fa-arrow-left mr-2"></i> Volver al historial
-        </a>
         <a href="{{ route('pdf.generar', ['tipo' => 'estatus', 'id' => $requisicion->id]) }}" target="_blank"
             class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition flex items-center">
             <i class="fas fa-file-pdf mr-2"></i> Descargar PDF

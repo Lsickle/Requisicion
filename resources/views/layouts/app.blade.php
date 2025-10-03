@@ -10,14 +10,27 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preload" as="style" href="http://requisicion-production.up.railway.app/build/assets/app-CKIdk_nx.css" />
+    <link rel="modulepreload" as="script" href="http://requisicion-production.up.railway.app/build/assets/app-C0G0cght.js" />
+    <link rel="stylesheet" href="http://requisicion-production.up.railway.app/build/assets/app-CKIdk_nx.css" />
+    <script type="module" src="http://requisicion-production.up.railway.app/build/assets/app-C0G0cght.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
         /* Forzar que SweetAlert2 aparezca por encima de los modales en toda la app */
-        .swal2-container { z-index: 3000000 !important; }
-        .swal2-container .swal2-popup { z-index: 3000001 !important; }
-        .swal2-container .swal2-toast { z-index: 3000002 !important; }
+        .swal2-container {
+            z-index: 3000000 !important;
+        }
+
+        .swal2-container .swal2-popup {
+            z-index: 3000001 !important;
+        }
+
+        .swal2-container .swal2-toast {
+            z-index: 3000002 !important;
+        }
     </style>
 </head>
 
