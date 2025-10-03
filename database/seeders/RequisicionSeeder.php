@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Requisicion;
-use App\Models\Producto;
+use App\Models\requisicion;
+use App\Models\producto;
 use Illuminate\Support\Facades\DB;
 
 class RequisicionSeeder extends Seeder

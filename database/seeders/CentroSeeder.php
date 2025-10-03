@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Centro;
+use App\Models\centro;
 
 class CentroSeeder extends Seeder
 {
