@@ -196,6 +196,11 @@
             <div class="signature-line"></div>
             <p>Elaborado por</p>
         </div>
+        <div class="signature-box" style="float:right;">
+            <p class="font-semibold mb-2">Alejandro Ramirez</p>
+            <div class="signature-line"></div>
+            <p>Aprobado por</p>
+        </div>
         <div class="clear"></div>
     </div>
 

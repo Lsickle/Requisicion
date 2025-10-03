@@ -584,112 +584,72 @@ class RequisicionController extends Controller
         }
     }
 
-    public function entregarRequisicion(Request $request, $requisicionId)
+    private function attemptAutoComplete(int $requisicionId): bool
     {
-        try {
-            DB::beginTransaction();
-
-            $requisicion = Requisicion::findOrFail($requisicionId);
-            $items = $request->input('items', []);
-
-            if (empty($items)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No hay productos seleccionados para entregar'
-                ], 400);
-            }
-
-            $userIdSession = session('user.id') ?? null;
-            $userNameSession = session('user.name') ?? session('user.email') ?? null;
-
-            $entregaIds = [];
-            foreach ($items as $item) {
-                $productoId = $item['producto_id'] ?? null;
-                $cantidad = (int)($item['cantidad'] ?? 0);
-
-                if (!$productoId || $cantidad <= 0) {
-                    DB::rollBack();
-                    return response()->json(['success' => false, 'message' => 'Datos de producto inválidos'], 400);
-                }
-
-                $totalReq = (int) DB::table('producto_requisicion')
-                    ->where('id_requisicion', $requisicionId)
-                    ->where('id_producto', $productoId)
-                    ->value('pr_amount');
-
-                $sumaCentros = (int) DB::table('centro_producto')
-                    ->where('requisicion_id', $requisicionId)
-                    ->where('producto_id', $productoId)
-                    ->sum('amount');
-
-                if ($sumaCentros > 0) $totalReq = $sumaCentros;
-
-                $registrado = (int) (DB::table('entrega')
-                    ->where('requisicion_id', $requisicionId)
-                    ->where('producto_id', $productoId)
-                    ->whereNull('deleted_at')
-                    ->select(DB::raw('COALESCE(SUM(COALESCE(cantidad_recibido, cantidad, 0)),0) as total'))
-                    ->value('total') ?? 0);
-
-                $pendiente = max(0, $totalReq - $registrado);
-
-                Log::info('Entrega validación', [
-                    'requisicion_id' => $requisicionId,
-                    'producto_id' => $productoId,
-                    'totalReq' => $totalReq,
-                    'registrado' => $registrado,
-                    'pendiente' => $pendiente,
-                    'cantidad_enviada' => $cantidad,
-                ]);
-
-                if ($cantidad > $pendiente) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Cantidad a entregar ({$cantidad}) excede el pendiente ({$pendiente}) para el producto {$productoId}.",
-                        'debug' => [
-                            'totalReq' => $totalReq,
-                            'registrado' => $registrado,
-                            'pendiente' => $pendiente,
-                        ]
-                    ], 400);
-                }
-
-                $insertId = DB::table('entrega')->insertGetId([
-                    'requisicion_id' => $requisicionId,
-                    'producto_id' => $productoId,
-                    'cantidad' => $cantidad,
-                    'cantidad_recibido' => null,
-                    'fecha' => now()->toDateString(),
-                    'user_id' => $userIdSession,
-                    'user_name' => $userNameSession,
-                    'reception_user_id' => null,
-                    'reception_user' => null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                $entregaIds[] = $insertId;
-            }
-
-            Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus' => 0]);
-            $entregaRef = !empty($entregaIds) ? $entregaIds[0] : null;
-            Estatus_Requisicion::create([
-                'requisicion_id' => $requisicionId,
-                'estatus_id' => 12,
-                'estatus' => 1,
-                'comentario' => 'Entrega registrada desde módulo de requisiciones',
-                'entrega_id' => $entregaRef,
-                'date_update' => now(),
-            ]);
-
-            DB::commit();
-
-            return response()->json(['success' => true, 'message' => 'Entrega registrada correctamente']);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Error al registrar la entrega: ' . $e->getMessage()], 500);
+        // Determinar cantidades requeridas
+        $requeridos = DB::table('centro_producto')
+            ->where('requisicion_id', $requisicionId)
+            ->select('producto_id', DB::raw('SUM(amount) as req'))
+            ->groupBy('producto_id')
+            ->pluck('req','producto_id');
+        if ($requeridos->isEmpty()) {
+            $requeridos = DB::table('producto_requisicion')
+                ->where('id_requisicion', $requisicionId)
+                ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                ->groupBy('id_producto')
+                ->pluck('req','producto_id');
         }
+        if ($requeridos->isEmpty()) return false;
+        // Elegir columna válida en entrega
+        $entregaQtyCol = null;
+        if (Schema::hasColumn('entrega','cantidad_recibido')) $entregaQtyCol = 'cantidad_recibido';
+        elseif (Schema::hasColumn('entrega','cantidad_recibida')) $entregaQtyCol = 'cantidad_recibida';
+        elseif (Schema::hasColumn('entrega','cantidad')) $entregaQtyCol = 'cantidad';
+        // Elegir columna válida en recepcion
+        $recepQtyCol = null;
+        if (Schema::hasColumn('recepcion','cantidad_recibida')) $recepQtyCol = 'cantidad_recibida';
+        elseif (Schema::hasColumn('recepcion','cantidad_recibido')) $recepQtyCol = 'cantidad_recibido';
+        elseif (Schema::hasColumn('recepcion','cantidad')) $recepQtyCol = 'cantidad';
+        // Sumar confirmadas en entrega
+        $confirmadasEntrega = collect();
+        if ($entregaQtyCol) {
+            $confirmadasEntrega = DB::table('entrega')
+                ->where('requisicion_id', $requisicionId)
+                ->whereNull('deleted_at')
+                ->select('producto_id', DB::raw('SUM(COALESCE('.$entregaQtyCol.',0)) as total'))
+                ->groupBy('producto_id')
+                ->pluck('total','producto_id');
+        }
+        // Sumar confirmadas en recepcion asociadas a la requisicion
+        $confirmadasRecepcion = collect();
+        if ($recepQtyCol) {
+            $confirmadasRecepcion = DB::table('recepcion as r')
+                ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                ->where('oc.requisicion_id', $requisicionId)
+                ->whereNull('r.deleted_at')
+                ->select('r.producto_id', DB::raw('SUM(COALESCE(r.'.$recepQtyCol.',0)) as total'))
+                ->groupBy('r.producto_id')
+                ->pluck('total','producto_id');
+        }
+        // Combinar
+        $confirmadas = [];
+        foreach ($confirmadasEntrega as $pid=>$tot) $confirmadas[$pid] = (int)$tot;
+        foreach ($confirmadasRecepcion as $pid=>$tot) $confirmadas[$pid] = ($confirmadas[$pid] ?? 0) + (int)$tot;
+        foreach ($requeridos as $prodId => $need) {
+            if (((int)($confirmadas[$prodId] ?? 0)) < (int)$need) return false;
+        }
+        // Marcar completado (estatus 10) sólo si aún no lo está
+        $yaCompleto = Estatus_Requisicion::where('requisicion_id',$requisicionId)->where('estatus',1)->where('estatus_id',10)->exists();
+        if ($yaCompleto) return true;
+        Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus'=>0]);
+        Estatus_Requisicion::create([
+            'requisicion_id'=>$requisicionId,
+            'estatus_id'=>10,
+            'estatus'=>1,
+            'date_update'=>now(),
+            'comentario'=>'Completado automáticamente al recibir todos los productos'
+        ]);
+        return true;
     }
 
     public function confirmarEntrega(Request $request)
@@ -708,57 +668,56 @@ class RequisicionController extends Controller
             $max = (int) $entrega->cantidad;
             $cantidad = min($cantidad, $max);
 
+            $prevRecibido = (int)($entrega->cantidad_recibido ?? $entrega->cantidad_recibida ?? 0);
+            $delta = $cantidad - $prevRecibido; // sólo restar delta positivo
+            if ($delta < 0) { $delta = 0; }
+
             $sessionUser = session('user') ?? [];
-            $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? session('user_id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? $request->input('receptor_user_id') ?? null;
-            $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_email') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
+            $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? null;
+            $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_email') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? null;
 
             $receiverId = $receiverId !== null ? (is_numeric($receiverId) ? (int)$receiverId : $receiverId) : null;
             $receiverName = is_string($receiverName) ? trim($receiverName) : $receiverName;
 
             $updateData = [];
-            if (Schema::hasColumn('entrega', 'cantidad_recibido')) {
-                $updateData['cantidad_recibido'] = $cantidad;
-            } elseif (Schema::hasColumn('entrega', 'cantidad_recibida')) {
-                $updateData['cantidad_recibida'] = $cantidad;
+            if (Schema::hasColumn('entrega', 'cantidad_recibido')) { $updateData['cantidad_recibido'] = $cantidad; }
+            elseif (Schema::hasColumn('entrega', 'cantidad_recibida')) { $updateData['cantidad_recibida'] = $cantidad; }
+
+            foreach (['reception_user','recepcion_user','receptor_user'] as $col) {
+                if (Schema::hasColumn('entrega', $col) && $receiverName !== null) $updateData[$col] = $receiverName;
+            }
+            foreach (['reception_user_id','recepcion_user_id','receptor_user_id'] as $col) {
+                if (Schema::hasColumn('entrega', $col) && $receiverId !== null) $updateData[$col] = $receiverId;
             }
 
-            $nameCols = ['reception_user', 'recepcion_user', 'receptor_user'];
-            $idCols = ['reception_user_id', 'recepcion_user_id', 'receptor_user_id'];
+            if (empty($updateData)) return response()->json(['success'=>false,'message'=>'No hay columnas para actualizar'],500);
 
-            foreach ($nameCols as $col) {
-                if (Schema::hasColumn('entrega', $col) && $receiverName !== null) {
-                    $updateData[$col] = $receiverName;
-                }
-            }
-            foreach ($idCols as $col) {
-                if (Schema::hasColumn('entrega', $col) && $receiverId !== null) {
-                    $updateData[$col] = $receiverId;
-                }
-            }
+            DB::beginTransaction();
 
-            if (empty($updateData)) {
-                Log::warning('confirmarEntrega: nothing to update for entrega_id ' . $entregaId);
-                return response()->json(['success' => false, 'message' => 'No hay columnas para actualizar'], 500);
-            }
-
+            // Actualizar entrega
             $updateData['updated_at'] = now();
+            DB::table('entrega')->where('id', $entregaId)->update($updateData);
 
-            Log::info('confirmarEntrega payload/session', [
-                'entrega_id' => $entregaId,
-                'cantidad' => $cantidad,
-                'receiver_id' => $receiverId,
-                'receiver_name' => $receiverName,
-                'updateData_keys' => array_keys($updateData),
-                'request' => $request->all()
-            ]);
+            // Restar stock sólo por delta y sólo si delta > 0
+            if ($delta > 0) {
+                $productoId = (int)$entrega->producto_id;
+                $producto = DB::table('productos')->where('id',$productoId)->lockForUpdate()->first();
+                if ($producto) {
+                    $nuevoStock = max(0, ((int)$producto->stock_produc) - $delta);
+                    DB::table('productos')->where('id',$productoId)->update(['stock_produc'=>$nuevoStock,'updated_at'=>now()]);
+                }
+            }
 
-            $affected = DB::table('entrega')->where('id', $entregaId)->update($updateData);
+            // Intentar auto-completar
+            $auto = $this->attemptAutoComplete((int)$entrega->requisicion_id);
+            DB::commit();
 
-            Log::info('confirmarEntrega updated rows', ['entrega_id' => $entregaId, 'affected' => $affected, 'updateData' => $updateData]);
+            Log::info('confirmarEntrega updated & stock adjusted', ['entrega_id'=>$entregaId,'delta'=>$delta,'auto_completed'=>$auto]);
 
-            return response()->json(['success' => true, 'message' => 'Entrega confirmada', 'affected' => $affected]);
+            return response()->json(['success' => true, 'message' => $auto ? 'Entrega confirmada y requisición completada' : 'Entrega confirmada', 'delta_stock'=>$delta, 'auto_completed'=>$auto]);
         } catch (\Exception $e) {
-            Log::error('Error confirmarEntrega', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            DB::rollBack();
+            Log::error('Error confirmarEntrega', ['error'=>$e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Error al confirmar entrega'], 500);
         }
     }
@@ -773,63 +732,33 @@ class RequisicionController extends Controller
         }
 
         try {
-            $rec = DB::table('recepcion')->where('id', $recepcionId)->whereNull('deleted_at')->first();
-            if (!$rec) return response()->json(['success' => false, 'message' => 'Registro de recepción no encontrado'], 404);
-
-            $max = (int) $rec->cantidad;
-            $cantidad = min($cantidad, $max);
-
+            DB::beginTransaction();
+            $rec = DB::table('recepcion')->where('id', $recepcionId)->whereNull('deleted_at')->lockForUpdate()->first();
+            if (!$rec) { DB::rollBack(); return response()->json(['success' => false, 'message' => 'Registro de recepción no encontrado'], 404); }
+            $max = (int) $rec->cantidad; $cantidad = min($cantidad, $max);
             $sessionUser = session('user') ?? [];
-            $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? session('user_id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? $request->input('receptor_user_id') ?? null;
+            $receiverId = data_get($sessionUser, 'id') ?? session('user.id') ?? $request->input('reception_user_id') ?? $request->input('user_id') ?? null;
             $receiverName = data_get($sessionUser, 'name') ?? session('user.name') ?? session('user_name') ?? data_get($sessionUser, 'email') ?? session('user.email') ?? $request->input('reception_user') ?? $request->input('user_name') ?? $request->input('recepcion_user') ?? null;
-
             $receiverId = $receiverId !== null ? (is_numeric($receiverId) ? (int)$receiverId : $receiverId) : null;
             $receiverName = is_string($receiverName) ? trim($receiverName) : $receiverName;
-
             $updateData = [];
-            if (Schema::hasColumn('recepcion', 'cantidad_recibida')) {
-                $updateData['cantidad_recibida'] = $cantidad;
-            } elseif (Schema::hasColumn('recepcion', 'cantidad_recibido')) {
-                $updateData['cantidad_recibido'] = $cantidad;
-            }
-
+            if (Schema::hasColumn('recepcion', 'cantidad_recibida')) { $updateData['cantidad_recibida'] = $cantidad; }
+            elseif (Schema::hasColumn('recepcion', 'cantidad_recibido')) { $updateData['cantidad_recibido'] = $cantidad; }
             $nameCols = ['reception_user', 'recepcion_user', 'receptor_user'];
             $idCols = ['reception_user_id', 'recepcion_user_id', 'receptor_user_id'];
-
-            foreach ($nameCols as $col) {
-                if (Schema::hasColumn('recepcion', $col) && $receiverName !== null) {
-                    $updateData[$col] = $receiverName;
-                }
-            }
-            foreach ($idCols as $col) {
-                if (Schema::hasColumn('recepcion', $col) && $receiverId !== null) {
-                    $updateData[$col] = $receiverId;
-                }
-            }
-
-            if (empty($updateData)) {
-                Log::warning('confirmarRecepcion: nothing to update for recepcion_id ' . $recepcionId);
-                return response()->json(['success' => false, 'message' => 'No hay columnas para actualizar'], 500);
-            }
-
+            foreach ($nameCols as $col) if (Schema::hasColumn('recepcion', $col) && $receiverName !== null) $updateData[$col] = $receiverName;
+            foreach ($idCols as $col) if (Schema::hasColumn('recepcion', $col) && $receiverId !== null) $updateData[$col] = $receiverId;
+            if (empty($updateData)) { DB::rollBack(); return response()->json(['success' => false, 'message' => 'No hay columnas para actualizar'], 500); }
             $updateData['updated_at'] = now();
-
-            Log::info('confirmarRecepcion payload/session', [
-                'recepcion_id' => $recepcionId,
-                'cantidad' => $cantidad,
-                'receiver_id' => $receiverId,
-                'receiver_name' => $receiverName,
-                'updateData_keys' => array_keys($updateData),
-                'request' => $request->all()
-            ]);
-
-            $affected = DB::table('recepcion')->where('id', $recepcionId)->update($updateData);
-
-            Log::info('confirmarRecepcion updated rows', ['recepcion_id' => $recepcionId, 'affected' => $affected, 'updateData' => $updateData]);
-
-            return response()->json(['success' => true, 'message' => 'Recepción confirmada', 'affected' => $affected]);
+            DB::table('recepcion')->where('id', $recepcionId)->update($updateData);
+            // Obtener requisicion id vía orden de compra
+            $requisicionId = DB::table('orden_compras')->where('id', $rec->orden_compra_id)->value('requisicion_id');
+            $auto = false; if ($requisicionId) $auto = $this->attemptAutoComplete((int)$requisicionId);
+            DB::commit();
+            return response()->json(['success' => true, 'message' => $auto ? 'Recepción confirmada y requisición completada' : 'Recepción confirmada', 'auto_completed'=>$auto]);
         } catch (\Exception $e) {
-            Log::error('Error confirmarRecepcion', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            DB::rollBack();
+            Log::error('Error confirmarRecepcion', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'Error al confirmar recepción'], 500);
         }
     }
@@ -859,46 +788,50 @@ class RequisicionController extends Controller
 
         DB::beginTransaction();
         try {
+            $requisicionesTouched = [];
             foreach ($items as $it) {
                 $id = isset($it['id']) ? (int)$it['id'] : null;
                 $cantidad = isset($it['cantidad']) ? (int)$it['cantidad'] : 0;
-                if (!$id || $cantidad < 0) {
-                    $results[] = ['id' => $id, 'success' => false, 'message' => 'id o cantidad inválidos'];
-                    continue;
+                if (!$id || $cantidad < 0) { $results[] = ['id'=>$id,'success'=>false,'message'=>'id o cantidad inválidos']; continue; }
+                $row = DB::table($table)->where('id',$id)->whereNull('deleted_at')->lockForUpdate()->first();
+                if (!$row) { $results[]=['id'=>$id,'success'=>false,'message'=>'Registro no encontrado']; continue; }
+                $max = (int)($row->cantidad ?? $cantidad); if ($cantidad > $max) $cantidad = $max;
+                $prevRecibido = 0; $delta = 0; $productoId = null; $reqIdForTouch = null;
+                if ($table === 'entrega') {
+                    $prevRecibido = (int)($row->cantidad_recibido ?? $row->cantidad_recibida ?? 0);
+                    $delta = $cantidad - $prevRecibido; if ($delta < 0) $delta = 0; $productoId = (int)$row->producto_id; $reqIdForTouch = (int)$row->requisicion_id;
+                } else { // recepcion
+                    // Mapear requisicion via orden de compra
+                    $reqIdForTouch = DB::table('orden_compras')->where('id',$row->orden_compra_id)->value('requisicion_id');
                 }
-
                 $update = [];
-                foreach ($qtyCols as $c) {
-                    if (Schema::hasColumn($table, $c)) { $update[$c] = $cantidad; break; }
-                }
-
-                foreach ($nameCols as $c) {
-                    if (Schema::hasColumn($table, $c) && $receiverName !== null) $update[$c] = $receiverName;
-                }
-                foreach ($idCols as $c) {
-                    if (Schema::hasColumn($table, $c) && $receiverId !== null) $update[$c] = $receiverId;
-                }
-
-                if (empty($update)) {
-                    $results[] = ['id' => $id, 'success' => false, 'message' => 'No hay columnas para actualizar'];
-                    continue;
-                }
-
+                foreach ($qtyCols as $c) { if (Schema::hasColumn($table, $c)) { $update[$c] = $cantidad; break; } }
+                foreach ($nameCols as $c) { if (Schema::hasColumn($table, $c) && $receiverName !== null) $update[$c] = $receiverName; }
+                foreach ($idCols as $c) { if (Schema::hasColumn($table, $c) && $receiverId !== null) $update[$c] = $receiverId; }
+                if (empty($update)) { $results[]=['id'=>$id,'success'=>false,'message'=>'No hay columnas para actualizar']; continue; }
                 $update['updated_at'] = now();
-                $affected = DB::table($table)->where('id', $id)->update($update);
-
-                $results[] = ['id' => $id, 'success' => true, 'affected' => $affected, 'update' => $update];
+                DB::table($table)->where('id',$id)->update($update);
+                if ($table === 'entrega' && $delta > 0 && $productoId) {
+                    $prodRow = DB::table('productos')->where('id',$productoId)->lockForUpdate()->first();
+                    if ($prodRow) {
+                        $nuevoStock = max(0, ((int)$prodRow->stock_produc) - $delta);
+                        DB::table('productos')->where('id',$productoId)->update(['stock_produc'=>$nuevoStock,'updated_at'=>now()]);
+                    }
+                }
+                if ($reqIdForTouch) $requisicionesTouched[(int)$reqIdForTouch] = true;
+                $results[] = ['id'=>$id,'success'=>true,'affected'=>1,'delta_stock'=>($table==='entrega'? $delta:0)];
             }
-
+            $autoCompleted = [];
+            foreach (array_keys($requisicionesTouched) as $reqId) {
+                if ($this->attemptAutoComplete($reqId)) $autoCompleted[] = $reqId;
+            }
             DB::commit();
-
-            Log::info('confirmarRecepcionesMasivo executed', ['tipo' => $tipo, 'receiver_id' => $receiverId, 'receiver_name' => $receiverName, 'results' => $results, 'request' => $request->all()]);
-
-            return response()->json(['success' => true, 'results' => $results]);
+            Log::info('confirmarRecepcionesMasivo con ajuste de stock', ['tipo'=>$tipo,'results'=>$results,'auto_completed'=>$autoCompleted]);
+            return response()->json(['success'=>true,'results'=>$results,'auto_completed'=>$autoCompleted]);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error confirmarRecepcionesMasivo', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString(), 'request' => $request->all()]);
-            return response()->json(['success' => false, 'message' => 'Error procesando recepciones masivas'], 500);
+            Log::error('Error confirmarRecepcionesMasivo', ['error'=>$e->getMessage()]);
+            return response()->json(['success'=>false,'message'=>'Error procesando recepciones masivas'],500);
         }
     }
 
