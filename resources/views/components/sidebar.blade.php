@@ -119,7 +119,7 @@
 
             <!-- Botón de Cerrar Sesión -->
             <div class="mt-4">
-                <form id="logoutForm" action="{{ route('logout') }}" method="POST">
+                <form id="logoutForm" action="/logout" method="POST">
                     @csrf
                     <button type="button" id="logoutBtn"
                         class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white font-semibold text-sm no-underline hover:no-underline">
@@ -150,7 +150,6 @@
 <script>
     document.getElementById('logoutBtn').addEventListener('click', function(e) {
         e.preventDefault();
-
         Swal.fire({
             title: '¿Cerrar sesión?',
             text: "¿Estás seguro de que quieres salir?",
@@ -162,7 +161,19 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                document.getElementById('logoutForm').submit();
+                // Logout seguro con fetch (ruta relativa evita http://)
+                fetch('/logout', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                }).then(() => {
+                    window.location.href = '/';
+                }).catch(() => {
+                    window.location.href = '/';
+                });
             }
         });
     });

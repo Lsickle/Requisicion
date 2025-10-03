@@ -293,16 +293,14 @@ document.querySelectorAll('.status-btn').forEach(btn => {
 
 function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
     const data = { estatus_id: estatusId, comentario: comentario };
-
-    // Mostrar alerta de carga mientras se procesa la solicitud
     Swal.fire({
         title: 'Procesando...',
         html: 'Enviando solicitud, por favor espere.',
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
-
-    fetch('{{ route("requisiciones.estatus.update", ":id") }}'.replace(':id', requisicionId), {
+    // Ruta relativa para evitar http absoluto generado por route() con APP_URL incorrecto
+    fetch(`/requisiciones/${requisicionId}/estatus`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -311,21 +309,15 @@ function confirmarCambioEstatus(requisicionId, estatusId, comentario = null) {
         },
         body: JSON.stringify(data)
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Error en la respuesta del servidor: ' + response.status);
-        return response.json();
-    })
+    .then(response => { if (!response.ok) throw new Error('Error en la respuesta del servidor: ' + response.status); return response.json(); })
     .then(data => {
         if (data.success) {
-            Swal.fire("Éxito", data.message || "Estatus actualizado", "success")
-                .then(() => location.reload());
+            Swal.fire('Éxito', data.message || 'Estatus actualizado', 'success').then(()=> location.reload());
         } else {
-            Swal.fire("Error", data.message || "No se pudo actualizar el estatus", "error");
+            Swal.fire('Error', data.message || 'No se pudo actualizar el estatus', 'error');
         }
     })
-    .catch(error => {
-        Swal.fire("Error", "No se pudo actualizar el estatus: " + error.message, "error");
-    });
+    .catch(error => { Swal.fire('Error', 'No se pudo actualizar el estatus: ' + error.message, 'error'); });
 }
 
 // Paginación y búsqueda para Aprobación
