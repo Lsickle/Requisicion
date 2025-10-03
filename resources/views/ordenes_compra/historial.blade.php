@@ -129,9 +129,9 @@
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
-                            <a href="{{ route('ordenes_compra.pdf', $requisicionId) }}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                            <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
                                 <i class="fas fa-file-pdf"></i>
-                            </a>
+                            </button>
                         </div>
                      </td>
                 </tr>
@@ -358,9 +358,9 @@
                     <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-box"></i> Recibir productos
                     </button>
-                    <a href="{{ route('ordenes_compra.pdf', $requisicionId) }}" target="_blank" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1">
+                    <button type="button" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1 btn-download-oc-pdf" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
-                    </a>
+                    </button>
                 </div>
                 <!-- Modal Estatus para esta OC -->
                 @php
@@ -697,7 +697,21 @@
 
         // Delegated click handler for modal actions, rc-save and terminar
         document.addEventListener('click', async function(e){
-            // Eliminar manejo por fetch de descarga de PDF (se usa enlace directo)
+            // Descargar PDF/ZIP navegando en la misma pestaña
+            const dlBtn = e.target.closest('.btn-download-oc-pdf');
+            if (dlBtn) {
+                const href = dlBtn.dataset.href;
+                if (href) {
+                    try {
+                        Swal.fire({ title: 'Preparando descarga', text: 'Espere un momento...', allowOutsideClick: false, timer: 600, didOpen: () => Swal.showLoading() })
+                            .then(() => { window.location.href = href; });
+                    } catch (_) {
+                        window.location.href = href;
+                    }
+                }
+                return;
+            }
+
             // open recibir modal
             const btnRec = e.target.closest('.btn-open-recibir');
             if (btnRec) {
