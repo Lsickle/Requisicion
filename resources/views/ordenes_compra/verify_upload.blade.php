@@ -54,22 +54,6 @@
     </div>
 </div>
 
-{{-- Resultado de la verificación (renderizado por PHP para no exponer lógica de hash en JS) --}}
-@if(isset($valid))
-    @if($orden === null)
-        <div class="max-w-2xl mx-auto mt-4 p-4 rounded bg-red-50 border border-red-200 text-red-700">La orden de compra no existe o fue eliminada.</div>
-    @else
-        @if($valid)
-            <div class="max-w-2xl mx-auto mt-4 p-4 rounded bg-green-50 border border-green-200 text-green-700">El archivo coincide con el original (hash SHA256 igual).</div>
-        @else
-            <div class="max-w-2xl mx-auto mt-4 p-4 rounded bg-red-50 border border-red-200 text-red-700">
-                <p class="font-medium">El documento ha sido alterado o no es igual al original.</p>
-                {{-- Hash details removed as not relevant to the user --}}
-            </div>
-        @endif
-    @endif
-@endif
-
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     // File input UX: abrir selector y mostrar nombre

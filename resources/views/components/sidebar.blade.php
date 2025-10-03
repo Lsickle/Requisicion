@@ -178,3 +178,36 @@
         });
     });
 </script>
+
+<style>
+/* Scrollbar estilizada para sidebar y su lista interna */
+#sidebar,
+#sidebar ul {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #1d4ed8 rgba(30, 58, 138, 0.35); /* thumb track */
+}
+
+/* WebKit (Chrome, Edge, Safari) */
+#sidebar::-webkit-scrollbar,
+#sidebar ul::-webkit-scrollbar {
+    width: 10px;
+}
+
+#sidebar::-webkit-scrollbar-track,
+#sidebar ul::-webkit-scrollbar-track {
+    background: rgba(30, 58, 138, 0.35); /* azul translúcido para el track */
+    border-radius: 10px;
+}
+
+#sidebar::-webkit-scrollbar-thumb,
+#sidebar ul::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #1e40af 0%, #1d4ed8 100%); /* azul 800 -> 700 */
+    border-radius: 10px;
+    border: 2px solid rgba(23, 37, 84, 0.6); /* borde sutil acorde al fondo */
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover,
+#sidebar ul::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #2563eb 0%, #3b82f6 100%); /* azul 600 -> 500 */
+}
+</style>
