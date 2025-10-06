@@ -8,6 +8,7 @@ use App\Models\Proveedor;
 use App\Models\Estatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class OrdenCompraProductoSeeder extends Seeder
 {
@@ -31,26 +32,54 @@ class OrdenCompraProductoSeeder extends Seeder
         $ordenesCompra = OrdenCompra::with('requisicion')->get();
 
         foreach ($ordenesCompra as $ordenCompra) {
-            // Si la OC no tiene requisición asociada, intentar asociar una disponible
+            // Si la OC no tiene requisición asociada, intentar asociar una disponible que tenga productos
             if (empty($ordenCompra->requisicion_id)) {
                 $requisicionesUsadas = DB::table('orden_compras')
                     ->whereNotNull('requisicion_id')
                     ->pluck('requisicion_id');
 
-                $requisicionLibre = DB::table('estatus_requisicion')
+                $candidatas = DB::table('estatus_requisicion')
                     ->where('estatus', 1)
-                    ->whereIn('estatus_id', $estatusIdsPermitidos)
-                    ->whereNotIn('requisicion_id', $requisicionesUsadas)
-                    ->orderBy('date_update', 'desc')
-                    ->value('requisicion_id');
+                    ->whereIn('estatus_id', $estatusIdsPermitidos);
+
+                if ($requisicionesUsadas->isNotEmpty()) {
+                    $candidatas->whereNotIn('requisicion_id', $requisicionesUsadas);
+                }
+
+                // Debe tener productos asociados en producto_requisicion
+                $candidatas->whereExists(function ($q) {
+                    $q->select(DB::raw(1))
+                      ->from('producto_requisicion')
+                      ->whereColumn('producto_requisicion.id_requisicion', 'estatus_requisicion.requisicion_id');
+                });
+
+                $requisicionLibre = $candidatas->orderBy('date_update', 'desc')->value('requisicion_id');
 
                 if ($requisicionLibre) {
-                    DB::table('orden_compras')->where('id', $ordenCompra->id)
+                    $affected = DB::table('orden_compras')
+                        ->where('id', $ordenCompra->id)
                         ->update(['requisicion_id' => $requisicionLibre, 'updated_at' => now()]);
-                    // Refrescar en memoria
-                    $ordenCompra->requisicion_id = $requisicionLibre;
+
+                    if ($affected === 0) {
+                        $newId = DB::table('orden_compras')->insertGetId([
+                            'requisicion_id' => $requisicionLibre,
+                            'oc_user'        => $ordenCompra->oc_user ?? 'Seeder',
+                            'observaciones'  => 'OC clonada por seeder para asociar requisición',
+                            'date_oc'        => now()->toDateString(),
+                            'methods_oc'     => 'Transferencia',
+                            'plazo_oc'       => '30 días',
+                            'order_oc'       => 'OC-' . strtoupper(Str::random(6)),
+                            'validation_hash'=> null,
+                            'created_at'     => now(),
+                            'updated_at'     => now(),
+                        ]);
+                        $ordenCompra->id = $newId;
+                        $ordenCompra->requisicion_id = $requisicionLibre;
+                    } else {
+                        $ordenCompra->requisicion_id = $requisicionLibre;
+                    }
                 } else {
-                    $this->command->warn("OC #{$ordenCompra->id} no tiene requisición asociada y no se encontró disponible. Saltando...");
+                    $this->command->warn("OC #{$ordenCompra->id} no tiene requisición asociada y no se encontró disponible con productos. Saltando...");
                     continue;
                 }
             }
@@ -88,6 +117,7 @@ class OrdenCompraProductoSeeder extends Seeder
                     DB::table('ordencompra_producto')->insert([
                         'producto_id'      => $productoId,
                         'orden_compras_id' => $ordenCompra->id,
+                        'requisicion_id'   => $ordenCompra->requisicion_id, // <-- CORREGIDO: SE ASIGNA requisicion_id
                         'proveedor_id'     => $proveedorId,
                         'total'            => (int)($productoReq->pr_amount ?? 1),
                         'stock_e'          => null,
