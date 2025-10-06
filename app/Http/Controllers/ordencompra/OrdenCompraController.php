@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
+use App\Jobs\EnviarOrdenCompraCreadaJob; // NUEVO
 
 
 class OrdenCompraController extends Controller
@@ -358,18 +359,26 @@ class OrdenCompraController extends Controller
                 $pdfData = $this->buildPdfData($orden);
                 $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
                 $content = $pdf->output();
-
-                // Guardar blob del PDF en la orden (método del modelo)
                 $orden->storePdfBlob($content);
-
-                // Calcular hash SHA256 del contenido y guardarlo si está vacío
                 $fileHash = hash('sha256', $content);
                 if (empty($orden->validation_hash)) {
                     $orden->validation_hash = $fileHash;
                     $orden->save();
                 }
             } catch (\Throwable $e) {
-                // noop: no bloquear la creación si falla el guardado del PDF/hash
+                // noop
+            }
+
+            // Encolar notificación por correo (HTML) solo a destinatarios configurados (sin solicitante)
+            try {
+                $conf = (array) config('requisiciones.destinatarios_oc', []);
+                $to = array_values(array_unique((array)($conf['to'] ?? [])));
+                $cc = array_values(array_unique((array)($conf['cc'] ?? [])));
+                if (!empty($to)) {
+                    EnviarOrdenCompraCreadaJob::dispatch((int)$orden->id, $to, $cc);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo OC creada: '.$e->getMessage());
             }
 
             DB::commit();

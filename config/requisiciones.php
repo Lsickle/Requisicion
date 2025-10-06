@@ -13,25 +13,28 @@ return [
             ],
             // Por rol objetivo en stage2 (claves normalizadas: minúsculas, sin acentos)
             'stage2_by_role' => [
-                'director de proyectos' => ['rewiket243@aiwanlab.com'],
-                'gerente operaciones'   => ['rewiket243@aiwanlab.com'],
+                //'director de proyectos' => ['rewiket243@aiwanlab.com'],
+                //'gerente operaciones'   => ['rewiket243@aiwanlab.com'],
                 // 'gerente talento humano'=> ['ger.talento@empresa.com'],
                 // 'director contable'     => ['dir.contable@empresa.com'],
             ],
             'stage3' => [
                 // 'Gerente Financiero'
-                'jsqkkhc0y4@wyoxafp.com',
+                //'jsqkkhc0y4@wyoxafp.com',
             ],
             'final'  => [
                 // 'compras@empresa.com', 'areacompras@empresa.com'
             ],
         ],
+    ],
 
-        // Agrega aquí operaciones reales si se necesitan overrides por operación, por ejemplo:
-        // 'tecnologia' => [
-        //     'stage2_by_role' => [ 'director de proyectos' => ['dp-ti@empresa.com'] ],
-        //     'stage3' => ['dc@empresa.com','gf@empresa.com'],
-        //     'final'  => ['compras@empresa.com'],
-        // ],
+    // Destinatarios por defecto para correo de OC creada 
+    'destinatarios_oc' => [
+        'to' => [
+            //'rewiket243@aiwanlab.com'
+        ],
+        'cc' => [
+            // Correos en copia
+        ],
     ],
 ];
