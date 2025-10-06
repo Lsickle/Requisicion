@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\OrdenCompra;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EstatusRequisicionActualizado as EstatusRequisicionMail;
+use App\Jobs\NotificarAprobacionEtapaJob; // NUEVO
 
 class EstatusRequisicionController extends Controller
 {
@@ -254,7 +255,8 @@ class EstatusRequisicionController extends Controller
                     ]);
                     $mensajeAccion = 'rechazada';
                 }
-            } else { // Aprobación directa al estatus solicitado (2->3, 3->4, 1->2)
+            } else {
+                // Aprobación directa al estatus solicitado (2->3, 3->4, 1->2)
                 $nuevoEstatus = Estatus_Requisicion::create([
                     'requisicion_id'=>$requisicionId,
                     'estatus_id'=>$targetStatus,
@@ -266,6 +268,9 @@ class EstatusRequisicionController extends Controller
                 if ($targetStatus == 4) {
                     Log::info("Aprobación final (estatus 4) requisición {$requisicionId}");
                 }
+
+                // NUEVO: notificar por correo según etapa destino y operación
+                $this->notificarPorEtapa($requisicion, $nuevoEstatus, $targetStatus);
             }
 
             // Notificación correo (igual anterior)
@@ -336,4 +341,146 @@ class EstatusRequisicionController extends Controller
             return ['email' => null];
         }
     }
+
+    // NUEVO: Notificar por etapa destino y operación (stage2, stage3, final)
+    private function notificarPorEtapa(Requisicion $requisicion, Estatus_Requisicion $nuevoEstatus, int $targetStatus): void
+    {
+        try {
+            $stageKey = null;
+            if ($targetStatus === 2) { $stageKey = 'stage2'; }
+            elseif ($targetStatus === 3) { $stageKey = 'stage3'; }
+            elseif ($targetStatus === 4) { $stageKey = 'final'; }
+            if (!$stageKey) { return; }
+
+            // Determinar rol objetivo para stage2 según operación (normalizado)
+            $roleTarget = null;
+            if ($stageKey === 'stage2') {
+                $roleTarget = $this->getRoleTargetForOperation($requisicion->operacion_user);
+            }
+
+            $destinatarios = $this->recipientsByOperation($requisicion->operacion_user, $stageKey, $roleTarget);
+            if (empty($destinatarios)) { return; }
+
+            $id = $requisicion->id;
+            $op = $requisicion->operacion_user ?? 'N/A';
+            $solicitante = $requisicion->name_user ?? 'N/A';
+            $prioridad = ucfirst($requisicion->prioridad_requisicion ?? '');
+            $detalleUrl = route('requisiciones.show', $id);
+            $panelUrl = url('/requisiciones/aprobacion');
+
+            if ($stageKey === 'stage2') {
+                $subject = "Nueva requisición #{$id} pendiente de aprobación ({$op})";
+                $mensajePrincipal = "Se ha creado la requisición #{$id}. Ingresa a VPL-Compras para su aprobación.";
+            } else {
+                $etiqueta = [ 'stage2' => 'Etapa 2', 'stage3' => 'Etapa 3', 'final' => 'Aprobación Final' ][$stageKey] ?? 'Aprobación';
+                $subject = "Requisición #{$id} aprobada - {$etiqueta} ({$op})";
+                $mensajePrincipal = "La requisición #{$id} ha avanzado a {$etiqueta}.";
+            }
+
+            NotificarAprobacionEtapaJob::dispatch(
+                $requisicion,
+                $nuevoEstatus,
+                $stageKey,
+                $destinatarios,
+                $subject,
+                $mensajePrincipal,
+                $panelUrl,
+                $detalleUrl
+            );
+        } catch (\Throwable $e) {
+            Log::error('Error al preparar correo por etapa: '.$e->getMessage());
+        }
+    }
+
+    // NUEVO: Devolver el rol objetivo (normalizado) para una operación (normalizada), usando el mapa existente
+    private function getRoleTargetForOperation(?string $operacion): ?string
+    {
+        $map = $this->getOperacionRoleMap();
+        // construir mapa con claves normalizadas y valores (roles) también normalizados
+        $normalized = [];
+        foreach ($map as $opName => $roleName) {
+            $normalized[$this->normalizeOperacionKey($opName)] = $this->normalizeOperacionKey($roleName);
+        }
+        $opKey = $this->normalizeOperacionKey($operacion);
+        return $normalized[$opKey] ?? null;
+    }
+
+    // NUEVO: mapa operación => rol objetivo para etapa 2
+    private function getOperacionRoleMap(): array
+    {
+        return [
+            // Originales
+            'Cedi Frio' => 'Gerente operaciones',
+            'Cedi Frio - Mantenimiento' => 'Gerente operaciones',
+            'Mary Kay' => 'Gerente operaciones',
+            'Oriflame' => 'Gerente operaciones',
+            'Sony' => 'Gerente operaciones',
+            'Macmillan' => 'Gerente operaciones',
+            'Kw' => 'Gerente operaciones',
+            'Tranpsrtes Vigia' => 'Gerente operaciones',
+            'Cumbria' => 'Gerente operaciones',
+            'Ortopedicos Futuro' => 'Gerente operaciones',
+            'Naos' => 'Gerente operaciones',
+            'Mattel' => 'Gerente operaciones',
+            'Huawei' => 'Gerente operaciones',
+            'Cedi Frio Agrofrut' => 'Gerente operaciones',
+            'Cedi Frio Kikes' => 'Gerente operaciones',
+            'Cedi Frio La Fazenda' => 'Gerente operaciones',
+            'Cedi Frio Calypso' => 'Gerente operaciones',
+            'Cedi Frio Ibazan' => 'Gerente operaciones',
+            'Cedi Frio Todos Comemos' => 'Gerente operaciones',
+            'Cedi Frio Food Box' => 'Gerente operaciones',
+            'Inventarios' => 'Gerente operaciones',
+            'Transportes' => 'Gerente operaciones',
+            'Mejoramiento Contínuo' => 'Gerente operaciones',
+            // Aliases / variantes
+            'Cedi frio' => 'Gerente operaciones',
+            'Cei frtio - Mantenimiento' => 'Gerente operaciones',
+            'Mejoramiento Continuo' => 'Gerente operaciones',
+
+            // Otros
+            'Seguridad' => 'Director de proyectos',
+            'HSEQ' => 'Director de proyectos',
+            'Calidad' => 'Director de proyectos',
+            'Compras' => 'Director de proyectos',
+
+            'Talento Humano' => 'Gerente talento humano',
+            'Financiera' => 'Director contable',
+        ];
+    }
+
+    // NUEVO: Obtener destinatarios por operación, etapa y opcionalmente rol específico (stage2_by_role)
+    private function recipientsByOperation(?string $operacion, string $stageKey, ?string $roleKey = null): array
+    {
+        $map = config('requisiciones.destinatarios_por_operacion', []);
+        $opKey = $this->normalizeOperacionKey($operacion);
+        $cfg = $map[$opKey] ?? $map['default'] ?? [];
+
+        // Si es stage2 y existe configuración por rol, úsala
+        if ($stageKey === 'stage2' && $roleKey) {
+            $byRole = $cfg['stage2_by_role'] ?? ($map['default']['stage2_by_role'] ?? []);
+            $recips = $byRole[$roleKey] ?? [];
+            if (!empty($recips)) {
+                return is_array($recips) ? array_values(array_filter($recips)) : [];
+            }
+        }
+
+        // Fallback a listas por etapa (stage2/stage3/final)
+        $recips = $cfg[$stageKey] ?? ($map['default'][$stageKey] ?? []);
+        if (is_string($recips)) {
+            $recips = array_filter(array_map('trim', explode(',', $recips)));
+        }
+        return is_array($recips) ? array_values(array_filter($recips)) : [];
+    }
+
+    private function normalizeOperacionKey(?string $txt): string
+    {
+        $txt = mb_strtolower(trim($txt ?? ''), 'UTF-8');
+        $txt = strtr($txt,[ 'á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n' ]);
+        return $txt;
+    }
+
+    // (Opcional) Métodos previos de notificación específicos se mantienen para compatibilidad
+    // private function notificarAreaComprasAprobacion(...) { /* deprecated */ }
+    // private function recipientsForOperation(...) { /* deprecated */ }
 }
