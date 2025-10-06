@@ -320,3 +320,6 @@ Route::view('/index', 'index')->name('index');
 
 
 Route::resource('proveedores', ProveedoresController::class);
+
+// Ruta para notificar por correo al añadir el producto solicitado
+Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class, 'notifyAdded'])->name('nuevo_producto.notifyAdded');

@@ -1307,6 +1307,17 @@
     function submitAddFromSolicitudForm() {
         if (validateAddFromSolicitudForm()) {
             showLoading();
+            try {
+                const id = document.getElementById('solicitudId').value;
+                const url = '{{ url('/nuevo-producto') }}' + '/' + id + '/notify-added';
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    }
+                }).catch(() => { /* no bloquear envío si falla notificación */ });
+            } catch (e) { /* ignorar */ }
             document.getElementById('addFromSolicitudForm').submit();
         }
     }
