@@ -131,7 +131,7 @@
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-700">Seleccionar Producto</h2>
-            <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
+            <button type="button" id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
         <!-- Filtro de categoría -->
@@ -250,6 +250,30 @@
 @endsection
 
 @section('scripts')
+<script>
+    // Guard de envío: solo permitir submit al hacer clic en el botón principal
+    document.addEventListener('DOMContentLoaded', function(){
+        const form = document.getElementById('requisicionForm');
+        const submitBtn = document.getElementById('submitBtn');
+        let allowSubmit = false;
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function(){ allowSubmit = true; });
+        }
+        if (form) {
+            // Bloquear Enter para evitar submit accidental (excepto en textarea)
+            form.addEventListener('keydown', function(e){
+                if (e.key === 'Enter' && e.target && e.target.tagName && e.target.tagName.toLowerCase() !== 'textarea') {
+                    e.preventDefault();
+                }
+            });
+            form.addEventListener('submit', function(e){
+                if (!allowSubmit) {
+                    e.preventDefault();
+                }
+            });
+        }
+    });
+</script>
 <script>
     // Datos iniciales para el script externo (productos de la requisición)
     window.__REQ_EDIT_DATA = {!! json_encode($requisicion->productos->map(function($producto){
