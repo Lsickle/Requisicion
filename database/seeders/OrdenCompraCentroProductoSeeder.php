@@ -10,15 +10,29 @@ class OrdenCompraCentroProductoSeeder extends Seeder
 {
     public function run(): void
     {
+        // Si no hay productos en OCs, intenta generarlos primero
+        if (DB::table('ordencompra_producto')->count() === 0) {
+            $this->call(OrdenCompraProductoSeeder::class);
+        }
+
         $ordenes = OrdenCompra::all();
         foreach ($ordenes as $oc) {
-            // Traer productos de la OC
+            if (empty($oc->requisicion_id)) {
+                // No se puede distribuir por centro sin requisición
+                $this->command->warn("OC #{$oc->id} sin requisición asociada. Saltando distribución por centros...");
+                continue;
+            }
+
             $pivotProductos = DB::table('ordencompra_producto')
                 ->where('orden_compras_id', $oc->id)
                 ->get();
 
+            if ($pivotProductos->isEmpty()) {
+                $this->command->warn("OC #{$oc->id} no tiene productos en ordencompra_producto. Saltando...");
+                continue;
+            }
+
             foreach ($pivotProductos as $pp) {
-                // Obtener distribución de centros desde centro_producto para la requisición y producto
                 $centros = DB::table('centro_producto')
                     ->where('requisicion_id', $oc->requisicion_id)
                     ->where('producto_id', $pp->producto_id)

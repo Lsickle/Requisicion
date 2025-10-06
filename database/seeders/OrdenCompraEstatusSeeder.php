@@ -11,6 +11,11 @@ class OrdenCompraEstatusSeeder extends Seeder
 {
     public function run(): void
     {
+        // Si no hay órdenes, crearlas primero
+        if (OrdenCompra::count() === 0) {
+            $this->call(OrdenCompraSeeder::class);
+        }
+
         $estatus = DB::table('estatus_orden_compra')->get()->keyBy('status_name');
         if ($estatus->isEmpty()) {
             $this->call(EstatusOrdenCompraSeeder::class);
@@ -19,7 +24,6 @@ class OrdenCompraEstatusSeeder extends Seeder
 
         $ordenes = OrdenCompra::all();
         foreach ($ordenes as $oc) {
-            // Si ya tiene estatus, no duplicar
             if (DB::table('orden_compra_estatus')->where('orden_compra_id', $oc->id)->exists()) {
                 continue;
             }
