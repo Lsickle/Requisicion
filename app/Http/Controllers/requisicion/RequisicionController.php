@@ -746,8 +746,8 @@ class RequisicionController extends Controller
             elseif (Schema::hasColumn('recepcion', 'cantidad_recibido')) { $updateData['cantidad_recibido'] = $cantidad; }
             $nameCols = ['reception_user', 'recepcion_user', 'receptor_user'];
             $idCols = ['reception_user_id', 'recepcion_user_id', 'receptor_user_id'];
-            foreach ($nameCols as $col) if (Schema::hasColumn('recepcion', $col) && $receiverName !== null) $updateData[$col] = $receiverName;
-            foreach ($idCols as $col) if (Schema::hasColumn('recepcion', $col) && $receiverId !== null) $updateData[$col] = $receiverId;
+            foreach ($nameCols as $c) { if (Schema::hasColumn('recepcion', $c) && $receiverName !== null) $updateData[$c] = $receiverName; }
+            foreach ($idCols as $c) { if (Schema::hasColumn('recepcion', $c) && $receiverId !== null) $updateData[$c] = $receiverId; }
             if (empty($updateData)) { DB::rollBack(); return response()->json(['success' => false, 'message' => 'No hay columnas para actualizar'], 500); }
             $updateData['updated_at'] = now();
             DB::table('recepcion')->where('id', $recepcionId)->update($updateData);
@@ -1028,6 +1028,75 @@ class RequisicionController extends Controller
         } catch (\Throwable $e) {
             Log::error('fetchExternalUsers error: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['ok' => false, 'message' => 'Error al consultar servicio externo: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function entregarRequisicion(Request $request, $requisicionId)
+    {
+        try {
+            $reqId = (int) $requisicionId;
+            $payload = $request->all();
+            $items = $payload['items'] ?? [];
+            if (!is_array($items) || empty($items)) {
+                return response()->json(['message' => 'Debe enviar al menos un item válido.'], 422);
+            }
+
+            $productoIds = array_values(array_unique(array_map(fn($i) => (int)($i['producto_id'] ?? 0), $items)));
+            $validProductoIds = DB::table('productos')->whereIn('id', $productoIds)->pluck('id')->toArray();
+
+            $now = now();
+            DB::beginTransaction();
+
+            $insertados = 0;
+            foreach ($items as $it) {
+                $pid = (int)($it['producto_id'] ?? 0);
+                $cant = (int)($it['cantidad'] ?? 0);
+                if ($pid <= 0 || $cant <= 0) { continue; }
+                if (!in_array($pid, $validProductoIds, true)) { continue; }
+
+                DB::table('entrega')->insert([
+                    'requisicion_id' => $reqId,
+                    'producto_id' => $pid,
+                    'cantidad' => $cant,
+                    'cantidad_recibido' => null,
+                    'fecha' => $now->toDateString(),
+                    'user_name' => session('user.name') ?? (string) (session('user.email') ?? 'sistema'),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $insertados++;
+            }
+
+            if ($insertados === 0) {
+                DB::rollBack();
+                return response()->json(['message' => 'No se pudo registrar ninguna entrega válida.'], 422);
+            }
+
+            // Set estatus 12 (movimiento parcial registrado)
+            try {
+                DB::table('estatus_requisicion')
+                    ->where('requisicion_id', $reqId)
+                    ->where('estatus', 1)
+                    ->update(['estatus' => 0, 'updated_at' => $now]);
+
+                DB::table('estatus_requisicion')->insert([
+                    'requisicion_id' => $reqId,
+                    'estatus_id' => 12,
+                    'estatus' => 1,
+                    'comentario' => 'Entrega registrada',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo actualizar estatus a 12 para requisicion '.$reqId.': '.$e->getMessage());
+            }
+
+            DB::commit();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error en entregarRequisicion: '.$e->getMessage());
+            return response()->json(['message' => 'Error interno al registrar entregas'], 500);
         }
     }
 }

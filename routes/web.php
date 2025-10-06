@@ -275,8 +275,7 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/recepciones/salida-stock', [\App\Http\Controllers\ordencompra\OrdenCompraController::class, 'storeSalidaStockEnEntrega'])
         ->name('recepciones.storeSalidaStockEnEntrega');
 
-    Route::post('/requisiciones/{requisicion}/entregar', [RequisicionController::class, 'entregarRequisicion'])
-        ->name('requisiciones.entregar');
+    Route::post('/requisiciones/{requisicion}/entregar', [\App\Http\Controllers\requisicion\RequisicionController::class, 'entregarRequisicion'])->name('requisiciones.entregar');
 
     // Mostrar formulario si alguien hace GET accidentalmente a la ruta de verificación por archivo
     Route::get('/ordenes/verify-file', function() {
