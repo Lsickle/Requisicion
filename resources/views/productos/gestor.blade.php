@@ -85,6 +85,7 @@
                             <th class="px-4 py-2 text-left">Categoría</th>
                             <th class="px-4 py-2 text-left">Proveedor</th>
                             <th class="px-4 py-2 text-left">Stock</th>
+                            <th class="px-4 py-2 text-left">Unidad</th>
                             <th class="px-4 py-2 text-left">Precio</th>
                             <th class="px-4 py-2 text-left">IVA</th>
                             <th class="px-4 py-2 text-left">Estado</th>
@@ -94,13 +95,14 @@
                     <tbody>
                         @foreach($productos as $producto)
                         <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ $producto->name_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
+                            <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
+                            <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
+                            <td class="px-4 py-2" data-col="proveedor">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
                             <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
+                            <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
                             <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
                             <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
-                            <td class="px-4 py-2">
+                            <td class="px-4 py-2" data-col="estado">
                                 @if($producto->trashed())
                                 <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
                                 @else
@@ -1410,13 +1412,11 @@
         const rows = document.querySelectorAll('#productosTable tbody tr');
 
         rows.forEach(row => {
-            const cells = row.getElementsByTagName('td');
-            if (cells.length < 6) return;
-            const nombre = cells[0].textContent.toLowerCase();
-            const categoria = cells[1].textContent;
-            const proveedor = cells[2].textContent;
-            const estadoElement = cells[5].querySelector('span');
-            let estado = estadoElement ? estadoElement.textContent.trim() : '';
+            const nombre = (row.querySelector('td[data-col="nombre"]')?.textContent || '').toLowerCase();
+            const categoria = (row.querySelector('td[data-col="categoria"]')?.textContent || '').trim();
+            const proveedor = (row.querySelector('td[data-col="proveedor"]')?.textContent || '').trim();
+            const estadoEl = row.querySelector('td[data-col="estado"] span');
+            const estado = estadoEl ? estadoEl.textContent.trim() : '';
 
             const matchesSearch = !searchInput || nombre.includes(searchInput);
             const matchesCategoria = !filterCategoria || categoria === filterCategoria;
@@ -1791,7 +1791,7 @@
 
             #proveedor_dropdown,
             #categoria_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0.06);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0, 0.06);
             }
 
             .option-item,

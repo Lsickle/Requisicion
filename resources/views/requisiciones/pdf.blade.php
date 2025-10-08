@@ -17,22 +17,24 @@
         /* Watermark (imagen) */
         .watermark {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            inset: 0;
             z-index: 0;
             pointer-events: none;
             width: 100%;
+            height: 100%;
             text-align: center;
-            opacity: 0.12;
+            opacity: 0.10;
         }
 
         .watermark img {
-            max-width: 900px;
-            width: 70%;
-            transform: rotate(-20deg);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-60deg);
+            width: 160%;
+            max-width: none;
+            height: auto;
             display: block;
-            margin: 0 auto;
         }
 
         /* Asegurar que el contenido principal se muestre sobre la marca */
@@ -101,6 +103,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            background: transparent !important;
         }
 
         .product-table th {
@@ -115,10 +118,15 @@
             padding: 6px;
             border-bottom: 1px solid #ddd;
             font-size: 10px;
+            background-color: transparent !important;
+        }
+
+        .product-table tr {
+            background-color: transparent !important;
         }
 
         .product-table tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: transparent !important;
         }
 
         /* Centros de costo */
@@ -205,7 +213,7 @@
 
 <body>
     {{-- Watermark usando $logo o fallback --}}
-    @php $wm = !empty($logo) ? $logo : asset('images/VigiaLogoC.svg'); @endphp
+    @php $wm = !empty($logo) ? $logo : asset('images/VigiaLogoC.png'); @endphp
     <div class="watermark"><img src="{{ $wm }}" alt="marca de agua"></div>
 
     <div class="content">
@@ -215,7 +223,7 @@
                 @if(!empty($logo))
                 <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
                 @else
-                <img src="{{ asset('images/VigiaLogoC.svg') }}" class="logo" alt="Logo de la empresa">
+                <img src="{{ asset('images/VigiaLogoC.png') }}" class="logo" alt="Logo de la empresa">
                 @endif
             </div>
 

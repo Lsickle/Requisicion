@@ -1081,7 +1081,7 @@ class OrdenCompraController extends Controller
     private function resolveLogoDataUri(): ?string
     {
         $candidates = [
-            public_path('images/VigiaLogoC.svg'),
+            public_path('images/VigiaLogoC.png'),
         ];
 
         foreach ($candidates as $path) {
@@ -1101,7 +1101,7 @@ class OrdenCompraController extends Controller
                 return 'data:' . $mime . ';base64,' . base64_encode($contents);
             }
         }
-        return asset('images/VigiaLogoC.svg');
+        return asset('images/VigiaLogoC.png');
     }
 
     // Historial público de órdenes de compra

@@ -15,7 +15,8 @@
             <div class="flex items-center justify-between mb-6">
                 <h1 class="text-2xl font-bold text-gray-800">Panel de Aprobación de Requisiciones</h1>
                 <div>
-                    <a href="{{ route('requisiciones.menu') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">
+                    <a href="{{ route('requisiciones.menu') }}"
+                        class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">
                         ← Volver
                     </a>
                 </div>
@@ -23,7 +24,8 @@
 
             <!-- Búsqueda -->
             <div class="mb-4">
-                <input type="text" id="busquedaAprob" placeholder="Buscar requisición..." class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+                <input type="text" id="busquedaAprob" placeholder="Buscar requisición..."
+                    class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
             </div>
 
             <!-- Contenedor scrollable -->
@@ -43,9 +45,9 @@
                         <tbody>
                             @forelse($requisicionesFiltradas as $req)
                             <tr class="aprob-item border-b hover:bg-gray-50 transition" data-id="{{ $req->id }}">
-                                 <td class="px-4 py-2">{{ $req->id }}</td>
-                                 <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
-                                 <td class="px-4 py-2">
+                                <td class="px-4 py-2">{{ $req->id }}</td>
+                                <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
+                                <td class="px-4 py-2">
                                     <span class="px-2 py-1 rounded-full text-xs font-semibold 
                                         {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
                                            ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
@@ -55,11 +57,15 @@
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
                                 <td class="px-4 py-2 text-center">
-                                    <button onclick="toggleModal('modal-{{ $req->id }}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
+                                    <button onclick="toggleModal('modal-{{ $req->id }}')"
+                                        class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
                                 </td>
                             </tr>
                             @empty
-                            <tr><td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones para sus operaciones</td></tr>
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones para sus
+                                    operaciones</td>
+                            </tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -68,16 +74,17 @@
                 <!-- Vista móvil -->
                 <div class="md:hidden space-y-4">
                     @forelse($requisicionesFiltradas as $req)
-                        <div class="aprob-item bg-white rounded-lg shadow p-4" data-id="{{ $req->id }}">
-                            <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
-                            <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
-                            <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                            <div class="mt-3">
-                                <button onclick="toggleModal('modal-{{ $req->id }}')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
-                            </div>
+                    <div class="aprob-item bg-white rounded-lg shadow p-4" data-id="{{ $req->id }}">
+                        <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
+                        <p><strong>Solicitante:</strong> {{ $req->name_user }}</p>
+                        <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                        <div class="mt-3">
+                            <button onclick="toggleModal('modal-{{ $req->id }}')"
+                                class="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 transition">Ver</button>
                         </div>
+                    </div>
                     @empty
-                        <p class="text-center text-gray-500">No hay requisiciones para sus operaciones</p>
+                    <p class="text-center text-gray-500">No hay requisiciones para sus operaciones</p>
                     @endforelse
                 </div>
 
@@ -96,130 +103,137 @@
                     </div>
                     <div class="flex flex-wrap gap-1" id="paginationControlsAprob"></div>
                 </div>
-         </div>
-     </div>
- </div>
-
-<!-- Modales -->
-@foreach($requisicionesFiltradas as $req)
-<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div class="flex-1 overflow-y-auto p-6 relative">
-            <button onclick="toggleModal('modal-{{ $req->id }}')"
-                class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
-
-            <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-gray-700 mb-2">Información del Solicitante</h3>
-                    <p><strong>Nombre:</strong> {{ $req->name_user }}</p>
-                    <p><strong>Email:</strong> {{ $req->email_user }}</p>
-                    <p><strong>Operación:</strong> {{ $req->operacion_user }}</p>
-                </div>
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <h3 class="font-semibold text-gray-700 mb-2">Detalles de la Requisición</h3>
-                    <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
-                </div>
             </div>
+        </div>
+    </div>
 
-            <div class="mb-4">
-                <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
-                <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
-            </div>
+    <!-- Modales -->
+    @foreach($requisicionesFiltradas as $req)
+    <div id="modal-{{ $req->id }}"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div class="flex-1 overflow-y-auto p-6 relative">
+                <button onclick="toggleModal('modal-{{ $req->id }}')"
+                    class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
 
-            <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
-            <div class="overflow-x-auto">
-                @php $totalGeneral = 0; @endphp
-                <table class="min-w-full border border-gray-200">
-                    <thead class="bg-gray-100 text-gray-700">
-                        <tr>
-                            <th class="px-4 py-2 text-left">Producto</th>
-                            <th class="px-4 py-2 text-center">Cantidad</th>
-                            <th class="px-4 py-2 text-right">Precio</th>
-                            <th class="px-4 py-2 text-right">Total</th>
-                            <th class="px-4 py-2 text-left">Distribución por Centros</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        @foreach($req->productos as $prod)
+                <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-gray-700 mb-2">Información del Solicitante</h3>
+                        <p><strong>Nombre:</strong> {{ $req->name_user }}</p>
+                        <p><strong>Email:</strong> {{ $req->email_user }}</p>
+                        <p><strong>Operación:</strong> {{ $req->operacion_user }}</p>
+                        <p><strong>Prioridad:</strong> {{ ucfirst($req->prioridad_requisicion) }}</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-gray-700 mb-2">Detalles de la Requisición</h3>
+                        <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
+                        <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
+                    </div>
+                </div>
+
+
+                <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
+                <div class="overflow-x-auto">
+                    @php $totalGeneral = 0; @endphp
+                    <table class="min-w-full border border-gray-200">
+                        <thead class="bg-gray-100 text-gray-700">
+                            <tr>
+                                <th class="px-4 py-2 text-left">Producto</th>
+                                <th class="px-4 py-2 text-center">Cantidad</th>
+                                <th class="px-4 py-2 text-right">Precio</th>
+                                <th class="px-4 py-2 text-right">Total</th>
+                                <th class="px-4 py-2 text-left">Distribución por Centros</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            @foreach($req->productos as $prod)
                             @php
-                                $precio = (float) ($prod->price_produc ?? 0);
-                                $cantidad = (float) ($prod->pivot->pr_amount ?? 0);
-                                $totalProd = round($precio * $cantidad, 2);
-                                $totalGeneral = round($totalGeneral + $totalProd, 2);
-                                $distribucion = DB::table('centro_producto')
-                                    ->where('requisicion_id', $req->id)
-                                    ->where('producto_id', $prod->id)
-                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                    ->select('centro.name_centro', 'centro_producto.amount')
-                                    ->get();
+                            $precio = (float) ($prod->price_produc ?? 0);
+                            $cantidad = (float) ($prod->pivot->pr_amount ?? 0);
+                            $totalProd = round($precio * $cantidad, 2);
+                            $totalGeneral = round($totalGeneral + $totalProd, 2);
+                            $distribucion = DB::table('centro_producto')
+                            ->where('requisicion_id', $req->id)
+                            ->where('producto_id', $prod->id)
+                            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                            ->select('centro.name_centro', 'centro_producto.amount')
+                            ->get();
                             @endphp
                             <tr class="align-top">
                                 <td class="px-4 py-3">{{ $prod->name_produc }}</td>
-                                <td class="px-4 py-3 text-center font-semibold">{{ number_format($cantidad, 0, ',', '.') }}</td>
+                                <td class="px-4 py-3 text-center font-semibold">{{ number_format($cantidad, 0, ',', '.')
+                                    }}</td>
                                 <td class="px-4 py-3 text-right">{{ number_format($precio, 2, ',', '.') }}</td>
-                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($totalProd, 2, ',', '.') }}</td>
+                                <td class="px-4 py-3 text-right font-semibold">{{ number_format($totalProd, 2, ',', '.')
+                                    }}</td>
                                 <td class="px-4 py-3">
                                     @if($distribucion->count() > 0)
-                                        <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
-                                            @foreach($distribucion as $centro)
-                                                <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
-                                                    <span class="font-medium text-sm truncate">{{ $centro->name_centro }}</span>
-                                                    <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
-                                                </div>
-                                            @endforeach
+                                    <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                        @foreach($distribucion as $centro)
+                                        <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+                                            <span class="font-medium text-sm truncate">{{ $centro->name_centro }}</span>
+                                            <span
+                                                class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{
+                                                $centro->amount }}</span>
                                         </div>
+                                        @endforeach
+                                    </div>
                                     @else
-                                        <span class="text-gray-500 text-sm">No hay distribución registrada</span>
+                                    <span class="text-gray-500 text-sm">No hay distribución registrada</span>
                                     @endif
                                 </td>
                             </tr>
-                        @endforeach
-                    </tbody>
-                    <tfoot class="bg-gray-50">
-                        <tr>
-                            <td class="px-4 py-3 text-right font-semibold" colspan="3">Total general</td>
-                            <td class="px-4 py-3 text-right font-bold">{{ number_format($totalGeneral, 2, ',', '.') }}</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
+                            @endforeach
+                        </tbody>
+                        <tfoot class="bg-gray-50">
+                            <tr>
+                                <td class="px-4 py-3 text-right font-semibold" colspan="3">Total general</td>
+                                <td class="px-4 py-3 text-right font-bold">{{ number_format($totalGeneral, 2, ',', '.')
+                                    }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
-        </div>
 
-        <!-- Botones Aprobar/Rechazar -->
-        <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
-            @php
+            <!-- Botones Aprobar/Rechazar -->
+            <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
+                @php
                 $estatusActual = $req->ultimoEstatus->estatus_id ?? null;
                 $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
                 $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
                 $especial = in_array($opNorm, ['tecnologia','compras']);
                 $estatusAprobar = null;
                 if ($estatusActual === 1) {
-                    $estatusAprobar = $especial ? 3 : 2; // salto directo si operación especial
+                $estatusAprobar = $especial ? 3 : 2; // salto directo si operación especial
                 } elseif ($estatusActual === 2) {
-                    $estatusAprobar = 3;
+                $estatusAprobar = 3;
                 } elseif ($estatusActual === 3) {
-                    $estatusAprobar = 4;
+                $estatusAprobar = 4;
                 }
                 $estatusRechazar = 9; // siempre se envía como 9 y la lógica del backend decide la transición final
-            @endphp
-            @if($estatusAprobar)
-                <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition" data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">Aprobar</button>
-            @endif
-            <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}" data-action="rechazar">Rechazar</button>
+                @endphp
+                @if($estatusAprobar)
+                <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                    data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar">Aprobar</button>
+                @endif
+                <button class="status-btn bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+                    data-id="{{ $req->id }}" data-estatus="{{ $estatusRechazar }}"
+                    data-action="rechazar">Rechazar</button>
+            </div>
         </div>
     </div>
-</div>
-@endforeach
+    @endforeach
 
-@endsection
+    @endsection
 
-@section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-function toggleModal(id){
+    @section('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        function toggleModal(id){
     const modal = document.getElementById(id);
     if(modal.classList.contains('hidden')){
         modal.classList.remove('hidden');
@@ -394,5 +408,5 @@ document.addEventListener('DOMContentLoaded', function(){
 
     showPage(1);
 });
-</script>
-@endsection
+    </script>
+    @endsection

@@ -40,7 +40,7 @@
             <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
                 <div class="mb-6 md:mb-7">
-                    <img src="/images/VigiaLogoC.svg" alt="Vigía Plus Logistics"
+                    <img src="/images/VigiaLogoC.png" alt="Vigía Plus Logistics"
                         class="mx-auto h-14 md:h-16 w-auto rounded-lg">
                 </div>
 

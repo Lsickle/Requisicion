@@ -4,7 +4,7 @@
         class="bg-slate-200 text-blue-900 border-b border-slate-300 px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
         <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
-            <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics"
+            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics"
                 class="mx-auto h-9 w-auto object-contain">
         </div>
     </nav>

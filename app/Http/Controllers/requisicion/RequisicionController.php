@@ -274,7 +274,7 @@ class RequisicionController extends Controller
         $operacionSolicitante = $requisicion->operacion_user;
 
         $logoData = null;
-        $candidates = [public_path('images/VigiaLogoC.svg')];
+        $candidates = [public_path('images/VigiaLogoC.png')];
         foreach ($candidates as $path) {
             if (file_exists($path)) {
                 $contents = file_get_contents($path);
@@ -293,7 +293,7 @@ class RequisicionController extends Controller
             'nombreSolicitante' => $nombreSolicitante,
             'emailSolicitante' => $emailSolicitante,
             'operacionSolicitante' => $operacionSolicitante,
-            'logo' => $logoData ?? asset('images/VigiaLogoC.svg'),
+            'logo' => $logoData ?? asset('images/VigiaLogoC.png'),
         ])->setPaper('A4', 'portrait');
 
         return $pdf->download("requisicion_{$requisicion->id}.pdf");
