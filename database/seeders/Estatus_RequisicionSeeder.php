@@ -3,37 +3,53 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Requisicion;
-use App\Models\Estatus;
-use App\Models\Estatus_Requisicion;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 
 class Estatus_RequisicionSeeder extends Seeder
 {
     public function run()
     {
-        // Asegurar estatus base
-        $base = [
-            'Iniciada', 'Revision', 'Aprobación Gerencia', 'Aprobación Financiera',
-            'Contacto con proveedor', 'Entrega aproximada', 'Recibido en bodega',
-            'Recogido por coordinador', 'Completado', 'Cancelado'
+        // Usar exclusivamente los 13 estatus canónicos (no insertar nuevos aquí)
+        $allowed = [
+            'Requisición creada',
+            'Revisado por compras',
+            'Aprobado Gerencia',
+            'Aprobado Financiera',
+            'Orden de compra generada',
+            'Cancelada',
+            'Recibido en bodega',
+            'Recibido por coordinador',
+            'Rechazado financiera',
+            'Completado',
+            'Ajustes requeridos',
+            'Entregado parcial',
+            'Rechazado gerencia',
         ];
-        foreach ($base as $name) {
-            Estatus::firstOrCreate(['status_name' => $name]);
-        }
 
-        $requisiciones = Requisicion::all();
-        $estatus = Estatus::all()->keyBy('status_name');
+        $estatus = DB::table('estatus')
+            ->select('id', 'status_name')
+            ->whereIn('status_name', $allowed)
+            ->get()
+            ->keyBy('status_name');
+
+        $requisiciones = DB::table('requisicion')->get();
 
         foreach ($requisiciones as $requisicion) {
+            // Desactivar cualquier estatus activo previo
+            DB::table('estatus_requisicion')
+                ->where('requisicion_id', $requisicion->id)
+                ->update(['estatus' => 0]);
+
             $secuencia = $this->getEstadoSecuencia($requisicion);
-            $ultimoEstado = null;
+            $ultimoEstadoId = null;
 
             foreach ($secuencia as $nombreEstado => $fecha) {
-                if (!isset($estatus[$nombreEstado])) continue;
+                if (!isset($estatus[$nombreEstado])) continue; // saltar si no existe en catálogo
+                $estadoId = $estatus[$nombreEstado]->id;
 
-                Estatus_Requisicion::create([
-                    'estatus_id'     => $estatus[$nombreEstado]->id,
+                DB::table('estatus_requisicion')->insert([
+                    'estatus_id'     => $estadoId,
                     'requisicion_id' => $requisicion->id,
                     'estatus'        => 0,
                     'date_update'    => $fecha,
@@ -43,38 +59,45 @@ class Estatus_RequisicionSeeder extends Seeder
                     'updated_at'     => $fecha,
                 ]);
 
-                $ultimoEstado = $estatus[$nombreEstado]->id;
+                $ultimoEstadoId = $estadoId;
             }
 
-            if ($ultimoEstado) {
-                Estatus_Requisicion::where('requisicion_id', $requisicion->id)
-                    ->where('estatus_id', $ultimoEstado)
-                    ->update(['estatus' => 1]);
+            if ($ultimoEstadoId) {
+                DB::table('estatus_requisicion')
+                    ->where('requisicion_id', $requisicion->id)
+                    ->where('estatus_id', $ultimoEstadoId)
+                    ->update(['estatus' => 1, 'updated_at' => now()]);
             }
         }
 
-        $this->command->info('¡Todas las requisiciones tienen estatus en secuencia y uno activo!');
+        $this->command->info('Historial de estatus generado usando solo los 13 estatus definidos.');
     }
 
     protected function getEstadoSecuencia($requisicion)
     {
-        $fecha = ($requisicion->created_at ?? now())->copy();
+        // Normalizar a Carbon la fecha base aunque venga como string (DB::table)
+        $base = $requisicion->created_at ?? null;
+        $fecha = ($base instanceof \Carbon\Carbon)
+            ? $base->copy()
+            : Carbon::parse($base ?? now())->copy();
+
+        // Secuencia alineada con el catálogo de 13
         $seq = [];
+        $seq['Requisición creada'] = $fecha->copy();
+        $seq['Revisado por compras'] = $seq['Requisición creada']->copy()->addDays(rand(1, 2));
+        $seq['Aprobado Gerencia'] = $seq['Revisado por compras']->copy()->addDays(rand(1, 3));
+        $seq['Aprobado Financiera'] = $seq['Aprobado Gerencia']->copy()->addDays(rand(2, 4));
+        $seq['Orden de compra generada'] = $seq['Aprobado Financiera']->copy()->addDays(rand(1, 3));
+        if (rand(1, 100) <= 30) {
+            $seq['Entregado parcial'] = $seq['Orden de compra generada']->copy()->addDays(rand(1, 3));
+        }
+        $seq['Recibido en bodega'] = ($seq['Entregado parcial'] ?? $seq['Orden de compra generada'])->copy()->addDays(rand(2, 4));
+        $seq['Recibido por coordinador'] = $seq['Recibido en bodega']->copy()->addDays(rand(1, 3));
+        $seq['Completado'] = $seq['Recibido por coordinador']->copy()->addDays(rand(1, 3));
 
-        // Pipeline completo
-        $seq['Iniciada'] = $fecha->copy();
-        $seq['Revision'] = $seq['Iniciada']->copy()->addDays(rand(1, 2));
-        $seq['Aprobación Gerencia'] = $seq['Revision']->copy()->addDays(rand(1, 3));
-        $seq['Aprobación Financiera'] = $seq['Aprobación Gerencia']->copy()->addDays(rand(2, 4));
-        $seq['Contacto con proveedor'] = $seq['Aprobación Financiera']->copy()->addDays(rand(1, 3));
-        $seq['Entrega aproximada'] = $seq['Contacto con proveedor']->copy()->addDays(rand(3, 5));
-        $seq['Recibido en bodega'] = $seq['Entrega aproximada']->copy()->addDays(rand(2, 4));
-        $seq['Recogido por coordinador'] = $seq['Recibido en bodega']->copy()->addDays(rand(1, 3));
-        $seq['Completado'] = $seq['Recogido por coordinador']->copy()->addDays(rand(1, 3));
-
-        // 20%: Cancelado al final (sustituye Completado)
-        if (rand(1, 100) <= 20) {
-            $seq['Cancelado'] = $seq['Recogido por coordinador']->copy()->addDays(rand(1, 3));
+        // 15%: Cancelada en lugar de Completado
+        if (rand(1, 100) <= 15) {
+            $seq['Cancelada'] = $seq['Recibido por coordinador']->copy()->addDays(rand(1, 3));
             unset($seq['Completado']);
         }
 

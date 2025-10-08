@@ -13,7 +13,7 @@ class RequisicionSeeder extends Seeder
     public function run()
     {
         // Crear exactamente 20 requisiciones
-        $requisiciones = Requisicion::factory()->count(20)->create();
+        $requisiciones = Requisicion::factory()->count(43)->create();
 
         foreach ($requisiciones as $requisicion) {
             // Fecha base aleatoria (últimos 120 días)

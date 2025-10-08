@@ -21,6 +21,9 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
     protected $estatus;
     protected $userEmail;
 
+    public $tries = 3;
+    public function backoff(): array { return [10, 30, 60]; }
+
     /**
      * Create a new job instance.
      */
@@ -37,21 +40,32 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
     public function handle()
     {
         try {
+            // borrar luego de mailtrap
+            $nombreEstatus = optional($this->estatus->estatusRelation)->status_name;
+            if ($nombreEstatus && trim(mb_strtolower($nombreEstatus)) === trim(mb_strtolower('Requisición creada'))) {
+                Log::info('estatusActualizado: skip por estatus Requisición creada', ['req' => $this->requisicion->id]);
+                return;
+            }
+
             // Preferir el email proporcionado, si no, usar el email guardado en la requisición o el usuario relacionado
             $to = $this->userEmail
                 ?? ($this->requisicion->email_user ?? null)
                 ?? optional($this->requisicion->user)->email
-                ?? null;
+                ?? env('REQUISICIONES_MAIL_TO', 'admin@example.com');
 
-            if ($to) {
-                Mail::to($to)->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
-                Log::info("Correo de estatus enviado a: {$to} para requisición #{$this->requisicion->id}");
-            } else {
-                Log::warning("No se encontró email destinatario para requisición #{$this->requisicion->id}. Enviando fallback a admin.");
-                Mail::to('admin@empresa.com')->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
+            if (!$to) {
+                Log::warning('estatusActualizado: sin destinatario', ['req' => $this->requisicion->id]);
+                return;
             }
-        } catch (\Exception $e) {
+
+            $gap = (float) env('MAIL_MIN_GAP_SECONDS', 0);
+            if ($gap > 0) { usleep((int) round($gap * 1_000_000)); }
+
+            Mail::to($to)->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
+            Log::info("Correo de estatus enviado a: {$to} para requisición #{$this->requisicion->id}");
+        } catch (\Throwable $e) {
             Log::error("Error enviando correo para requisición #{$this->requisicion->id}: " . $e->getMessage());
+            // No re-lanzar para no fallar la petición
         }
     }
 }
