@@ -10,22 +10,23 @@
         /* Watermark (imagen) */
         .watermark {
             position: fixed;
-            top: 52%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            inset: 0;
             z-index: 0;
             pointer-events: none;
             width: 100%;
+            height: 100%;
             text-align: center;
-            overflow: visible;
+            opacity: 0.10;
         }
         .watermark img {
-            max-width: 1100px; /* increase size */
-            width: 80%;
-            opacity: 0.15;    /* make it more subtle */
-            transform: rotate(-25deg);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-60deg);
+            width: 160%;
+            max-width: none;
+            height: auto;
             display: block;
-            margin: 0 auto;
         }
         /* Ensure main content prints above watermark */
         .content { position: relative; z-index: 1; }
@@ -60,7 +61,7 @@
 
  <body>
     {{-- Marca de agua (usar $logo si viene como data URI, si no fallback a asset) --}}
-    @php $watermarkSrc = !empty($logo) ? $logo : asset('images/VigiaLogoC.svg'); @endphp
+    @php $watermarkSrc = !empty($logo) ? $logo : asset('images/VigiaLogoC.png'); @endphp
     <div class="watermark"><img src="{{ $watermarkSrc }}" alt="marca de agua"></div>
 
      <div class="content">
@@ -71,7 +72,7 @@
             @if(!empty($logo))
                 <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
             @else
-                <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics" class="logo">
+                <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="logo">
             @endif
          </div>
          <div class="document-info">
