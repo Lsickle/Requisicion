@@ -847,10 +847,10 @@
         centrosConDistribucion.forEach(centro => {
             let cantidadCentro = distribucionProducto[centro.id] || 0;
             centrosHtml += `
-                <div class="mb-2">
-                    <label class="block text-sm text-gray-600">${centro.name_centro}:</label>
+                <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
+                    <span class="font-medium text-sm truncate">${centro.name_centro}</span>
                     <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
-                           min="0" value="${cantidadCentro}" class="w-20 border rounded p-1 text-center distribucion-centro"
+                           min="0" value="${cantidadCentro}" class="w-24 border rounded p-1 text-center ml-3 distribucion-centro"
                            data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}', this)">
                 </div>
             `;
@@ -884,7 +884,7 @@
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
             <td class="p-3">
                 <div class="max-h-40 overflow-y-auto">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                    <div class="space-y-2 text-sm pr-1">
                         ${centrosHtml}
                     </div>
                 </div>
