@@ -69,6 +69,7 @@
                     }
                     $rolesLower = array_map(function($v){ return strtolower(trim((string)$v)); }, $rolesArr);
                     $canManage = in_array('area de compras', $rolesLower) || in_array('admin requisicion', $rolesLower);
+                    $isAdmin = in_array('admin requisicion', $rolesLower);
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
                     <td class="p-3">#{{ $req->id }}</td>
@@ -139,13 +140,13 @@
                             </a>
 
                             @if($canManage)
-                                @if($ultimoEstatusId == 11)
+                                @if($isAdmin && $ultimoEstatusId == 11)
                                 <a href="{{ route('requisiciones.edit', $req->id) }}" class="bg-yellow-500 hover:bg-yellow-600 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar requisición" aria-label="Editar requisición">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 @endif
 
-                                @if(!in_array($ultimoEstatusId, [6,10,5]))
+                                @if($isAdmin && !in_array($ultimoEstatusId, [6,10,5]))
                                 <button onclick="cancelarRequisicion({{ $req->id }})" class="bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Cancelar requisición" aria-label="Cancelar requisición">
                                     <i class="fas fa-times"></i>
                                 </button>
