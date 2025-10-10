@@ -106,6 +106,7 @@ class OrdenCompraController extends Controller
                         'p.name_produc',
                         'p.unit_produc',
                         'p.stock_produc',
+                        'p.price_produc',
                         'prov.prov_name'
                     )
                     ->get();

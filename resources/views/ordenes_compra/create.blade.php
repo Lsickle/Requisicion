@@ -216,7 +216,8 @@
                                     data-unidad="{{ $producto->unit_produc }}"
                                     data-stock="{{ $producto->stock_produc }}"
                                     data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                    data-iva="{{ $producto->iva ?? 0 }}">
+                                    data-iva="{{ $producto->iva ?? 0 }}"
+                                    data-price="{{ $producto->price_produc ?? 0 }}">
                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
                                     $producto->pivot->pr_amount ?? 1 }}
                                 </option>
@@ -227,7 +228,7 @@
                                 <optgroup label="Líneas distribuidas pendientes">
                                     @foreach($lineasDistribuidas as $ld)
                                         <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}"
-                                            data-iva="{{ $ld->iva ?? 0 }}">
+                                            data-iva="{{ $ld->iva ?? 0 }}" data-price="{{ $ld->price_produc ?? 0 }}">
                                             {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
                                         </option>
                                     @endforeach
@@ -349,6 +350,7 @@
                                     <th class="p-3 text-left" style="width:30%">Producto</th>
                                     <th class="p-3 text-center" style="width:70px">Total</th>
                                     <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                    <th class="p-3 text-center" style="width:110px">Precio unitario</th>
                                     <th class="p-3 text-center" style="width:70px">IVA</th>
                                     <th class="p-3 text-center" style="width:100px">Sacado</th>
                                     <th class="p-3 text-center" style="width:110px">Stock</th>
@@ -818,6 +820,7 @@
         const cantidadOriginal = parseInt(selectedOption.dataset.cantidad || '1', 10);
         const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
         const iva = parseFloat(selectedOption.dataset.iva ?? '0');
+        const precio = parseFloat(selectedOption.dataset.price ?? '0');
         const ocpId = selectedOption.dataset.ocpId || null;
         const rowKey = `${productoId}-${ocpId||'0'}`;
 
@@ -830,10 +833,10 @@
             proveedorSelect.value = proveedorId;
         }
 
-        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva);
+        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio);
     }
 
-    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0) {
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0) {
         const table = document.getElementById('productos-table');
         const rowId = `producto-${rowKey}`;
         if (document.getElementById(rowId)) return;
@@ -861,6 +864,8 @@
         });
 
         let cantidadParaComprar = cantidadOriginal;
+        const precioNum = isNaN(precio) ? 0 : precio;
+        const precioStr = precioNum.toFixed(2);
 
         const row = document.createElement('tr');
         row.id = rowId;
@@ -872,7 +877,7 @@
                     </div>
                 </div>
                 <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}">
+                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}">
                 <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
                 ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
             </td>
@@ -883,6 +888,7 @@
                     onchange="onCantidadTotalChange('${rowKey}')" required>
             </td>
             <td class="p-3 text-center">${unidad}</td>
+            <td class="p-3 text-center" id="precio-${rowKey}">$${precioStr}</td>
             <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
             <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
@@ -1005,6 +1011,7 @@
             const cantidad = inputHidden?.dataset?.cantidad || 0;
             const stock = inputHidden?.dataset?.stock || 0;
             const iva = inputHidden?.dataset?.iva || 0;
+            const price = inputHidden?.dataset?.price || 0;
             const esDistribuido = !!ocpId;
             const productoId = inputHidden?.value;
 
@@ -1020,6 +1027,7 @@
             opt.dataset.cantidad = cantidad;
             opt.dataset.stock = stock;
             opt.dataset.iva = iva;
+            opt.dataset.price = price;
             if (esDistribuido) {
                 opt.dataset.distribuido = '1';
                 opt.dataset.ocpId = ocpId;
