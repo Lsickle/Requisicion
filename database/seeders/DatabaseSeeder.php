@@ -10,11 +10,9 @@ class DatabaseSeeder extends Seeder
 {
     $this->call([
         // Base
-        ProveedorSeeder::class,
         CentroSeeder::class,
         ClienteSeeder::class,
         EstatusSeeder::class,
-        ProductoSeeder::class,
         NuevoProductoSeeder::class,
 
         // Requisiciones + relaciones
@@ -30,6 +28,11 @@ class DatabaseSeeder extends Seeder
         OrdenCompraProductoSeeder::class,
         OrdenCompraCentroProductoSeeder::class,
         OrdenCompraEstatusSeeder::class,
+
+        // Llamadas a seeders existentes
+        ProveedoresSeeder::class,
+        ProductosSeeder::class,
+        ProductoxProveedorSeeder::class,
     ]);
 }
 }

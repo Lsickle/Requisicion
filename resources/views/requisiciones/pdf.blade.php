@@ -183,15 +183,19 @@
 
         /* Bloque de totales compatible PDF */
         .totals-table {
-            width: 320px;
-            margin: 20px auto 0 auto;
-            background: #fff;
-            border: 1px solid #ccc;
+            width: 340px;
+            margin: 20px 0 0 0;
+            float: left;
+            background: rgba(255, 255, 255, 0.288);
+            border: 1px solid rgba(44, 62, 80, 0.06);
+            border-radius: 6px;
             font-size: 12px;
+            page-break-inside: avoid;
+            box-sizing: border-box;
         }
 
         .totals-table td {
-            padding: 8px;
+            padding: 10px 12px;
             border: none;
         }
 
@@ -209,14 +213,14 @@
         .totals-table .total-label {
             font-weight: 800;
             font-size: 13px;
-            border-top: 1px solid #f3f4f6;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
             padding-top: 8px;
         }
 
         .totals-table .total-value {
             font-weight: 800;
             font-size: 13px;
-            border-top: 1px solid #f3f4f6;
+            border-top: 1px solid rgba(0, 0, 0, 0.06);
             padding-top: 8px;
         }
     </style>
@@ -334,10 +338,6 @@
 
         <!-- Totales generales en tabla SIMPLE y visible en PDF -->
         <table class="totals-table">
-            <tr>
-                <td class="label">SUBTOTAL:</td>
-                <td class="value">${{ number_format($grandTotal, 2) }}</td>
-            </tr>
             <tr>
                 <td class="label total-label">TOTAL GENERAL:</td>
                 <td class="value total-value">${{ number_format($grandTotal, 2) }}</td>

@@ -262,63 +262,63 @@
                      </div>
                  </section>
 
-                 <!-- Productos (tabla dentro del modal, sin desbordes) -->
-                 <section class="mb-8">
-                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
-                     <div class="border rounded-lg overflow-hidden">
-                         <div class="max-h-80 overflow-y-auto">
-                             <table class="w-full text-sm bg-white">
-                                 <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
-                                     <tr class="border-b">
-                                         <th class="p-3 text-left">Producto</th>
-                                         <th class="p-3 text-center">Cantidad Total</th>
-                                         <th class="p-3 text-left">Distribución por Centro</th>
-                                     </tr>
-                                 </thead>
-                                 <tbody>
-                                     @foreach($req->productos as $prod)
-                                     <tr class="border-b">
-                                         <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}
-                                         </td>
-                                         <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
-                                         <td class="p-3 align-top">
-                                             <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                                                 @php
-                                                 $distribucion = DB::table('centro_producto')
-                                                 ->where('requisicion_id', $req->id)
-                                                 ->where('producto_id', $prod->id)
-                                                 ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                                 ->select('centro.name_centro', 'centro_producto.amount')
-                                                 ->get();
-                                                 @endphp
-                                                 @forelse($distribucion as $centro)
-                                                 <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
-                                                 @empty
-                                                 <li>No hay centros asignados</li>
-                                                 @endforelse
-                                             </ul>
-                                         </td>
-                                     </tr>
-                                     @endforeach
-                                 </tbody>
-                             </table>
-                         </div>
-                     </div>
-                 </section>
+                <!-- Productos (tabla dentro del modal, sin desbordes) -->
+                <section class="mb-8">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
+                    <div class="border rounded-lg overflow-hidden">
+                        <div class="max-h-80 overflow-y-auto">
+                            <table class="w-full text-sm bg-white">
+                                <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                    <tr class="border-b">
+                                        <th class="p-3 text-left">Producto</th>
+                                        <th class="p-3 text-center">Cantidad Total</th>
+                                        <th class="p-3 text-left">Distribución por Centro</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($req->productos as $prod)
+                                    <tr class="border-b">
+                                    <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}
+                                        </td>
+                                        <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
+                                        <td class="p-3 align-top">
+                                            <ul class="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                                @php
+                                                $distribucion = DB::table('centro_producto')
+                                                ->where('requisicion_id', $req->id)
+                                                ->where('producto_id', $prod->id)
+                                                ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                                ->select('centro.name_centro', 'centro_producto.amount')
+                                                ->get();
+                                                @endphp
+                                                @forelse($distribucion as $centro)
+                                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                                                @empty
+                                                <li>No hay centros asignados</li>
+                                                @endforelse
+                                            </ul>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
 
-                 <!-- Estatus -->
-                 <section class="mt-6">
-                     <a href="{{ route('requisiciones.estatus', $req->id) }}"
-                         class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
-                         Ver Estatus
-                     </a>
-                     <a href="{{ route('requisiciones.create') }}?from={{ $req->id }}" class="ml-2 bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition">
-                         Solicitar de nuevo
-                     </a>
-                 </section>
-             </div>
-         </div>
-     </div>
+                <!-- Estatus -->
+                <section class="mt-6">
+                    <a href="{{ route('requisiciones.estatus', $req->id) }}"
+                    class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
+                        Ver Estatus
+                    </a>
+                    <a href="{{ route('requisiciones.create') }}?from={{ $req->id }}" class="ml-2 bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition">
+                        Solicitar de nuevo
+                    </a>
+                </section>
+            </div>
+        </div>
+    </div>
 
     @php
         $ocpLineas = DB::table('ordencompra_producto as ocp')

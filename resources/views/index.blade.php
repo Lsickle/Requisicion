@@ -204,7 +204,7 @@
                 }
             });
 
-            fetch("https://vpl-nexus-core-test-testing.up.railway.app/api/auth/forgot-password", {
+            fetch("{{ rtrim(env('VPL_CORE'), '/') }}" + "/api/auth/forgot-password", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

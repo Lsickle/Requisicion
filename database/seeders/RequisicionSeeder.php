@@ -10,8 +10,17 @@ use Illuminate\Support\Carbon;
 
 class RequisicionSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
+        // Asegurar que existan productos y proveedores antes de crear requisiciones.
+        // Si no existen, ejecutar los seeders necesarios para evitar excepciones.
+        if (DB::table('productos')->count() === 0) {
+            $this->call(\Database\Seeders\ProductosSeeder::class);
+        }
+        if (DB::table('proveedores')->count() === 0) {
+            $this->call(\Database\Seeders\ProveedoresSeeder::class);
+        }
+
         // Crear exactamente 20 requisiciones
         $requisiciones = Requisicion::factory()->count(43)->create();
 

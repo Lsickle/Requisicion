@@ -14,6 +14,9 @@ class NuevoProductoController extends Controller
 {
     /**
      * Display a listing of the resource.
+     *
+     * Recupera todas las solicitudes (incluyendo las soft-deleted) y las muestra.
+     * @return \Illuminate\Contracts\Support\Renderable
      */
     public function index()
     {
@@ -23,6 +26,9 @@ class NuevoProductoController extends Controller
 
     /**
      * Show the form for creating a new resource.
+     *
+     * Muestra el formulario para que un usuario solicite la inclusión de un nuevo producto.
+     * @return \Illuminate\Contracts\Support\Renderable
      */
     public function create()
     {
@@ -31,6 +37,12 @@ class NuevoProductoController extends Controller
 
     /**
      * Store a newly created resource in storage.
+     *
+     * Valida la petición, crea la solicitud y despacha un job para notificar por correo al equipo.
+     * Se usa transacción para mantener consistencia.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function store(Request $request)
     {
@@ -71,6 +83,9 @@ class NuevoProductoController extends Controller
 
     /**
      * Display the specified resource.
+     *
+     * @param \App\Models\Nuevo_producto $nuevoProducto
+     * @return \Illuminate\Contracts\Support\Renderable
      */
     public function show(Nuevo_producto $nuevoProducto)
     {
@@ -79,6 +94,9 @@ class NuevoProductoController extends Controller
 
     /**
      * Show the form for editing the specified resource.
+     *
+     * @param \App\Models\Nuevo_producto $nuevoProducto
+     * @return \Illuminate\Contracts\Support\Renderable
      */
     public function edit(Nuevo_producto $nuevoProducto)
     {
@@ -87,6 +105,12 @@ class NuevoProductoController extends Controller
 
     /**
      * Update the specified resource in storage.
+     *
+     * Valida y actualiza la solicitud.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Nuevo_producto $nuevoProducto
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function update(Request $request, Nuevo_producto $nuevoProducto)
     {
@@ -101,6 +125,15 @@ class NuevoProductoController extends Controller
             ->with('success', 'Solicitud de producto actualizada exitosamente.');
     }
 
+    /**
+     * Remove the specified resource from storage.
+     *
+     * Envía una notificación al solicitante indicando que su petición fue rechazada y elimina
+     * el registro (soft delete).
+     *
+     * @param \App\Models\Nuevo_producto $nuevoProducto
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function destroy(Nuevo_producto $nuevoProducto)
     {
         // Preparar datos para correo de rechazo
@@ -121,6 +154,11 @@ class NuevoProductoController extends Controller
 
     /**
      * Notifica por correo que la solicitud fue atendida y el producto creado.
+     *
+     * Se utiliza para disparar un job en background que enviará el correo al solicitante.
+     *
+     * @param int $id Identificador de la solicitud (puede ser soft-deleted)
+     * @return \Illuminate\Http\JsonResponse
      */
     public function notifyAdded($id)
     {

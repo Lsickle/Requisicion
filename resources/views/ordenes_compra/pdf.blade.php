@@ -498,7 +498,7 @@
             <div class="footer">
                 Documento generado el {{ $fecha_actual }} | Software de Requisición de Compras
             </div>
-        </div> {{-- .content --}}
+        </div> 
 </body>
 
 </html>

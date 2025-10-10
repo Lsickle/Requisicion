@@ -19,14 +19,23 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 
+
 class RequisicionController extends Controller
 {
+    /**
+     * Mostrar todas las requisiciones con sus relaciones.
+     * @return \Illuminate\View\View
+     */
     public function index()
     {
         $requisiciones = Requisicion::with('productos', 'estatusHistorial.estatusRelation')->get();
         return view('index', compact('requisiciones'));
     }
 
+    /**
+     * Mostrar formulario de creación de requisición.
+     * @return \Illuminate\View\View
+     */
     public function create()
     {
         $centros = Centro::all();
@@ -35,11 +44,20 @@ class RequisicionController extends Controller
         return view('requisiciones.create', compact('centros', 'productos'));
     }
 
+    /**
+     * Mostrar menú principal de requisiciones.
+     * @return \Illuminate\View\View
+     */
     public function menu()
     {
         return view('requisiciones.menu');
     }
 
+    /**
+     * Mostrar formulario para editar una requisición en estado 'Corregir'.
+     * @param int $id
+     * @return \Illuminate\Http\RedirectResponse|\Illuminate\View\View
+     */
     public function edit($id)
     {
         $requisicion = Requisicion::with([
@@ -67,6 +85,14 @@ class RequisicionController extends Controller
         return view('requisiciones.edit', compact('requisicion', 'centros', 'productos', 'comentarioRechazo'));
     }
 
+    /**
+     * Actualizar la requisición corregida.
+     * Valida la consistencia entre la suma por centros y la cantidad total por producto.
+     * @param \Illuminate\Http\Request $request
+     * @param int $id
+     * @return \Illuminate\Http\RedirectResponse
+     * @throws \Illuminate\Validation\ValidationException
+     */
     public function update(Request $request, $id)
     {
         $requisicion = Requisicion::findOrFail($id);
@@ -156,6 +182,12 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Almacenar una nueva requisición.
+     * Realiza validación, guarda relaciones producto-centro y registra estatus inicial.
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -250,6 +282,11 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Mostrar una requisición.
+     * @param int $id
+     * @return \Illuminate\View\View
+     */
     public function show($id)
     {
         $requisicion = Requisicion::with([
@@ -261,6 +298,11 @@ class RequisicionController extends Controller
         return view('requisiciones.show', compact('requisicion'));
     }
 
+    /**
+     * Generar y descargar el PDF de la requisición.
+     * @param int $id
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
     public function pdf($id)
     {
         $requisicion = Requisicion::with([
@@ -299,6 +341,10 @@ class RequisicionController extends Controller
         return $pdf->download("requisicion_{$requisicion->id}.pdf");
     }
 
+    /**
+     * Historial de requisiciones del usuario logueado.
+     * @return \Illuminate\View\View
+     */
     public function historial()
     {
         $userId = session('user.id');
@@ -329,6 +375,10 @@ class RequisicionController extends Controller
         return view('requisiciones.historial', compact('requisiciones'));
     }
 
+    /**
+     * Listar requisiciones aptas para generar órdenes de compra (aprobadas)
+     * @return \Illuminate\View\View
+     */
     public function listaAprobadas()
     {
         $requisiciones = Requisicion::with([
@@ -345,6 +395,12 @@ class RequisicionController extends Controller
         return view('ordenes_compra.lista', compact('requisiciones'));
     }
 
+    /**
+     * Cancelar una requisición (iniciada por solicitante).
+     * Valida permisos y estado antes de cambiar estatus.
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function cancelar($id)
     {
         DB::beginTransaction();
@@ -396,6 +452,11 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Reenviar una requisición cancelada.
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function reenviar($id)
     {
         DB::beginTransaction();
@@ -447,6 +508,10 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Mostrar lista completa de requisiciones (solo administradores / roles).
+     * @return \Illuminate\View\View
+     */
     public function todas()
     {
         $requisiciones = Requisicion::with([
@@ -460,7 +525,10 @@ class RequisicionController extends Controller
         return view('requisiciones.todas', compact('requisiciones'));
     }
 
-    // Mostrar interfaz de transferencia (solo Admin requisicion)
+    /**
+     * Interfaz para transferir titularidad de una requisición (solo Admin requisicion)
+     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+     */
     public function transferIndex()
     {
         // Permiso explícito o rol 'Admin requisicion' permiten acceder
@@ -489,7 +557,13 @@ class RequisicionController extends Controller
         return view('requisiciones.transferir', compact('requisiciones'));
     }
 
-    // Ejecutar transferencia de titularidad
+    /**
+     * Ejecuta la transferencia de titularidad a otro usuario.
+     * Valida permisos, reescribe campos relevantes y registra historial.
+     * @param \Illuminate\Http\Request $request
+     * @param int $id
+     * @return mixed
+     */
     public function transferir(Request $request, $id)
     {
         // Permiso explícito o rol 'Admin requisicion' para ejecución
@@ -584,6 +658,15 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Intentar completar automáticamente una requisición si todas las cantidades han sido recibidas.
+     * - Suma cantidades requeridas por producto (centro_producto / producto_requisicion)
+     * - Suma confirmadas por entrega y recepción
+     * - Si todo coincide, crea estatus 10 (completado)
+     *
+     * @param int $requisicionId
+     * @return bool true si se marcó como completada o ya estaba completa
+     */
     private function attemptAutoComplete(int $requisicionId): bool
     {
         // Determinar cantidades requeridas
@@ -652,6 +735,12 @@ class RequisicionController extends Controller
         return true;
     }
 
+    /**
+     * Confirmar una entrega (registro único).
+     * Actualiza cantidad recibida en tabla entrega, ajusta stock por delta y prueba auto-complete.
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function confirmarEntrega(Request $request)
     {
         $entregaId = $request->input('entrega_id') ?? $request->input('id');
@@ -722,6 +811,12 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Confirmar una recepción (registro único).
+     * Actualiza tabla recepcion y prueba auto-complete para la requisición asociada.
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function confirmarRecepcion(Request $request)
     {
         $recepcionId = $request->input('recepcion_id') ?? $request->input('id');
@@ -763,6 +858,12 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Confirmar recepciones/entregas en masa.
+     * Recibe un array de items {id,cantidad} y procesa cada uno de forma transaccional.
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function confirmarRecepcionesMasivo(Request $request)
     {
         $tipo = $request->input('tipo', 'recepcion');
@@ -835,6 +936,14 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Cambia el estatus actual de la requisición (ayuda centralizada).
+     * Evita crear duplicados si el estatus ya está asignado.
+     * @param int $requisicionId
+     * @param int $estatusId
+     * @param string|null $comentario
+     * @return void
+     */
     private function setRequisicionStatus(int $requisicionId, int $estatusId, string $comentario = null)
     {
         $current = Estatus_Requisicion::where('requisicion_id', $requisicionId)
@@ -857,6 +966,11 @@ class RequisicionController extends Controller
         ]);
     }
 
+    /**
+     * Verifica si la requisición tiene todas sus entregas/recepciones completadas.
+     * @param int $requisicionId
+     * @return bool
+     */
     private function isRequisitionComplete(int $requisicionId): bool
     {
         $productos = DB::table('producto_requisicion')
@@ -883,7 +997,10 @@ class RequisicionController extends Controller
     }
 
     /**
-     * Obtener usuarios desde servicio VPL_CORE /api/usuarios y devolverlos al cliente (proxy)
+     * Proxy para obtener usuarios desde servicio externo VPL_CORE y devolverlos al cliente.
+     * Maneja paginación flexible y múltiples formatos de respuesta.
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
     public function fetchExternalUsers(Request $request)
     {
@@ -1031,6 +1148,13 @@ class RequisicionController extends Controller
         }
     }
 
+    /**
+     * Registrar entregas propuestas para una requisición (API).
+     * Inserta registros en tabla 'entrega' y actualiza estatus a 12 (movimiento parcial registrado).
+     * @param \Illuminate\Http\Request $request
+     * @param int $requisicionId
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function entregarRequisicion(Request $request, $requisicionId)
     {
         try {

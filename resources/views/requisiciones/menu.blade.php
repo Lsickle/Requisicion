@@ -9,13 +9,21 @@
 <!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+<!-- Estilos locales: evitar subrayado en botones del menú al hacer hover -->
+<style>
+    /* Quitar subrayado en enlaces dentro del grid de tarjetas y mantener accesibilidad visual */
+    .menu-grid a { text-decoration: none; }
+    .menu-grid a:hover, .menu-grid a:focus { text-decoration: none; outline: none; }
+    .menu-grid a:focus-visible { outline: 2px solid rgba(59,130,246,0.6); outline-offset: 2px; }
+</style>
+
 @section('content')
     <x-sidebar/>
 
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-8 text-center mt-11">Sistema de Requisiciones</h1>
         
-        <div class="grid gap-6 grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-center place-items-center max-w-7xl mx-auto">
+        <div class="grid gap-6 menu-grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-center place-items-center max-w-7xl mx-auto">
             @php
                 $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
                 $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
