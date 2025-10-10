@@ -2,6 +2,51 @@
 
 @section('title', 'Crear Requisición')
 @section('content')
+@php
+    $prefillData = null;
+    $fromId = request()->query('from');
+    if (!empty($fromId)) {
+        try {
+            $__req = \App\Models\Requisicion::with('productos')->find($fromId);
+            if ($__req) {
+                $distRows = DB::table('centro_producto as cp')
+                    ->join('centro as c','c.id','=','cp.centro_id')
+                    ->where('cp.requisicion_id', $__req->id)
+                    ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
+                    ->get();
+                $distByProd = [];
+                foreach ($distRows as $r) {
+                    $distByProd[$r->producto_id][] = [
+                        'id' => (string)$r->centro_id,
+                        'nombre' => $r->name_centro,
+                        'cantidad' => (int)$r->amount,
+                    ];
+                }
+                $prods = [];
+                foreach ($__req->productos as $p) {
+                    $prods[] = [
+                        'id' => (int)$p->id,
+                        'nombre' => $p->name_produc,
+                        'unidad' => $p->unit_produc,
+                        'proveedorId' => $p->proveedor_id ?? null,
+                        'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
+                        'centros' => $distByProd[$p->id] ?? [],
+                    ];
+                }
+                $prefillData = [
+                    'operacion_user' => $__req->operacion_user ?? '',
+                    'Recobrable' => $__req->Recobrable ?? '',
+                    'prioridad_requisicion' => $__req->prioridad_requisicion ?? '',
+                    'justify_requisicion' => $__req->justify_requisicion ?? '',
+                    'detail_requisicion' => $__req->detail_requisicion ?? '',
+                    'productos' => $prods,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $prefillData = null;
+        }
+    }
+@endphp
 <x-sidebar />
 <div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white shadow-xl rounded-2xl p-6">
@@ -291,6 +336,11 @@
 @endsection
 
 @section('scripts')
+<script>
+    // Datos precargados desde ?from=ID
+    const PREFILL_DATA = {!! json_encode($prefillData) !!};
+    console.log('PREFILL_DATA:', PREFILL_DATA);
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
     const $ = s => document.querySelector(s);
@@ -886,6 +936,40 @@
     // Si había old() valor pero input vacío, sincronizar
     if (operacionSelectHidden.value && !operacionFilter.value) {
         operacionFilter.value = operacionSelectHidden.value;
+    }
+
+    // Aplicar precarga si existe
+    if (PREFILL_DATA) {
+        try {
+            const opFilter = document.getElementById('operacionFilter');
+            const opHidden = document.getElementById('operacionSelect');
+            if (opFilter && opHidden && PREFILL_DATA.operacion_user) {
+                opFilter.value = PREFILL_DATA.operacion_user;
+                opHidden.value = PREFILL_DATA.operacion_user;
+            }
+            const selRec = document.querySelector('select[name="Recobrable"]');
+            if (selRec && PREFILL_DATA.Recobrable) selRec.value = PREFILL_DATA.Recobrable;
+            const selPri = document.querySelector('select[name="prioridad_requisicion"]');
+            if (selPri && PREFILL_DATA.prioridad_requisicion) selPri.value = PREFILL_DATA.prioridad_requisicion;
+            const txtJust = document.querySelector('textarea[name="justify_requisicion"]');
+            if (txtJust && PREFILL_DATA.justify_requisicion) txtJust.value = PREFILL_DATA.justify_requisicion;
+            const txtDet = document.querySelector('textarea[name="detail_requisicion"]');
+            if (txtDet && PREFILL_DATA.detail_requisicion) txtDet.value = PREFILL_DATA.detail_requisicion;
+
+            // Cargar productos y distribución directamente en la tabla
+            if (Array.isArray(PREFILL_DATA.productos)) {
+                productos = PREFILL_DATA.productos.map(p => ({
+                    id: p.id,
+                    nombre: p.nombre,
+                    proveedorId: p.proveedorId || null,
+                    cantidadTotal: p.cantidadTotal || 0,
+                    unidad: p.unidad || '',
+                    centros: Array.isArray(p.centros) ? p.centros.map(c => ({ id: String(c.id), nombre: c.nombre, cantidad: parseInt(c.cantidad)||0 })) : []
+                }));
+                // Actualizar UI
+                actualizarTabla();
+            }
+        } catch (e) { console.error('Error aplicando PREFILL_DATA', e); }
     }
 });
 </script>

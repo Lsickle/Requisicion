@@ -106,6 +106,9 @@
                             <button onclick="toggleModal('modal-{{ $req->id }}')" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver requisición" aria-label="Ver requisición">
                                 <i class="fas fa-eye"></i>
                             </button>
+                            <a href="{{ route('requisiciones.create') }}?from={{ $req->id }}" class="bg-teal-600 hover:bg-teal-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Solicitar de nuevo" aria-label="Solicitar de nuevo">
+                                <i class="fas fa-clone"></i>
+                            </a>
                             @if(in_array(($ultimoEstatusId ?? null), [8,12]))
                             <button onclick="toggleModal('modal-recibir-{{ $req->id }}')" class="bg-yellow-600 hover:bg-yellow-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Recibir productos" aria-label="Recibir productos">
                                 <i class="fas fa-box"></i>
@@ -308,6 +311,9 @@
                      <a href="{{ route('requisiciones.estatus', $req->id) }}"
                          class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
                          Ver Estatus
+                     </a>
+                     <a href="{{ route('requisiciones.create') }}?from={{ $req->id }}" class="ml-2 bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition">
+                         Solicitar de nuevo
                      </a>
                  </section>
              </div>
