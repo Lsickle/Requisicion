@@ -94,13 +94,33 @@
                     </thead>
                     <tbody>
                         @foreach($productos as $producto)
+                        @php
+                            // Obtener proveedores asociados y precios desde la tabla productoxproveedor
+                            $provList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
+                                ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
+                                ->where('pxp.producto_id', $producto->id)
+                                ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc')
+                                ->orderBy('pxp.id','asc')
+                                ->get();
+                            $firstProv = $provList->first();
+                        @endphp
                         <tr class="border-b hover:bg-gray-50">
                             <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
                             <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
-                            <td class="px-4 py-2" data-col="proveedor">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
+                            <td class="px-4 py-2" data-col="proveedor">
+                                @if($provList && $provList->count())
+                                    <ul class="text-sm">
+                                        @foreach($provList as $pv)
+                                            <li>{{ $pv->prov_name }} <small class="text-gray-500">(${{ number_format($pv->price_produc,2) }})</small></li>
+                                        @endforeach
+                                    </ul>
+                                @else
+                                    N/A
+                                @endif
+                            </td>
                             <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
                             <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
-                            <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
+                            <td class="px-4 py-2">@if($firstProv) ${{ number_format($firstProv->price_produc, 2) }} @else - @endif</td>
                             <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
                             <td class="px-4 py-2" data-col="estado">
                                 @if($producto->trashed())
@@ -131,8 +151,14 @@
                                         </button>
                                     </form>
                                     @else
+                                    @php
+                                        // Valores por defecto para el modal: usar el primer proveedor si existe
+                                        $editProvId = $firstProv->prov_id ?? 'null';
+                                        $editPrice = $firstProv->price_produc ?? 0;
+                                    @endphp
                                     <button
-                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, {{ $producto->iva ?? 0 }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
+                                        data-providers='@json($provList)'
+                                        onclick="openEditModal(this, {{ $producto->id }}, '{{ addslashes($producto->name_produc) }}', '{{ addslashes($producto->categoria_produc) }}', {{ $producto->stock_produc }}, {{ $editPrice }}, {{ $producto->iva ?? 0 }}, '{{ addslashes($producto->unit_produc) }}', `{{ addslashes($producto->description_produc) }}`)"
                                         class="text-blue-600 hover:text-blue-800" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </button>
@@ -348,34 +374,33 @@
                                 <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
-                            <div class="relative mb-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                                <div class="relative flex">
-                                    <!-- Input con búsqueda -->
-                                    <input type="text" id="proveedor_input" name="proveedor_name"
-                                        placeholder="Escribe o selecciona un proveedor..."
-                                        class="w-full px-3 py-2 border rounded-md rounded-r-none" autocomplete="off"
-                                        required>
-
-                                    <!-- Botón para crear nuevo proveedor -->
-                                    <button type="button" onclick="openModal('proveedor')"
-                                        class="bg-blue-500 text-white px-3 rounded-r-md">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                </div>
-
-                                <!-- Dropdown personalizado - Ahora está dentro del contenedor relativo -->
-                                <div id="proveedor_dropdown"
-                                    class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                    @foreach($proveedores as $proveedor)
-                                    <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item"
-                                        data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}">
-                                        {{ $proveedor->prov_name }}
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedores (Proveedor + Precio)</label>
+                                <div class="flex gap-2 items-center mb-2">
+                                    <div class="relative flex-1">
+                                        <input type="text" id="proveedor_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
+                                        <div id="proveedor_dropdown" class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
+                                            @foreach($proveedores as $proveedor)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item" data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}">{{ $proveedor->prov_name }}</div>
+                                            @endforeach
+                                        </div>
                                     </div>
-                                    @endforeach
+                                    <input type="number" id="proveedor_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
+                                    <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addProviderRow()">Agregar</button>
                                 </div>
-
-                                <input type="hidden" id="proveedor_id" name="proveedor_id">
+                                <div class="overflow-auto max-h-40 border rounded">
+                                    <table class="w-full text-sm" id="providersTable">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left">Proveedor</th>
+                                                <th class="px-3 py-2 text-left">Precio</th>
+                                                <th class="px-3 py-2 text-center">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <div id="providersInputs"></div>
                                 <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
@@ -829,6 +854,27 @@
             // old signature
             ivaParam = 0;
         }
+        // If first argument is the element (called as openEditModal(elem, ...)) adjust params
+        if (typeof id === 'object' && id.dataset) {
+            const elem = id;
+            // shift parameters
+            id = arguments[1];
+            nombre = arguments[2];
+            categoria = arguments[3];
+            proveedorId = arguments[4];
+            stock = arguments[5];
+            precio = arguments[6];
+            ivaParam = arguments[7] ?? 0;
+            unidad = arguments[8] ?? '';
+            descripcion = arguments[9] ?? '';
+
+            // populate providers from data attribute if present
+            try {
+                const provData = elem.getAttribute('data-providers');
+                const providers = provData ? JSON.parse(provData) : [];
+                populateProvidersTable(providers);
+            } catch (e) { console.warn('No providers data', e); }
+        }
         document.getElementById('modalTitle').textContent = 'Editar Producto';
         document.getElementById('productId').value = id;
         document.getElementById('formMethod').value = 'PUT';
@@ -861,48 +907,81 @@
         clearErrorMessages();
     }
 
-    function toggleSection(section) {
-        const productosSection = document.getElementById('productos-section');
-        const solicitudesSection = document.getElementById('solicitudes-section');
+    // Providers management in modal
+    let providerRowIndex = 0;
+    function addProviderRow() {
+        const nameInput = document.getElementById('proveedor_input');
+        const priceInput = document.getElementById('proveedor_price');
+        const dropdown = document.getElementById('proveedor_dropdown');
+        const providersTableBody = document.querySelector('#providersTable tbody');
 
-        const tabProductos = document.getElementById('tab-productos');
-        const tabSolicitudes = document.getElementById('tab-solicitudes');
+        const providerName = nameInput.value.trim();
+        const price = parseFloat(priceInput.value);
+        if (!providerName) { Swal.fire({icon:'info', title:'Proveedor', text:'Seleccione un proveedor'}); return; }
+        if (isNaN(price) || price < 0) { Swal.fire({icon:'info', title:'Precio', text:'Ingrese un precio válido'}); return; }
 
-        if (section === 'productos') {
-            productosSection.classList.remove('hidden');
-            solicitudesSection.classList.add('hidden');
+        // find provider id from dropdown items
+        const option = Array.from(dropdown.querySelectorAll('.option-item')).find(o => o.getAttribute('data-name') === providerName || o.textContent.trim() === providerName);
+        const providerId = option ? option.getAttribute('data-id') : null;
+        if (!providerId) { Swal.fire({icon:'error', title:'Proveedor', text:'Proveedor no válido'}); return; }
 
-            // Activar tab productos
-            tabProductos.classList.add('bg-white', 'shadow', 'text-gray-700');
-            tabProductos.classList.remove('text-gray-600');
-
-            // Desactivar tab solicitudes
-            tabSolicitudes.classList.remove('bg-white', 'shadow', 'text-gray-700');
-            tabSolicitudes.classList.add('text-gray-600');
-
-            // Recalcular paginación de productos al mostrar la pestaña
-            if (typeof prodShowPage === 'function') {
-                const page = (typeof prodCurrentPage === 'number' && prodCurrentPage > 0) ? prodCurrentPage : 1;
-                setTimeout(() => prodShowPage(page), 0);
-            }
-        } else {
-            productosSection.classList.add('hidden');
-            solicitudesSection.classList.remove('hidden');
-
-            // Activar tab solicitudes
-            tabSolicitudes.classList.add('bg-white', 'shadow', 'text-gray-700');
-            tabSolicitudes.classList.remove('text-gray-600');
-
-            // Desactivar tab productos
-            tabProductos.classList.remove('bg-white', 'shadow', 'text-gray-700');
-            tabProductos.classList.add('text-gray-600');
-
-            // Recalcular paginación de solicitudes al mostrar la pestaña
-            if (typeof solShowPage === 'function') {
-                const page = (typeof solCurrentPage === 'number' && solCurrentPage > 0) ? solCurrentPage : 1;
-                setTimeout(() => solShowPage(page), 0);
-            }
+        // prevent duplicates
+        if (document.querySelector(`#providersTable tbody tr[data-prov-id="${providerId}"]`)) {
+            Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'});
+            return;
         }
+
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-prov-id', providerId);
+        tr.innerHTML = `<td class="px-3 py-2">${providerName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeProviderRow(${providerRowIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+        providersTableBody.appendChild(tr);
+
+        // add hidden inputs
+        const inputsDiv = document.getElementById('providersInputs');
+        const wrapper = document.createElement('div');
+        wrapper.id = 'provider_row_' + providerRowIndex;
+        wrapper.innerHTML = `<input type="hidden" name="providers[${providerRowIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${providerRowIndex}][price]" value="${price}">`;
+        inputsDiv.appendChild(wrapper);
+
+        providerRowIndex++;
+
+        // clear inputs
+        nameInput.value = '';
+        priceInput.value = '';
+    }
+
+    function removeProviderRow(idx) {
+        const wrapper = document.getElementById('provider_row_' + idx);
+        if (wrapper) wrapper.remove();
+        // remove table row with matching data-prov-id if exists by index? simpler: rebuild table from inputs
+        // we'll remove the row element directly by matching input name
+        const tbody = document.querySelector('#providersTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        // find nth index by counting wrappers before
+        // remove last matching row by index heuristic
+        if (rows[idx]) rows[idx].remove();
+    }
+
+    function populateProvidersTable(providers) {
+        // clear existing
+        document.querySelector('#providersTable tbody').innerHTML = '';
+        document.getElementById('providersInputs').innerHTML = '';
+        providerRowIndex = 0;
+        if (!providers || providers.length === 0) return;
+        providers.forEach(p => {
+            const name = p.prov_name || p.prov_name || p.name_centro || '';
+            const price = parseFloat(p.price_produc || p.price || 0);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeProviderRow(${providerRowIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+            tr.setAttribute('data-prov-id', p.prov_id || p.proveedor_id || p.proveedorId || p.id);
+            document.querySelector('#providersTable tbody').appendChild(tr);
+            const inputsDiv = document.getElementById('providersInputs');
+            const wrapper = document.createElement('div');
+            wrapper.id = 'provider_row_' + providerRowIndex;
+            wrapper.innerHTML = `<input type="hidden" name="providers[${providerRowIndex}][provider_id]" value="${p.prov_id || p.proveedor_id || p.id}"><input type="hidden" name="providers[${providerRowIndex}][price]" value="${price}">`;
+            inputsDiv.appendChild(wrapper);
+            providerRowIndex++;
+        });
     }
 
     // Función para filtrar proveedores en el modal de añadir desde solicitud
