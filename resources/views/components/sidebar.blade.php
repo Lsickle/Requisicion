@@ -152,7 +152,16 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Logout seguro con fetch (ruta relativa evita http://)
+                // Mostrar alerta de carga mientras se cierra la sesión
+                Swal.fire({
+                    title: 'Cerrando sesión...',
+                    html: 'Por favor, espere',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
                 fetch('/logout', {
                     method: 'POST',
                     headers: {
