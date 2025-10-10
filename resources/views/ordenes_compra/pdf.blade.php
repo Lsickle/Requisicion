@@ -247,7 +247,9 @@
         /* Nuevo: cuadro de totales estilo caja con borde (como en la imagen) */
         .totals-box {
             width: 360px;
-            margin-left: auto; /* alinear a la derecha */
+            /* Alinear a la izquierda */
+            float: left;
+            margin-left: 0;
             margin-top: 18px;
             /* Fondo más transparente para permitir que la marca de agua se vea debajo */
             background: rgba(255,255,255,0.35);
