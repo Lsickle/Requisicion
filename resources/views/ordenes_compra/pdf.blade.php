@@ -185,7 +185,7 @@
     <div class="clear"></div>
 
     @if(!empty($observaciones))
-    <div style="margin-top: 20px; padding: 10px; background-color: #f9f9f9; border-left: 4px solid #2c3e50;">
+    <div style="margin-top: 20px; padding: 10px; border-left: 4px solid #2c3e50; background: transparent;">
         <h4 style="margin-top: 0;">Observaciones:</h4>
         <p>{{ $observaciones }}</p>
     </div>
