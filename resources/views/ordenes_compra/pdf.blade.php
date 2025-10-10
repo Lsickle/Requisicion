@@ -296,7 +296,7 @@
                         <td>{{ number_format($item['po_amount'], 0) }}</td>
                         @php
                         // El IVA mostrado y usado debe provenir exclusivamente de apply_iva guardado en la DB
-                        (item['iva'] viene de buildPdfData)
+                        // $item['iva'] viene de buildPdfData
                         $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje (p.ej. 12)
                         $ivaRate = $ivaPercent / 100;
                         $unitPrice = (float)($item['precio_unitario'] ?? 0);
@@ -304,9 +304,8 @@
                         $unitWithIva = round($unitPrice + $unitIva, 2);
                         $lineTotalWithIva = round($unitWithIva * (int)$item['po_amount'], 2);
                         @endphp
-                        <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%': '0%' }}</td>
-                        <td class="text-right">${{ number_format($unitPrice, 2) }}<br><small>+ IVA ${{
-                                number_format($unitIva,2) }}</small></td>
+                        <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%' : '0%' }}</td>
+                        <td class="text-right">${{ number_format($unitPrice, 2) }}<br><small>+ IVA ${{ number_format($unitIva,2) }}</small></td>
                         <td class="text-right">${{ number_format($lineTotalWithIva, 2) }}</td>
                     </tr>
                     @endforeach

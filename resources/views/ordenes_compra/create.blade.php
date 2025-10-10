@@ -173,6 +173,10 @@
                             </select>
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Fecha de la OC *</label>
+                            <input type="date" name="date_oc" value="{{ old('date_oc', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">Método de Pago</label>
                             <select name="methods_oc"
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
@@ -1304,7 +1308,7 @@
             }
 
             try {
-                const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
+                               const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                     body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })

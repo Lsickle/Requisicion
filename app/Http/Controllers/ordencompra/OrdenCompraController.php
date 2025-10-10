@@ -163,6 +163,7 @@ class OrdenCompraController extends Controller
             'plazo_oc'       => 'nullable|string|max:255',
             'observaciones'  => 'nullable|string',
             'requisicion_id' => 'required|exists:requisicion,id',
+            'date_oc'        => 'required|date|after_or_equal:today',
             'productos'      => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.ocp_id' => 'nullable|integer|exists:ordencompra_producto,id',
@@ -189,7 +190,7 @@ class OrdenCompraController extends Controller
                 'observaciones'  => $request->observaciones,
                 'methods_oc'     => $request->methods_oc,
                 'plazo_oc'       => $request->plazo_oc,
-                'date_oc'        => now(),
+                'date_oc'        => $request->input('date_oc'),
                 'order_oc'       => $numeroOrden,
             ]);
 
@@ -1027,23 +1028,22 @@ class OrdenCompraController extends Controller
 
         $total = $subtotal + $ivaTotal;
 
-         return [
-             'orden' => $orden,
-             'proveedor' => $proveedor,
-             'items' => $items,
-             'distribucion' => $distribucion,
-             'subtotal' => $subtotal,
-             'iva_total' => $ivaTotal,
-             'total' => $total,
-             'observaciones' => $orden->observaciones,
-             'fecha_actual' => now()->format('d/m/Y H:i'),
-             'logo' => $this->resolveLogoDataUri(),
-             'date_oc' => ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y')),
-             'methods_oc' => $orden->methods_oc,
-             'plazo_oc' => $orden->plazo_oc,
-         ];
-         
-     }
+        return [
+            'orden' => $orden,
+            'proveedor' => $proveedor,
+            'items' => $items,
+            'distribucion' => $distribucion,
+            'subtotal' => $subtotal,
+            'iva_total' => $ivaTotal,
+            'total' => $total,
+            'observaciones' => $orden->observaciones,
+            'fecha_actual' => now()->format('d/m/Y H:i'),
+            'logo' => $this->resolveLogoDataUri(),
+            'date_oc' => ($orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('d/m/Y') : ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y'))),
+            'methods_oc' => $orden->methods_oc,
+            'plazo_oc' => $orden->plazo_oc,
+        ];
+    }
 
     
     // Marcar una orden como terminada (estatus id 3)
