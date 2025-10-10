@@ -193,6 +193,83 @@
         .page-break {
             page-break-after: always;
         }
+
+        /* Totals card (mejorada, consistente con requisición) */
+        .totals-card {
+            width: 340px;
+            margin-top: 18px;
+            /* Alinear a la derecha sin usar float (más fiable en PDF) */
+            display: block;
+            clear: both; /* sentarse debajo de elementos flotantes anteriores */
+            margin-left: auto; /* empuja a la derecha */
+            margin-right: 0;
+            page-break-inside: avoid;
+        }
+        .totals-card .card {
+            background: rgba(255,255,255,0.75);
+            border-radius: 8px;
+            padding: 10px 14px;
+            box-shadow: 0 2px 6px rgba(44,62,80,0.05);
+            -webkit-print-color-adjust: exact;
+            border: 1px solid rgba(44,62,80,0.06);
+            display: flex;
+            align-items: center;
+            max-width: 340px; /* asegurar ancho estable */
+            box-sizing: border-box;
+        }
+        .totals-card .stripe {
+            width: 10px;
+            height: 100%;
+            background: #2c3e50;
+            border-radius: 6px 0 0 6px;
+            flex: 0 0 10px;
+            margin-right: 10px;
+        }
+        .totals-card .card-content { flex: 1; }
+        .totals-card .label {
+            display: block;
+            text-align: right;
+            color: #2c3e50;
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .totals-card .amount {
+            display: block;
+            text-align: right;
+            color: #111827;
+            font-weight: 900;
+            font-size: 20px;
+            margin-top: 6px;
+        }
+        .totals-card .muted { display:block; text-align:right; color:#6b7280; font-size:11px; margin-top:4px; }
+
+        /* Nuevo: cuadro de totales estilo caja con borde (como en la imagen) */
+        .totals-box {
+            width: 360px;
+            margin-left: auto; /* alinear a la derecha */
+            margin-top: 18px;
+            /* Fondo más transparente para permitir que la marca de agua se vea debajo */
+            background: rgba(255,255,255,0.35);
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            -webkit-print-color-adjust: exact;
+            page-break-inside: avoid;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .totals-box .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+        }
+        .totals-box .row + .row { border-top: 1px solid rgba(0,0,0,0.06); }
+        .totals-box .label { color: #374151; font-weight: 700; text-transform: uppercase; font-size: 12px; }
+        .totals-box .value { color: #111827; font-weight: 800; font-size: 16px; }
+        .totals-box .row.total .label { font-size: 13px; }
+        .totals-box .row.total .value { font-size: 18px; }
     </style>
 </head>
 
@@ -316,21 +393,17 @@
             @endif
             @endforeach
 
-            <div class="totals">
-                <div class="total-row">
-                    <div class="total-label">SUBTOTAL:</div>
-                    <div class="total-value">${{ number_format($subtotal, 2) }}</div>
-                </div>
-                <div class="total-row">
-                    <div class="total-label">IVA:</div>
-                    <div class="total-value">${{ number_format($iva_total ?? 0, 2) }}</div>
-                </div>
-                <div class="total-row">
-                    <div class="total-label">TOTAL A PAGAR:</div>
-                    <div class="total-value">${{ number_format($total ?? $subtotal, 2) }}</div>
+            {{-- reemplazo del bloque de totales flotante por cuadro con borde --}} 
+            @php /* Antes: tarjeta .totals-card */ @endphp
+
+            <div style="clear:both;"></div>
+            <div class="totals-box" role="region" aria-label="Total General">
+                <div class="row total">
+                    <div class="label">TOTAL GENERAL</div>
+                    <div class="value">${{ number_format($total ?? $subtotal ?? 0, 2) }}</div>
                 </div>
             </div>
-            <div class="clear"></div>
+            <div style="clear:both;"></div>
 
     @if(!empty($observaciones))
     <div style="margin-top: 20px; padding: 10px; border-left: 4px solid #2c3e50; background: transparent;">
