@@ -51,7 +51,7 @@
 <div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white shadow-xl rounded-2xl p-6">
         <div class="flex justify-center items-center gap-8 py-4 mb-8">
-            <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
+            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
             <h1 class="text-3xl font-bold text-gray-700">Crear Requisición</h1>
         </div>
 

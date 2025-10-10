@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Vigía Plus Logistics</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/favicon1.png') }}">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome para iconos -->
@@ -38,7 +39,7 @@
             <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
                 <!-- Logo -->
                 <div class="mb-6 md:mb-7">
-                    <img src="/images/VigiaLogoC.svg" alt="Vigía Plus Logistics"
+                    <img src="/images/VigiaLogoC.png" alt="Vigía Plus Logistics"
                         class="mx-auto h-14 md:h-16 w-auto rounded-lg">
                 </div>
 

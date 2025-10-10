@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Nuevo_producto;
 use Illuminate\Support\Facades\DB;
 use App\Jobs\NuevoProductoSolicitadoJob;
+use App\Jobs\SendRequestedProductAddedEmail;
+use App\Jobs\SendRequestedProductRejectedEmail;
 
 class NuevoProductoController extends Controller
 {
@@ -101,29 +103,38 @@ class NuevoProductoController extends Controller
 
     public function destroy(Nuevo_producto $nuevoProducto)
     {
+        // Preparar datos para correo de rechazo
+        $payload = [
+            'nombre' => $nuevoProducto->nombre,
+            'descripcion' => $nuevoProducto->descripcion,
+            'name_user' => $nuevoProducto->name_user,
+            'email_user' => $nuevoProducto->email_user,
+        ];
+
+        // Enviar correo en background
+        SendRequestedProductRejectedEmail::dispatch($payload);
+
         $nuevoProducto->delete();
         return redirect()->route('productos.gestor')
-            ->with('success', 'Solicitud de producto eliminada exitosamente.');
-    }
-
-    public function restore($id)
-    {
-        $producto = Nuevo_producto::withTrashed()->findOrFail($id);
-        $producto->restore();
-
-        return redirect()->route('productos.gestor')
-            ->with('success', 'Solicitud de producto restaurada exitosamente.');
+            ->with('success', 'Solicitud de producto eliminada exitosamente. Se notificó al solicitante.');
     }
 
     /**
-     * Eliminar permanentemente un producto.
+     * Notifica por correo que la solicitud fue atendida y el producto creado.
      */
-    public function forceDelete($id)
+    public function notifyAdded($id)
     {
-        $producto = Nuevo_producto::withTrashed()->findOrFail($id);
-        $producto->forceDelete();
+        $nuevo = Nuevo_producto::withTrashed()->findOrFail($id);
 
-        return redirect()->route('productos.gestor')
-            ->with('success', 'Solicitud de producto eliminada permanentemente.');
+        $payload = [
+            'nombre' => $nuevo->nombre,
+            'descripcion' => $nuevo->descripcion,
+            'name_user' => $nuevo->name_user,
+            'email_user' => $nuevo->email_user,
+        ];
+
+        SendRequestedProductAddedEmail::dispatch($payload);
+
+        return response()->json(['success' => true]);
     }
 }

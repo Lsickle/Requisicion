@@ -7,7 +7,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\PermissionHelper;
 
 class RequisicionCreada extends Mailable
 {
@@ -19,7 +18,7 @@ class RequisicionCreada extends Mailable
     public function __construct(Requisicion $requisicion)
     {
         $this->requisicion = $requisicion;
-        $this->nombreSolicitante = PermissionHelper::getUserNameById($requisicion->user_id);
+        $this->nombreSolicitante = $requisicion->name_user ?: 'Usuario';
     }
 
     public function build()
@@ -32,8 +31,7 @@ class RequisicionCreada extends Mailable
                         ->with([
                             'requisicion' => $this->requisicion,
                             'nombreSolicitante' => $this->nombreSolicitante,
-                        ])
-                        ->to('pardomoyasegio@gmail.com');
+                        ]);
         } catch (\Exception $e) {
             Log::error('Error construyendo correo: ' . $e->getMessage());
             throw $e;

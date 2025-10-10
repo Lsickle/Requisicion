@@ -1,0 +1,38 @@
+CREATE VIEW historial_precios_requisicion_ultimos_30dias AS
+SELECT
+    r.id AS requisicion_id,
+    r.user_id,
+    r.name_user,
+    r.email_user,
+    r.operacion_user,
+    r.justify_requisicion,
+    r.detail_requisicion,
+    r.prioridad_requisicion,
+    r.amount_requisicion,
+    r.Recobrable,
+    r.created_at AS fecha_requisicion,
+    pr.id AS producto_requisicion_id,
+    pr.id_producto AS producto_id,
+    p.name_produc,
+    p.categoria_produc,
+    p.description_produc,
+    p.unit_produc,
+    p.price_produc AS precio_unitario,
+    pr.pr_amount AS cantidad_solicitada,
+    cp.centro_id,
+    c.name_centro AS nombre_centro,
+    cp.amount AS cantidad_por_centro,
+    er.estatus AS estatus_requisicion_activo,
+    e.status_name AS nombre_estatus_requisicion,
+    er.date_update AS fecha_cambio_estatus
+FROM requisicion r
+INNER JOIN producto_requisicion pr ON pr.id_requisicion = r.id
+INNER JOIN productos p ON p.id = pr.id_producto
+LEFT JOIN centro_producto cp ON cp.requisicion_id = r.id AND cp.producto_id = pr.id_producto
+LEFT JOIN centro c ON cp.centro_id = c.id
+LEFT JOIN estatus_requisicion er ON er.requisicion_id = r.id AND er.estatus = 1 AND er.deleted_at IS NULL
+LEFT JOIN estatus e ON er.estatus_id = e.id
+WHERE r.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+  AND pr.deleted_at IS NULL
+  AND r.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
