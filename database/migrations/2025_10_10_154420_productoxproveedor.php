@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
             $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade');
             $table->decimal('price_produc', 20, 2);
+            $table->string('moneda')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

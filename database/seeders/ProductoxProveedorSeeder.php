@@ -23,6 +23,7 @@ class ProductoxProveedorSeeder extends Seeder
             }
 
             $now = now();
+            $currencies = ['Pesos Colombianos', 'Dólar', 'Euro', 'Otro'];
             $inserts = [];
             foreach ($productos as $p) {
                 // asignar aleatoriamente entre 1 y 3 proveedores por producto
@@ -34,6 +35,7 @@ class ProductoxProveedorSeeder extends Seeder
                         'producto_id' => $p,
                         'proveedor_id' => $prov,
                         'price_produc' => round(rand(1000, 100000) / 100, 2),
+                        'moneda' => $currencies[array_rand($currencies)],
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];

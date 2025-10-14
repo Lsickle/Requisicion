@@ -99,7 +99,7 @@
                             $provList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
                                 ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
                                 ->where('pxp.producto_id', $producto->id)
-                                ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc')
+                                ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc','pxp.moneda')
                                 ->orderBy('pxp.id','asc')
                                 ->get();
                             $firstProv = $provList->first();
@@ -111,14 +111,14 @@
                                 @if($provList && $provList->count())
                                     <ul class="text-sm">
                                         @foreach($provList as $pv)
-                                            <li>{{ $pv->prov_name }} <small class="text-gray-500">(${{ number_format($pv->price_produc,2) }})</small></li>
+                                            <li>{{ $pv->prov_name }} <small class="text-gray-500">(${{ number_format($pv->price_produc,2) }} {{ $pv->moneda ?? '' }})</small></li>
                                         @endforeach
                                     </ul>
                                 @else
                                     N/A
                                 @endif
                             </td>
-                            <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
+                            <td class="px-4 py-2">{{ number_format($producto->stock_produc, 0) }}</td>
                             <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
                             <td class="px-4 py-2">@if($firstProv) ${{ number_format($firstProv->price_produc, 2) }} @else - @endif</td>
                             <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
@@ -161,6 +161,14 @@
                                         onclick="openEditModal(this, {{ $producto->id }}, '{{ addslashes($producto->name_produc) }}', '{{ addslashes($producto->categoria_produc) }}', {{ $producto->stock_produc }}, {{ $editPrice }}, {{ $producto->iva ?? 0 }}, '{{ addslashes($producto->unit_produc) }}', `{{ addslashes($producto->description_produc) }}`)"
                                         class="text-blue-600 hover:text-blue-800" title="Editar">
                                         <i class="fas fa-edit"></i>
+                                    </button>
+                                    <!-- Botón para gestionar proveedores (abre modal separado) -->
+                                    <button
+                                        data-providers='@json($provList)'
+                                        data-product-name="{{ addslashes($producto->name_produc) }}"
+                                        onclick="openManageProvidersModal(this, {{ $producto->id }})"
+                                        class="text-yellow-600 hover:text-yellow-800" title="Gestionar Proveedores">
+                                        <i class="fas fa-boxes"></i>
                                     </button>
                                     <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
                                         class="inline" onsubmit="return confirmDelete(event)">
@@ -374,47 +382,11 @@
                                 <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedores (Proveedor + Precio)</label>
-                                <div class="flex gap-2 items-center mb-2">
-                                    <div class="relative flex-1">
-                                        <input type="text" id="proveedor_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
-                                        <div id="proveedor_dropdown" class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                            @foreach($proveedores as $proveedor)
-                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item" data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}">{{ $proveedor->prov_name }}</div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                    <input type="number" id="proveedor_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
-                                    <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addProviderRow()">Agregar</button>
-                                </div>
-                                <div class="overflow-auto max-h-40 border rounded">
-                                    <table class="w-full text-sm" id="providersTable">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-3 py-2 text-left">Proveedor</th>
-                                                <th class="px-3 py-2 text-left">Precio</th>
-                                                <th class="px-3 py-2 text-center">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                                <div id="providersInputs"></div>
-                                <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
-                            </div>
-
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                                <input type="number" id="stock_produc" name="stock_produc" min="0"
+                                <input type="number" id="stock_produc" name="stock_produc" min="0" step="1"
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
-                                <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                                <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">IVA (%)</label>
@@ -425,8 +397,8 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
                                 <div class="relative">
                                     <input type="text" id="unit_input" name="unit_input"
-                                        placeholder="Selecciona una unidad..."
-                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly>
+                                        placeholder="Selecciona o escribe una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
                                     <div id="unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
                                         <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Unidad">Unidad</div>
@@ -663,7 +635,7 @@
                             <!-- Stock -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
-                                <input type="number" id="solicitud_stock_produc" name="stock_produc" min="0" value="0"
+                                <input type="number" id="solicitud_stock_produc" name="stock_produc" min="0" step="1" value="0"
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="solicitud_stock_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
@@ -687,8 +659,8 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida *</label>
                                 <div class="relative">
                                     <input type="text" id="solicitud_unit_input" name="unit_input"
-                                        placeholder="Selecciona una unidad..."
-                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly value="Unidad">
+                                        placeholder="Selecciona o escribe una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" value="Unidad">
                                     <div id="solicitud_unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
                                         <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Unidad">Unidad</div>
@@ -737,18 +709,77 @@
             </div>
         </div>
 
-        <!-- Loading overlay -->
-        <div id="loadingOverlay"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-                <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
-                <p class="text-center text-gray-500">Por favor espere.</p>
+        <!-- Modal para gestionar proveedores por producto (separado) -->
+        <div id="manageProvidersModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-2/3 max-h-screen overflow-y-auto">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Proveedores del Producto</h2>
+                    <button onclick="closeModal('manageProviders')" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 id="manageProductName" class="text-lg font-medium"></h3>
+                        <p id="manageProductCategory" class="text-sm text-gray-500"></p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Añadir proveedor</label>
+                        <div class="flex gap-2 items-center mb-2">
+                            <div class="relative flex-1">
+                                <input type="text" id="manage_prov_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
+                                <!-- Dropdown movido al final del body para evitar recorte -->
+                            </div>
+                            <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
+                            <select id="manage_prov_moneda" class="w-40 px-3 py-2 border rounded-md">
+                                <option value="Pesos Colombianos">Pesos Colombianos</option>
+                                <option value="Dólar">Dólar</option>
+                                <option value="Euro">Euro</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                            <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addManageProviderRow()">Agregar</button>
+                        </div>
+
+                        <div class="overflow-auto max-h-48 border rounded">
+                            <table class="w-full text-sm" id="manageProvidersTable">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Proveedor</th>
+                                        <th class="px-3 py-2 text-left">Precio</th>
+                                        <th class="px-3 py-2 text-left">Moneda</th>
+                                        <th class="px-3 py-2 text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div id="manageProvidersInputs"></div>
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button class="px-4 py-2 bg-gray-300 text-gray-700 rounded" onclick="closeModal('manageProviders')">Cerrar</button>
+                        <button class="px-4 py-2 bg-indigo-600 text-white rounded" onclick="submitManageProviders()">Guardar proveedores</button>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <script>
-            // Abrir modal de solicitud
+<!-- Loading overlay -->
+<div id="loadingOverlay"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+        <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
+        <p class="text-center text-gray-500">Por favor espere.</p>
+    </div>
+</div>
+
+<script>
+    // Evitar redeclaraciones de manageProviderIndex: declarar una vez en ámbito global
+    var manageProviderIndex = typeof manageProviderIndex !== 'undefined' ? manageProviderIndex : 0;
+
+    // Abrir modal de solicitud
     function openSolicitudModal(nombre, descripcion, usuario) {
         document.getElementById('solicitudNombre').textContent = nombre;
         document.getElementById('solicitudDescripcion').textContent = descripcion;
@@ -779,11 +810,13 @@
                 document.getElementById('solicitudId').value = solicitudId;
                 document.getElementById('solicitud_name_produc').value = data.nombre;
                 document.getElementById('solicitud_description_produc').value = data.descripcion;
-                
-                // Mostrar el modal
-                document.getElementById('addFromSolicitudModal').classList.remove('hidden');
-                
-                // Ocultar loading
+                // Si la solicitud trae stock, asegurarlo como entero
+                const solStockEl = document.getElementById('solicitud_stock_produc'); if (solStockEl) solStockEl.value = sanitizeToInt(data.stock_produc ?? data.stock ?? 0);
+                 
+                 // Mostrar el modal
+                 document.getElementById('addFromSolicitudModal').classList.remove('hidden');
+                 
+                 // Ocultar loading
                 document.getElementById('loadingOverlay').classList.add('hidden');
             })
             .catch(error => {
@@ -808,9 +841,11 @@
             document.getElementById('formMethod').value = 'POST';
             document.getElementById('productForm').action = "{{ route('productos.store', [], false) }}";
             document.getElementById('productForm').reset();
+            // Asegurar stock entero por defecto
+            const defaultStockEl = document.getElementById('stock_produc'); if (defaultStockEl) defaultStockEl.value = 0;
             // Limpiar campos de búsqueda
-            document.getElementById('proveedor_input').value = '';
-            document.getElementById('categoria_input').value = '';
+            const provInput = document.getElementById('proveedor_input'); if (provInput) provInput.value = '';
+            const catInput = document.getElementById('categoria_input'); if (catInput) catInput.value = '';
             const uIn = document.getElementById('unit_input');
             const uHidden = document.getElementById('unit_produc');
             if (uIn) uIn.value = '';
@@ -838,35 +873,27 @@
             document.getElementById('proveedorModal').classList.add('hidden');
         } else if (type === 'addFromSolicitud') {
             document.getElementById('addFromSolicitudModal').classList.add('hidden');
+        } else if (type === 'manageProviders') {
+            document.getElementById('manageProvidersModal').classList.add('hidden');
         }
     }
 
     function openEditModal(id, nombre, categoria, proveedorId, stock, precio, unidad, descripcion) {
         // backward compatible: support signature with iva param
         let ivaParam = 0;
-        if (arguments.length === 9) {
-            // new signature: id, nombre, categoria, proveedorId, stock, precio, iva, unidad, descripcion
-            ivaParam = arguments[6];
-            precio = arguments[5];
-            unidad = arguments[7];
-            descripcion = arguments[8];
-        } else if (arguments.length === 8) {
-            // old signature
-            ivaParam = 0;
-        }
-        // If first argument is the element (called as openEditModal(elem, ...)) adjust params
+        // Si se llama con el elemento como primer argumento, el orden esperado es:
+        // (elem, id, nombre, categoria, stock, precio, iva, unidad, descripcion)
         if (typeof id === 'object' && id.dataset) {
             const elem = id;
-            // shift parameters
             id = arguments[1];
             nombre = arguments[2];
             categoria = arguments[3];
-            proveedorId = arguments[4];
-            stock = arguments[5];
-            precio = arguments[6];
-            ivaParam = arguments[7] ?? 0;
-            unidad = arguments[8] ?? '';
-            descripcion = arguments[9] ?? '';
+            // aquí stock viene en la posición 4
+            stock = arguments[4];
+            precio = arguments[5];
+            ivaParam = arguments[6] ?? 0;
+            unidad = arguments[7] ?? '';
+            descripcion = arguments[8] ?? '';
 
             // populate providers from data attribute if present
             try {
@@ -874,6 +901,9 @@
                 const providers = provData ? JSON.parse(provData) : [];
                 populateProvidersTable(providers);
             } catch (e) { console.warn('No providers data', e); }
+        } else {
+            // llamado sin elemento, asumir signature id,nombre,categoria,proveedorId,stock,precio,unidad,descripcion
+            ivaParam = 0;
         }
         document.getElementById('modalTitle').textContent = 'Editar Producto';
         document.getElementById('productId').value = id;
@@ -881,8 +911,7 @@
         document.getElementById('productForm').action = '/productos/' + id;
         
         document.getElementById('name_produc').value = nombre;
-        document.getElementById('stock_produc').value = stock;
-        document.getElementById('price_produc').value = precio;
+        const stockElem = document.getElementById('stock_produc'); if (stockElem) stockElem.value = sanitizeToInt(stock);
         document.getElementById('iva').value = ivaParam;
         const uIn = document.getElementById('unit_input');
         const uHidden = document.getElementById('unit_produc');
@@ -907,80 +936,166 @@
         clearErrorMessages();
     }
 
-    // Providers management in modal
-    let providerRowIndex = 0;
-    function addProviderRow() {
-        const nameInput = document.getElementById('proveedor_input');
-        const priceInput = document.getElementById('proveedor_price');
-        const dropdown = document.getElementById('proveedor_dropdown');
-        const providersTableBody = document.querySelector('#providersTable tbody');
+    // Gestión de proveedores dentro del modal de producto eliminada: usar modal "Gestionar Proveedores".
+    // Función para filtrar proveedores en el modal de añadir desde solicitud
+    function filterSolicitudProveedores() {
+        const searchTerm = document.getElementById('solicitud_proveedor_search').value.toLowerCase();
+        const proveedorSelect = document.getElementById('solicitud_proveedor_id');
+        const resultsContainer = document.getElementById('solicitud_proveedor_results');
+        
+        // Limpiar resultados anteriores
+        resultsContainer.innerHTML = '';
+        
+        if (searchTerm === '') {
+            resultsContainer.classList.add('hidden');
+            return;
+        }
+        
+        let hasResults = false;
+        
+        // Buscar coincidencias
+        for (let i = 0; i < proveedorSelect.options.length; i++) {
+            const option = proveedorSelect.options[i];
+            if (option.text.toLowerCase().includes(searchTerm)) {
+                const div = document.createElement('div');
+                div.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
+                div.textContent = option.text;
+                div.onclick = function() {
+                    proveedorSelect.value = option.value;
+                    document.getElementById('solicitud_proveedor_search').value = option.text;
+                    resultsContainer.classList.add('hidden');
+                };
+                resultsContainer.appendChild(div);
+                hasResults = true;
+            }
+        }
+        
+        if (hasResults) {
+            resultsContainer.classList.remove('hidden');
+        } else {
+            resultsContainer.classList.add('hidden');
+        }
+    }
 
-        const providerName = nameInput.value.trim();
+    // Gestión de proveedores por producto (modal separado)
+    manageProviderIndex = 0;
+    function openManageProvidersModal(elem, productId) {
+        const provData = elem.getAttribute('data-providers');
+        const productName = elem.getAttribute('data-product-name') || '';
+        document.getElementById('manageProductName').textContent = productName;
+        document.getElementById('manageProductCategory').textContent = '';
+        document.getElementById('manageProvidersTable').querySelector('tbody').innerHTML = '';
+        document.getElementById('manageProvidersInputs').innerHTML = '';
+        manageProviderIndex = 0;
+        if (provData) {
+            try {
+                const provs = JSON.parse(provData);
+                populateManageProvidersTable(provs);
+            } catch (e) { console.warn(e); }
+        }
+        // show modal and store product id
+        document.getElementById('manageProvidersModal').dataset.productId = productId;
+        document.getElementById('manageProvidersModal').classList.remove('hidden');
+    }
+
+    function addManageProviderRow() {
+        const nameInput = document.getElementById('manage_prov_input');
+        const priceInput = document.getElementById('manage_prov_price');
+        const monedaSelect = document.getElementById('manage_prov_moneda');
+        const dropdown = document.getElementById('manage_prov_dropdown');
+        const tbody = document.querySelector('#manageProvidersTable tbody');
+        const provName = nameInput.value.trim();
         const price = parseFloat(priceInput.value);
-        if (!providerName) { Swal.fire({icon:'info', title:'Proveedor', text:'Seleccione un proveedor'}); return; }
+        const moneda = monedaSelect ? monedaSelect.value : '';
+        if (!provName) { Swal.fire({icon:'info', title:'Proveedor', text:'Seleccione un proveedor'}); return; }
         if (isNaN(price) || price < 0) { Swal.fire({icon:'info', title:'Precio', text:'Ingrese un precio válido'}); return; }
-
-        // find provider id from dropdown items
-        const option = Array.from(dropdown.querySelectorAll('.option-item')).find(o => o.getAttribute('data-name') === providerName || o.textContent.trim() === providerName);
+        // Buscar opción por nombre (case-insensitive)
+        const option = Array.from(dropdown.querySelectorAll('.manage-option-item')).find(o => (o.getAttribute('data-name') || o.textContent || '').toLowerCase() === provName.toLowerCase());
         const providerId = option ? option.getAttribute('data-id') : null;
         if (!providerId) { Swal.fire({icon:'error', title:'Proveedor', text:'Proveedor no válido'}); return; }
+        if (document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${providerId}"]`)) { Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'}); return; }
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-prov-id', providerId);
+        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+        tbody.appendChild(tr);
+        const inputsDiv = document.getElementById('manageProvidersInputs');
+        const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
+        wrapper.setAttribute('data-prov-id', providerId);
+        wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+        inputsDiv.appendChild(wrapper);
+        manageProviderIndex++;
+        nameInput.value = ''; priceInput.value = '';
+    }
 
-        // prevent duplicates
-        if (document.querySelector(`#providersTable tbody tr[data-prov-id="${providerId}"]`)) {
-            Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'});
+    function removeManageProviderRow(idx) {
+        const wrapper = document.getElementById('manage_provider_row_' + idx);
+        let provId = null;
+        if (wrapper) provId = wrapper.getAttribute('data-prov-id') || wrapper.querySelector('input')?.value;
+        if (wrapper) wrapper.remove();
+        if (provId) {
+            const tr = document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${provId}"]`);
+            if (tr) tr.remove();
+        } else {
+            // fallback: remove any row at that index
+            const tbody = document.querySelector('#manageProvidersTable tbody'); const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows[idx]) rows[idx].remove();
+        }
+    }
+
+    function populateManageProvidersTable(providers) {
+        const tbody = document.querySelector('#manageProvidersTable tbody'); tbody.innerHTML = '';
+        const inputsDiv = document.getElementById('manageProvidersInputs'); inputsDiv.innerHTML = '';
+        manageProviderIndex = 0;
+        providers.forEach(p => {
+            const name = p.prov_name || p.prov_name || '';
+            const price = parseFloat(p.price_produc || p.price || 0);
+            const moneda = p.moneda || p.currency || '';
+            const provId = p.prov_id || p.id || p.proveedor_id;
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-prov-id', provId);
+            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+            tbody.appendChild(tr);
+            const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
+            wrapper.setAttribute('data-prov-id', provId);
+            wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${provId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+            inputsDiv.appendChild(wrapper);
+            manageProviderIndex++;
+        });
+    }
+
+    function submitManageProviders() {
+        const modal = document.getElementById('manageProvidersModal');
+        const productId = modal.dataset.productId;
+        const inputs = Array.from(document.querySelectorAll('#manageProvidersInputs input'));
+        const providers = [];
+        for (let i = 0; i < inputs.length; i += 3) {
+            const pid = inputs[i].value; const price = inputs[i+1].value; const moneda = inputs[i+2].value;
+            providers.push({provider_id: pid, price: price, moneda: moneda});
+        }
+
+        // Si no se agregaron proveedores, avisar y no enviar
+        if (!providers.length) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin proveedores',
+                text: 'Agregue al menos un proveedor antes de guardar.',
+                confirmButtonColor: '#1e40af'
+            });
             return;
         }
 
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-prov-id', providerId);
-        tr.innerHTML = `<td class="px-3 py-2">${providerName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeProviderRow(${providerRowIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
-        providersTableBody.appendChild(tr);
-
-        // add hidden inputs
-        const inputsDiv = document.getElementById('providersInputs');
-        const wrapper = document.createElement('div');
-        wrapper.id = 'provider_row_' + providerRowIndex;
-        wrapper.innerHTML = `<input type="hidden" name="providers[${providerRowIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${providerRowIndex}][price]" value="${price}">`;
-        inputsDiv.appendChild(wrapper);
-
-        providerRowIndex++;
-
-        // clear inputs
-        nameInput.value = '';
-        priceInput.value = '';
-    }
-
-    function removeProviderRow(idx) {
-        const wrapper = document.getElementById('provider_row_' + idx);
-        if (wrapper) wrapper.remove();
-        // remove table row with matching data-prov-id if exists by index? simpler: rebuild table from inputs
-        // we'll remove the row element directly by matching input name
-        const tbody = document.querySelector('#providersTable tbody');
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        // find nth index by counting wrappers before
-        // remove last matching row by index heuristic
-        if (rows[idx]) rows[idx].remove();
-    }
-
-    function populateProvidersTable(providers) {
-        // clear existing
-        document.querySelector('#providersTable tbody').innerHTML = '';
-        document.getElementById('providersInputs').innerHTML = '';
-        providerRowIndex = 0;
-        if (!providers || providers.length === 0) return;
-        providers.forEach(p => {
-            const name = p.prov_name || p.prov_name || p.name_centro || '';
-            const price = parseFloat(p.price_produc || p.price || 0);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeProviderRow(${providerRowIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
-            tr.setAttribute('data-prov-id', p.prov_id || p.proveedor_id || p.proveedorId || p.id);
-            document.querySelector('#providersTable tbody').appendChild(tr);
-            const inputsDiv = document.getElementById('providersInputs');
-            const wrapper = document.createElement('div');
-            wrapper.id = 'provider_row_' + providerRowIndex;
-            wrapper.innerHTML = `<input type="hidden" name="providers[${providerRowIndex}][provider_id]" value="${p.prov_id || p.proveedor_id || p.id}"><input type="hidden" name="providers[${providerRowIndex}][price]" value="${price}">`;
-            inputsDiv.appendChild(wrapper);
-            providerRowIndex++;
+        fetch(`/productos/${productId}/providers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ providers })
+        }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+                Swal.fire({icon:'success', title:'Guardado', text: data.message || 'Proveedores guardados'}).then(()=> location.reload());
+            } else {
+                Swal.fire({icon:'error', title:'Error', text: data.message || 'No se pudo guardar'});
+            }
+        }).catch(e => {
+            Swal.fire({icon:'error', title:'Error', text:'Error al guardar proveedores'});
         });
     }
 
@@ -1024,10 +1139,14 @@
         }
     }
 
-    // Cerrar resultados al hacer clic fuera
+    // Cerrar resultados al hacer clic fuera - ocultar dropdown fijo de manage_prov
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('#proveedor_search') && !e.target.closest('#proveedor_results')) {
-            document.getElementById('proveedor_results').classList.add('hidden');
+        const mProvIn = document.getElementById('manage_prov_input');
+        const mProvDrop = document.getElementById('manage_prov_dropdown');
+        if (!mProvIn || !mProvDrop) return;
+        if (!mProvIn.contains(e.target) && !mProvDrop.contains(e.target)) {
+            mProvDrop.style.display = 'none';
+            mProvDrop.classList.add('hidden');
         }
     });
 
@@ -1080,61 +1199,29 @@
     function validateProductForm() {
         clearErrorMessages();
         let isValid = true;
-        
-        const name_produc = document.getElementById('name_produc');
-        const proveedor_id = document.getElementById('proveedor_id');
-        const categoria_produc = document.getElementById('categoria_produc');
-        const stock_produc = document.getElementById('stock_produc');
-        const price_produc = document.getElementById('price_produc');
-        const unit_produc = document.getElementById('unit_produc');
+
+        const nameElem = document.getElementById('name_produc');
+        const catElem = document.getElementById('categoria_produc');
+        const stockElem = document.getElementById('stock_produc');
         const ivaElem = document.getElementById('iva');
-        
-        if (!name_produc.value.trim()) {
-            document.getElementById('name_produc_error').textContent = 'El nombre del producto es requerido';
-            document.getElementById('name_produc_error').classList.remove('hidden');
-            isValid = false;
+        const unitElem = document.getElementById('unit_produc');
+
+        if (!nameElem || !nameElem.value.trim()) { const e = document.getElementById('name_produc_error'); if (e) { e.textContent = 'El nombre del producto es requerido'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!catElem || !catElem.value) { const e = document.getElementById('categoria_produc_error'); if (e) { e.textContent = 'La categoría es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!stockElem) { const e = document.getElementById('stock_produc_error'); if (e) { e.textContent = 'El stock es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        else {
+            const stockVal = parseInt(stockElem.value, 10);
+            if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('stock_produc_error'); if (e) { e.textContent = 'El stock debe ser un entero mayor o igual a 0'; e.classList.remove('hidden'); } isValid = false; }
+            else stockElem.value = stockVal;
         }
-        
-        if (!categoria_produc.value) {
-            document.getElementById('categoria_produc_error').textContent = 'La categoría es requerida';
-            document.getElementById('categoria_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!proveedor_id.value) {
-            document.getElementById('proveedor_id_error').textContent = 'El proveedor es requerido';
-            document.getElementById('proveedor_id_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!stock_produc.value || stock_produc.value < 0) {
-            document.getElementById('stock_produc_error').textContent = 'El stock debe ser un número válido mayor o igual a 0';
-            document.getElementById('stock_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!price_produc.value || price_produc.value < 0) {
-            document.getElementById('price_produc_error').textContent = 'El precio debe ser un número válido mayor o igual a 0';
-            document.getElementById('price_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) {
-            document.getElementById('iva_error').textContent = 'El IVA debe ser un número válido mayor o igual a 0';
-            document.getElementById('iva_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!unit_produc.value.trim()) {
-            document.getElementById('unit_produc_error').textContent = 'La unidad de medida es requerida';
-            document.getElementById('unit_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (isValid) {
-            showLoading();
-        }
-        
+
+        if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) { const e = document.getElementById('iva_error'); if (e) { e.textContent = 'El IVA debe ser un número válido mayor o igual a 0'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!unitElem || !unitElem.value.trim()) { const e = document.getElementById('unit_produc_error'); if (e) { e.textContent = 'La unidad de medida es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (isValid) showLoading();
         return isValid;
     }
 
@@ -1142,54 +1229,21 @@
     function validateProveedorForm() {
         clearProveedorErrorMessages();
         let isValid = true;
-        
         const prov_name = document.getElementById('prov_name');
         const prov_nit = document.getElementById('prov_nit');
         const prov_name_c = document.getElementById('prov_name_c');
         const prov_phone = document.getElementById('prov_phone');
         const prov_adress = document.getElementById('prov_adress');
         const prov_city = document.getElementById('prov_city');
-        
-        if (!prov_name.value.trim()) {
-            document.getElementById('prov_name_error').textContent = 'El nombre del proveedor es requerido';
-            document.getElementById('prov_name_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_nit.value.trim()) {
-            document.getElementById('prov_nit_error').textContent = 'El NIT es requerido';
-            document.getElementById('prov_nit_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_name_c.value.trim()) {
-            document.getElementById('prov_name_c_error').textContent = 'El nombre de contacto es requerido';
-            document.getElementById('prov_name_c_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_phone.value.trim()) {
-            document.getElementById('prov_phone_error').textContent = 'El teléfono es requerido';
-            document.getElementById('prov_phone_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_adress.value.trim()) {
-            document.getElementById('prov_adress_error').textContent = 'La dirección es requerida';
-            document.getElementById('prov_adress_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_city.value.trim()) {
-            document.getElementById('prov_city_error').textContent = 'La ciudad es requerida';
-            document.getElementById('prov_city_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (isValid) {
-            showLoading();
-        }
-        
+        const prov_descrip = document.getElementById('prov_descrip');
+
+        if (!prov_name || !prov_name.value.trim()) { const e = document.getElementById('prov_name_error'); if (e) { e.textContent = 'El nombre del proveedor es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_nit || !prov_nit.value.trim()) { const e = document.getElementById('prov_nit_error'); if (e) { e.textContent = 'El NIT es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_name_c || !prov_name_c.value.trim()) { const e = document.getElementById('prov_name_c_error'); if (e) { e.textContent = 'El nombre de contacto es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_phone || !prov_phone.value.trim()) { const e = document.getElementById('prov_phone_error'); if (e) { e.textContent = 'El teléfono es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_adress || !prov_adress.value.trim()) { const e = document.getElementById('prov_adress_error'); if (e) { e.textContent = 'La dirección es requerida'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_city || !prov_city.value.trim()) { const e = document.getElementById('prov_city_error'); if (e) { e.textContent = 'La ciudad es requerida'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_descrip || !prov_descrip.value.trim()) { const e = document.getElementById('prov_descrip_error'); if (e) { e.textContent = 'La descripción es requerida'; e.classList.remove('hidden'); } isValid = false; }
         return isValid;
     }
 
@@ -1218,134 +1272,6 @@
         document.getElementById('proveedorModal').classList.add('hidden');
     }
 
-    // Validar formulario de proveedor
-    function validateProveedorForm() {
-        clearProveedorErrorMessages();
-        let isValid = true;
-        
-        const prov_name = document.getElementById('prov_name');
-        const prov_nit = document.getElementById('prov_nit');
-        const prov_name_c = document.getElementById('prov_name_c');
-        const prov_phone = document.getElementById('prov_phone');
-        const prov_adress = document.getElementById('prov_adress');
-        const prov_city = document.getElementById('prov_city');
-        const prov_descrip = document.getElementById('prov_descrip');
-        
-        if (!prov_name.value.trim()) {
-            document.getElementById('prov_name_error').textContent = 'El nombre del proveedor es requerido';
-            document.getElementById('prov_name_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_nit.value.trim()) {
-            document.getElementById('prov_nit_error').textContent = 'El NIT es requerido';
-            document.getElementById('prov_nit_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_name_c.value.trim()) {
-            document.getElementById('prov_name_c_error').textContent = 'El nombre de contacto es requerido';
-            document.getElementById('prov_name_c_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_phone.value.trim()) {
-            document.getElementById('prov_phone_error').textContent = 'El teléfono es requerido';
-            document.getElementById('prov_phone_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_adress.value.trim()) {
-            document.getElementById('prov_adress_error').textContent = 'La dirección es requerida';
-            document.getElementById('prov_adress_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_city.value.trim()) {
-            document.getElementById('prov_city_error').textContent = 'La ciudad es requerida';
-            document.getElementById('prov_city_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_descrip.value.trim()) {
-            document.getElementById('prov_descrip_error').textContent = 'La descripción es requerida';
-            document.getElementById('prov_descrip_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        return isValid;
-    }
-
-    // Enviar formulario de proveedor via AJAX
-    function submitProveedorForm() {
-        if (!validateProveedorForm()) {
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('prov_name', document.getElementById('prov_name').value);
-        formData.append('prov_nit', document.getElementById('prov_nit').value);
-        formData.append('prov_name_c', document.getElementById('prov_name_c').value);
-        formData.append('prov_phone', document.getElementById('prov_phone').value);
-        formData.append('prov_adress', document.getElementById('prov_adress').value);
-        formData.append('prov_city', document.getElementById('prov_city').value);
-        formData.append('prov_descrip', document.getElementById('prov_descrip').value);
-        formData.append('_token', '{{ csrf_token() }}');
-
-        showLoading();
-
-        fetch('{{ route("proveedores.store", [], false) }}', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Mostrar SweetAlert de éxito (confirmación)
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Éxito!',
-                    text: data.message,
-                    confirmButtonColor: '#1e40af'
-                }).then(() => {
-                    // Actualizar select de proveedores en todos los formularios
-                    updateProveedoresSelect(data.proveedores);
-                    // Cerrar modal
-                    closeModal('proveedor');
-                });
-            } else {
-                // Mostrar errores de validación
-                if (data.errors) {
-                    for (const field in data.errors) {
-                        const errorElement = document.getElementById(field + '_error');
-                        if (errorElement) {
-                            errorElement.textContent = data.errors[field][0];
-                            errorElement.classList.remove('hidden');
-                        }
-                    }
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'Error al crear el proveedor',
-                        confirmButtonColor: '#1e40af'
-                    });
-                }
-            }
-        })
-        .catch(error => {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error al procesar la solicitud',
-                confirmButtonColor: '#1e40af'
-            });
-        })
-        .finally(() => {
-            document.getElementById('loadingOverlay').classList.add('hidden');
-        });
-    }
-
     // NUEVO: Validación modal "Añadir desde Solicitud"
     function validateAddFromSolicitudForm() {
         // ocultar errores previos
@@ -1366,94 +1292,96 @@
         const unitHidden = document.getElementById('solicitud_unit_produc');
         const descEl = document.getElementById('solicitud_description_produc');
 
-        if (!nameEl.value.trim()) { const e = document.getElementById('solicitud_name_produc_error'); e.textContent = 'Requerido'; e.classList.remove('hidden'); ok = false; }
-        if (!catHidden.value) { const e = document.getElementById('solicitud_categoria_produc_error'); e.textContent = 'Seleccione una categoría'; e.classList.remove('hidden'); ok = false; }
-        if (!provHidden.value) { const e = document.getElementById('solicitud_proveedor_id_error'); e.textContent = 'Seleccione un proveedor'; e.classList.remove('hidden'); ok = false; }
+        if (!nameEl || !nameEl.value.trim()) { const e = document.getElementById('solicitud_name_produc_error'); if (e) { e.textContent = 'Requerido'; e.classList.remove('hidden'); } ok = false; }
+        if (!catHidden || !catHidden.value) { const e = document.getElementById('solicitud_categoria_produc_error'); if (e) { e.textContent = 'Seleccione una categoría'; e.classList.remove('hidden'); } ok = false; }
+        // El proveedor no es obligatorio al añadir desde solicitud; omitir validación
 
-        const stockVal = parseInt(stockEl.value, 10);
-        if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('solicitud_stock_produc_error'); e.textContent = 'Stock inválido'; e.classList.remove('hidden'); ok = false; }
+        if (!stockEl) { const e = document.getElementById('solicitud_stock_produc_error'); if (e) { e.textContent = 'Stock requerido'; e.classList.remove('hidden'); } ok = false; }
+        else {
+            const stockVal = parseInt(stockEl.value, 10);
+            if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('solicitud_stock_produc_error'); if (e) { e.textContent = 'Stock inválido'; e.classList.remove('hidden'); } ok = false; }
+            else stockEl.value = stockVal;
+        }
 
-        const priceVal = parseFloat(priceEl.value);
-        if (isNaN(priceVal) || priceVal < 0) { const e = document.getElementById('solicitud_price_produc_error'); e.textContent = 'Precio inválido'; e.classList.remove('hidden'); ok = false; }
+        if (!priceEl) { const e = document.getElementById('solicitud_price_produc_error'); if (e) { e.textContent = 'Precio requerido'; e.classList.remove('hidden'); } ok = false; }
+        else { const priceVal = parseFloat(priceEl.value); if (isNaN(priceVal) || priceVal < 0) { const e = document.getElementById('solicitud_price_produc_error'); if (e) { e.textContent = 'Precio inválido'; e.classList.remove('hidden'); } ok = false; } }
 
-        const ivaVal = parseFloat(ivaEl.value);
-        if (isNaN(ivaVal) || ivaVal < 0) { const e = document.getElementById('solicitud_iva_error'); e.textContent = 'IVA inválido'; e.classList.remove('hidden'); ok = false; }
+        if (ivaEl && (isNaN(parseFloat(ivaEl.value)) || parseFloat(ivaEl.value) < 0)) { const e = document.getElementById('solicitud_iva_error'); if (e) { e.textContent = 'IVA inválido'; e.classList.remove('hidden'); } ok = false; }
 
-        if (!unitHidden.value.trim()) { const e = document.getElementById('solicitud_unit_produc_error'); e.textContent = 'Seleccione una unidad'; e.classList.remove('hidden'); ok = false; }
-        if (!descEl.value.trim()) { const e = document.getElementById('solicitud_description_produc_error'); e.textContent = 'Descripción requerida'; e.classList.remove('hidden'); ok = false; }
+        if (!unitHidden || !unitHidden.value.trim()) { const e = document.getElementById('solicitud_unit_produc_error'); if (e) { e.textContent = 'Seleccione una unidad'; e.classList.remove('hidden'); } ok = false; }
+        if (!descEl || !descEl.value.trim()) { const e = document.getElementById('solicitud_description_produc_error'); if (e) { e.textContent = 'Descripción requerida'; e.classList.remove('hidden'); } ok = false; }
 
         return ok;
     }
 
-    function submitAddFromSolicitudForm() {
-        if (validateAddFromSolicitudForm()) {
-            showLoading();
-            try {
-                const id = document.getElementById('solicitudId').value;
-                const url = '{{ url('/nuevo-producto') }}' + '/' + id + '/notify-added';
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Accept': 'application/json'
-                    }
-                }).catch(() => { /* no bloquear envío si falla notificación */ });
-            } catch (e) { /* ignorar */ }
-            document.getElementById('addFromSolicitudForm').submit();
-        }
-    }
-
     // Actualizar select de proveedores en todos los formularios
     function updateProveedoresSelect(proveedores) {
-        const selectElements = [
-            document.getElementById('proveedor_id'),
-            document.getElementById('solicitud_proveedor_id')
-        ];
+        // update solicitud select
+        const solicitudSelect = document.getElementById('solicitud_proveedor_id');
+        if (solicitudSelect) {
+            const currentValue = solicitudSelect.value;
+            while (solicitudSelect.options.length > 0) { solicitudSelect.remove(0); }
+            proveedores.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.prov_name; solicitudSelect.appendChild(o); });
+            if (currentValue && solicitudSelect.querySelector(`option[value="${currentValue}"]`)) solicitudSelect.value = currentValue;
+        }
 
-        // Actualizar los dropdowns visuales
-        const proveedorDropdowns = [
-            document.getElementById('proveedor_dropdown'),
-            document.getElementById('solicitud_proveedor_dropdown')
-        ];
-
-        selectElements.forEach(select => {
-            if (select) {
-                const currentValue = select.value;
-
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-
-                proveedores.forEach(proveedor => {
-                    const option = document.createElement('option');
-                    option.value = proveedor.id;
-                    option.textContent = proveedor.prov_name;
-                    select.appendChild(option);
-                });
-
-                if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                    select.value = currentValue;
-                }
-            }
+        // actualizar dropdowns visuales: solicitud y manage
+        const solicitudDropdown = document.getElementById('solicitud_proveedor_dropdown');
+        const manageDropdown = document.getElementById('manage_prov_dropdown');
+        [solicitudDropdown, manageDropdown].forEach(dropdown => {
+            if (!dropdown) return;
+            dropdown.innerHTML = '';
+            proveedores.forEach(proveedor => {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer';
+                div.setAttribute('data-id', proveedor.id);
+                div.setAttribute('data-name', proveedor.prov_name);
+                div.textContent = proveedor.prov_name;
+                dropdown.appendChild(div);
+            });
         });
+     }
 
-        // Actualizar los dropdowns visuales
-        proveedorDropdowns.forEach(dropdown => {
-            if (dropdown) {
-                dropdown.innerHTML = '';
-                
-                proveedores.forEach(proveedor => {
-                    const div = document.createElement('div');
-                    div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
-                                    (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
-                    div.setAttribute('data-id', proveedor.id);
-                    div.setAttribute('data-name', proveedor.prov_name);
-                    div.textContent = proveedor.prov_name;
-                    dropdown.appendChild(div);
-                });
-            }
-        });
+    // Función para alternar secciones (Productos / Solicitudes)
+    function toggleSection(section) {
+        const prodBtn = document.getElementById('tab-productos');
+        const solBtn = document.getElementById('tab-solicitudes');
+        const prodSec = document.getElementById('productos-section');
+        const solSec = document.getElementById('solicitudes-section');
+        if (!prodBtn || !solBtn || !prodSec || !solSec) return;
+
+        if (section === 'productos') {
+            prodSec.classList.remove('hidden');
+            solSec.classList.add('hidden');
+            prodBtn.classList.add('bg-white');
+            solBtn.classList.remove('bg-white');
+        } else if (section === 'solicitudes') {
+            prodSec.classList.add('hidden');
+            solSec.classList.remove('hidden');
+            prodBtn.classList.remove('bg-white');
+            solBtn.classList.add('bg-white');
+        }
+
+        // Reset pagination/views
+        try { if (typeof prodShowPage === 'function') prodShowPage(1); } catch(e) {}
+        try { if (typeof solShowPage === 'function') solShowPage(1); } catch(e) {}
     }
+
+    // Asegurar que la pestaña de Productos esté activa al cargar
+    document.addEventListener('DOMContentLoaded', function(){
+        const prodBtn = document.getElementById('tab-productos');
+        const solBtn = document.getElementById('tab-solicitudes');
+        const prodSec = document.getElementById('productos-section');
+        const solSec = document.getElementById('solicitudes-section');
+        if (!prodBtn || !solBtn || !prodSec || !solSec) return;
+        // si la vista de solicitudes está visible por alguna razón, mantenerla oculta
+        if (!prodBtn.classList.contains('bg-white') && !solBtn.classList.contains('bg-white')) {
+            prodBtn.classList.add('bg-white');
+        }
+        // asegurar sección por defecto
+        prodSec.classList.remove('hidden');
+        solSec.classList.add('hidden');
+    });
 
     // Mostrar mensajes de éxito/error con SweetAlert
     @if(session('success'))
@@ -1570,6 +1498,8 @@
         return Array.from(document.querySelectorAll('#solicitudesTable tbody tr'));
     }
 
+
+
     function solShowPage(page = 1){
         const rows = solGetAllRows();
         const totalPages = Math.max(1, Math.ceil(rows.length / solPageSize));
@@ -1639,152 +1569,86 @@
         }
     });
     // ===== Inicializar selects personalizados (Producto y Solicitud) =====
- document.addEventListener('DOMContentLoaded', function(){
-        // Producto - Proveedor
-        const provIn = document.getElementById('proveedor_input');
-        const provDrop = document.getElementById('proveedor_dropdown');
-        const provId = document.getElementById('proveedor_id');
-        const provErr = document.getElementById('proveedor_id_error');
-        if (provIn && provDrop) {
-            const filterProv = () => {
-                const q = (provIn.value || '').toLowerCase();
-                provDrop.querySelectorAll('.option-item').forEach(opt => {
-                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
-                    opt.style.display = name.includes(q) ? '' : 'none';
-                });
-            };
-            provIn.addEventListener('focus', () => provDrop.classList.remove('hidden'));
-            provIn.addEventListener('input', filterProv);
-            provIn.addEventListener('blur', () => setTimeout(() => provDrop.classList.add('hidden'), 150));
-            provDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item');
-                if (!el) return;
-                provIn.value = el.getAttribute('data-name') || '';
-                if (provId) provId.value = el.getAttribute('data-id') || '';
-                provDrop.classList.add('hidden');
-                if (provErr) provErr.classList.add('hidden');
-            });
+  document.addEventListener('DOMContentLoaded', function(){
+        // Manage providers dropdown: move element to body and use fixed positioning so it's not clipped by modal
+        const mProvIn = document.getElementById('manage_prov_input');
+        let mProvDrop = document.getElementById('manage_prov_dropdown');
+        if (!mProvIn) return;
+
+        // ensure dropdown exists and is attached to body
+        if (!mProvDrop) {
+            mProvDrop = document.createElement('div');
+            mProvDrop.id = 'manage_prov_dropdown';
+            mProvDrop.className = 'fixed z-50 bg-white border border-gray-300 rounded-md shadow-lg';
+            document.body.appendChild(mProvDrop);
+        } else if (mProvDrop.parentElement !== document.body) {
+            document.body.appendChild(mProvDrop);
         }
 
-        // Producto - Categoría
-        const catIn = document.getElementById('categoria_input');
-        const catDrop = document.getElementById('categoria_dropdown');
-        const catHidden = document.getElementById('categoria_produc');
-        const catErr = document.getElementById('categoria_produc_error');
-        if (catIn && catDrop) {
-            const filterCat = () => {
-                const q = (catIn.value || '').toLowerCase();
-                catDrop.querySelectorAll('.option-item-cat').forEach(opt => {
-                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
-                    opt.style.display = val.includes(q) ? '' : 'none';
-                });
-            };
-            catIn.addEventListener('focus', () => catDrop.classList.remove('hidden'));
-            catIn.addEventListener('input', filterCat);
-            catIn.addEventListener('blur', () => setTimeout(() => catDrop.classList.add('hidden'), 150));
-            catDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-cat');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                catIn.value = val;
-                if (catHidden) catHidden.value = val;
-                catDrop.classList.add('hidden');
-                if (catErr) catErr.classList.add('hidden');
-            });
+        // Si el dropdown está vacío en el DOM, poblarlo con la lista de proveedores del servidor
+        if (!mProvDrop.innerHTML || !mProvDrop.innerHTML.trim()) {
+            mProvDrop.innerHTML = `
+                <div style="padding:6px 0;">
+                @foreach($proveedores as $proveedor)
+                    <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer manage-option-item" data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}">{{ $proveedor->prov_name }}</div>
+                @endforeach
+                </div>
+            `;
         }
 
-        // Producto - Unidad
-        const uIn = document.getElementById('unit_input');
-        const uDrop = document.getElementById('unit_dropdown');
-        const uHidden = document.getElementById('unit_produc');
-        const uErr = document.getElementById('unit_produc_error');
-        if (uIn && uDrop) {
-            uIn.addEventListener('focus', () => uDrop.classList.remove('hidden'));
-            uIn.addEventListener('click', () => uDrop.classList.remove('hidden'));
-            uIn.addEventListener('blur', () => setTimeout(() => uDrop.classList.add('hidden'), 150));
-            uDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('[data-value]');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                uIn.value = val;
-                if (uHidden) uHidden.value = val;
-                uDrop.classList.add('hidden');
-                if (uErr) uErr.classList.add('hidden');
-            });
-        }
+        mProvDrop.style.position = 'fixed';
+        mProvDrop.style.display = 'none';
+        mProvDrop.style.zIndex = 9999;
+        mProvDrop.style.maxHeight = '220px';
+        mProvDrop.style.overflow = 'auto';
 
-        // Solicitud - Proveedor
-        const sProvIn = document.getElementById('solicitud_proveedor_input');
-        const sProvDrop = document.getElementById('solicitud_proveedor_dropdown');
-        const sProvId = document.getElementById('solicitud_proveedor_id');
-        const sProvErr = document.getElementById('solicitud_proveedor_id_error');
-        if (sProvIn && sProvDrop) {
-            const filterSProv = () => {
-                const q = (sProvIn.value || '').toLowerCase();
-                sProvDrop.querySelectorAll('.option-item-solicitud').forEach(opt => {
-                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
-                    opt.style.display = name.includes(q) ? '' : 'none';
-                });
-            };
-            sProvIn.addEventListener('focus', () => sProvDrop.classList.remove('hidden'));
-            sProvIn.addEventListener('input', filterSProv);
-            sProvIn.addEventListener('blur', () => setTimeout(() => sProvDrop.classList.add('hidden'), 150));
-            sProvDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-solicitud');
-                if (!el) return;
-                sProvIn.value = el.getAttribute('data-name') || '';
-                if (sProvId) sProvId.value = el.getAttribute('data-id') || '';
-                sProvDrop.classList.add('hidden');
-                if (sProvErr) sProvErr.classList.add('hidden');
+        const filterMProv = () => {
+            const q = (mProvIn.value || '').toLowerCase();
+            Array.from(mProvDrop.querySelectorAll('.manage-option-item')).forEach(opt => {
+                const name = (opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                opt.style.display = name.includes(q) ? '' : 'none';
             });
-        }
+        };
 
-        // Solicitud - Categoría
-        const sCatIn = document.getElementById('solicitud_categoria_input');
-        const sCatDrop = document.getElementById('solicitud_categoria_dropdown');
-        const sCatHidden = document.getElementById('solicitud_categoria_produc');
-        const sCatErr = document.getElementById('solicitud_categoria_produc_error');
-        if (sCatIn && sCatDrop) {
-            const filterSCat = () => {
-                const q = (sCatIn.value || '').toLowerCase();
-                sCatDrop.querySelectorAll('.option-item-cat-solicitud').forEach(opt => {
-                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
-                    opt.style.display = val.includes(q) ? '' : 'none';
-                });
-            };
-            sCatIn.addEventListener('focus', () => sCatDrop.classList.remove('hidden'));
-            sCatIn.addEventListener('input', filterSCat);
-            sCatIn.addEventListener('blur', () => setTimeout(() => sCatDrop.classList.add('hidden'), 150));
-            sCatDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-cat-solicitud');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                sCatIn.value = val;
-                if (sCatHidden) sCatHidden.value = val;
-                sCatDrop.classList.add('hidden');
-                if (sCatErr) sCatErr.classList.add('hidden');
-            });
-        }
+        const updatePosition = () => {
+            const rect = mProvIn.getBoundingClientRect();
+            // position relative to viewport
+            mProvDrop.style.left = rect.left + 'px';
+            mProvDrop.style.top = rect.bottom + 'px';
+            mProvDrop.style.width = rect.width + 'px';
+        };
 
-        // Solicitud - Unidad
-        const suIn = document.getElementById('solicitud_unit_input');
-        const suDrop = document.getElementById('solicitud_unit_dropdown');
-        const suHidden = document.getElementById('solicitud_unit_produc');
-        const suErr = document.getElementById('solicitud_unit_produc_error');
-        if (suIn && suDrop) {
-            suIn.addEventListener('focus', () => suDrop.classList.remove('hidden'));
-            suIn.addEventListener('click', () => suDrop.classList.remove('hidden'));
-            suIn.addEventListener('blur', () => setTimeout(() => suDrop.classList.add('hidden'), 150));
-            suDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('[data-value]');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                suIn.value = val;
-                if (suHidden) suHidden.value = val;
-                suDrop.classList.add('hidden');
-                if (suErr) suErr.classList.add('hidden');
-            });
-        }
+        const show = () => { filterMProv(); updatePosition(); mProvDrop.style.display = 'block'; mProvDrop.classList.remove('hidden'); };
+        const hide = () => { mProvDrop.style.display = 'none'; mProvDrop.classList.add('hidden'); };
+
+        mProvIn.addEventListener('focus', show);
+        mProvIn.addEventListener('input', show);
+        mProvIn.addEventListener('click', show);
+
+        // Support keyboard navigation: Escape hides
+        mProvIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+
+        mProvDrop.addEventListener('click', (e) => {
+            const el = e.target.closest('.manage-option-item');
+            if (!el) return;
+            mProvIn.value = el.getAttribute('data-name') || el.textContent.trim();
+            // trigger input event so any listeners update
+            mProvIn.dispatchEvent(new Event('input', { bubbles: true }));
+            hide();
+        });
+
+        // Hide on outside click
+        document.addEventListener('click', function(e){ if (!mProvIn.contains(e.target) && !mProvDrop.contains(e.target)) hide(); });
+        // Hide on window resize
+        window.addEventListener('resize', hide);
+        // Hide on scrolls that originate outside the input/dropdown (ignore scrolls inside the dropdown)
+        document.addEventListener('scroll', function(e){
+            const t = e.target;
+            if (!mProvIn.contains(t) && !mProvDrop.contains(t)) hide();
+        }, true);
+
+        // Prevent wheel events inside the dropdown from bubbling up and closing it
+        mProvDrop.addEventListener('wheel', function(e){ e.stopPropagation(); }, { passive: true });
     });
     
     // Cuando se abre el modal de añadir desde solicitud, asegurarse de que el campo IVA esté disponible
@@ -1792,103 +1656,184 @@
         const solIva = document.getElementById('solicitud_iva');
         if (solIva) solIva.value = solIva.value || 0;
     });
-        </script>
 
-        <style>
-            .hidden {
-                display: none;
+    // Helper: convertir cualquier representación numérica (p. ej. "782,47" o " 782.47 ") a entero
+    function sanitizeToInt(val) {
+        let s = (val === null || val === undefined) ? '' : String(val);
+        // normalizar coma decimal y eliminar caracteres no numéricos excepto punto y signo
+        s = s.replace(/\s+/g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+        const n = parseFloat(s);
+        if (isNaN(n)) return 0;
+        return Math.trunc(n);
+    }
+
+    // Inicializar dropdowns filtrables que permiten seleccionar o escribir un valor libre
+    (function(){
+        function setupDropdownInput(inputId, hiddenId, dropdownId, optionSelector){
+            const input = document.getElementById(inputId);
+            const hidden = document.getElementById(hiddenId);
+            const dropdown = document.getElementById(dropdownId);
+            if(!input) return;
+
+            // Mostrar dropdown al enfocar
+            input.addEventListener('focus', () => { if(dropdown) dropdown.classList.remove('hidden'); });
+
+            // Filtrar opciones mientras escribe
+            input.addEventListener('input', () => {
+                if(!dropdown) return;
+                const q = (input.value || '').toLowerCase();
+                Array.from(dropdown.querySelectorAll(optionSelector)).forEach(opt => {
+                    const text = (opt.getAttribute('data-value') || opt.textContent || '').toLowerCase();
+                    opt.style.display = text.indexOf(q) !== -1 ? '' : 'none';
+                });
+            });
+
+            // Seleccionar opción
+            if(dropdown){
+                Array.from(dropdown.querySelectorAll(optionSelector)).forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        const val = opt.getAttribute('data-value') || opt.textContent.trim();
+                        input.value = val;
+                        if(hidden) hidden.value = val;
+                        dropdown.classList.add('hidden');
+                    });
+                });
             }
 
-            .loader {
-                border-top-color: #1e40af;
-                -webkit-animation: spinner 1.5s linear infinite;
-                animation: spinner 1.5s linear infinite;
-            }
+            // Al perder foco, almacenar el valor escrito en el hidden (permitir valores libres)
+            input.addEventListener('blur', () => {
+                setTimeout(() => { if(hidden) hidden.value = (input.value || '').trim(); if(dropdown) dropdown.classList.add('hidden'); }, 150);
+            });
 
-            @-webkit-keyframes spinner {
-                0% {
-                    -webkit-transform: rotate(0deg);
+            // Cerrar dropdown al hacer click fuera
+            document.addEventListener('click', function(e){
+                if(!input.contains(e.target) && dropdown && !dropdown.contains(e.target)){
+                    if(dropdown) dropdown.classList.add('hidden');
                 }
+            });
+        }
 
-                100% {
-                    -webkit-transform: rotate(360deg);
-                }
-            }
+        // Configurar para producto
+        setupDropdownInput('categoria_input','categoria_produc','categoria_dropdown','.option-item-cat');
+        setupDropdownInput('unit_input','unit_produc','unit_dropdown','.option-item-cat');
 
-            @keyframes spinner {
-                0% {
-                    transform: rotate(0deg);
-                }
+        // Configurar para solicitud
+        setupDropdownInput('solicitud_categoria_input','solicitud_categoria_produc','solicitud_categoria_dropdown','.option-item-cat-solicitud');
+        setupDropdownInput('solicitud_unit_input','solicitud_unit_produc','solicitud_unit_dropdown','.option-item-cat-solicitud');
 
-                100% {
-                    transform: rotate(360deg);
-                }
-            }
+        // Asegurar que los hidden se sincronicen antes del submit
+        const pForm = document.getElementById('productForm');
+        if(pForm){
+            pForm.addEventListener('submit', function(){
+                const cat = document.getElementById('categoria_input'); if(cat) document.getElementById('categoria_produc').value = cat.value.trim();
+                const unit = document.getElementById('unit_input'); if(unit) document.getElementById('unit_produc').value = unit.value.trim();
+            });
+        }
+        const sForm = document.getElementById('addFromSolicitudForm');
+        if(sForm){
+            sForm.addEventListener('submit', function(){
+                const cat = document.getElementById('solicitud_categoria_input'); if(cat) document.getElementById('solicitud_categoria_produc').value = cat.value.trim();
+                const unit = document.getElementById('solicitud_unit_input'); if(unit) document.getElementById('solicitud_unit_produc').value = unit.value.trim();
+            });
+        }
+    })();
+</script>
 
-            /* Asegurar que el modal de proveedor tenga mayor z-index */
-            #proveedorModal {
-                z-index: 60;
-            }
+<style>
+    .hidden {
+        display: none;
+    }
 
-            #productModal,
-            #addFromSolicitudModal,
-            #solicitudModal {
-                z-index: 50;
-            }
+    .loader {
+        border-top-color: #1e40af;
+        -webkit-animation: spinner 1.5s linear infinite;
+        animation: spinner 1.5s linear infinite;
+    }
 
-            /* Tabs estilo Chrome */
-            button[id^="tab-"] {
-                border-top-left-radius: 0.5rem;
-                border-top-right-radius: 0.5rem;
-                transition: all 0.2s;
-            }
+    @-webkit-keyframes spinner {
+        0% {
+            -webkit-transform: rotate(0deg);
+        }
 
-            button[id^="tab-"]:hover {
-                background-color: #f9f9f9;
-            }
+        100% {
+            -webkit-transform: rotate(360deg);
+        }
+    }
 
-            button[id^="tab-"].bg-white {
-                border-bottom: 3px solid #2563eb;
-                /* azul Tailwind */
-            }
+    @keyframes spinner {
+        0% {
+            transform: rotate(0deg);
+        }
 
-            #proveedor_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
 
-            .option-item {
-                transition: background-color 0.2s ease;
-            }
+    /* Asegurar que el modal de proveedor tenga mayor z-index */
+    #proveedorModal {
+        z-index: 60;
+    }
 
-            .option-item:not(:last-child) {
-                border-bottom: 1px solid #f3f4f6;
-            }
+    #productModal,
+    #addFromSolicitudModal,
+    #solicitudModal {
+        z-index: 50;
+    }
 
-            .option-item:hover {
-                background-color: #e0e7ff !important;
-            }
+    /* Tabs estilo Chrome */
+    button[id^="tab-"] {
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+        transition: all 0.2s;
+    }
 
-            #proveedor_dropdown,
-            #categoria_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0, 0.06);
-            }
+    button[id^="tab-"]:hover {
+        background-color: #f9f9f9;
+    }
 
-            .option-item,
-            .option-item-cat {
-                transition: background-color 0.2s ease;
-                cursor: pointer;
-            }
+    button[id^="tab-"].bg-white {
+        border-bottom: 3px solid #2563eb;
+        /* azul Tailwind */
+    }
 
-            .option-item:not(:last-child),
-            .option-item-cat:not(:last-child) {
-                border-bottom: 1px solid #f3f4f6;
-            }
+    #proveedor_dropdown {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
 
-            .option-item:hover,
-            .option-item-cat:hover {
-                background-color: #e0e7ff !important;
-            }
-        </style>
+    .option-item {
+        transition: background-color 0.2s ease;
+    }
+
+    .option-item:not(:last-child) {
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .option-item:hover {
+        background-color: #e0e7ff !important;
+    }
+
+    #proveedor_dropdown,
+    #categoria_dropdown {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0, 0.06);
+    }
+
+    .option-item,
+    .option-item-cat {
+        transition: background-color 0.2s ease;
+        cursor: pointer;
+    }
+
+    .option-item:not(:last-child),
+    .option-item-cat:not(:last-child) {
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .option-item:hover,
+    .option-item-cat:hover {
+        background-color: #e0e7ff !important;
+    }
+</style>
 </body>
 
 </html>

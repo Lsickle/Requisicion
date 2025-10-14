@@ -23,6 +23,9 @@ use App\Http\Controllers\dashboard\DashboardController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -296,7 +299,7 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/requisiciones/{id}/transferir', [RequisicionController::class, 'transferir'])->name('requisiciones.transferir.post');
 
     // Endpoint para obtener usuarios desde servicio VPL_CORE (proxy)
-    Route::get('requisiciones/usuarios-external', [\App\Http\Controllers\requisicion\RequisicionController::class, 'fetchExternalUsers'])
+    Route::get('requisiciones/usuarios-external', [RequisicionController::class, 'fetchExternalUsers'])
         ->name('requisiciones.usuarios_external');
 });
 
@@ -323,3 +326,6 @@ Route::resource('proveedores', ProveedoresController::class);
 
 // Ruta para notificar por correo al añadir el producto solicitado
 Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class, 'notifyAdded'])->name('nuevo_producto.notifyAdded');
+
+// Ruta para actualizar proveedores de un producto
+Route::post('productos/{id}/providers', [ProductosController::class, 'updateProviders'])->name('productos.updateProviders');
