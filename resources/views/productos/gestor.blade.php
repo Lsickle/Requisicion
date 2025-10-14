@@ -453,7 +453,7 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <form id="proveedorForm" method="POST">
+                    <form id="proveedorForm" method="POST" action="{{ route('proveedores.store', [], false) }}">
                         @csrf
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
@@ -729,6 +729,10 @@
                                 <input type="text" id="manage_prov_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
                                 <!-- Dropdown movido al final del body para evitar recorte -->
                             </div>
+                            <!-- Botón para abrir modal de crear proveedor desde gestionar proveedores -->
+                            <button type="button" onclick="openModal('proveedor')" title="Nuevo proveedor" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600">
+                                <i class="fas fa-plus"></i>
+                            </button>
                             <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
                             <select id="manage_prov_moneda" class="w-40 px-3 py-2 border rounded-md">
                                 <option value="Pesos Colombianos">Pesos Colombianos</option>
@@ -844,8 +848,8 @@
             // Asegurar stock entero por defecto
             const defaultStockEl = document.getElementById('stock_produc'); if (defaultStockEl) defaultStockEl.value = 0;
             // Limpiar campos de búsqueda
-            const provInput = document.getElementById('proveedor_input'); if (provInput) provInput.value = '';
-            const catInput = document.getElementById('categoria_input'); if (catInput) catInput.value = '';
+            const provInput = document.getElementById('proveedor_input'); if(provInput) provInput.value = '';
+            const catInput = document.getElementById('categoria_input'); if(catInput) catInput.value = '';
             const uIn = document.getElementById('unit_input');
             const uHidden = document.getElementById('unit_produc');
             if (uIn) uIn.value = '';
@@ -1099,83 +1103,80 @@
         });
     }
 
-    // Función para filtrar proveedores en el modal de añadir desde solicitud
-    function filterSolicitudProveedores() {
-        const searchTerm = document.getElementById('solicitud_proveedor_search').value.toLowerCase();
-        const proveedorSelect = document.getElementById('solicitud_proveedor_id');
-        const resultsContainer = document.getElementById('solicitud_proveedor_results');
-        
-        // Limpiar resultados anteriores
-        resultsContainer.innerHTML = '';
-        
-        if (searchTerm === '') {
-            resultsContainer.classList.add('hidden');
-            return;
-        }
-        
-        let hasResults = false;
-        
-        // Buscar coincidencias
-        for (let i = 0; i < proveedorSelect.options.length; i++) {
-            const option = proveedorSelect.options[i];
-            if (option.text.toLowerCase().includes(searchTerm)) {
-                const div = document.createElement('div');
-                div.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
-                div.textContent = option.text;
-                div.onclick = function() {
-                    proveedorSelect.value = option.value;
-                    document.getElementById('solicitud_proveedor_search').value = option.text;
-                    resultsContainer.classList.add('hidden');
-                };
-                resultsContainer.appendChild(div);
-                hasResults = true;
-            }
-        }
-        
-        if (hasResults) {
-            resultsContainer.classList.remove('hidden');
-        } else {
-            resultsContainer.classList.add('hidden');
-        }
-    }
-
-    // Cerrar resultados al hacer clic fuera - ocultar dropdown fijo de manage_prov
-    document.addEventListener('click', function(e) {
-        const mProvIn = document.getElementById('manage_prov_input');
-        const mProvDrop = document.getElementById('manage_prov_dropdown');
-        if (!mProvIn || !mProvDrop) return;
-        if (!mProvIn.contains(e.target) && !mProvDrop.contains(e.target)) {
-            mProvDrop.style.display = 'none';
-            mProvDrop.classList.add('hidden');
-        }
-    });
-
-    // Mostrar loading
-    function showLoading(event) {
+    // Script adicional para manejo seguro de creación de proveedores y notificaciones
+    function submitProveedorForm() {
+        if (!validateProveedorForm()) return;
+        const form = document.getElementById('proveedorForm');
+        const url = form.action;
+        const fd = new FormData(form);
         document.getElementById('loadingOverlay').classList.remove('hidden');
-        return true;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: fd
+        }).then(async (res) => {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            let data = null;
+            try { data = await res.json(); } catch (e) { data = null; }
+
+            // Si hubo redirección, recargar
+            if (res.redirected) {
+                Swal.fire({icon:'success', title:'Proveedor creado', text: 'Proveedor guardado correctamente'}).then(() => location.reload());
+                return;
+            }
+
+            // Si la respuesta es JSON con errores de validación
+            if (!res.ok) {
+                // Construir mensaje legible
+                let htmlMessage = '';
+                if (data && data.errors && typeof data.errors === 'object') {
+                    htmlMessage = '<ul style="text-align:left;margin:0;padding-left:18px;">';
+                    Object.keys(data.errors).forEach(key => {
+                        const arr = data.errors[key] || [];
+                        arr.forEach(msg => { htmlMessage += `<li>${msg}</li>`; });
+                    });
+                    htmlMessage += '</ul>';
+                } else if (data && data.message) {
+                    htmlMessage = `<div style="text-align:left;">${data.message}</div>`;
+                } else {
+                    htmlMessage = 'No se pudo crear el proveedor';
+                }
+
+                Swal.fire({icon:'error', title:'Error', html: htmlMessage});
+                return;
+            }
+
+            // OK response
+            if (data && (data.success || data.provider)) {
+                const prov = data.provider || data;
+                try { addProveedorToUI(prov); } catch (e) { console.warn(e); }
+                form.reset();
+                document.getElementById('proveedorModal').classList.add('hidden');
+                Swal.fire({icon:'success', title:'Proveedor creado', text: data.message || 'Proveedor guardado correctamente'}).then(() => location.reload());
+            } else {
+                // Fallback: mostrar mensaje si viene en data
+                const msg = (data && data.message) ? data.message : 'Proveedor creado';
+                Swal.fire({icon:'success', title:'Proveedor creado', text: msg}).then(() => location.reload());
+            }
+        }).catch(err => {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            console.error(err);
+            Swal.fire({icon:'error', title:'Error', text: 'Error al guardar proveedor'});
+        });
     }
 
-    // Confirmar eliminación
-    function confirmDelete(event) {
-        event.preventDefault();
-        const form = event.target;
-        
-        Swal.fire({
-            title: '¿Estás seguro?',
-            text: "Esta acción no se puede deshacer",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#1e40af',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                showLoading();
-                form.submit();
-            }
-        });
+    // Mostrar overlay de carga y permitir que el formulario continúe con el submit
+    function showLoading(event) {
+        try {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+        } catch (e) { console.warn('showLoading:', e); }
+        // No llamar event.preventDefault() aquí: permitimos que el envío continúe
+        return true;
     }
 
     // Limpiar mensajes de error
@@ -1254,11 +1255,7 @@
         }
     }
 
-    function submitProveedorForm() {
-        if (validateProveedorForm()) {
-            document.getElementById('proveedorForm').submit();
-        }
-    }
+    // submitProveedorForm está implementada previamente usando fetch() para manejar respuestas JSON y mostrar SweetAlert
 
     // Función para abrir modal de proveedor desde cualquier formulario
     function openProveedorModal() {
@@ -1669,116 +1666,87 @@
 
     // Inicializar dropdowns filtrables que permiten seleccionar o escribir un valor libre
     (function(){
-        function setupDropdownInput(inputId, hiddenId, dropdownId, optionSelector){
-            const input = document.getElementById(inputId);
-            const hidden = document.getElementById(hiddenId);
-            const dropdown = document.getElementById(dropdownId);
-            if(!input) return;
-
-            // Mostrar dropdown al enfocar
-            input.addEventListener('focus', () => { if(dropdown) dropdown.classList.remove('hidden'); });
-
-            // Filtrar opciones mientras escribe
-            input.addEventListener('input', () => {
-                if(!dropdown) return;
-                const q = (input.value || '').toLowerCase();
-                Array.from(dropdown.querySelectorAll(optionSelector)).forEach(opt => {
-                    const text = (opt.getAttribute('data-value') || opt.textContent || '').toLowerCase();
-                    opt.style.display = text.indexOf(q) !== -1 ? '' : 'none';
-                });
-            });
-
-            // Seleccionar opción
-            if(dropdown){
-                Array.from(dropdown.querySelectorAll(optionSelector)).forEach(opt => {
-                    opt.addEventListener('click', () => {
-                        const val = opt.getAttribute('data-value') || opt.textContent.trim();
-                        input.value = val;
-                        if(hidden) hidden.value = val;
-                        dropdown.classList.add('hidden');
-                    });
+        function safeOpen(id){
+            try{ document.getElementById(id).classList.remove('hidden'); }catch(e){ console.warn('No se pudo abrir modal', id, e); }
+        }
+        // Añadir handlers para botones inline que usan openModal('proveedor') / 'producto' / 'addFromSolicitud'
+        document.querySelectorAll('button[onclick]').forEach(btn=>{
+            const oc = btn.getAttribute('onclick') || '';
+            if(oc.includes("openModal('proveedor')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); // limpiar form y abrir
+                    const form = document.getElementById('proveedorForm'); if(form) form.reset(); safeOpen('proveedorModal');
                 });
             }
-
-            // Al perder foco, almacenar el valor escrito en el hidden (permitir valores libres)
-            input.addEventListener('blur', () => {
-                setTimeout(() => { if(hidden) hidden.value = (input.value || '').trim(); if(dropdown) dropdown.classList.add('hidden'); }, 150);
-            });
-
-            // Cerrar dropdown al hacer click fuera
-            document.addEventListener('click', function(e){
-                if(!input.contains(e.target) && dropdown && !dropdown.contains(e.target)){
-                    if(dropdown) dropdown.classList.add('hidden');
-                }
-            });
-        }
-
-        // Configurar para producto
-        setupDropdownInput('categoria_input','categoria_produc','categoria_dropdown','.option-item-cat');
-        setupDropdownInput('unit_input','unit_produc','unit_dropdown','.option-item-cat');
-
-        // Configurar para solicitud
-        setupDropdownInput('solicitud_categoria_input','solicitud_categoria_produc','solicitud_categoria_dropdown','.option-item-cat-solicitud');
-        setupDropdownInput('solicitud_unit_input','solicitud_unit_produc','solicitud_unit_dropdown','.option-item-cat-solicitud');
-
-        // Asegurar que los hidden se sincronicen antes del submit
-        const pForm = document.getElementById('productForm');
-        if(pForm){
-            pForm.addEventListener('submit', function(){
-                const cat = document.getElementById('categoria_input'); if(cat) document.getElementById('categoria_produc').value = cat.value.trim();
-                const unit = document.getElementById('unit_input'); if(unit) document.getElementById('unit_produc').value = unit.value.trim();
-            });
-        }
-        const sForm = document.getElementById('addFromSolicitudForm');
-        if(sForm){
-            sForm.addEventListener('submit', function(){
-                const cat = document.getElementById('solicitud_categoria_input'); if(cat) document.getElementById('solicitud_categoria_produc').value = cat.value.trim();
-                const unit = document.getElementById('solicitud_unit_input'); if(unit) document.getElementById('solicitud_unit_produc').value = unit.value.trim();
-            });
-        }
+            if(oc.includes("openModal('producto')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); const form = document.getElementById('productForm'); if(form){ form.reset(); document.getElementById('formMethod').value='POST'; } safeOpen('productModal'); });
+            }
+            if(oc.includes("openModal('addFromSolicitud')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); safeOpen('addFromSolicitudModal'); });
+            }
+        });
     })();
+
+    // Conectar dropdowns simples (categoría y unidad) con sus inputs y campos ocultos
+    document.addEventListener('DOMContentLoaded', function(){
+        function wireDropdownSimple(inputId, dropdownId, hiddenId) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const hidden = hiddenId ? document.getElementById(hiddenId) : null;
+            if (!input || !dropdown) return;
+
+            const optionSelector = '.option-item-cat, .option-item-cat-solicitud, .option-item';
+            const options = Array.from(dropdown.querySelectorAll(optionSelector));
+
+            const show = () => dropdown.classList.remove('hidden');
+            const hide = () => dropdown.classList.add('hidden');
+
+            input.addEventListener('focus', show);
+            input.addEventListener('click', show);
+
+            input.addEventListener('input', function(){
+                const q = (input.value || '').toLowerCase();
+                options.forEach(opt => {
+                    const txt = (opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                    opt.style.display = txt.includes(q) ? '' : 'none';
+                });
+                show();
+            });
+
+            input.addEventListener('keydown', function(e){ if (e.key === 'Escape') hide(); });
+
+            dropdown.addEventListener('click', function(e){
+                const opt = e.target.closest(optionSelector);
+                if (!opt) return;
+                const val = opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent.trim();
+                input.value = opt.getAttribute('data-name') || val;
+                if (hidden) hidden.value = val;
+                hide();
+                // trigger input event for any listeners
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            document.addEventListener('click', function(e){
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) hide();
+            });
+        }
+
+        wireDropdownSimple('categoria_input', 'categoria_dropdown', 'categoria_produc');
+        wireDropdownSimple('unit_input', 'unit_dropdown', 'unit_produc');
+    });
 </script>
 
 <style>
-    .hidden {
-        display: none;
-    }
-
-    .loader {
-        border-top-color: #1e40af;
-        -webkit-animation: spinner 1.5s linear infinite;
-        animation: spinner 1.5s linear infinite;
-    }
-
-    @-webkit-keyframes spinner {
-        0% {
-            -webkit-transform: rotate(0deg);
-        }
-
-        100% {
-            -webkit-transform: rotate(360deg);
-        }
-    }
-
-    @keyframes spinner {
-        0% {
-            transform: rotate(0deg);
-        }
-
-        100% {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* Asegurar que el modal de proveedor tenga mayor z-index */
+    /* Override: asegurar que el modal de proveedor esté por encima de otros modales */
     #proveedorModal {
-        z-index: 60;
+        z-index: 99999 !important;
     }
 
-    #productModal,
-    #addFromSolicitudModal,
-    #solicitudModal {
-        z-index: 50;
+    /* Forzar SweetAlert por encima de modales */
+    .swal2-container {
+        z-index: 100100 !important;
+    }
+    .swal2-popup, .swal2-modal {
+        z-index: 100101 !important;
     }
 
     /* Tabs estilo Chrome */
@@ -1834,6 +1802,6 @@
         background-color: #e0e7ff !important;
     }
 </style>
-</body>
 
+</body>
 </html>
