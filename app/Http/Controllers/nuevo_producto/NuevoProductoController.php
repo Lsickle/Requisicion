@@ -10,6 +10,7 @@ use App\Jobs\NuevoProductoSolicitadoJob;
 use App\Jobs\SendRequestedProductAddedEmail;
 use App\Jobs\SendRequestedProductRejectedEmail;
 
+
 class NuevoProductoController extends Controller
 {
     /**
@@ -174,5 +175,21 @@ class NuevoProductoController extends Controller
         SendRequestedProductAddedEmail::dispatch($payload);
 
         return response()->json(['success' => true]);
+    }
+
+    // Restaurar solicitud eliminada
+    public function restore($id)
+    {
+        $solicitud = Nuevo_producto::withTrashed()->findOrFail($id);
+        $solicitud->restore();
+        return redirect()->back()->with('success', 'Solicitud restaurada correctamente');
+    }
+
+    // Eliminar permanentemente solicitud
+    public function forceDelete($id)
+    {
+        $solicitud = Nuevo_producto::withTrashed()->findOrFail($id);
+        $solicitud->forceDelete();
+        return redirect()->back()->with('success', 'Solicitud eliminada permanentemente');
     }
 }

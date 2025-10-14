@@ -799,40 +799,55 @@
     // Abrir modal para añadir desde solicitud
     function openAddFromSolicitudModal(solicitudId) {
         // Mostrar loading
-        document.getElementById('loadingOverlay').classList.remove('hidden');
-        
-        // Obtener datos de la solicitud
+        const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden');
+
         fetch(`/productos/solicitud/${solicitudId}`)
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error al obtener los datos de la solicitud');
-                }
+                if (!response.ok) throw new Error('Error al obtener los datos de la solicitud');
                 return response.json();
             })
             .then(data => {
-                // Llenar el formulario con los datos de la solicitud
-                document.getElementById('solicitudId').value = solicitudId;
-                document.getElementById('solicitud_name_produc').value = data.nombre;
-                document.getElementById('solicitud_description_produc').value = data.descripcion;
-                // Si la solicitud trae stock, asegurarlo como entero
-                const solStockEl = document.getElementById('solicitud_stock_produc'); if (solStockEl) solStockEl.value = sanitizeToInt(data.stock_produc ?? data.stock ?? 0);
-                 
-                 // Mostrar el modal
-                 document.getElementById('addFromSolicitudModal').classList.remove('hidden');
-                 
-                 // Ocultar loading
-                document.getElementById('loadingOverlay').classList.add('hidden');
+                try {
+                    // Abrir modal de producto (resetea el formulario)
+                    openModal('producto');
+
+                    // Asegurar que el formulario de producto tiene un input hidden solicitud_id
+                    const form = document.getElementById('productForm');
+                    if (form) {
+                        let hid = form.querySelector('input[name="solicitud_id"]');
+                        if (!hid) {
+                            hid = document.createElement('input'); hid.type = 'hidden'; hid.name = 'solicitud_id'; hid.id = 'product_solicitud_id';
+                            form.appendChild(hid);
+                        }
+                        hid.value = solicitudId;
+                    }
+
+                    // Mapear datos de la solicitud en los mismos campos que el modal de producto
+                    if (data.nombre) document.getElementById('name_produc').value = data.nombre;
+                    if (typeof data.descripcion !== 'undefined') document.getElementById('description_produc').value = data.descripcion || '';
+                    const stockEl = document.getElementById('stock_produc'); if (stockEl) stockEl.value = sanitizeToInt(data.stock_produc ?? data.stock ?? 0);
+                    const ivaEl = document.getElementById('iva'); if (ivaEl) ivaEl.value = (typeof data.iva !== 'undefined') ? data.iva : (ivaEl.value || 0);
+
+                    // Categoría y unidad (asegurar también los campos ocultos)
+                    const catIn = document.getElementById('categoria_input'); const catHidden = document.getElementById('categoria_produc');
+                    if (catIn) catIn.value = data.categoria ?? (data.categoria_produc || '');
+                    if (catHidden) catHidden.value = data.categoria ?? (data.categoria_produc || '');
+
+                    const unitIn = document.getElementById('unit_input'); const unitHidden = document.getElementById('unit_produc');
+                    if (unitIn) unitIn.value = data.unit_input ?? (data.unit_produc || 'Unidad');
+                    if (unitHidden) unitHidden.value = data.unit_input ?? (data.unit_produc || 'Unidad');
+
+                    // Ocultar overlay
+                    if (overlay) overlay.classList.add('hidden');
+                } catch (e) {
+                    if (overlay) overlay.classList.add('hidden');
+                    console.warn(e);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al abrir el modal de producto' , confirmButtonColor: '#1e40af'});
+                }
             })
-            .catch(error => {
-                // Ocultar loading
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message,
-                    confirmButtonColor: '#1e40af'
-                });
+            .catch(err => {
+                if (overlay) overlay.classList.add('hidden');
+                Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Error al obtener la solicitud', confirmButtonColor: '#1e40af'});
             });
     }
 
@@ -1178,6 +1193,48 @@
         // No llamar event.preventDefault() aquí: permitimos que el envío continúe
         return true;
     }
+
+    // Confirmación genérica para eliminar (usa SweetAlert2). Previene el submit y envía si confirma.
+    function confirmDelete(event) {
+        // localizar el formulario asociado
+        let form = null;
+        try {
+            if (event && event.target) {
+                form = (event.target.tagName === 'FORM') ? event.target : event.target.closest('form');
+            }
+        } catch (e) { form = null; }
+
+        // Si el formulario fue marcado para saltar la confirmación (envío programático), permitirlo
+        if (form && form.dataset && form.dataset.skipConfirm === '1') {
+            // limpiar la marca y permitir que el envío continúe
+            delete form.dataset.skipConfirm;
+            return true;
+        }
+
+        try { event.preventDefault(); } catch (e) { /* ignore */ }
+         Swal.fire({
+             title: '¿Está seguro?',
+             text: 'Se notificará al solicitante.',
+             icon: 'warning',
+             showCancelButton: true,
+             confirmButtonColor: '#dc2626',
+             cancelButtonColor: '#6b7280',
+             confirmButtonText: 'Sí, eliminar',
+             cancelButtonText: 'Cancelar'
+         }).then((result) => {
+             if (result.isConfirmed) {
+                 try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch(e){}
+                 if (form) {
+                    // marcar para que el onsubmit no vuelva a pedir confirmación
+                    try { form.dataset.skipConfirm = '1'; } catch (e) {}
+                    // usar requestSubmit si está disponible para respetar onsubmit
+                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                    else form.submit();
+                 }
+             }
+         });
+         return false;
+     }
 
     // Limpiar mensajes de error
     function clearErrorMessages() {
