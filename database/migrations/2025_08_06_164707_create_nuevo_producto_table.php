@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email_user');  #correo del usuario
             $table->string('nombre');  #nombre del producto
             $table->string('descripcion');  #descripción del producto
+            $table->text('comentario')->nullable();  #comentario porque se rechazo el producto
             $table->timestamps();
             $table->softDeletes();
         });

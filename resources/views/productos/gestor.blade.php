@@ -1211,30 +1211,90 @@
             return true;
         }
 
+        const action = form ? (form.getAttribute('action') || '') : '';
+        const isNuevoProducto = action.includes('nuevo_producto');
+
+        // Función que abre el prompt de texto para el motivo de rechazo
+        const openRejectionPrompt = (frm) => {
+            Swal.fire({
+                title: 'Rechazar solicitud',
+                input: 'textarea',
+                inputLabel: 'Motivo del rechazo (opcional)',
+                inputPlaceholder: 'Escribe el motivo por el cual rechazas la solicitud...',
+                showCancelButton: true,
+                confirmButtonText: 'Enviar',
+                cancelButtonText: 'Cancelar',
+                inputAttributes: { 'aria-label': 'Motivo del rechazo' }
+            }).then((res) => {
+                if (!res.isConfirmed) return; // usuario canceló
+                const comentario = (res.value || '').trim();
+
+                const doSubmitWithComment = () => {
+                    try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch (e) {}
+                    if (!frm) return;
+                    let inp = frm.querySelector('input[name="comentario"]');
+                    if (!inp) {
+                        inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'comentario'; frm.appendChild(inp);
+                    }
+                    inp.value = comentario;
+                    try { frm.dataset.skipConfirm = '1'; } catch (e) {}
+                    if (typeof frm.requestSubmit === 'function') frm.requestSubmit(); else frm.submit();
+                };
+
+                if (comentario === '') {
+                    Swal.fire({
+                        title: 'Enviar sin comentario?',
+                        text: '¿Desea rechazar la solicitud sin proporcionar un comentario?',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, enviar sin comentario',
+                        cancelButtonText: 'Volver'
+                    }).then(c => {
+                        if (c.isConfirmed) {
+                            doSubmitWithComment();
+                        } else {
+                            // volver a abrir el prompt de rechazo
+                            setTimeout(() => openRejectionPrompt(frm), 50);
+                        }
+                    });
+                } else {
+                    doSubmitWithComment();
+                }
+            });
+        };
+
+        // Si es una solicitud de nuevo producto, pedir comentario antes de enviar
+        if (isNuevoProducto) {
+            try { event.preventDefault(); } catch (e) { /* ignore */ }
+            openRejectionPrompt(form);
+            return false;
+        }
+
+        // Comportamiento genérico para otras eliminaciones
         try { event.preventDefault(); } catch (e) { /* ignore */ }
-         Swal.fire({
-             title: '¿Está seguro?',
-             text: 'Se notificará al solicitante.',
-             icon: 'warning',
-             showCancelButton: true,
-             confirmButtonColor: '#dc2626',
-             cancelButtonColor: '#6b7280',
-             confirmButtonText: 'Sí, eliminar',
-             cancelButtonText: 'Cancelar'
-         }).then((result) => {
-             if (result.isConfirmed) {
-                 try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch(e){}
-                 if (form) {
+        Swal.fire({
+            title: '¿Está seguro?',
+            text: 'Se notificará al solicitante.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch(e){}
+                if (form) {
                     // marcar para que el onsubmit no vuelva a pedir confirmación
                     try { form.dataset.skipConfirm = '1'; } catch (e) {}
                     // usar requestSubmit si está disponible para respetar onsubmit
                     if (typeof form.requestSubmit === 'function') form.requestSubmit();
                     else form.submit();
-                 }
-             }
-         });
-         return false;
-     }
+                }
+            }
+        });
+        return false;
+    }
 
     // Limpiar mensajes de error
     function clearErrorMessages() {

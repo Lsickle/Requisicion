@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Models\Nuevo_producto;
+use App\Jobs\SendRequestedProductAddedEmail;
 use Illuminate\Support\Facades\Log;
 
 class ProductosController extends Controller
@@ -32,7 +33,7 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'proveedores', 'solicitudes'));
     }
@@ -64,7 +65,7 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores', 'solicitudes'));
     }
@@ -111,10 +112,23 @@ class ProductosController extends Controller
                 ]);
             }
 
-            // Si viene de una solicitud, eliminar la solicitud
+            // Si viene de una solicitud: notificar al solicitante y soft-delete de la solicitud
             if ($request->has('solicitud_id') && $request->solicitud_id) {
                 $solicitud = Nuevo_producto::find($request->solicitud_id);
                 if ($solicitud) {
+                    // Preparar payload para el correo de 'agregado'
+                    $payload = [
+                        'nombre' => $solicitud->nombre,
+                        'descripcion' => $solicitud->descripcion,
+                        'name_user' => $solicitud->name_user,
+                        'email_user' => $solicitud->email_user,
+                        'comentario' => $solicitud->comentario ?? '',
+                    ];
+
+                    // Despachar job para notificar que su solicitud fue atendida (producto creado)
+                    SendRequestedProductAddedEmail::dispatch($payload);
+
+                    // Soft-delete la solicitud para que no vuelva a mostrarse
                     $solicitud->delete();
                 }
             }

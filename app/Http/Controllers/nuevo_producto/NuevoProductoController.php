@@ -21,7 +21,7 @@ class NuevoProductoController extends Controller
      */
     public function index()
     {
-        $productos = Nuevo_producto::withTrashed()->orderBy('nombre')->get();
+        $productos = Nuevo_producto::orderBy('nombre')->get();
         return view('requisiciones.menu', compact('productos'));
     }
 
@@ -130,27 +130,43 @@ class NuevoProductoController extends Controller
      * Remove the specified resource from storage.
      *
      * Envía una notificación al solicitante indicando que su petición fue rechazada y elimina
-     * el registro (soft delete).
+     * el registro (soft delete). Guarda el comentario de rechazo si se proporciona.
      *
+     * @param \Illuminate\Http\Request $request
      * @param \App\Models\Nuevo_producto $nuevoProducto
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function destroy(Nuevo_producto $nuevoProducto)
+    public function destroy(Request $request, Nuevo_producto $nuevoProducto)
     {
-        // Preparar datos para correo de rechazo
-        $payload = [
-            'nombre' => $nuevoProducto->nombre,
-            'descripcion' => $nuevoProducto->descripcion,
-            'name_user' => $nuevoProducto->name_user,
-            'email_user' => $nuevoProducto->email_user,
-        ];
+        try {
+            // Obtener comentario enviado desde la vista (puede venir vacío)
+            $comentario = trim($request->input('comentario', ''));
 
-        // Enviar correo en background
-        SendRequestedProductRejectedEmail::dispatch($payload);
+            // Guardar comentario en el registro antes de eliminar si existe o si queremos registrar la razón
+            if ($comentario !== '') {
+                $nuevoProducto->comentario = $comentario;
+                $nuevoProducto->save();
+            }
 
-        $nuevoProducto->delete();
-        return redirect()->route('productos.gestor')
-            ->with('success', 'Solicitud de producto eliminada exitosamente. Se notificó al solicitante.');
+            // Preparar datos para correo de rechazo incluyendo el comentario
+            $payload = [
+                'nombre' => $nuevoProducto->nombre,
+                'descripcion' => $nuevoProducto->descripcion,
+                'name_user' => $nuevoProducto->name_user,
+                'email_user' => $nuevoProducto->email_user,
+                'comentario' => $comentario,
+            ];
+
+            // Enviar correo en background
+            SendRequestedProductRejectedEmail::dispatch($payload);
+
+            $nuevoProducto->delete();
+
+            return redirect()->route('productos.gestor')
+                ->with('success', 'Solicitud de producto eliminada exitosamente. Se notificó al solicitante.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error al rechazar la solicitud: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -177,19 +193,5 @@ class NuevoProductoController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Restaurar solicitud eliminada
-    public function restore($id)
-    {
-        $solicitud = Nuevo_producto::withTrashed()->findOrFail($id);
-        $solicitud->restore();
-        return redirect()->back()->with('success', 'Solicitud restaurada correctamente');
-    }
-
-    // Eliminar permanentemente solicitud
-    public function forceDelete($id)
-    {
-        $solicitud = Nuevo_producto::withTrashed()->findOrFail($id);
-        $solicitud->forceDelete();
-        return redirect()->back()->with('success', 'Solicitud eliminada permanentemente');
-    }
+    // (restore and forceDelete removed: solicitudes rechazadas se soft-deletean y no se restauran desde UI)
 }

@@ -13,14 +13,16 @@
         </tr>
         <tr>
             <td style="padding:24px; color:#111827;">
-                <h2 style="margin:0 0 12px 0;">Solicitud rechazada</h2>
-                <p style="margin:0 0 16px 0;">Hola {{ $data['name_user'] ?? 'usuario' }},</p>
-                <p style="margin:0 0 12px 0;">Tu solicitud de producto fue rechazada.</p>
-                <div style="margin:16px 0; padding:12px 16px; background:#f3f4f6; border-radius:6px;">
-                    <p style="margin:0;"><strong>Producto solicitado:</strong> {{ $data['nombre'] ?? '' }}</p>
-                    <p style="margin:4px 0 0 0;"><strong>Descripción:</strong> {{ $data['descripcion'] ?? '' }}</p>
+                <div style="font-family: Arial, sans-serif; color:#111;">
+                    <h2 style="margin:0 0 12px 0;">Solicitud rechazada</h2>
+                    <p style="margin:0 0 16px 0;">Hola {{ $data['name_user'] ?? 'usuario' }},</p>
+                    <p style="margin:0 0 12px 0;">Lamentamos informarte que tu solicitud para el producto <strong>{{ $data['nombre'] ?? '' }}</strong> ha sido rechazada.</p>
+                    @if(!empty($data['comentario']))
+                        <p><strong>Motivo:</strong> {{ $data['comentario'] }}</p>
+                    @endif
+                    <p style="margin:16px 0 0 0;">Si tienes preguntas, por favor contacta al equipo.</p>
+                    <p style="margin:0;">Saludos,<br/>Equipo</p>
                 </div>
-                <p style="margin:16px 0 0 0;">Si crees que es un error, contacta con el área responsable.</p>
             </td>
         </tr>
         <tr>

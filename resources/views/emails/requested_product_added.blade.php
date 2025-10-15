@@ -13,14 +13,16 @@
         </tr>
         <tr>
             <td style="padding:24px; color:#111827;">
-                <h2 style="margin:0 0 12px 0;">¡Solicitud aprobada!</h2>
-                <p style="margin:0 0 16px 0;">Hola {{ $data['name_user'] ?? 'usuario' }},</p>
-                <p style="margin:0 0 12px 0;">Tu solicitud de producto fue aprobada y el artículo fue añadido al catálogo.</p>
-                <div style="margin:16px 0; padding:12px 16px; background:#f3f4f6; border-radius:6px;">
-                    <p style="margin:0;"><strong>Producto:</strong> {{ $data['nombre'] ?? '' }}</p>
+                <div style="font-family: Arial, sans-serif; color:#111;">
+                    <h2 style="margin:0 0 12px 0;">¡Solicitud aprobada!</h2>
+                    <p style="margin:0 0 16px 0;">Hola {{ $data['name_user'] ?? 'usuario' }},</p>
+                    <p style="margin:0 0 12px 0;">Tu solicitud de producto fue aprobada y el artículo fue añadido al catálogo.</p>
+                    <p style="margin:0 0 12px 0;"><strong>Producto:</strong> {{ $data['nombre'] ?? '' }}</p>
                     <p style="margin:4px 0 0 0;"><strong>Descripción:</strong> {{ $data['descripcion'] ?? '' }}</p>
+                    <p style="margin:16px 0 0 0;">Gracias por ayudarnos a mejorar el inventario.</p>
+                    <p style="margin:16px 0 0 0;">Si tienes preguntas, responde a este correo.</p>
+                    <p style="margin:0;">Saludos,<br/>Equipo</p>
                 </div>
-                <p style="margin:16px 0 0 0;">Gracias por ayudarnos a mejorar el inventario.</p>
             </td>
         </tr>
         <tr>

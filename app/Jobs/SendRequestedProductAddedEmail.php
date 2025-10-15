@@ -2,32 +2,40 @@
 
 namespace App\Jobs;
 
-use App\Mail\RequestedProductAddedMail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
+use App\Mail\RequestedProductAdded;
+use Illuminate\Support\Facades\Log;
 
 class SendRequestedProductAddedEmail implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public array $data;
+    public $payload;
 
-    public function __construct(array $data)
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(array $payload)
     {
-        $this->data = $data;
+        $this->payload = $payload;
     }
 
-    public function handle(): void
+    /**
+     * Execute the job.
+     */
+    public function handle()
     {
-        $to = $this->data['email_user'] ?? null;
-        if (!$to) {
-            return;
+        if (empty($this->payload['email_user'])) return;
+        try {
+            Mail::to($this->payload['email_user'])->send(new RequestedProductAdded($this->payload));
+        } catch (\Throwable $e) {
+            // opcional: log
+            Log::error('Error sending RequestedProductAdded email: ' . $e->getMessage());
         }
-
-        Mail::to($to)->send(new RequestedProductAddedMail($this->data));
     }
 }
