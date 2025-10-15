@@ -95,9 +95,18 @@
                                 $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
                                 @endphp
                                 @php
-                                    $precioUnit = (float) ($prod->price_produc ?? 0);
-                                    $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
-                                    $grandTotal += $precioTotal;
+                                    // Obtener precio desde productoxproveedor (nuevo esquema)
+                                    try {
+                                        $pp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                            ->where('producto_id', $prod->id)
+                                            ->orderBy('id')
+                                            ->first();
+                                        $precioUnit = (float) ($pp->price_produc ?? 0);
+                                    } catch (\Throwable $e) {
+                                        $precioUnit = 0.0;
+                                    }
+                                 $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
+                                 $grandTotal += $precioTotal;
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-4 py-2">{{ $prod->name_produc }}</td>
@@ -210,6 +219,20 @@
                                 @if($productosDisponibles->count())
                                 <optgroup label="Productos sin distribuir">
                                 @foreach($productosDisponibles as $producto)
+                                @php
+                                    // obtener lista de proveedores para este producto desde productoxproveedor
+                                    try {
+                                        $ppList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
+                                            ->join('proveedores as prov','pxp.proveedor_id','=','prov.id')
+                                            ->where('pxp.producto_id', $producto->id)
+                                            ->whereNull('pxp.deleted_at')
+                                            ->select('pxp.id as pxp_id','pxp.proveedor_id','prov.prov_name','pxp.price_produc','pxp.moneda')
+                                            ->orderBy('prov.prov_name')
+                                            ->get();
+                                    } catch (\Throwable $e) {
+                                        $ppList = collect();
+                                    }
+                                @endphp
                                 <option value="{{ $producto->id }}"
                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                     data-nombre="{{ $producto->name_produc }}"
@@ -217,9 +240,10 @@
                                     data-stock="{{ $producto->stock_produc }}"
                                     data-proveedor="{{ $producto->proveedor_id ?? '' }}"
                                     data-iva="{{ $producto->iva ?? 0 }}"
-                                    data-price="{{ $producto->price_produc ?? 0 }}">
-                                    {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
-                                    $producto->pivot->pr_amount ?? 1 }}
+                                    data-price="{{ ($ppList->first()->price_produc ?? 0) }}"
+                                    data-providers='@json($ppList)'>
+                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
+                                     $producto->pivot->pr_amount ?? 1 }}
                                 </option>
                                 @endforeach
                                 </optgroup>
@@ -227,18 +251,20 @@
                                 @if(isset($lineasDistribuidas) && $lineasDistribuidas->count())
                                 <optgroup label="Líneas distribuidas pendientes">
                                     @foreach($lineasDistribuidas as $ld)
+                                        @php $ldPrice = $ld->price_produc ?? 0; @endphp
                                         <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}"
-                                            data-iva="{{ $ld->iva ?? 0 }}" data-price="{{ $ld->price_produc ?? 0 }}">
+                                            data-iva="{{ $ld->iva ?? 0 }}" data-price="{{ $ldPrice }}">
                                             {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
                                         </option>
                                     @endforeach
                                 </optgroup>
                                 @endif
                             </select>
-                            <button type="button" onclick="agregarProducto()"
+                            <button type="button" onclick="openProvidersModal()"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
                             </button>
+                            <button type="button" id="btn-ver-proveedores" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">📋 Proveedores</button>
                             <button type="button" id="btn-abrir-modal"
                                 class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
                                 📊 Distribuir entre Proveedores
@@ -246,6 +272,24 @@
                             <button type="button" id="btn-abrir-undo-dist" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition">
                                 ↩️ Deshacer distribución
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Modal Proveedores por Producto -->
+                    <div id="modal-proveedores" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center overflow-y-auto">
+                        <div class="bg-white w-11/12 sm:max-w-xl my-10 rounded-lg shadow-lg overflow-hidden max-h-[70vh] flex flex-col">
+                            <div class="flex justify-between items-center px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">Proveedores disponibles</h3>
+                                <button type="button" id="btn-cerrar-proveedores" class="text-gray-600 hover:text-gray-800">✕</button>
+                            </div>
+                            <div class="p-4 overflow-y-auto" id="prov-list-container">
+                                <div class="text-sm text-gray-500">Seleccione un proveedor para el producto seleccionado.</div>
+                                <div id="prov-list" class="mt-3 space-y-2"></div>
+                            </div>
+                            <div class="flex justify-end gap-3 px-6 py-3 border-t bg-gray-50">
+                                <button type="button" id="btn-cancel-proveedores" class="px-4 py-2 border rounded">Cancelar</button>
+                                <button type="button" id="btn-select-prov" class="px-4 py-2 bg-indigo-600 text-white rounded">Seleccionar</button>
+                            </div>
                         </div>
                     </div>
 
@@ -442,10 +486,14 @@
                         ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
                         ->join('productos as p','p.id','=','ocp.producto_id')
                         ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
+                        ->leftJoin('productoxproveedor as pxp', function($join){
+                            $join->on('pxp.producto_id','=','p.id')
+                                 ->on('pxp.proveedor_id','=','ocp.proveedor_id');
+                        })
                         ->whereNull('ocp.deleted_at')
                         ->where('ocp.requisicion_id', $requisicion->id)
                         ->whereNotNull('ocp.orden_compras_id')
-                        ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','prov.prov_name','ocp.total')
+                        ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','p.stock_produc', DB::raw('COALESCE(pxp.price_produc, 0) as price_produc'), 'prov.prov_name','ocp.total')
                         ->orderBy('ocp.id','desc')
                         ->get();
                     // Totales requeridos por producto (desde la distribución de centros) with fallback
@@ -913,6 +961,14 @@
          `;
         table.appendChild(row);
 
+        // Guardar providers JSON en el input oculto para poder restaurarlo al quitar
+        try {
+            const selOpt = selector.options[selector.selectedIndex];
+            const providersJson = selOpt?.dataset?.providers || '';
+            const inputHiddenStored = row.querySelector('input[type="hidden"][name$="[id]"]');
+            if (inputHiddenStored) inputHiddenStored.dataset.providers = providersJson;
+        } catch(e) { /* ignore */ }
++
         productosAgregados.push(rowKey);
 
         // Establecer la cantidad inicial sin modificar la distribución
@@ -1036,6 +1092,8 @@
             } else {
                 opt.textContent = `${nombre} (${unidad}) - Cantidad: ${cantidad}`;
             }
+            // Restaurar lista de proveedores original si estaba guardada
+            if (inputHidden?.dataset?.providers) opt.dataset.providers = inputHidden.dataset.providers;
             selector.appendChild(opt);
         }
     }
@@ -1218,6 +1276,7 @@
             }
             const fila = document.createElement('tr');
             fila.innerHTML = `
+
                 <td class="p-2">
                     <select class="w-full border rounded p-1 prov-item">
                         <option value="">Seleccione</option>
@@ -1284,10 +1343,6 @@
 
             if (!prodId) {
                 Swal.fire({icon: 'warning', title: 'Atención', text: 'Seleccione un producto'});
-                return;
-            }
-            if (filas.length < 2) {
-                Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe distribuir al menos en 2 proveedores'});
                 return;
             }
 
@@ -1403,6 +1458,69 @@
                     Swal.fire({icon:'error', title:'Error', text: e.message});
                 }
             }
+        });
+
+        // Mostrar proveedores del producto seleccionado en modal (función reutilizable)
+        function openProvidersModal(){
+            const sel = document.getElementById('producto-selector');
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'}); return; }
+            const provsJson = opt.dataset.providers || '[]';
+            let provs = [];
+            try { provs = JSON.parse(provsJson); } catch(e){ provs = []; }
+            const container = document.getElementById('prov-list');
+            container.innerHTML = '';
+            if (!provs || provs.length === 0) {
+                // No providers: informar y continuar agregando directamente
+                Swal.fire({icon:'info', title:'Sin proveedores', text:'No hay proveedores asociados a este producto. Se añadirá sin proveedor.'});
+                agregarProducto();
+                return;
+            }
+            provs.forEach((p, idx) => {
+                const id = 'prov_choice_' + idx;
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 border rounded';
+                div.innerHTML = `
+                    <label class="flex items-center gap-3 w-full" for="${id}">
+                        <input type="radio" name="prov_choice" id="${id}" value="${p.proveedor_id}" data-price="${p.price_produc}" ${idx===0? 'checked':''}>
+                        <div class="flex-1">
+                            <div class="font-medium">${p.prov_name}</div>
+                            <div class="text-xs text-gray-500">Precio: ${p.price_produc} ${p.moneda ?? ''}</div>
+                        </div>
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+            document.getElementById('modal-proveedores').classList.remove('hidden');
+        }
+        // Exponer función al scope global para que el onclick inline funcione
+        window.openProvidersModal = openProvidersModal;
+        // Enlazar botón de 'Ver proveedores' al mismo comportamiento
+        document.getElementById('btn-ver-proveedores')?.addEventListener('click', openProvidersModal);
+
+        // Cerrar modal proveedores
+        document.getElementById('btn-cerrar-proveedores')?.addEventListener('click', ()=> document.getElementById('modal-proveedores').classList.add('hidden'));
+        document.getElementById('btn-cancel-proveedores')?.addEventListener('click', ()=> document.getElementById('modal-proveedores').classList.add('hidden'));
+
+        // Al confirmar selección, aplicar proveedor al selector de formulario y al option seleccionada, luego reintentar agregar
+        document.getElementById('btn-select-prov')?.addEventListener('click', function(){
+            const sel = document.getElementById('producto-selector');
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Error', text:'No hay producto seleccionado.'}); return; }
+            const chosen = document.querySelector('input[name="prov_choice"]:checked');
+            if (!chosen) { Swal.fire({icon:'info', title:'Error', text:'Seleccione un proveedor.'}); return; }
+            const provId = chosen.value;
+            const price = chosen.dataset.price || 0;
+            // setear proveedor en el select principal
+            const provSelect = document.getElementById('proveedor_id');
+            if (provSelect) provSelect.value = provId;
+            // setear atributos en la opción seleccionada para que agregarProducto los use
+            opt.dataset.proveedor = provId;
+            opt.dataset.price = price;
+            // ocultar modal y llamar a agregarProducto() para continuar
+            document.getElementById('modal-proveedores').classList.add('hidden');
+            // Llamar agregarProducto para continuar flujo
+            agregarProducto();
         });
     });
 

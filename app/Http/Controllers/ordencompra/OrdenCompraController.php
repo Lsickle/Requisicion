@@ -95,6 +95,11 @@ class OrdenCompraController extends Controller
                 $lineasDistribuidas = DB::table('ordencompra_producto as ocp')
                     ->join('productos as p', 'ocp.producto_id', '=', 'p.id')
                     ->leftJoin('proveedores as prov', 'ocp.proveedor_id', '=', 'prov.id')
+                    // unir a productoxproveedor para obtener precio por proveedor si existe
+                    ->leftJoin('productoxproveedor as pxp', function($join){
+                        $join->on('pxp.producto_id', '=', 'p.id')
+                             ->on('pxp.proveedor_id', '=', 'ocp.proveedor_id');
+                    })
                     ->whereNull('ocp.deleted_at')
                     ->whereNull('ocp.orden_compras_id')
                     ->where('ocp.requisicion_id', $requisicion->id)
@@ -106,7 +111,7 @@ class OrdenCompraController extends Controller
                         'p.name_produc',
                         'p.unit_produc',
                         'p.stock_produc',
-                        'p.price_produc',
+                        DB::raw('COALESCE(pxp.price_produc, 0) as price_produc'),
                         'prov.prov_name'
                     )
                     ->get();
