@@ -234,17 +234,18 @@
                                     }
                                 @endphp
                                 <option value="{{ $producto->id }}"
-                                    data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
-                                    data-nombre="{{ $producto->name_produc }}"
-                                    data-unidad="{{ $producto->unit_produc }}"
-                                    data-stock="{{ $producto->stock_produc }}"
-                                    data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                    data-iva="{{ $producto->iva ?? 0 }}"
-                                    data-price="{{ ($ppList->first()->price_produc ?? 0) }}"
-                                    data-providers='@json($ppList)'>
-                                     {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
-                                     $producto->pivot->pr_amount ?? 1 }}
-                                </option>
+                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
+                                     data-nombre="{{ $producto->name_produc }}"
+                                     data-unidad="{{ $producto->unit_produc }}"
+                                     data-stock="{{ $producto->stock_produc }}"
+                                     data-proveedor="{{ $producto->proveedor_id ?? '' }}"
+                                     data-iva="{{ $producto->iva ?? 0 }}"
+                                     data-price="{{ ($ppList->first()->price_produc ?? 0) }}"
+                                     data-price-currency="{{ ($ppList->first()->moneda ?? 'COP') }}"
+                                     data-providers='@json($ppList)'>
+                                      {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
+                                      $producto->pivot->pr_amount ?? 1 }}
+                                 </option>
                                 @endforeach
                                 </optgroup>
                                 @endif
@@ -253,18 +254,17 @@
                                     @foreach($lineasDistribuidas as $ld)
                                         @php $ldPrice = $ld->price_produc ?? 0; @endphp
                                         <option value="{{ $ld->producto_id }}" data-distribuido="1" data-ocp-id="{{ $ld->ocp_id }}" data-proveedor="{{ $ld->proveedor_id }}" data-nombre="{{ $ld->name_produc }}" data-unidad="{{ $ld->unit_produc }}" data-stock="{{ $ld->stock_produc }}" data-cantidad="{{ $ld->cantidad }}"
-                                            data-iva="{{ $ld->iva ?? 0 }}" data-price="{{ $ldPrice }}">
-                                            {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
-                                        </option>
-                                    @endforeach
-                                </optgroup>
-                                @endif
+                                            data-iva="{{ $ld->iva ?? 0 }}" data-price="{{ $ldPrice }}" data-price-currency="{{ $ld->moneda ?? 'COP' }}">
+                                             {{ $ld->name_produc }} - {{ $ld->prov_name ?? 'Proveedor' }} - Cant: {{ $ld->cantidad }}
+                                         </option>
+                                     @endforeach
+                                 </optgroup>
+                                 @endif
                             </select>
-                            <button type="button" onclick="openProvidersModal()"
+                            <button type="button" id="btn-add-product"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
                             </button>
-                            <button type="button" id="btn-ver-proveedores" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">📋 Proveedores</button>
                             <button type="button" id="btn-abrir-modal"
                                 class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
                                 📊 Distribuir entre Proveedores
@@ -869,6 +869,8 @@
         const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
         const iva = parseFloat(selectedOption.dataset.iva ?? '0');
         const precio = parseFloat(selectedOption.dataset.price ?? '0');
+        const precioCurrency = selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP';
+        const currency = selectedOption.dataset.priceCurrency || 'COP';
         const ocpId = selectedOption.dataset.ocpId || null;
         const rowKey = `${productoId}-${ocpId||'0'}`;
 
@@ -881,79 +883,83 @@
             proveedorSelect.value = proveedorId;
         }
 
-        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio);
+        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio, selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP');
     }
 
-    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0) {
-        const table = document.getElementById('productos-table');
-        const rowId = `producto-${rowKey}`;
-        if (document.getElementById(rowId)) return;
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0, precioCurrency = 'COP', providersJson = '', priceCop = '') {
+         const table = document.getElementById('productos-table');
+         const rowId = `producto-${rowKey}`;
+         if (document.getElementById(rowId)) return;
 
-        let distribucionProducto = distribucionOriginal[productoId] || {};
-        let centrosHtml = '';
-        let centrosConDistribucion = [];
-        for (let centroId in distribucionProducto) {
-            if (distribucionProducto[centroId] > 0) {
-                let centro = centros.find(c => c.id == centroId);
-                if (centro) centrosConDistribucion.push(centro);
-            }
-        }
-        if (centrosConDistribucion.length === 0) centrosConDistribucion = centros;
-        centrosConDistribucion.forEach(centro => {
-            let cantidadCentro = distribucionProducto[centro.id] || 0;
-            centrosHtml += `
-                <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
-                    <span class="font-medium text-sm truncate">${centro.name_centro}</span>
-                    <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
-                           min="0" value="${cantidadCentro}" class="w-24 border rounded p-1 text-center ml-3 distribucion-centro"
-                           data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}', this)">
-                </div>
-            `;
-        });
+         let distribucionProducto = distribucionOriginal[productoId] || {};
+         let centrosHtml = '';
+         let centrosConDistribucion = [];
+         for (let centroId in distribucionProducto) {
+             if (distribucionProducto[centroId] > 0) {
+                 let centro = centros.find(c => c.id == centroId);
+                 if (centro) centrosConDistribucion.push(centro);
+             }
+         }
+         if (centrosConDistribucion.length === 0) centrosConDistribucion = centros;
+         centrosConDistribucion.forEach(centro => {
+             let cantidadCentro = distribucionProducto[centro.id] || 0;
+             centrosHtml += `
+                 <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
+                     <span class="font-medium text-sm truncate">${centro.name_centro}</span>
+                     <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
+                            min="0" value="${cantidadCentro}" class="w-24 border rounded p-1 text-center ml-3 distribucion-centro"
+                            data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}', this)">
+                 </div>
+             `;
+         });
 
-        let cantidadParaComprar = cantidadOriginal;
-        const precioNum = isNaN(precio) ? 0 : precio;
-        const precioStr = precioNum.toFixed(2);
+         let cantidadParaComprar = cantidadOriginal;
+         const precioNum = isNaN(precio) ? 0 : precio;
+         const precioStr = precioNum.toFixed(2);
 
-        const row = document.createElement('tr');
-        row.id = rowId;
-        row.innerHTML = `
-            <td class="p-3">
-                <div class="flex items-start gap-3">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div
-                    </div>
-                </div>
-                <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
-                    data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}">
-                <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
-                ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
-            </td>
-            <td class="p-3 text-center align-middle">
-                <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadParaComprar}" 
-                    class="w-16 border rounded p-1 text-center cantidad-total" 
-                    id="cantidad-total-${rowKey}" 
-                    onchange="onCantidadTotalChange('${rowKey}')" required>
-            </td>
-            <td class="p-3 text-center">${unidad}</td>
-            <td class="p-3 text-center" id="precio-${rowKey}">$${precioStr}</td>
-            <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
-            <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
-            <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
-            <td class="p-3">
-                <div class="max-h-40 overflow-y-auto">
-                    <div class="space-y-2 text-sm pr-1">
-                        ${centrosHtml}
-                    </div>
-                </div>
-            </td>
-            <td class="p-3 text-center align-middle">
-                <div class="flex flex-col items-center gap-2">
-                  <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <input type="checkbox" name="productos[${rowKey}][apply_iva]" class="apply-iva-checkbox form-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="1">
-                    <span class="ml-1">Aplicar IVA</span>
-                  </label>
-                  <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" title="Quitar producto" class="flex items-center gap-2 px-4 py-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md text-sm">
+         const row = document.createElement('tr');
+         row.id = rowId;
+         row.innerHTML = `
+             <td class="p-3">
+                 <div class="flex items-start gap-3">
+                     <div class="flex-1 min-w-0">
+                         <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div
+                     </div>
+                 </div>
+                 <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
+                     data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}" data-price-currency="${precioCurrency}">
+                 <input type="hidden" name="productos[${rowKey}][trm_oc]" id="trm_oc-${rowKey}" value="">
+                 <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
+                 ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
+             </td>
+             <td class="p-3 text-center align-middle">
+                 <input type="number" name="productos[${rowKey}][cantidad]" min="1" value="${cantidadParaComprar}" 
+                     class="w-16 border rounded p-1 text-center cantidad-total" 
+                     id="cantidad-total-${rowKey}" 
+                     onchange="onCantidadTotalChange('${rowKey}')" required>
+             </td>
+             <td class="p-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
+             <td class="p-3 text-center" id="precio-${rowKey}">
+                <div>$${precioStr}</div>
+                <div class="text-xs text-gray-500 precio-cop-span">Calculando...</div>
+             </td>
+             <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
+             <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
+             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
+             <td class="p-3">
+                 <div class="max-h-40 overflow-y-auto">
+                     <div class="space-y-2 text-sm pr-1">
+                         ${centrosHtml}
+                     </div>
+                 </div>
+             </td>
+             <td class="p-3 text-center align-middle">
+                 <div class="flex flex-col items-center gap-2">
+                   <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                     <input type="checkbox" name="productos[${rowKey}][apply_iva]" class="apply-iva-checkbox form-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="1">
+                     <span class="ml-1">Aplicar IVA</span>
+                   </label>
+                   <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" title="Quitar producto" class="flex items-center gap-2 px-4 py-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md text-sm">
                     <span class="font-medium">Quitar</span>
                   </button>
                 </div>
@@ -963,13 +969,32 @@
 
         // Guardar providers JSON en el input oculto para poder restaurarlo al quitar
         try {
-            const selOpt = selector.options[selector.selectedIndex];
-            const providersJson = selOpt?.dataset?.providers || '';
             const inputHiddenStored = row.querySelector('input[type="hidden"][name$="[id]"]');
-            if (inputHiddenStored) inputHiddenStored.dataset.providers = providersJson;
+            // preferir el providersJson pasado como parámetro (flujo modal), si no, intentar leer del selector
+            let storedProviders = '';
+            let storedPriceCop = '';
+            try {
+                const selOpt = selector?.options?.[selector.selectedIndex];
+                storedProviders = selOpt?.dataset?.providers || '';
+                storedPriceCop = selOpt?.dataset?.priceCop || '';
+            } catch(e) { /* ignore */ }
+            if (providersJson && String(providersJson).trim() !== '') storedProviders = providersJson;
+            if (priceCop && String(priceCop).trim() !== '') storedPriceCop = priceCop;
+            if (inputHiddenStored) inputHiddenStored.dataset.providers = storedProviders;
+            if (inputHiddenStored) inputHiddenStored.dataset.priceCop = storedPriceCop || '';
         } catch(e) { /* ignore */ }
-+
-        productosAgregados.push(rowKey);
+         
+        // Actualizar precio mostrado incluyendo conversión a COP (async) — llamada segura
+        if (typeof updatePriceToCOP === 'function') {
+            try {
+                const maybePromise = updatePriceToCOP(rowKey, precioNum, precioCurrency);
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    maybePromise.catch(()=>{});
+                }
+            } catch(e) { /* ignore */ }
+        }
+ 
+         productosAgregados.push(rowKey);
 
         // Establecer la cantidad inicial sin modificar la distribución
         const totalInput = document.getElementById(`cantidad-total-${rowKey}`);
@@ -1094,9 +1119,10 @@
             }
             // Restaurar lista de proveedores original si estaba guardada
             if (inputHidden?.dataset?.providers) opt.dataset.providers = inputHidden.dataset.providers;
-            selector.appendChild(opt);
-        }
-    }
+            if (inputHidden?.dataset?.priceCurrency) opt.dataset.priceCurrency = inputHidden.dataset.priceCurrency;
+             selector.appendChild(opt);
+         }
+     }
 
     function confirmarAnulacion(button) {
         // Bloquear anulación si hay stock reservado sin entregar
@@ -1134,6 +1160,47 @@
             return;
         }
 
+        // Si no hay productos agregados, intentar añadir el producto seleccionado automáticamente
+        if (productosAgregados.length === 0) {
+            const sel = document.getElementById('producto-selector');
+            const opt = sel?.options?.[sel.selectedIndex];
+            if (opt && opt.value) {
+                // intentar leer lista de proveedores del option
+                let provs = [];
+                try { provs = JSON.parse(opt.dataset.providers || '[]'); } catch(_) { provs = []; }
+                // Si no hay proveedores asociados, agregar directamente
+                if (!provs || provs.length === 0) {
+                    try { agregarProducto(); } catch(_) { }
+                } else if (provs.length === 1) {
+                    // Si hay exactamente 1 proveedor, usarlo automáticamente
+                    const p = provs[0];
+                    const provId = p.proveedor_id ?? p.proveedorId ?? p.id;
+                    const price = p.price_produc ?? p.price ?? 0;
+                    const currency = p.moneda ?? p.currency ?? 'COP';
+                    const priceCop = '';
+                    const productoId = opt.value;
+                    const productoNombre = opt.dataset.nombre || '';
+                    const unidad = opt.dataset.unidad || '';
+                    const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
+                    const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
+                    const ocpId = opt.dataset.ocpId || null;
+                    const rowKey = `${productoId}-${ocpId||'0'}`;
+                    try {
+                        // remove option so it no longer appears
+                        try { opt.remove(); } catch(e) {}
+                        agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, opt.dataset.providers || '', priceCop);
+                    } catch(e) { console.error('auto add single prov failed', e); }
+                } else {
+                    // Múltiples proveedores: abrir modal y cancelar envío
+                    e.preventDefault();
+                    try { openProvidersModal(); } catch(_) {}
+                    Swal.fire({ icon: 'info', title: 'Seleccione proveedor', text: 'Elija un proveedor antes de crear la orden.' });
+                    return;
+                }
+            }
+        }
+
+        // Re-evaluar productosAgregados después del intento automático
         if (productosAgregados.length === 0) {
             e.preventDefault();
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
@@ -1460,50 +1527,20 @@
             }
         });
 
-        // Mostrar proveedores del producto seleccionado en modal (función reutilizable)
-        function openProvidersModal(){
-            const sel = document.getElementById('producto-selector');
-            const opt = sel.options[sel.selectedIndex];
-            if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'}); return; }
-            const provsJson = opt.dataset.providers || '[]';
-            let provs = [];
-            try { provs = JSON.parse(provsJson); } catch(e){ provs = []; }
-            const container = document.getElementById('prov-list');
-            container.innerHTML = '';
-            if (!provs || provs.length === 0) {
-                // No providers: informar y continuar agregando directamente
-                Swal.fire({icon:'info', title:'Sin proveedores', text:'No hay proveedores asociados a este producto. Se añadirá sin proveedor.'});
-                agregarProducto();
-                return;
-            }
-            provs.forEach((p, idx) => {
-                const id = 'prov_choice_' + idx;
-                const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-2 border rounded';
-                div.innerHTML = `
-                    <label class="flex items-center gap-3 w-full" for="${id}">
-                        <input type="radio" name="prov_choice" id="${id}" value="${p.proveedor_id}" data-price="${p.price_produc}" ${idx===0? 'checked':''}>
-                        <div class="flex-1">
-                            <div class="font-medium">${p.prov_name}</div>
-                            <div class="text-xs text-gray-500">Precio: ${p.price_produc} ${p.moneda ?? ''}</div>
-                        </div>
-                    </label>
-                `;
-                container.appendChild(div);
-            });
-            document.getElementById('modal-proveedores').classList.remove('hidden');
-        }
-        // Exponer función al scope global para que el onclick inline funcione
-        window.openProvidersModal = openProvidersModal;
-        // Enlazar botón de 'Ver proveedores' al mismo comportamiento
-        document.getElementById('btn-ver-proveedores')?.addEventListener('click', openProvidersModal);
+        // Enlazar botones 'Ver proveedores' y 'Añadir' a la implementación global (definida más abajo)
+        document.getElementById('btn-ver-proveedores')?.addEventListener('click', function(){
+            if (typeof window.openProvidersModal === 'function') return window.openProvidersModal();
+            Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'});
+        });
+        document.getElementById('btn-add-product')?.addEventListener('click', function(){
+            if (typeof window.openProvidersModal === 'function') return window.openProvidersModal();
+            Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'});
+        });
 
-        // Cerrar modal proveedores
-        document.getElementById('btn-cerrar-proveedores')?.addEventListener('click', ()=> document.getElementById('modal-proveedores').classList.add('hidden'));
-        document.getElementById('btn-cancel-proveedores')?.addEventListener('click', ()=> document.getElementById('modal-proveedores').classList.add('hidden'));
-
-        // Al confirmar selección, aplicar proveedor al selector de formulario y al option seleccionada, luego reintentar agregar
+        // Cuando se confirma un proveedor elegido, propagar currency al option (se asume handler global más abajo)
         document.getElementById('btn-select-prov')?.addEventListener('click', function(){
+            // fallback: if global handler exists it will run; otherwise, try to perform a minimal propagation
+            if (typeof window.handleSelectProv === 'function') return window.handleSelectProv();
             const sel = document.getElementById('producto-selector');
             const opt = sel.options[sel.selectedIndex];
             if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Error', text:'No hay producto seleccionado.'}); return; }
@@ -1511,16 +1548,27 @@
             if (!chosen) { Swal.fire({icon:'info', title:'Error', text:'Seleccione un proveedor.'}); return; }
             const provId = chosen.value;
             const price = chosen.dataset.price || 0;
-            // setear proveedor en el select principal
+            const currency = chosen.dataset.currency || 'COP';
+            const priceCop = chosen.dataset.priceCop || '';
             const provSelect = document.getElementById('proveedor_id');
             if (provSelect) provSelect.value = provId;
-            // setear atributos en la opción seleccionada para que agregarProducto los use
-            opt.dataset.proveedor = provId;
-            opt.dataset.price = price;
-            // ocultar modal y llamar a agregarProducto() para continuar
-            document.getElementById('modal-proveedores').classList.add('hidden');
-            // Llamar agregarProducto para continuar flujo
-            agregarProducto();
+
+            // Gather product info from the selected option BEFORE removing it
+            const productoId = opt.value;
+            const productoNombre = opt.dataset.nombre || '';
+            const unidad = opt.dataset.unidad || '';
+            const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
+            const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
+            const ocpId = opt.dataset.ocpId || null;
+            const rowKey = `${productoId}-${ocpId||'0'}`;
+            const providersJson = opt.dataset.providers || '';
+
+            // remove option from selector so it no longer appears
+            try { opt.remove(); } catch(e) { /* ignore */ }
+
+            // Close modal and add the product row directly with provider info
+            if (typeof hideProvidersModal === 'function') hideProvidersModal();
+            agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
         });
     });
 
@@ -1677,5 +1725,303 @@
         }
     })();
     @endif
+
+    // CACHE + helper para obtener tasa de cambio en tiempo real usando open.er-api.com (sin API key)
+    const exchangeCache = {};
+    const exchangeBaseCache = {}; // cache completo por base (rates map)
+
+    // fetch con timeout
+    function fetchWithTimeout(url, opts = {}, timeout = 3000) {
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('timeout')), timeout);
+            fetch(url, opts).then(res => { clearTimeout(timer); resolve(res); }).catch(err => { clearTimeout(timer); reject(err); });
+        });
+    }
+
+    // getExchangeRate usando https://open.er-api.com/v6/latest/COP como fuente principal
+    // Siempre usa rates del endpoint COP para convertir cualquier moneda a COP
+    async function getExchangeRate(from = 'USD', to = 'COP', retries = 2, timeout = 3000){
+        from = (from || 'COP').toUpperCase();
+        to = (to || 'COP').toUpperCase();
+        if (from === to) return 1;
+        const key = `${from}_${to}`;
+        if (exchangeCache[key]) return exchangeCache[key];
+
+        // 1) Intentar con base COP (cache o fetch)
+        let ratesCOP = exchangeBaseCache['COP'] || null;
+        if (!ratesCOP){
+            const urlCOP = `https://open.er-api.com/v6/latest/COP`;
+            for (let attempt = 0; attempt <= retries && !ratesCOP; attempt++){
+                try {
+                    const resp = await fetchWithTimeout(urlCOP, { method: 'GET' }, timeout);
+                    if (!resp.ok) throw new Error('network');
+                    const j = await resp.json();
+                    if (j && j.result === 'success' && j.rates) {
+                        exchangeBaseCache['COP'] = j.rates;
+                        ratesCOP = j.rates;
+                    }
+                } catch(e){
+                    if (attempt === retries) break;
+                    await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+                }
+            }
+        }
+
+        // Si la moneda destino es COP, simplemente multiplica por 1
+        if (to === 'COP' && ratesCOP && ratesCOP[from] != null && ratesCOP[from] !== 0) {
+            // USD->COP: 1/rate[USD]
+            const rate = 1 / ratesCOP[from];
+            exchangeCache[key] = rate;
+            return rate;
+        }
+        // Si la moneda origen es COP y destino existe en rates
+        if (from === 'COP' && ratesCOP && ratesCOP[to] != null) {
+            const rate = ratesCOP[to];
+            exchangeCache[key] = rate;
+            return rate;
+        }
+        // Si ambos existen en rates, calcular indirecto
+        if (ratesCOP && ratesCOP[from] != null && ratesCOP[to] != null && ratesCOP[from] !== 0) {
+            const rate = ratesCOP[to] / ratesCOP[from];
+            exchangeCache[key] = rate;
+            return rate;
+        }
+        // Fallback: consultar base FROM si no se pudo con COP
+        const base = from;
+        const urlFrom = `https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`;
+        for (let attempt = 0; attempt <= retries; attempt++){
+            try {
+                const resp = await fetchWithTimeout(urlFrom, { method: 'GET' }, timeout);
+                if (!resp.ok) throw new Error('network');
+                const j = await resp.json();
+                if (j && j.result === 'success' && j.rates) {
+                    exchangeBaseCache[base] = j.rates;
+                    const r = j.rates[to];
+                    if (typeof r === 'number') { exchangeCache[`${cur}_COP`] = Number(r); return Number(r); }
+                }
+            } catch(e){
+                if (attempt === retries) {
+                    console.warn('getExchangeRate failed for', from, '->', to, e);
+                    return null;
+                }
+                await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+            }
+        }
+        return null;
+    }
+
+    // Modificar openProvidersModal: renderiza modal inmediatamente y actualiza COP en background
+    async function openProvidersModal(){
+        const sel = document.getElementById('producto-selector');
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'}); return; }
+        const provsJson = opt.dataset.providers || '[]';
+        let provs = [];
+        try { provs = JSON.parse(provsJson); } catch(e){ provs = []; }
+        const container = document.getElementById('prov-list');
+        container.innerHTML = '';
+        if (!provs || provs.length === 0) {
+            Swal.fire({icon:'info', title:'Sin proveedores', text:'No hay proveedores asociados a este producto. Se añadirá sin proveedor.'});
+            agregarProducto();
+            return;
+        }
+
+        // Dedupe por proveedor_id
+        const map = new Map();
+        provs.forEach(p => {
+            const id = String(p.proveedor_id ?? p.proveedorId ?? p.id ?? Math.random());
+            if (!map.has(id)) map.set(id, p);
+            else {
+                const existing = map.get(id);
+                const curPrice = Number(p.price_produc ?? p.price ?? 0);
+                const exPrice = Number(existing.price_produc ?? existing.price ?? 0);
+                if (curPrice > exPrice) map.set(id, p);
+            }
+        });
+        const unique = Array.from(map.values());
+
+        function normalizeCurrency(s){
+            if(!s) return 'COP';
+            s = String(s).trim().toUpperCase();
+            // Símbolos y variantes comunes
+            if (s === '$' || s === 'US$' || s === 'USD$' || /^U\$[DS]$/.test(s)) return 'USD';
+            if (s.includes('€')) return 'EUR';
+            if (s.includes('$') && /(COP|COL|COLOMB)/.test(s)) return 'COP';
+            // Códigos y palabras (es/EN)
+            if (/(^|\b)COP\b|PESO(S)?\s*COLOMBIANO/.test(s)) return 'COP';
+            if (/(^|\b)USD\b|D[OÓ]LAR(ES)?\b|DOLLAR|US\$/.test(s)) return 'USD';
+            if (/(^|\b)EUR\b|EURO/.test(s)) return 'EUR';
+            if (/^[A-Z]{3}$/.test(s)) return s;
+            // Heurística final por símbolo
+            if (s.includes('$')) return 'USD';
+            return s.slice(0,3);
+        }
+
+        // Sembrar cache desde tasas base COP si ya están disponibles (conversión X->COP = 1 / ratesCOP[X])
+        (function seedFromCOP(){
+            const rates = exchangeBaseCache['COP'];
+            if (!rates) return;
+            // Precalcular para monedas usadas por este producto cuando se renderice
+            try {
+                const provs = JSON.parse(provsJson || '[]');
+                provs.forEach(p => {
+                    const cur = normalizeCurrency(p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP');
+                    if (cur !== 'COP' && rates[cur] != null && rates[cur] !== 0 && !exchangeCache[`${cur}_COP`]) {
+                        exchangeCache[`${cur}_COP`] = 1 / rates[cur];
+                    }
+                });
+            } catch(_) {/* ignore */}
+        })();
+
+        // Render inmediato usando tasas cacheadas si existen
+        unique.forEach((p, idx) => {
+             const id = 'prov_choice_' + idx;
+             const monedaRaw = p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP';
+             const cur = normalizeCurrency(monedaRaw);
+             const price = Number(p.price_produc ?? p.price ?? 0);
+             const cachedRate = (cur === 'COP') ? 1 : exchangeCache[`${cur}_COP`];
+             const cop = (cachedRate != null) ? (cachedRate * price) : null;
+             const formattedCOP = (cop != null) ? new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP' }).format(cop) : 'Calculando...';
+             const displayCOP = (cop != null) ? ('precio en COP:' + formattedCOP) : 'Calculando...';
+             let originalStr = '';
+             if (/^[A-Z]{3}$/.test(cur)){
+                 try { originalStr = new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price); }
+                 catch(e){ originalStr = price + ' ' + cur; }
+             } else { originalStr = price + ' ' + (String(monedaRaw) || ''); }
+ 
+             const div = document.createElement('div');
+             div.className = 'flex items-center justify-between p-2 border rounded';
+             div.innerHTML = `
+                 <label class="flex items-center gap-3 w-full" for="${id}">
+                     <input type="radio" name="prov_choice" id="${id}" value="${p.proveedor_id}" data-price="${price}" data-currency="${cur}" data-price-cop="${cop != null ? cop : ''}" ${idx === 0 ? 'checked' : ''}>
+                     <div class="flex-1">
+                         <div class="font-medium">${p.prov_name}</div>
+                         <div class="text-xs text-gray-500">Precio: ${originalStr} · <span class="prov-cop-amount">${displayCOP}</span></div>
+                     </div>
+                 </label>
+             `;
+             // mark element with currency to update later
+             div.dataset.currency = cur;
+             container.appendChild(div);
+         });
+ 
+         // Mostrar modal inmediatamente
+         const modal = document.getElementById('modal-proveedores');
+         modal.classList.remove('hidden');
+
+        // Cerrar por clic fuera y botones (se agregan debajo)
+
+        // Obtener monedas faltantes y refrescar en background
+        const needed = new Set();
+        unique.forEach(p => { const cur = normalizeCurrency(p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP'); if (cur !== 'COP' && !exchangeCache[`${cur}_COP`]) needed.add(cur); });
+        if (needed.size === 0) return;
+
+        // Mostrar spinner en header (simple): añadir clase 'loading' y crear elemento si no existe
+        let hdr = modal.querySelector('.modal-prov-header');
+        if (!hdr) {
+            hdr = modal.querySelector('.flex.justify-between');
+            if (hdr) hdr.classList.add('modal-prov-header');
+        }
+        if (hdr) {
+            let spin = hdr.querySelector('.prov-spinner');
+            if (!spin) {
+                spin = document.createElement('span');
+                spin.className = 'prov-spinner ml-3 text-sm text-gray-500';
+                spin.innerHTML = 'Cargando tasas...';
+                hdr.appendChild(spin);
+            }
+        }
+
+        // fetch each missing currency and update matching rows
+        // helper: try initial fetch, then retry with longer timeout before marking N/A
+        async function fetchAndUpdateCurrency(cur){
+             const els = container.querySelectorAll(`[data-currency='${cur}']`);
+             try {
+                 let rate = await getExchangeRate(cur, 'COP');
+                 if (!rate) rate = await getExchangeRate(cur, 'COP', 3, 8000);
+                 if (rate){
+                    exchangeCache[`${cur}_COP`] = rate;
+                    els.forEach(div => {
+                        const price = Number(div.querySelector('input[type="radio"]').dataset.price || 0);
+                        const r = exchangeCache[`${cur}_COP`] || 0;
+                        const cop = r * price;
+                        const formatted = new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP' }).format(cop || 0);
+                        const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precion en COP:' + formatted;
+                        div.querySelector('input[type="radio"]').dataset.priceCop = cop || '';
+                    });
+                    return true;
+                 }
+             } catch(e){ /* ignore and retry below */ }
+             // final fallback: mark as 'N/A' after retries
+            // keep 'Calculando...' to indicate still trying; do not replace with 'N/A'
+             els.forEach(div => { const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'Calculando...'; });
+             return false;
+         }
+        const promises = Array.from(needed).map(cur => fetchAndUpdateCurrency(cur));
+        Promise.all(promises).finally(()=>{
+            const spin = modal.querySelector('.prov-spinner'); if (spin) spin.remove();
+        });
+    }
+    // Exponer al global
+    window.openProvidersModal = openProvidersModal;
+    
+    // Función global para confirmar proveedor seleccionado (con guardia y auto-selección)
+    window.handleSelectProv = function(){
+        if (window.__provSelectBusy) return;
+        window.__provSelectBusy = true;
+        try {
+            const sel = document.getElementById('producto-selector');
+            const opt = sel?.options?.[sel.selectedIndex];
+            if (!opt || !opt.value) { Swal.fire({icon:'info', title:'Error', text:'No hay producto seleccionado.'}); return; }
+            const modal = document.getElementById('modal-proveedores');
+            let chosen = modal?.querySelector('input[name="prov_choice"]:checked');
+            if (!chosen) {
+                chosen = modal?.querySelector('input[name="prov_choice"]');
+                if (chosen) chosen.checked = true;
+            }
+            if (!chosen) { Swal.fire({icon:'info', title:'Error', text:'Seleccione un proveedor.'}); return; }
+            const provId = chosen.value;
+            const price = chosen.dataset.price || 0;
+            const currency = chosen.dataset.currency || 'COP';
+            const priceCop = chosen.dataset.priceCop || '';
+            const provSelect = document.getElementById('proveedor_id');
+            if (provSelect) provSelect.value = provId;
+
+            // Gather product info from the selected option BEFORE removing it
+            const productoId = opt.value;
+            const productoNombre = opt.dataset.nombre || '';
+            const unidad = opt.dataset.unidad || '';
+            const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
+            const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
+            const ocpId = opt.dataset.ocpId || null;
+            const rowKey = `${productoId}-${ocpId||'0'}`;
+            const providersJson = opt.dataset.providers || '';
+
+            // remove option from selector so it no longer appears
+            try { opt.remove(); } catch(e) { /* ignore */ }
+
+            // Close modal and add the product row directly with provider info
+            if (typeof hideProvidersModal === 'function') hideProvidersModal();
+            agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
+        } finally {
+            setTimeout(()=>{ window.__provSelectBusy = false; }, 500);
+        }
+    };
+
+    // Helpers para cerrar y limpiar modal
+     function hideProvidersModal(){
+         const modal = document.getElementById('modal-proveedores');
+         if (!modal) return;
+         modal.classList.add('hidden');
+         const container = document.getElementById('prov-list'); if (container) container.innerHTML = '';
+     }
+     document.getElementById('btn-cerrar-proveedores')?.addEventListener('click', hideProvidersModal);
+     document.getElementById('btn-cancel-proveedores')?.addEventListener('click', hideProvidersModal);
+     document.getElementById('modal-proveedores')?.addEventListener('click', function(e){ if (e.target === this) hideProvidersModal(); });
+ 
+     // Cuando se confirma un proveedor elegido, propagar currency al option
+     document.getElementById('btn-select-prov')?.addEventListener('click', function(){
+        if (typeof window.handleSelectProv === 'function') return window.handleSelectProv();
+     });
 </script>
 @endsection

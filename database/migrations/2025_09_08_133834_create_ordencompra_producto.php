@@ -19,6 +19,8 @@ return new class extends Migration
             $table->integer('total')->nullable(); #cantidad de la orden de compra
             $table->string('stock_e')->nullable(); #salido de stock
             $table->decimal('apply_iva')->nullable(); #aplicación de iva
+            $table->decimal('trm_oc')->nullable(); #aplicación de iva
+            $table->decimal('trm_factura')->nullable(); #aplicación de iva
             $table->timestamps();
             $table->softDeletes();
         });

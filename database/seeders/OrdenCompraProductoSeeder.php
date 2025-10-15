@@ -117,7 +117,6 @@ class OrdenCompraProductoSeeder extends Seeder
                     DB::table('ordencompra_producto')->insert([
                         'producto_id'      => $productoId,
                         'orden_compras_id' => $ordenCompra->id,
-                        'requisicion_id'   => $ordenCompra->requisicion_id, // <-- CORREGIDO: SE ASIGNA requisicion_id
                         'proveedor_id'     => $proveedorId,
                         'total'            => (int)($productoReq->pr_amount ?? 1),
                         'stock_e'          => null,
