@@ -930,6 +930,8 @@
                      data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}" data-price-currency="${precioCurrency}">
                  <input type="hidden" name="productos[${rowKey}][trm_oc]" id="trm_oc-${rowKey}" value="">
                  <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
+                 <input type="hidden" name="productos[${rowKey}][price]" value="${precioNum}">
+                 <input type="hidden" name="productos[${rowKey}][currency]" value="${precioCurrency}">
                  ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
              </td>
              <td class="p-3 text-center align-middle">
@@ -982,6 +984,17 @@
             if (priceCop && String(priceCop).trim() !== '') storedPriceCop = priceCop;
             if (inputHiddenStored) inputHiddenStored.dataset.providers = storedProviders;
             if (inputHiddenStored) inputHiddenStored.dataset.priceCop = storedPriceCop || '';
+
+            // Si se recibió un priceCop (precio ya convertido a COP), poblar el input trm_oc y la vista inmediatamente
+            try {
+                if (storedPriceCop && storedPriceCop !== '') {
+                    const trmInput = document.getElementById(`trm_oc-${rowKey}`);
+                    const spanCop = document.querySelector(`#precio-${rowKey} .precio-cop-span`);
+                    const numeric = Number(String(storedPriceCop).replace(/[^0-9.-]/g, '')) || 0;
+                    if (trmInput) trmInput.value = Math.round((numeric + Number.EPSILON) * 100) / 100;
+                    if (spanCop) spanCop.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(trmInput.value || numeric);
+                }
+            } catch(e) { /* ignore */ }
         } catch(e) { /* ignore */ }
          
         // Actualizar precio mostrado incluyendo conversión a COP (async) — llamada segura
@@ -1152,7 +1165,7 @@
 
     // Validación al enviar con rowKey
     const ordenForm = document.getElementById('orden-form');
-    ordenForm.addEventListener('submit', function(e) {
+    ordenForm.addEventListener('submit', async function(e) {
         // Si hay salidas pendientes de confirmar, impedir continuar y avisar que se debe esperar la confirmación del usuario
         if (window.haySalidasPendientes) {
             e.preventDefault();
@@ -1243,6 +1256,9 @@
             Swal.fire({ icon: 'error', title: 'Error de validación', html: html });
              return;
          }
+
+         // Asegurar que todos los inputs hidden trmm_oc-... estén calculados (espera las conversiones async)
+         await ensureTrmInputsFilled();
     });
 
     function configurarAutoCargaProveedor() {
@@ -1640,7 +1656,7 @@
                     if (!confirm.isConfirmed) return;
                     const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ocp_id: ocpId, cantidad: cant })
                     });
                     const data = await resp.json();
@@ -1730,6 +1746,33 @@
     const exchangeCache = {};
     const exchangeBaseCache = {}; // cache completo por base (rates map)
 
+    // Seed TRM desde servidor: objeto con filas recientes de la tabla `trm`
+    const serverTrmRows = @json($trmLatest ?? []);
+    // trmMap: moneda => price (units per 1 USD)
+    const trmMap = {};
+    try { (serverTrmRows || []).forEach(r => { if (r && r.moneda) trmMap[String(r.moneda).toUpperCase()] = Number(r.price); }); } catch(e) { /* noop */ }
+
+    // Evitar llamadas externas: getExchangeRate consultará solo trmMap
+    async function getExchangeRate(from = 'USD', to = 'COP', retries = 0, timeout = 3000){
+        from = (from || 'COP').toUpperCase();
+        to = (to || 'COP').toUpperCase();
+        if (from === to) return 1;
+        const key = `${from}_${to}`;
+        if (exchangeCache[key]) return exchangeCache[key];
+
+        // Intentar obtener precios desde trmMap
+        const pFrom = trmMap[from] ?? null;
+        const pTo = trmMap[to] ?? null;
+        if (pFrom != null && pTo != null && Number(pFrom) !== 0) {
+            const rate = Number(pTo) / Number(pFrom);
+            exchangeCache[key] = rate;
+            return rate;
+        }
+
+        // Si no hay datos suficientes en trmMap, devolver null (no intentar API externa)
+        return null;
+    }
+
     // fetch con timeout
     function fetchWithTimeout(url, opts = {}, timeout = 3000) {
         return new Promise((resolve, reject) => {
@@ -1738,76 +1781,129 @@
         });
     }
 
-    // getExchangeRate usando https://open.er-api.com/v6/latest/COP como fuente principal
-    // Siempre usa rates del endpoint COP para convertir cualquier moneda a COP
-    async function getExchangeRate(from = 'USD', to = 'COP', retries = 2, timeout = 3000){
-        from = (from || 'COP').toUpperCase();
-        to = (to || 'COP').toUpperCase();
-        if (from === to) return 1;
-        const key = `${from}_${to}`;
-        if (exchangeCache[key]) return exchangeCache[key];
+    // Convierte precio unitario a COP y guarda en el campo hidden trm_oc-{rowKey}; actualiza la vista del precio en COP.
+    async function updatePriceToCOP(rowKey, price, currency = 'COP'){
+        try {
+            const pk = String(rowKey || '');
+            const input = document.getElementById(`trm_oc-${pk}`);
+            const span = document.querySelector(`#precio-${pk} .precio-cop-span`);
 
-        // 1) Intentar con base COP (cache o fetch)
-        let ratesCOP = exchangeBaseCache['COP'] || null;
-        if (!ratesCOP){
-            const urlCOP = `https://open.er-api.com/v6/latest/COP`;
-            for (let attempt = 0; attempt <= retries && !ratesCOP; attempt++){
-                try {
-                    const resp = await fetchWithTimeout(urlCOP, { method: 'GET' }, timeout);
-                    if (!resp.ok) throw new Error('network');
-                    const j = await resp.json();
-                    if (j && j.result === 'success' && j.rates) {
-                        exchangeBaseCache['COP'] = j.rates;
-                        ratesCOP = j.rates;
-                    }
-                } catch(e){
-                    if (attempt === retries) break;
-                    await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
-                }
-            }
-        }
+            currency = (currency || 'COP').toString().trim().toUpperCase();
+            const numPrice = Number(price || 0);
 
-        // Si la moneda destino es COP, simplemente multiplica por 1
-        if (to === 'COP' && ratesCOP && ratesCOP[from] != null && ratesCOP[from] !== 0) {
-            // USD->COP: 1/rate[USD]
-            const rate = 1 / ratesCOP[from];
-            exchangeCache[key] = rate;
-            return rate;
-        }
-        // Si la moneda origen es COP y destino existe en rates
-        if (from === 'COP' && ratesCOP && ratesCOP[to] != null) {
-            const rate = ratesCOP[to];
-            exchangeCache[key] = rate;
-            return rate;
-        }
-        // Si ambos existen en rates, calcular indirecto
-        if (ratesCOP && ratesCOP[from] != null && ratesCOP[to] != null && ratesCOP[from] !== 0) {
-            const rate = ratesCOP[to] / ratesCOP[from];
-            exchangeCache[key] = rate;
-            return rate;
-        }
-        // Fallback: consultar base FROM si no se pudo con COP
-        const base = from;
-        const urlFrom = `https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`;
-        for (let attempt = 0; attempt <= retries; attempt++){
+            // Solo respetar un valor existente si la moneda del producto es COP; de lo contrario, forzar recálculo
             try {
-                const resp = await fetchWithTimeout(urlFrom, { method: 'GET' }, timeout);
-                if (!resp.ok) throw new Error('network');
-                const j = await resp.json();
-                if (j && j.result === 'success' && j.rates) {
-                    exchangeBaseCache[base] = j.rates;
-                    const r = j.rates[to];
-                    if (typeof r === 'number') { exchangeCache[`${cur}_COP`] = Number(r); return Number(r); }
+                const prodIdInput = document.querySelector(`input[name="productos[${pk}][id]"]`);
+                const prodCurrency = (prodIdInput?.dataset?.priceCurrency || prodIdInput?.dataset?.pricecurrency || prodIdInput?.dataset?.currency || 'COP').toString().toUpperCase();
+                if (input && input.value !== '' && !isNaN(Number(input.value)) && prodCurrency === 'COP') {
+                    const existing = Number(input.value);
+                    if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(existing);
+                    return existing;
                 }
-            } catch(e){
-                if (attempt === retries) {
-                    console.warn('getExchangeRate failed for', from, '->', to, e);
-                    return null;
+            } catch(e){ /* ignore and continue */ }
+
+            // Intentar usar priceCop almacenado (ya en COP)
+            try {
+                const prodIdInput = document.querySelector(`input[name="productos[${pk}][id]"]`);
+                const stored = prodIdInput?.dataset?.priceCop || prodIdInput?.dataset?.pricecop || '';
+                if (stored && String(stored).trim() !== '') {
+                    let txt = String(stored).replace(/[^0-9.,-]/g,'').trim();
+                    if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
+                        txt = txt.replace(/\./g,'').replace(/,/g,'.');
+                    } else if (txt.indexOf(',') > -1) txt = txt.replace(/,/g,'.');
+                    else txt = txt.replace(/\./g,'');
+                    const numeric = Number(txt) || 0;
+                    const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+                    try { input.value = rounded; const span = document.querySelector(`#precio-${pk} .precio-cop-span`); if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded); } catch(e){}
+                    return rounded;
                 }
-                await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+            } catch(e){ /* ignore */ }
+
+            if (currency === 'COP' || !currency) {
+                const rounded = Math.round((numPrice + Number.EPSILON) * 100) / 100;
+                if (input) input.value = rounded;
+                if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded);
+                return rounded;
             }
+
+            // Obtener tasa y convertir a COP
+            let rate = null;
+            try { rate = await getExchangeRate(currency, 'COP'); } catch(e){ rate = null; }
+            if (!rate) { try { rate = await getExchangeRate(currency, 'COP', 3, 8000); } catch(e){ rate = null; } }
+
+            if (!rate) {
+                if (span) span.textContent = 'Calculando...';
+                // No establecer el valor oculto cuando no hay tasa para evitar guardar un precio en moneda extranjera
+                return null;
+            }
+
+            const cop = Math.round((numPrice * Number(rate) + Number.EPSILON) * 100) / 100;
+            if (input) input.value = cop;
+            if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(cop);
+            return cop;
+        } catch (err) {
+            console.warn('updatePriceToCOP error', err);
+            // No escribir el precio original en el hidden para evitar guardar moneda extranjera
+            return null;
         }
-        return null;
+    }
+
+    // Asegura que todos los inputs hidden trm_oc-... estén completados (espera las conversiones async)
+    async function ensureTrmInputsFilled(timeoutPer = 3000){
+        try {
+            const hiddenInputs = Array.from(document.querySelectorAll('input[id^="trm_oc-"]'));
+            const promises = hiddenInputs.map(input => {
+                return new Promise(async (resolve) => {
+                    try {
+                        const pk = input.id.replace('trm_oc-','');
+
+                        // Si ya tiene valor numérico, resolver inmediatamente
+                        if (input.value !== '' && !isNaN(Number(input.value))) { return resolve(true); }
+
+                        // intentar leer priceCop directamente desde el input[id] dataset
+                        const prodIdInput = document.querySelector(`input[name="productos[${pk}][id]"]`);
+                        const stored = prodIdInput?.dataset?.priceCop || prodIdInput?.dataset?.pricecop || '';
+                        if (stored && String(stored).trim() !== '') {
+                            let txt = String(stored).replace(/[^0-9.,-]/g,'').trim();
+                            if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
+                                txt = txt.replace(/\./g,'').replace(/,/g,'.');
+                            } else if (txt.indexOf(',') > -1) txt = txt.replace(/,/g,'.');
+                            else txt = txt.replace(/\./g,'');
+                            const numeric = Number(txt) || 0;
+                            const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+                            try { input.value = rounded; const span = document.querySelector(`#precio-${pk} .precio-cop-span`); if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded); } catch(e){}
+                            return resolve(true);
+                        }
+
+                        // si no hay priceCop, intentar leer price+currency y convertir
+                        let price = Number(prodIdInput?.dataset?.price || 0);
+                        let currency = (prodIdInput?.dataset?.priceCurrency || prodIdInput?.dataset?.pricecurrency || prodIdInput?.dataset?.currency || 'COP');
+
+                        // si price no existe, intentar desde el precio mostrado en la fila
+                        if (!price || price === 0) {
+                            const precioDiv = document.querySelector(`#precio-${pk} div`);
+                            if (precioDiv) {
+                                let txt = precioDiv.textContent.replace(/[^0-9.,-]/g,'').trim();
+                                if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
+                                    txt = txt.replace(/\./g,'').replace(/,/g,'.');
+                                } else if (txt.indexOf(',') > -1 && txt.indexOf('.') === -1) {
+                                    txt = txt.replace(/,/g,'.');
+                                } else {
+                                    txt = txt.replace(/\./g,'');
+                                }
+                                price = Number(txt) || 0;
+                            }
+                        }
+
+                        // Llamar a updatePriceToCOP con timeout de seguridad
+                        let settled = false;
+                        const p = updatePriceToCOP(pk, price, currency).then((res)=>{ settled = true; resolve(Boolean(res)); }).catch(()=>{ settled = true; resolve(false); });
+                        setTimeout(()=>{ if(!settled) resolve(false); }, timeoutPer);
+                    } catch(e){ resolve(false); }
+                });
+            });
+            await Promise.all(promises);
+        } catch(e){ /* noop */ }
     }
 
     // Modificar openProvidersModal: renderiza modal inmediatamente y actualiza COP en background
@@ -1886,7 +1982,7 @@
              let originalStr = '';
              if (/^[A-Z]{3}$/.test(cur)){
                  try { originalStr = new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price); }
-                 catch(e){ originalStr = price + ' ' + cur; }
+                 catch(e) { originalStr = price + ' ' + cur; }
              } else { originalStr = price + ' ' + (String(monedaRaw) || ''); }
  
              const div = document.createElement('div');

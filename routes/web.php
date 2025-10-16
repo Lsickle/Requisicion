@@ -329,3 +329,9 @@ Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class
 
 // Ruta para actualizar proveedores de un producto
 Route::post('productos/{id}/providers', [ProductosController::class, 'updateProviders'])->name('productos.updateProviders');
+
+// Nuevas rutas TRM
+Route::prefix('trm')->group(function(){
+    Route::post('/sync', [TrmController::class, 'sync'])->name('trm.sync');
+    Route::get('/latest', [TrmController::class, 'latest'])->name('trm.latest');
+});

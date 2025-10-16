@@ -149,6 +149,19 @@ class OrdenCompraController extends Controller
             $productoSeleccionado = Producto::with('proveedor')->find($request->producto_id);
         }
 
+        // Obtener últimas tasas TRM por moneda desde la tabla `trm` y pasar a la vista
+        try {
+            $trmLatest = DB::table('trm')
+                ->orderByDesc('update_date')
+                ->orderByDesc('id')
+                ->get()
+                ->unique('moneda')
+                ->values();
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo obtener TRM desde BD: ' . $e->getMessage());
+            $trmLatest = collect();
+        }
+
         return view('ordenes_compra.create', compact(
             'requisiciones',
             'requisicion',
@@ -157,7 +170,8 @@ class OrdenCompraController extends Controller
             'proveedores',
             'centros',
             'lineasDistribuidas',
-            'ordenes'
+            'ordenes',
+            'trmLatest'
         ));
     }
 
@@ -179,6 +193,8 @@ class OrdenCompraController extends Controller
             'productos.*.iva' => 'nullable|numeric',
             'productos.*.apply_iva' => 'nullable|boolean',
             'productos.*.stock_e' => 'nullable|integer|min:0',
+            // trm_oc puede llegar formateado (miles/coma) desde el frontend; parseamos manualmente
+            'productos.*.trm_oc' => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -283,6 +299,56 @@ class OrdenCompraController extends Controller
                         $ocp->apply_iva = null;
                     }
                     $ocp->orden_compras_id = $orden->id;
+
+                    // Persistir trm_oc: preferir valor enviado por frontend; si no viene, intentar calcularlo en servidor
+                    $trmOc = null;
+                    if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
+                        $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
+                        if ($parsed !== null) {
+                            $trmOc = $parsed;
+                        }
+                    }
+                    if ($trmOc === null) {
+                        // intentar obtener precio unitario y moneda desde payload (price/currency) o desde productoxproveedor
+                        $unitPrice = null; $cur = 'COP';
+                        if (isset($productoData['price']) && is_numeric($productoData['price'])) {
+                            $unitPrice = (float)$productoData['price'];
+                            $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
+                        } else {
+                            try {
+                                $pxp = DB::table('productoxproveedor')
+                                    ->where('producto_id', $productoId)
+                                    ->where('proveedor_id', $ocp->proveedor_id ?? (int)$request->proveedor_id)
+                                    ->orderBy('id')
+                                    ->first();
+                                if ($pxp) {
+                                    $unitPrice = (float)($pxp->price_produc ?? 0);
+                                    $cur = strtoupper($pxp->moneda ?? 'COP');
+                                } else {
+                                    $prodTmp = Producto::find($productoId);
+                                    if ($prodTmp && isset($prodTmp->price_produc)) {
+                                        $unitPrice = (float)$prodTmp->price_produc;
+                                        $cur = strtoupper($prodTmp->moneda ?? 'COP');
+                                    }
+                                }
+                            } catch (\Throwable $e) { /* ignore */ }
+                        }
+                        if ($unitPrice !== null) {
+                            if ($cur === 'COP') {
+                                $trmOc = round($unitPrice, 2);
+                            } else {
+                                $rate = $this->fetchExchangeRateServer($cur, 'COP');
+                                if ($rate) {
+                                    $trmOc = round($unitPrice * $rate, 2);
+                                } else {
+                                    // No guardar importe no-COP cuando no hay tasa
+                                    $trmOc = null;
+                                }
+                            }
+                        }
+                    }
+                    if ($trmOc !== null) { $ocp->trm_oc = $trmOc; }
+
                     if ($stockE !== null) { $ocp->stock_e = $stockE; }
                     $ocp->save();
 
@@ -326,6 +392,47 @@ class OrdenCompraController extends Controller
                     $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
                 }
 
+                // Determinar trm_oc si no lo envió el frontend
+                $trmOcValue = null;
+                if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
+                    $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
+                    if ($parsed !== null) $trmOcValue = $parsed;
+                }
+                if ($trmOcValue === null) {
+                    // intentar obtener precio unitario desde payload o desde productoxproveedor para el proveedor seleccionado
+                    $unitPrice = null; $cur = 'COP';
+                    if (isset($productoData['price']) && is_numeric($productoData['price'])) {
+                        $unitPrice = (float)$productoData['price'];
+                        $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
+                    } else {
+                        try {
+                            $pxp = DB::table('productoxproveedor')
+                                ->where('producto_id', $productoId)
+                                ->where('proveedor_id', (int)$request->proveedor_id)
+                                ->orderBy('id')
+                                ->first();
+                            if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
+                            else {
+                                $prodTmp = Producto::find($productoId);
+                                if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); }
+                            }
+                        } catch (\Throwable $e) { /* ignore */ }
+                    }
+                    if ($unitPrice !== null) {
+                        if ($cur === 'COP') {
+                            $trmOcValue = round($unitPrice, 2);
+                        } else {
+                            $rate = $this->fetchExchangeRateServer($cur, 'COP');
+                            if ($rate) {
+                                $trmOcValue = round($unitPrice * $rate, 2);
+                            } else {
+                                // No guardar importe no-COP cuando no hay tasa
+                                $trmOcValue = null;
+                            }
+                        }
+                    }
+                }
+
                 OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
                     'orden_compras_id' => $orden->id,
@@ -334,7 +441,35 @@ class OrdenCompraController extends Controller
                     'total'            => $cantidadIngresada,
                     'stock_e'          => $stockE,
                     'apply_iva'        => $applyFrac,
+                    'trm_oc'           => $trmOcValue,
                 ]);
+                // Asegurar que trm_oc no quede NULL: si no se calculó, intentar fallback y actualizar el registro
+                try {
+                    $last = OrdenCompraProducto::where('orden_compras_id', $orden->id)
+                        ->where('producto_id', $productoId)
+                        ->where('proveedor_id', $request->proveedor_id)
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    if ($last && ($last->trm_oc === null || $last->trm_oc === '')) {
+                        $unitPrice = null; $cur = 'COP';
+                        $pxp = DB::table('productoxproveedor')
+                            ->where('producto_id', $productoId)
+                            ->where('proveedor_id', (int)$request->proveedor_id)
+                            ->orderBy('id')
+                            ->first();
+                        if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
+                        else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
+                        $computed = null;
+                        if ($unitPrice !== null) {
+                            if ($cur === 'COP') $computed = round($unitPrice, 2);
+                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($unitPrice * $rate, 2); }
+                        }
+                        if ($computed !== null) {
+                            $last->trm_oc = $computed;
+                            $last->save();
+                        }
+                    }
+                } catch (\Throwable $e) { /* noop */ }
 
                 if ($stockE !== null && $stockE > 0) {
                     $producto = Producto::lockForUpdate()->findOrFail($productoId);
@@ -342,19 +477,20 @@ class OrdenCompraController extends Controller
                     $producto->save();
                 }
 
+                // Distribución por centros (recrear)
+                OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
+                    ->where('producto_id', $productoId)
+                    ->delete();
+
                 if (!empty($productoData['centros'])) {
                     foreach ($productoData['centros'] as $centroId => $cantidad) {
                         if ((int)$cantidad > 0) {
-                            OrdenCompraCentroProducto::updateOrCreate(
-                                [
-                                    'orden_compra_id' => $orden->id,
-                                    'producto_id' => $productoId,
-                                    'centro_id' => $centroId,
-                                ],
-                                [
-                                    'amount' => (int)$cantidad,
-                                ]
-                            );
+                            OrdenCompraCentroProducto::create([
+                                'orden_compra_id' => $orden->id,
+                                'producto_id'     => $productoId,
+                                'centro_id'       => $centroId,
+                                'amount'          => (int)$cantidad,
+                            ]);
                         }
                     }
                 }
@@ -1051,38 +1187,33 @@ class OrdenCompraController extends Controller
         ];
     }
 
-    
-    // Marcar una orden como terminada (estatus id 3)
-    public function terminar(Request $request, $id)
-    {
-        DB::beginTransaction();
+    // Helper para obtener tasa de cambio (servidor) consultando la tabla `trm` primero and no llamar a APIs externas
+    private function fetchExchangeRateServer(string $from, string $to = 'COP'){
         try {
-            $orden = OrdenCompra::findOrFail($id);
+            $from = strtoupper(trim($from ?: 'COP'));
+            $to = strtoupper(trim($to ?: 'COP'));
+            if ($from === $to) return 1;
 
-            // Desactivar estatus previos activos
-            OrdenCompraEstatus::where('orden_compra_id', $orden->id)->where('activo', 1)->update(['activo' => 0]);
-
-            // Obtener registro de estatus 'Terminada' (id 3) o el primero disponible
-            $terminado = EstatusOrdenCompra::find(3) ?? EstatusOrdenCompra::where('status_name', 'Terminada')->first() ?? EstatusOrdenCompra::first();
-
-            OrdenCompraEstatus::create([
-                'estatus_id' => $terminado->id ?? 3,
-                'orden_compra_id' => $orden->id,
-                'recepcion_id' => null,
-                'activo' => 1,
-                'date_update' => now(),
-                'user_name' => $this->resolveCurrentUserName($request),
-            ]);
-
-            DB::commit();
-            return response()->json(['ok' => true]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            Log::error('Error terminando OC '.$id.': '.$e->getMessage());
-            return response()->json(['message' => $e->getMessage()], 500);
-        }
+            // Intentar obtener desde tabla `trm` (cada fila contiene price para 1 USD)
+            try {
+                $rowFrom = DB::table('trm')->where('moneda', $from)->orderByDesc('update_date')->orderByDesc('id')->first();
+                $rowTo = DB::table('trm')->where('moneda', $to)->orderByDesc('update_date')->orderByDesc('id')->first();
+                if ($rowFrom && $rowTo && isset($rowFrom->price) && isset($rowTo->price)) {
+                    $pFrom = (float)$rowFrom->price; // units of FROM per 1 USD
+                    $pTo = (float)$rowTo->price;     // units of TO per 1 USD
+                    if ($pFrom > 0) {
+                        // FROM -> TO = pTo / pFrom
+                        return $pTo / $pFrom;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Si falla la lectura de BD, retornar null (no intentar APIs externas)
+                Log::warning('fetchExchangeRateServer: fallo lectura tabla trm: ' . $e->getMessage());
+            }
+        } catch (\Throwable $e) { /* noop */ }
+        return null;
     }
-    
+
     // Resolver logo como data URI buscando en public/images
     private function resolveLogoDataUri(): ?string
     {
@@ -1288,7 +1419,7 @@ class OrdenCompraController extends Controller
                     $desiredStatus = $allComplete ? 7 : 12;
                     $desiredMessage = $allComplete ? 'Recepción completa: material recibido por compras' : 'Recepción registrada';
 
-                    // Comprobar estatus activo actual y solo cambiar si difiere
+                    // Comprobar estatus activo currente y solo cambiar si difiere
                     $currentActive = DB::table('estatus_requisicion')
                         ->where('requisicion_id', $reqId)
                         ->where('estatus', 1)
@@ -1432,7 +1563,7 @@ class OrdenCompraController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Estatus 12: movimiento parcial registrado (pendiente de confirmación)
+            // Estatus   12: movimiento parcial registrado (pendiente de confirmación)
             $this->setRequisicionStatus((int)$data['requisicion_id'], 12, 'Salida de stock registrada');
 
             DB::commit();
@@ -1444,22 +1575,19 @@ class OrdenCompraController extends Controller
     }
 
     // Obtener nombre de usuario actual desde session, headers, request o Auth
-    private function resolveCurrentUserName(?Request $request = null): ?string
+    private function resolveCurrentUserName(?\Illuminate\Http\Request $request = null): ?string
     {
         try {
-            // revisar session('user') en múltiples formas
             $userSession = session('user');
             if (is_array($userSession) && !empty($userSession['name'])) return (string)$userSession['name'];
             if (is_object($userSession) && isset($userSession->name) && $userSession->name) return (string)$userSession->name;
             if (session()->has('user.name') && session('user.name')) return (string)session('user.name');
             if (session()->has('user.email') && session('user.email')) return (string)session('user.email');
 
-            // revisar request headers o payload
             $req = $request ?? request();
             $fromHeader = $req->header('X-User-Name') ?: $req->header('X-User-Email') ?: $req->input('user.name') ?: $req->input('user.email');
             if (!empty($fromHeader)) return (string)$fromHeader;
 
-            // intentar Auth facade
             if (class_exists(\Illuminate\Support\Facades\Auth::class)) {
                 $authUser = \Illuminate\Support\Facades\Auth::user();
                 if ($authUser) {
@@ -1467,12 +1595,38 @@ class OrdenCompraController extends Controller
                     if (!empty($authUser->email)) return (string)$authUser->email;
                 }
             }
-
             return null;
         } catch (\Throwable $e) {
-            Log::warning('resolveCurrentUserName fallo: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::warning('resolveCurrentUserName fallo: ' . $e->getMessage());
             return null;
         }
     }
 
+    // Parse localized numeric strings like "1.234.567,89" or "1,234,567.89" into float, return null if not parseable
+    private function parseLocalizedNumber($value): ?float
+    {
+        if ($value === null || $value === '') return null;
+        if (is_numeric($value)) return (float)$value;
+        $s = (string)$value;
+        // keep digits, dot, comma, minus
+        $s = trim(preg_replace('/[^0-9,\.\-]/u', '', $s));
+        if ($s === '' || $s === '-' || $s === '. ' ) return null;
+        // If contains both dot and comma, assume dot thousands and comma decimal
+        if (strpos($s, '.') !== false && strpos($s, ',') !== false) {
+            $s = str_replace('.', '', $s);
+            $s = str_replace(',', '.', $s);
+        } elseif (strpos($s, ',') !== false && strpos($s, '.') === false) {
+            // single comma as decimal separator
+            $s = str_replace(',', '.', $s);
+        } else {
+            // multiple dots posiblemente separadores de miles -> eliminar si hay más de uno
+            if (substr_count($s, '.') > 1) {
+                $s = str_replace('.', '', $s);
+            }
+        }
+        // limpieza final
+        if ($s === '' || $s === '-' ) return null;
+        $num = floatval($s);
+        return is_nan($num) ? null : $num;
+    }
 }
