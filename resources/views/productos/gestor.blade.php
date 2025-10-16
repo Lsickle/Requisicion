@@ -734,11 +734,16 @@
                                 <i class="fas fa-plus"></i>
                             </button>
                             <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
-                            <select id="manage_prov_moneda" class="w-40 px-3 py-2 border rounded-md">
-                                <option value="Pesos Colombianos">Pesos Colombianos</option>
-                                <option value="Dólar">Dólar</option>
-                                <option value="Euro">Euro</option>
-                                <option value="Otro">Otro</option>
+                            <div class="relative">
+                                <input type="text" id="manage_prov_moneda_input" placeholder="Moneda (ej: COP)" value="COP" class="w-36 md:w-48 px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
+                            </div>
+                            <select id="manage_prov_moneda" class="hidden">
+                                @php
+                                    $ISO_CURRENCIES = ['COP','AED','AFN','ALL','AMD','ANG','AOA','ARS','AUD','AWG','AZN','BAM','BBD','BDT','BGN','BHD','BIF','BMD','BND','BOB','BRL','BSD','BTN','BWP','BYN','BZD','CAD','CDF','CHF','CLP','CNY','CRC','CUP','CVE','CZK','DJF','DKK','DOP','DZD','EGP','ERN','ETB','EUR','FJD','FKP','FOK','GBP','GEL','GGP','GHS','GIP','GMD','GNF','GTQ','GYD','HKD','HNL','HRK','HTG','HUF','IDR','ILS','IMP','INR','IQD','IRR','ISK','JEP','JMD','JOD','JPY','KES','KGS','KHR','KID','KMF','KRW','KWD','KYD','KZT','LAK','LBP','LKR','LRD','LSL','LYD','MAD','MDL','MGA','MKD','MMK','MNT','MOP','MRU','MUR','MVR','MWK','MXN','MYR','MZN','NAD','NGN','NIO','NOK','NPR','NZD','OMR','PAB','PEN','PGK','PHP','PKR','PLN','PYG','QAR','RON','RSD','RUB','RWF','SAR','SBD','SCR','SDG','SEK','SGD','SHP','SLE','SLL','SOS','SRD','SSP','STN','SYP','SZL','THB','TJS','TMT','TND','TOP','TRY','TTD','TVD','TWD','TZS','UAH','UGX','USD','UYU','UZS','VES','VND','VUV','WST','XAF','XCD','XCG','XDR','XOF','XPF','YER','ZAR','ZMW','ZWL'];
+                                @endphp
+                                @foreach($ISO_CURRENCIES as $cc)
+                                    <option value="{{ $cc }}" {{ $cc === 'COP' ? 'selected' : '' }}>{{ $cc }}</option>
+                                @endforeach
                             </select>
                             <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addManageProviderRow()">Agregar</button>
                         </div>
@@ -1765,11 +1770,65 @@
         mProvDrop.addEventListener('wheel', function(e){ e.stopPropagation(); }, { passive: true });
     });
     
-    // Cuando se abre el modal de añadir desde solicitud, asegurarse de que el campo IVA esté disponible
+    // Dropdown de moneda con lista corta visible (scrollable)
     document.addEventListener('DOMContentLoaded', function(){
-        const solIva = document.getElementById('solicitud_iva');
-        if (solIva) solIva.value = solIva.value || 0;
-    });
+        const cInput = document.getElementById('manage_prov_moneda_input');
+        const cHidden = document.getElementById('manage_prov_moneda');
+        if (cInput && cHidden) {
+            // sincronizar valor por defecto desde select oculto
+            try { const sel = cHidden.options[cHidden.selectedIndex]; if (sel) cInput.value = sel.value || 'COP'; } catch(e){}
+            let cDrop = document.getElementById('manage_currency_dropdown');
+            if (!cDrop) {
+                cDrop = document.createElement('div');
+                cDrop.id = 'manage_currency_dropdown';
+                cDrop.className = 'fixed z-50 bg-white border border-gray-300 rounded-md shadow-lg';
+                // contenido: lista de códigos con filtro simple
+                cDrop.innerHTML = `
+                    <div style="padding:4px 0; max-height: 180px; overflow:auto;">
+                        @foreach($ISO_CURRENCIES as $cc)
+                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer currency-item" data-code="{{ $cc }}">{{ $cc }}</div>
+                        @endforeach
+                    </div>
+                `;
+                document.body.appendChild(cDrop);
+            }
+            // estilos base
+            cDrop.style.position = 'fixed';
+            cDrop.style.display = 'none';
+            cDrop.style.zIndex = 10000;
+
+            const updatePos = () => {
+                const r = cInput.getBoundingClientRect();
+                cDrop.style.left = r.left + 'px';
+                cDrop.style.top = (r.bottom + 0) + 'px';
+                cDrop.style.width = r.width + 'px';
+            };
+            const showC = () => { updatePos(); cDrop.style.display = 'block'; cDrop.classList.remove('hidden'); };
+            const hideC = () => { cDrop.style.display = 'none'; cDrop.classList.add('hidden'); };
+
+            cInput.addEventListener('focus', showC);
+            cInput.addEventListener('click', showC);
+            cInput.addEventListener('input', function(){
+                const q = (this.value||'').toUpperCase();
+                cDrop.querySelectorAll('.currency-item').forEach(it => {
+                    const code = (it.getAttribute('data-code')||'').toUpperCase();
+                    it.style.display = code.indexOf(q) > -1 ? '' : 'none';
+                });
+                showC();
+            });
+            cDrop.addEventListener('click', function(e){
+                const it = e.target.closest('.currency-item');
+                if (!it) return;
+                const code = it.getAttribute('data-code') || 'COP';
+                cInput.value = code;
+                try { cHidden.value = code; } catch(e){}
+                hideC();
+            });
+            document.addEventListener('click', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); });
+            window.addEventListener('resize', hideC);
+            document.addEventListener('scroll', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); }, true);
+        }
+  });
 
     // Helper: convertir cualquier representación numérica (p. ej. "782,47" o " 782.47 ") a entero
     function sanitizeToInt(val) {
