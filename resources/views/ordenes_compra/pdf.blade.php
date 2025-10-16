@@ -360,8 +360,8 @@
                         <th width="8%">Unidad</th>
                         <th width="8%">Cantidad</th>
                         <th width="8%">IVA</th>
-                        <th width="8%">Valor Unitario</th>
-                        <th width="10%">Total (c/ IVA)</th>
+                        <th width="8%">Valor Unitario ({{ $currency ?? 'COP' }})</th>
+                        <th width="10%">Total (c/ IVA) ({{ $currency ?? 'COP' }})</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -373,18 +373,17 @@
                         <td>{{ $item['unit_produc'] }}</td>
                         <td>{{ number_format($item['po_amount'], 0) }}</td>
                         @php
-                        // El IVA mostrado y usado debe provenir exclusivamente de apply_iva guardado en la DB
-                        // $item['iva'] viene de buildPdfData
-                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje (p.ej. 12)
+                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje
                         $ivaRate = $ivaPercent / 100;
-                        $unitPrice = (float)($item['precio_unitario'] ?? 0);
+                        // Usar precio en moneda original si existe; fallback a COP
+                        $unitPrice = (float)($item['unit_price'] ?? ($item['precio_unitario'] ?? 0));
                         $unitIva = round($unitPrice * $ivaRate, 2);
                         $unitWithIva = round($unitPrice + $unitIva, 2);
                         $lineTotalWithIva = round($unitWithIva * (int)$item['po_amount'], 2);
                         @endphp
                         <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%' : '0%' }}</td>
-                        <td class="text-right">${{ number_format($unitPrice, 2) }}<br><small>+ IVA ${{ number_format($unitIva,2) }}</small></td>
-                        <td class="text-right">${{ number_format($lineTotalWithIva, 2) }}</td>
+                        <td class="text-right">{{ $currency ?? 'COP' }} ${{ number_format($unitPrice, 2) }}<br><small>+ IVA {{ $currency ?? 'COP' }} ${{ number_format($unitIva,2) }}</small></td>
+                        <td class="text-right">{{ $currency ?? 'COP' }} ${{ number_format($lineTotalWithIva, 2) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -401,8 +400,8 @@
             <div style="clear:both;"></div>
             <div class="totals-box" role="region" aria-label="Total General">
                 <div class="row total">
-                    <div class="label">TOTAL GENERAL</div>
-                    <div class="value">${{ number_format($total ?? $subtotal ?? 0, 2) }}</div>
+                    <div class="label">TOTAL GENERAL ({{ $currency ?? 'COP' }})</div>
+                    <div class="value">{{ $currency ?? 'COP' }} ${{ number_format($total ?? $subtotal ?? 0, 2) }}</div>
                 </div>
             </div>
             <div style="clear:both;"></div>

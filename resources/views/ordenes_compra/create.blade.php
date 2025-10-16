@@ -229,6 +229,29 @@
                                             ->select('pxp.id as pxp_id','pxp.proveedor_id','prov.prov_name','pxp.price_produc','pxp.moneda')
                                             ->orderBy('prov.prov_name')
                                             ->get();
+                                        // Precalcular price_cop usando TRM más reciente enviado a la vista
+                                        try {
+                                            $trmIdx = collect($trmLatest ?? [])->keyBy(function($r){ return strtoupper($r->moneda ?? ''); });
+                                            $pTo = (float) ($trmIdx->get('COP')->price ?? 0);
+                                            if ($pTo > 0) {
+                                                $ppList = $ppList->map(function($r) use ($trmIdx, $pTo){
+                                                    try {
+                                                        $from = strtoupper($r->moneda ?? 'COP');
+                                                        $unit = (float) ($r->price_produc ?? 0);
+                                                        if ($from === 'COP') {
+                                                            $r->price_cop = round($unit, 2);
+                                                        } else {
+                                                            $pFrom = (float) ($trmIdx->get($from)->price ?? 0);
+                                                            if ($pFrom > 0) {
+                                                                $rate = $pTo / $pFrom; // FROM->COP
+                                                                $r->price_cop = round($unit * $rate, 2);
+                                                            } else { $r->price_cop = null; }
+                                                        }
+                                                    } catch (\Throwable $e) { $r->price_cop = null; }
+                                                    return $r;
+                                                });
+                                            }
+                                        } catch (\Throwable $e) { /* ignore */ }
                                     } catch (\Throwable $e) {
                                         $ppList = collect();
                                     }
@@ -261,7 +284,7 @@
                                  </optgroup>
                                  @endif
                             </select>
-                            <button type="button" id="btn-add-product"
+                            <button type="button" id="btn-add-product" onclick="if(window.openProvidersModal){ window.openProvidersModal(); } else { Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'}); }"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                                 ➕ Añadir
                             </button>
@@ -273,6 +296,28 @@
                                 ↩️ Deshacer distribución
                             </button>
                         </div>
+                    </div>
+
+                    <!-- Tabla productos (editable para crear la orden) -->
+                    <div class="overflow-x-auto mt-6 max-h-[60vh] overflow-y-auto">
+                        <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
+                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-fixed">
+                            <thead class="bg-gray-100 sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-3 text-left" style="width:30%">Producto</th>
+                                    <th class="p-3 text-center" style="width:70px">Total</th>
+                                    <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                    <th class="p-3 text-center" style="width:80px">Moneda</th>
+                                    <th class="p-3 text-center" style="width:110px">Precio unitario</th>
+                                    <th class="p-3 text-center" style="width:70px">IVA</th>
+                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
+                                    <th class="p-3 text-center" style="width:110px">Stock</th>
+                                    <th class="p-3" style="width:30%">Distribución</th>
+                                    <th class="p-3 text-center" style="width:90px">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productos-table"></tbody>
+                        </table>
                     </div>
 
                     <!-- Modal Proveedores por Producto -->
@@ -352,6 +397,19 @@
                             </div>
                             <div class="p-6 space-y-4 grow overflow-y-auto">
                                 @if(($lineasDistribuidas ?? collect())->count() > 0)
+                                @php
+                                    $agrupadas = ($lineasDistribuidas ?? collect())
+                                        ->groupBy('producto_id')
+                                        ->map(function($g){
+                                            return (object) [
+                                                'producto_id' => $g->first()->producto_id,
+                                                'name_produc' => $g->first()->name_produc,
+                                                'cantidad_total' => $g->sum('cantidad'),
+                                                'proveedores' => $g->pluck('prov_name')->filter()->unique()->values()->all(),
+                                                'ocp_ids' => $g->pluck('ocp_id')->filter()->values()->all(),
+                                            ];
+                                        })->values();
+                                @endphp
                                 <table class="w-full border text-sm rounded bg-white">
                                     <thead class="bg-gray-100">
                                         <tr>
@@ -362,14 +420,14 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($lineasDistribuidas as $ld)
+                                        @foreach($agrupadas as $grp)
                                         <tr class="border-t">
                                             <td class="p-2 text-center">
-                                                <input type="checkbox" class="chk-undo-item" value="{{ $ld->ocp_id }}">
+                                                <input type="checkbox" class="chk-undo-item" value="{{ $grp->producto_id }}" data-ocp-ids="{{ implode(',', $grp->ocp_ids) }}">
                                             </td>
-                                            <td class="p-2">{{ $ld->name_produc }}</td>
-                                            <td class="p-2">{{ $ld->prov_name ?? 'Proveedor' }}</td>
-                                            <td class="p-2 text-center">{{ $ld->cantidad }}</td>
+                                            <td class="p-2">{{ $grp->name_produc }}</td>
+                                            <td class="p-2">{{ count($grp->proveedores) > 1 ? 'Varios' : ($grp->proveedores[0] ?? 'Proveedor') }}</td>
+                                            <td class="p-2 text-center">{{ $grp->cantidad_total }}</td>
                                         </tr>
                                         @endforeach
                                     </tbody>
@@ -385,38 +443,16 @@
                         </div>
                     </div>
 
-                    <!-- Tabla productos -->
-                    <div class="overflow-x-auto mt-6 max-h-[60vh] overflow-y-auto">
-                        <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
-                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-fixed">
-                            <thead class="bg-gray-100 sticky top-0 z-10">
-                                <tr>
-                                    <th class="p-3 text-left" style="width:30%">Producto</th>
-                                    <th class="p-3 text-center" style="width:70px">Total</th>
-                                    <th class="p-3 text-center" style="width:90px">Unidad</th>
-                                    <th class="p-3 text-center" style="width:110px">Precio unitario</th>
-                                    <th class="p-3 text-center" style="width:70px">IVA</th>
-                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
-                                    <th class="p-3 text-center" style="width:110px">Stock</th>
-                                    <th class="p-3" style="width:30%">Distribución</th>
-                                    <th class="p-3 text-center" style="width:90px">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productos-table"></tbody>
-                        </table>
-                     </div>
-
                     <!-- Botón submit -->
-                    <div class="flex justify-end">
-                        <button type="submit"
-                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow">
+                    <div class="flex justify-end mt-4">
+                        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow">
                             Crear Orden de Compra
                         </button>
                     </div>
                 </form>
             </div>
 
-            <!-- Tabla de órdenes creadas -->
+            <!-- Tabla de órdenes creadas (sección aparte) -->
             <div class="border p-6 mt-10 rounded-lg shadow bg-gray-50">
                 <h2 class="text-xl font-medium text-gray-700 mb-4">Órdenes de Compra Creadas</h2>
                 <table class="w-full border text-sm rounded-lg overflow-hidden bg-white" id="ordenes-table">
@@ -452,10 +488,7 @@
                             <td class="p-3 text-center">
                                 <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
                                     @csrf
-                                    <button type="button" onclick="confirmarAnulacion(this)"
-                                        class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm">
-                                        Anular
-                                    </button>
+                                    <button type="button" onclick="confirmarAnulacion(this)" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm">Anular</button>
                                 </form>
                             </td>
                         </tr>
@@ -463,7 +496,7 @@
                     </tbody>
                 </table>
 
-                <!-- Botón descargar PDF/ZIP (siempre visible) -->
+                <!-- Botón descargar PDF/ZIP -->
                 <div class="mt-6 text-right" id="zip-container">
                     @php
                         $estatusActual = DB::table('estatus_requisicion')
@@ -473,211 +506,13 @@
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
                     @endphp
-                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}"
-                         class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="{{ $hayOrdenes ? 1 : 0 }}">
-                         Descargar PDF/ZIP
-                     </a>
+                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="{{ $hayOrdenes ? 1 : 0 }}">
+                        Descargar PDF/ZIP
+                    </a>
                 </div>
-
-                {{-- Se removieron los modales de entrega y recibir de esta vista --}}
-                @php
-                    // Productos de todas las órdenes para el modal de entrega (estatus 5)
-                    $ocpLineas = DB::table('ordencompra_producto as ocp')
-                        ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
-                        ->join('productos as p','p.id','=','ocp.producto_id')
-                        ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
-                        ->leftJoin('productoxproveedor as pxp', function($join){
-                            $join->on('pxp.producto_id','=','p.id')
-                                 ->on('pxp.proveedor_id','=','ocp.proveedor_id');
-                        })
-                        ->whereNull('ocp.deleted_at')
-                        ->where('ocp.requisicion_id', $requisicion->id)
-                        ->whereNotNull('ocp.orden_compras_id')
-                        ->select('ocp.id as ocp_id','oc.order_oc','oc.id as oc_id','p.id as producto_id','p.name_produc','p.unit_produc','p.stock_produc', DB::raw('COALESCE(pxp.price_produc, 0) as price_produc'), 'prov.prov_name','ocp.total')
-                        ->orderBy('ocp.id','desc')
-                        ->get();
-                    // Totales requeridos por producto (desde la distribución de centros) with fallback
-                    $reqCantPorProducto = DB::table('centro_producto')
-                        ->where('requisicion_id', $requisicion->id)
-                        ->select('producto_id', DB::raw('SUM(amount) as req'))
-                        ->groupBy('producto_id')
-                        ->pluck('req','producto_id');
-                    if ($reqCantPorProducto->isEmpty()) {
-                        $reqCantPorProducto = DB::table('producto_requisicion')
-                            ->where('id_requisicion', $requisicion->id)
-                            ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
-                            ->groupBy('id_producto')
-                            ->pluck('req','producto_id');
-                    }
-                    // Totales recibidos por producto (confirmados en entrega)
-                    $recibidoPorProducto = DB::table('entrega')
-                        ->where('requisicion_id', $requisicion->id)
-                        ->whereNull('deleted_at')
-                        ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
-                        ->groupBy('producto_id')
-                        ->pluck('rec','producto_id');
-                    // No considerar recepciones desde stock en esta vista
-                    $recibidoStockPorProducto = collect();
-                    // Sumar ambos para obtener total confirmado por producto
-                    $totalConfirmadoPorProducto = [];
-                    foreach ($recibidoPorProducto as $pid => $val) {
-                        $totalConfirmadoPorProducto[$pid] = ($totalConfirmadoPorProducto[$pid] ?? 0) + (int)$val;
-                    }
-                    foreach ($recibidoStockPorProducto as $pid => $val) {
-                        $totalConfirmadoPorProducto[$pid] = ($totalConfirmadoPorProducto[$pid] ?? 0) + (int)$val;
-                    }
-                    // Entregas enviadas y pendientes de confirmación por producto (bloquean reenvío)
-                    $pendNoConfPorProducto = DB::table('entrega')
-                        ->where('requisicion_id', $requisicion->id)
-                        ->whereNull('deleted_at')
-                        ->where(function($q){ $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); })
-                        ->select('producto_id', DB::raw('SUM(cantidad) as pend'))
-                        ->groupBy('producto_id')
-                        ->pluck('pend', 'producto_id');
-                @endphp
-                <div id="modal-entrega-oc" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
-                    <div class="bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
-                        <div class="flex justify-between items-center px-6 py-4 border-b">
-                            <h3 class="text-lg font-semibold">Entregar productos de órdenes de compra</h3>
-                            <button type="button" id="ent-close" class="text-gray-600 hover:text-gray-800">✕</button>
-                        </div>
-                        <div class="p-6">
-                            <div class="flex items-center justify-between mb-3">
-                                <label class="inline-flex items-center gap-2 text-sm">
-                                    <input type="checkbox" id="ent-select-all" class="border rounded">
-                                    Seleccionar todos
-                                </label>
-                                <span class="text-xs text-gray-500">Estatus resultante: 8 (Material recibido por coordinador)</span>
-                            </div>
-                            <div class="max-h-[55vh] overflow-y-auto border rounded">
-                                <table class="min-w-full text-sm">
-                                    <thead class="bg-gray-100 sticky top-0 z-10">
-                                        <tr>
-                                            <th class="px-3 py-2 text-center"><input type="checkbox" id="ent-chk-header"></th>
-                                            <th class="px-3 py-2 text-left">Producto</th>
-                                            <th class="px-3 py-2 text-left">Proveedor</th>
-                                            <th class="px-3 py-2 text-left">OC</th>
-                                            <th class="px-3 py-2 text-center">Cantidad OC</th>
-                                            <th class="px-3 py-2 text-center">Pendiente</th>
-                                            <th class="px-3 py-2 text-center">Entregar</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="ent-tbody">
-                                        @forelse($ocpLineas as $l)
-                                        @php
-                                            $reqTot = (int) ($reqCantPorProducto[$l->producto_id] ?? 0);
-                                            $recEntregas = (int) ($recibidoPorProducto[$l->producto_id] ?? 0);
-                                            $recStock = (int) ($recibidoStockPorProducto[$l->producto_id] ?? 0);
-                                            $recTotal = $recEntregas + $recStock;
-                                            $faltTot = max(0, $reqTot - $recTotal);
-                                            $isDone = $faltTot <= 0;
-                                            $pendLock = (int) ($pendNoConfPorProducto[$l->producto_id] ?? 0);
-                                            $maxEntregar = min((int)$l->total, $faltTot);
-                                        @endphp
-                                        <tr class="border-t">
-                                            <td class="px-3 py-2 text-center"><input type="checkbox" class="ent-row-chk" data-ocp-id="{{ $l->ocp_id }}" data-producto-id="{{ $l->producto_id }}" data-rem="{{ $faltTot }}" {{ ($isDone || $pendLock>0) ? 'disabled' : '' }}></td>
-                                            <td class="px-3 py-2">{{ $l->name_produc }}</td>
-                                            <td class="px-3 py-2">{{ $l->prov_name ?? 'Proveedor' }}</td>
-                                            <td class="px-3 py-2">{{ $l->order_oc ?? ('OC-'.$l->oc_id) }}</td>
-                                            <td class="px-3 py-2 text-center">{{ $l->total }}</td>
-                                            <td class="px-3 py-2 text-center">
-                                                @if($isDone)
-                                                     <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Completado</span>
-                                                @elseif($pendLock>0)
-                                                    <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Enviado, esperando confirmación ({{ $pendLock }})</span>
-                                                 @else
-                                                     <span class="text-xs">{{ $recTotal }} / {{ $reqTot }} recibidos · Falta {{ $faltTot }}</span>
-                                                 @endif
-                                            </td>
-                                            <td class="px-3 py-2 text-center">
-                                                <input type="number" min="0" max="{{ $maxEntregar }}" value="{{ $maxEntregar }}" class="w-24 border rounded p-1 text-center ent-cant-input" {{ ($isDone || $pendLock>0) ? 'disabled' : '' }}>
-                                            </td>
-                                        </tr>
-                                        @empty
-                                        <tr><td colspan="7" class="px-3 py-3 text-center text-gray-500">No hay líneas de órdenes para esta requisición.</td></tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-                            <button type="button" id="ent-cancel" class="px-4 py-2 border rounded">Cancelar</button>
-                            <button type="button" id="ent-save" class="px-4 py-2 bg-green-600 text-white rounded">Realizar entrega</button>
-                        </div>
-                    </div>
-                </div>
-
-                @php
-                    // Lista para ‘Recibir productos’ (pendientes por confirmar)
-                    $hist = DB::table('estatus_requisicion')
-                        ->where('requisicion_id', $requisicion->id)
-                        ->whereNull('deleted_at')
-                        ->where('estatus', 1)
-                        ->orderByDesc('created_at')
-                        ->first();
-                    $estatusActualId = $hist->estatus_id ?? null;
-                    $usarEntregaRec = in_array($estatusActualId, [8,12]);
-                    if ($usarEntregaRec) {
-                        $recListRec = DB::table('entrega as e')
-                            ->join('productos as p','p.id','=','e.producto_id')
-                            ->select('e.id','p.name_produc','e.cantidad','e.cantidad_recibido')
-                            ->where('e.requisicion_id', $requisicion->id)
-                            ->whereNull('e.deleted_at')
-                            ->where(function($q){ $q->whereNull('e.cantidad_recibido')->orWhere('e.cantidad_recibido', 0); })
-                            ->orderBy('e.id','asc')
-                            ->get();
-                    } else {
-                        $recListRec = DB::table('recepcion as r')
-                            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-                            ->join('productos as p','p.id','=','r.producto_id')
-                            ->select('r.id','p.name_produc','r.cantidad','r.cantidad_recibido')
-                            ->where('oc.requisicion_id', $requisicion->id)
-                            ->whereNull('r.deleted_at')
-                            ->orderBy('r.id','asc')
-                            ->get();
-                    }
-                @endphp
-                <div id="modal-recibir-oc" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4" data-tipo="{{ $usarEntregaRec ? 'entrega' : 'recepcion' }}">
-                    <div class="bg-white w-full max-w-2xl rounded-lg shadow-lg overflow-hidden flex flex-col">
-                        <div class="flex justify-between items-center px-6 py-4 border-b">
-                            <h3 class="text-lg font-semibold">Recibir productos</h3>
-                            <button type="button" id="rc-close" class="text-gray-600 hover:text-gray-800">✕</button>
-                        </div>
-                        <div class="p-6">
-                            @if(($recListRec ?? collect())->count())
-                            <table class="w-full text-sm border rounded overflow-hidden bg-white">
-                                <thead class="bg-gray-100">
-                                    <tr>
-                                        <th class="p-2 text-left">Producto</th>
-                                        <th class="p-2 text-center">Entregado</th>
-                                        <th class="p-2 text-center">Cantidad recibida</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($recListRec as $r)
-                                    <tr class="border-t" data-item-id="{{ $r->id }}">
-                                        <td class="p-2">{{ $r->name_produc }}</td>
-                                        <td class="p-2 text-center">{{ $r->cantidad }}</td>
-                                        <td class="p-2 text-center">
-                                            <input type="number" min="0" max="{{ $r->cantidad }}" value="{{ $r->cantidad_recibido ?? 0 }}" class="w-24 border rounded p-1 text-center rcx-input">
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                            <div class="flex justify-end gap-3 mt-4">
-                                <button type="button" class="px-4 py-2 border rounded" id="rc-cancel">Cancelar</button>
-                                <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="rc-save">Guardar todo</button>
-                            </div>
-                            @else
-                                <div class="text-gray-600">No hay registros para esta requisición.</div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-                {{-- cierre del bloque @if($requisicion) del formulario y órdenes --}}
-                @endif
             </div>
+            {{-- cierre del bloque @if($requisicion) del formulario y órdenes --}}
+            @endif
         </div>
     </div>
 </div>
@@ -795,20 +630,6 @@
                 </table>
             </div>
         </div>
-        <div class="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-            <button type="button" id="rs-cancel" class="px-4 py-2 border rounded">Cerrar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de carga para operaciones de sacar/restaurar stock -->
-<div id="modal-loading-stock" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4" aria-hidden="true">
-    <div class="bg-white rounded-lg shadow-lg p-6 flex flex-col items-center gap-4 max-w-sm w-full">
-        <div class="loader w-16 h-16 border-4 border-blue-300 border-t-blue-600 rounded-full animate-spin" aria-hidden="true"></div>
-        <div class="text-center">
-            <div class="text-lg font-medium loader-text">Creando orden de compra</div>
-            <div class="text-sm text-gray-500">Espere por favor</div>
-        </div>
     </div>
 </div>
 
@@ -923,7 +744,7 @@
              <td class="p-3">
                  <div class="flex items-start gap-3">
                      <div class="flex-1 min-w-0">
-                         <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div
+                         <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
                      </div>
                  </div>
                  <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
@@ -940,10 +761,11 @@
                      id="cantidad-total-${rowKey}" 
                      onchange="onCantidadTotalChange('${rowKey}')" required>
              </td>
-             <td class="p-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
+             <td class="p-3 text-center">${unidad || '-'}</td>
+             <td class="p-3 text-center" id="moneda-${rowKey}">${precioCurrency}</td>
              <td class="p-3 text-center" id="precio-${rowKey}">
-                <div>$${precioStr}</div>
-                <div class="text-xs text-gray-500 precio-cop-span">Calculando...</div>
+                <div>${precioStr}</div>
+                <div class="text-xs text-gray-500 precio-cop-span"></div>
              </td>
              <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
              <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
@@ -990,9 +812,13 @@
                 if (storedPriceCop && storedPriceCop !== '') {
                     const trmInput = document.getElementById(`trm_oc-${rowKey}`);
                     const spanCop = document.querySelector(`#precio-${rowKey} .precio-cop-span`);
-                    const numeric = Number(String(storedPriceCop).replace(/[^0-9.-]/g, '')) || 0;
-                    if (trmInput) trmInput.value = Math.round((numeric + Number.EPSILON) * 100) / 100;
-                    if (spanCop) spanCop.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(trmInput.value || numeric);
+                    const numeric = parseLocalizedNumber(storedPriceCop) ?? 0;
+                    const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
+                    if (trmInput) trmInput.value = rounded;
+                    if (spanCop) {
+                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
+                        spanCop.textContent = `COP ${formatted}`;
+                    }
                 }
             } catch(e) { /* ignore */ }
         } catch(e) { /* ignore */ }
@@ -1028,6 +854,36 @@
             }
         }
         selector.value = "";
+    }
+
+    // Helper robusto para parsear números localizados (e.g., 1.808.795,81 o 1,808,795.81)
+    function parseLocalizedNumber(val){
+        try {
+            if (val === null || val === undefined) return null;
+            if (typeof val === 'number') return isFinite(val) ? val : null;
+            let s = String(val).trim();
+            if (s === '') return null;
+            // Mantener solo dígitos, coma, punto y signo
+            s = s.replace(/[^0-9,\.\-]/g, '');
+            if (s === '' || s === '-' ) return null;
+            const hasComma = s.indexOf(',') > -1;
+            const hasDot = s.indexOf('.') > -1;
+            if (hasComma && hasDot) {
+                // Asumir punto = miles, coma = decimales
+                s = s.replace(/\./g,'').replace(/,/g,'.');
+            } else if (hasComma && !hasDot) {
+                // Solo coma => decimales
+                s = s.replace(/,/g,'.');
+            } else if (!hasComma && hasDot) {
+                // Si hay múltiples puntos, asumir puntos de miles y eliminar todos menos el último como decimal
+                if ((s.match(/\./g) || []).length > 1) {
+                    const last = s.lastIndexOf('.');
+                    s = s.slice(0, last).replace(/\./g,'') + '.' + s.slice(last+1);
+                }
+            }
+            const n = Number(s);
+            return isNaN(n) ? null : n;
+        } catch (_) { return null; }
     }
 
     function actualizarTotal(rowKey) {
@@ -1190,7 +1046,12 @@
                     const provId = p.proveedor_id ?? p.proveedorId ?? p.id;
                     const price = p.price_produc ?? p.price ?? 0;
                     const currency = p.moneda ?? p.currency ?? 'COP';
-                    const priceCop = '';
+                    // calcular precio en COP inmediatamente
+                    let priceCop = '';
+                    try {
+                        const r = getExchangeRateSync(String(currency||'COP'), 'COP');
+                        if (r) priceCop = String(Number(price||0) * Number(r));
+                    } catch(_) {}
                     const productoId = opt.value;
                     const productoNombre = opt.dataset.nombre || '';
                     const unidad = opt.dataset.unidad || '';
@@ -1254,8 +1115,8 @@
             }).join('');
             const html = `<div class="text-left"><p>Corrija los siguientes productos:</p><ul style="text-align:left;margin-top:8px;">${items}</ul></div>`;
             Swal.fire({ icon: 'error', title: 'Error de validación', html: html });
-             return;
-         }
+            return;
+        }
 
          // Asegurar que todos los inputs hidden trmm_oc-... estén calculados (espera las conversiones async)
          await ensureTrmInputsFilled();
@@ -1325,8 +1186,8 @@
         const btnAddFila = document.getElementById('btn-add-fila');
         const btnGuardar = document.getElementById('btn-guardar-dist');
 
-        function abrirModal() { modal.classList.remove('hidden'); }
-        function cerrarModal() { modal.classList.add('hidden'); limpiarModal(); }
+        function abrirModal() { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+        function cerrarModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); limpiarModal(); }
 
         btnAbrir?.addEventListener('click', abrirModal);
         btnCerrar?.addEventListener('click', cerrarModal);
@@ -1369,7 +1230,7 @@
                     </select>
                 </td>
                 <td class="p-2 text-center">
-                    <input type="number" min="1" max="${restante}" value="${Math.min(1, restante)}" class="w-24 border rounded p-1 cant-item" />
+                    <input type="number" min="1" max="${restante}" value="${Math.min(1, restante)}" class="w-24 border rounded p-1 text-center cant-item" />
                 </td>
                 <td class="p-2 text-center">
                     <button type="button" class="px-2 py-1 bg-red-500 text-white rounded text-sm btn-del-fila">✕</button>
@@ -1454,12 +1315,12 @@
             }
 
             try {
-                               const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })
-                });
-                               const data = await resp.json();
+                                   const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })
+            });
+                                   const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
 
                 // No insertar las opciones distribuidas en el selector de la página actual
@@ -1467,7 +1328,7 @@
                 cerrarModal();
                 Swal.fire({icon:'success', title:'Producto(s) añadidos', text:'La distribución se guardó. Se actualizará la página para mostrar las líneas distribuidas.', confirmButtonText:'Aceptar'}).then(()=> {
                     location.reload();
-                });
+                               });
             } catch (e) {
                 Swal.fire({icon:'error', title:'Error', text: e.message});
             }
@@ -1482,14 +1343,17 @@
 
         btnAbrirUndo.addEventListener('click', function() {
             modalUndo.classList.remove('hidden');
+            modalUndo.classList.add('flex');
         });
 
         btnCerrarUndo.addEventListener('click', function() {
             modalUndo.classList.add('hidden');
+            modalUndo.classList.remove('flex');
         });
 
         btnCancelarUndo.addEventListener('click', function() {
             modalUndo.classList.add('hidden');
+            modalUndo.classList.remove('flex');
         });
 
         // Seleccionar/Deseleccionar todos
@@ -1502,7 +1366,11 @@
         });
 
         btnConfirmarUndo.addEventListener('click', async function() {
-            const idsSeleccionados = Array.from(document.querySelectorAll('.chk-undo-item:checked')).map(chk => chk.value);
+            const idsSeleccionados = [];
+            document.querySelectorAll('.chk-undo-item:checked').forEach(chk => {
+                const raw = (chk.dataset?.ocpIds || '').split(',').map(s => s.trim()).filter(Boolean);
+                idsSeleccionados.push(...raw);
+            });
             if (idsSeleccionados.length === 0) {
                 Swal.fire({icon: 'info', title: 'Sin selección', text: 'Seleccione al menos una línea para deshacer la distribución.'});
                 return;
@@ -1534,9 +1402,7 @@
                         title: 'Éxito',
                         text: 'La distribución se deshizo correctamente.',
                         confirmButtonText: 'Aceptar'
-                    }).then(() => {
-                        location.reload();
-                    });
+                    }).then(() => { location.reload(); });
                 } catch (e) {
                     Swal.fire({icon:'error', title:'Error', text: e.message});
                 }
@@ -1565,7 +1431,14 @@
             const provId = chosen.value;
             const price = chosen.dataset.price || 0;
             const currency = chosen.dataset.currency || 'COP';
-            const priceCop = chosen.dataset.priceCop || '';
+            // calcular priceCop si aún no está en el dataset
+            let priceCop = chosen.dataset.priceCop || '';
+            if (!priceCop) {
+                try {
+                    const r = getExchangeRateSync(String(currency||'COP'), 'COP');
+                    if (r) priceCop = String(Number(price||0) * Number(r));
+                } catch(_) {}
+            }
             const provSelect = document.getElementById('proveedor_id');
             if (provSelect) provSelect.value = provId;
 
@@ -1751,6 +1624,8 @@
     // trmMap: moneda => price (units per 1 USD)
     const trmMap = {};
     try { (serverTrmRows || []).forEach(r => { if (r && r.moneda) trmMap[String(r.moneda).toUpperCase()] = Number(r.price); }); } catch(e) { /* noop */ }
+    // Asegurar fallback razonable para USD
+    if (trmMap['USD'] == null) { trmMap['USD'] = 1; }
 
     // Evitar llamadas externas: getExchangeRate consultará solo trmMap
     async function getExchangeRate(from = 'USD', to = 'COP', retries = 0, timeout = 3000){
@@ -1773,12 +1648,19 @@
         return null;
     }
 
-    // fetch con timeout
-    function fetchWithTimeout(url, opts = {}, timeout = 3000) {
-        return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('timeout')), timeout);
-            fetch(url, opts).then(res => { clearTimeout(timer); resolve(res); }).catch(err => { clearTimeout(timer); reject(err); });
-        });
+    // Helper síncrono usando trmMap para obtener una tasa inmediata
+    function getExchangeRateSync(from = 'USD', to = 'COP'){
+        try {
+            from = (from || 'COP').toUpperCase();
+            to = (to || 'COP').toUpperCase();
+            if (from === to) return 1;
+            const pFrom = trmMap[from];
+            const pTo = trmMap[to];
+            if (pFrom != null && pTo != null && Number(pFrom) !== 0) {
+                return Number(pTo) / Number(pFrom);
+            }
+        } catch(e) { /* noop */ }
+        return null;
     }
 
     // Convierte precio unitario a COP y guarda en el campo hidden trm_oc-{rowKey}; actualiza la vista del precio en COP.
@@ -1807,39 +1689,47 @@
                 const prodIdInput = document.querySelector(`input[name="productos[${pk}][id]"]`);
                 const stored = prodIdInput?.dataset?.priceCop || prodIdInput?.dataset?.pricecop || '';
                 if (stored && String(stored).trim() !== '') {
-                    let txt = String(stored).replace(/[^0-9.,-]/g,'').trim();
-                    if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
-                        txt = txt.replace(/\./g,'').replace(/,/g,'.');
-                    } else if (txt.indexOf(',') > -1) txt = txt.replace(/,/g,'.');
-                    else txt = txt.replace(/\./g,'');
-                    const numeric = Number(txt) || 0;
+                    const numeric = parseLocalizedNumber(stored) ?? 0;
                     const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
-                    try { input.value = rounded; const span = document.querySelector(`#precio-${pk} .precio-cop-span`); if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded); } catch(e){}
+                    try {
+                        input.value = rounded;
+                        const span = document.querySelector(`#precio-${pk} .precio-cop-span`);
+                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
+                        if (span) span.textContent = `COP ${formatted}`;
+                    } catch(e){}
                     return rounded;
                 }
             } catch(e){ /* ignore */ }
 
             if (currency === 'COP' || !currency) {
-                const rounded = Math.round((numPrice + Number.EPSILON) * 100) / 100;
+                const rounded = Math.round((Number(price || 0) + Number.EPSILON) * 100) / 100;
                 if (input) input.value = rounded;
-                if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded);
+                if (span) {
+                    const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
+                    span.textContent = `COP ${formatted}`;
+                }
                 return rounded;
             }
 
             // Obtener tasa y convertir a COP
-            let rate = null;
-            try { rate = await getExchangeRate(currency, 'COP'); } catch(e){ rate = null; }
-            if (!rate) { try { rate = await getExchangeRate(currency, 'COP', 3, 8000); } catch(e){ rate = null; } }
+            let rate = getExchangeRateSync(currency, 'COP');
+            if (!rate) {
+                try { rate = await getExchangeRate(currency, 'COP'); } catch(e){ rate = null; }
+                if (!rate) { try { rate = await getExchangeRate(currency, 'COP', 3, 8000); } catch(e){ rate = null; } }
+            }
 
             if (!rate) {
-                if (span) span.textContent = 'Calculando...';
+                if (span) span.textContent = '';
                 // No establecer el valor oculto cuando no hay tasa para evitar guardar un precio en moneda extranjera
                 return null;
             }
 
-            const cop = Math.round((numPrice * Number(rate) + Number.EPSILON) * 100) / 100;
+            const cop = Math.round((Number(price || 0) * Number(rate) + Number.EPSILON) * 100) / 100;
             if (input) input.value = cop;
-            if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(cop);
+            if (span) {
+                const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
+                span.textContent = `COP ${formatted}`;
+            }
             return cop;
         } catch (err) {
             console.warn('updatePriceToCOP error', err);
@@ -1856,46 +1746,30 @@
                 return new Promise(async (resolve) => {
                     try {
                         const pk = input.id.replace('trm_oc-','');
-
-                        // Si ya tiene valor numérico, resolver inmediatamente
                         if (input.value !== '' && !isNaN(Number(input.value))) { return resolve(true); }
-
-                        // intentar leer priceCop directamente desde el input[id] dataset
                         const prodIdInput = document.querySelector(`input[name="productos[${pk}][id]"]`);
                         const stored = prodIdInput?.dataset?.priceCop || prodIdInput?.dataset?.pricecop || '';
                         if (stored && String(stored).trim() !== '') {
-                            let txt = String(stored).replace(/[^0-9.,-]/g,'').trim();
-                            if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
-                                txt = txt.replace(/\./g,'').replace(/,/g,'.');
-                            } else if (txt.indexOf(',') > -1) txt = txt.replace(/,/g,'.');
-                            else txt = txt.replace(/\./g,'');
-                            const numeric = Number(txt) || 0;
+                            const numeric = parseLocalizedNumber(stored) ?? 0;
                             const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
-                            try { input.value = rounded; const span = document.querySelector(`#precio-${pk} .precio-cop-span`); if (span) span.textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded); } catch(e){}
+                            try {
+                                input.value = rounded;
+                                const span = document.querySelector(`#precio-${pk} .precio-cop-span`);
+                                const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
+                                if (span) span.textContent = `COP ${formatted}`;
+                            } catch(e){}
                             return resolve(true);
                         }
-
                         // si no hay priceCop, intentar leer price+currency y convertir
                         let price = Number(prodIdInput?.dataset?.price || 0);
                         let currency = (prodIdInput?.dataset?.priceCurrency || prodIdInput?.dataset?.pricecurrency || prodIdInput?.dataset?.currency || 'COP');
-
-                        // si price no existe, intentar desde el precio mostrado en la fila
                         if (!price || price === 0) {
                             const precioDiv = document.querySelector(`#precio-${pk} div`);
                             if (precioDiv) {
-                                let txt = precioDiv.textContent.replace(/[^0-9.,-]/g,'').trim();
-                                if (txt.indexOf(',') > -1 && txt.indexOf('.') > -1) {
-                                    txt = txt.replace(/\./g,'').replace(/,/g,'.');
-                                } else if (txt.indexOf(',') > -1 && txt.indexOf('.') === -1) {
-                                    txt = txt.replace(/,/g,'.');
-                                } else {
-                                    txt = txt.replace(/\./g,'');
-                                }
-                                price = Number(txt) || 0;
+                                const numeric = parseLocalizedNumber(precioDiv.textContent);
+                                price = numeric ?? 0;
                             }
                         }
-
-                        // Llamar a updatePriceToCOP con timeout de seguridad
                         let settled = false;
                         const p = updatePriceToCOP(pk, price, currency).then((res)=>{ settled = true; resolve(Boolean(res)); }).catch(()=>{ settled = true; resolve(false); });
                         setTimeout(()=>{ if(!settled) resolve(false); }, timeoutPer);
@@ -1939,16 +1813,13 @@
         function normalizeCurrency(s){
             if(!s) return 'COP';
             s = String(s).trim().toUpperCase();
-            // Símbolos y variantes comunes
             if (s === '$' || s === 'US$' || s === 'USD$' || /^U\$[DS]$/.test(s)) return 'USD';
             if (s.includes('€')) return 'EUR';
             if (s.includes('$') && /(COP|COL|COLOMB)/.test(s)) return 'COP';
-            // Códigos y palabras (es/EN)
-            if (/(^|\b)COP\b|PESO(S)?\s*COLOMBIANO/.test(s)) return 'COP';
+            if (/(^|\b)COP\b|PESO(S)?\s*COLOMBIAN/.test(s)) return 'COP';
             if (/(^|\b)USD\b|D[OÓ]LAR(ES)?\b|DOLLAR|US\$/.test(s)) return 'USD';
             if (/(^|\b)EUR\b|EURO/.test(s)) return 'EUR';
             if (/^[A-Z]{3}$/.test(s)) return s;
-            // Heurística final por símbolo
             if (s.includes('$')) return 'USD';
             return s.slice(0,3);
         }
@@ -1957,16 +1828,14 @@
         (function seedFromCOP(){
             const rates = exchangeBaseCache['COP'];
             if (!rates) return;
-            // Precalcular para monedas usadas por este producto cuando se renderice
             try {
-                const provs = JSON.parse(provsJson || '[]');
-                provs.forEach(p => {
+                unique.forEach(p => {
                     const cur = normalizeCurrency(p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP');
                     if (cur !== 'COP' && rates[cur] != null && rates[cur] !== 0 && !exchangeCache[`${cur}_COP`]) {
                         exchangeCache[`${cur}_COP`] = 1 / rates[cur];
                     }
                 });
-            } catch(_) {/* ignore */}
+            } catch(_){}
         })();
 
         // Render inmediato usando tasas cacheadas si existen
@@ -1975,10 +1844,16 @@
              const monedaRaw = p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP';
              const cur = normalizeCurrency(monedaRaw);
              const price = Number(p.price_produc ?? p.price ?? 0);
-             const cachedRate = (cur === 'COP') ? 1 : exchangeCache[`${cur}_COP`];
-             const cop = (cachedRate != null) ? (cachedRate * price) : null;
-             const formattedCOP = (cop != null) ? new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP' }).format(cop) : 'Calculando...';
-             const displayCOP = (cop != null) ? ('precio en COP:' + formattedCOP) : 'Calculando...';
+             // Usar TRM local primero; si no hay, caer a price_cop del servidor
+             const rateSync = (cur === 'COP') ? 1 : getExchangeRateSync(cur, 'COP');
+             let cop = null;
+             if (rateSync != null) {
+                 cop = Math.round(((price * Number(rateSync)) + Number.EPSILON) * 100) / 100;
+             } else if (p.price_cop != null && !isNaN(Number(p.price_cop))) {
+                 cop = Math.round((Number(p.price_cop) + Number.EPSILON) * 100) / 100;
+             }
+             const formattedCOP = (cop != null) ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop) : '';
+             const displayCOP = formattedCOP ? ('precio en COP: ' + formattedCOP) : '';
              let originalStr = '';
              if (/^[A-Z]{3}$/.test(cur)){
                  try { originalStr = new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price); }
@@ -1996,7 +1871,6 @@
                      </div>
                  </label>
              `;
-             // mark element with currency to update later
              div.dataset.currency = cur;
              container.appendChild(div);
          });
@@ -2004,6 +1878,27 @@
          // Mostrar modal inmediatamente
          const modal = document.getElementById('modal-proveedores');
          modal.classList.remove('hidden');
+         modal.classList.add('flex');
+
+        // Rellenar COP inmediatamente con TRM local (sin esperar async)
+        (function immediateFillCOP(){
+            try {
+                const radios = container.querySelectorAll('input[name="prov_choice"]');
+                radios.forEach(r => {
+                    const cur = String(r.dataset.currency || 'COP').toUpperCase();
+                    const price = Number(r.dataset.price || 0);
+                    if (!r.dataset.priceCop || String(r.dataset.priceCop).trim() === '') {
+                        const rate = (cur === 'COP') ? 1 : getExchangeRateSync(cur, 'COP');
+                        if (rate != null) {
+                            const cop = Math.round(((price * Number(rate)) + Number.EPSILON) * 100) / 100;
+                            r.dataset.priceCop = String(cop);
+                            const span = r.closest('label')?.querySelector('.prov-cop-amount');
+                            if (span) span.textContent = 'precio en COP: ' + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
+                        }
+                    }
+                });
+            } catch(_) { /* ignore */ }
+        })();
 
         // Cerrar por clic fuera y botones (se agregan debajo)
 
@@ -2029,7 +1924,6 @@
         }
 
         // fetch each missing currency and update matching rows
-        // helper: try initial fetch, then retry with longer timeout before marking N/A
         async function fetchAndUpdateCurrency(cur){
              const els = container.querySelectorAll(`[data-currency='${cur}']`);
              try {
@@ -2040,17 +1934,15 @@
                     els.forEach(div => {
                         const price = Number(div.querySelector('input[type="radio"]').dataset.price || 0);
                         const r = exchangeCache[`${cur}_COP`] || 0;
-                        const cop = r * price;
-                        const formatted = new Intl.NumberFormat('es-CO', { style:'currency', currency:'COP' }).format(cop || 0);
-                        const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precion en COP:' + formatted;
+                        const cop = Math.round((((r * price) || 0) + Number.EPSILON) * 100) / 100;
+                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop || 0);
+                        const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precio en COP: ' + formatted;
                         div.querySelector('input[type="radio"]').dataset.priceCop = cop || '';
                     });
                     return true;
                  }
              } catch(e){ /* ignore and retry below */ }
-             // final fallback: mark as 'N/A' after retries
-            // keep 'Calculando...' to indicate still trying; do not replace with 'N/A'
-             els.forEach(div => { const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'Calculando...'; });
+             els.forEach(div => { const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = ''; });
              return false;
          }
         const promises = Array.from(needed).map(cur => fetchAndUpdateCurrency(cur));
@@ -2079,7 +1971,14 @@
             const provId = chosen.value;
             const price = chosen.dataset.price || 0;
             const currency = chosen.dataset.currency || 'COP';
-            const priceCop = chosen.dataset.priceCop || '';
+            // calcular priceCop si aún no está en el dataset
+            let priceCop = chosen.dataset.priceCop || '';
+            if (!priceCop) {
+                try {
+                    const r = getExchangeRateSync(String(currency||'COP'), 'COP');
+                    if (r) priceCop = String(Number(price||0) * Number(r));
+                } catch(_) {}
+            }
             const provSelect = document.getElementById('proveedor_id');
             if (provSelect) provSelect.value = provId;
 
@@ -2109,6 +2008,7 @@
          const modal = document.getElementById('modal-proveedores');
          if (!modal) return;
          modal.classList.add('hidden');
+         modal.classList.remove('flex');
          const container = document.getElementById('prov-list'); if (container) container.innerHTML = '';
      }
      document.getElementById('btn-cerrar-proveedores')?.addEventListener('click', hideProvidersModal);
@@ -2119,5 +2019,5 @@
      document.getElementById('btn-select-prov')?.addEventListener('click', function(){
         if (typeof window.handleSelectProv === 'function') return window.handleSelectProv();
      });
-</script>
+    </script>
 @endsection

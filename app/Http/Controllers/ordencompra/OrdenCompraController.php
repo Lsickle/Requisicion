@@ -1108,50 +1108,92 @@ class OrdenCompraController extends Controller
 
         $items = [];
         $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
-        $ivaTotal = 0;
-        $subtotal = 0;
+        // Totales en COP (compatibilidad)
+        $subtotalCop = 0.0; $ivaTotalCop = 0.0;
+        // Totales en moneda original (para mostrar)
+        $subtotalOrigin = 0.0; $ivaTotalOrigin = 0.0;
+        $orderCurrency = null;
+
         foreach ($porProducto as $productoId => $lineas) {
             $producto = optional($lineas->first())->producto;
+            if (!$producto) { continue; }
             $cantidad = (int) $lineas->sum('total');
-            if ($producto) {
-                // Determinar tasa de IVA (fracción). Priorizar apply_iva almacenado; convertir si viene como porcentaje por error.
-                $ivaRate = 0.0; // fracción, p.ej. 0.12
-                foreach ($lineas as $ln) {
-                    if (isset($ln->apply_iva) && $ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
-                        $val = (float)$ln->apply_iva;
-                        // Si por alguna razón se guardó como porcentaje (p.ej. 12) convertir a fracción
-                        $ivaRate = ($val > 1) ? ($val / 100.0) : $val;
-                        break;
-                    }
+
+            // IVA como fracción
+            $ivaRate = 0.0;
+            foreach ($lineas as $ln) {
+                if ($ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
+                    $val = (float)$ln->apply_iva;
+                    $ivaRate = ($val > 1) ? ($val / 100.0) : $val;
+                    break;
                 }
-                // Si no se obtuvo de las líneas, usar valor del producto (puede ser % o fracción)
-                // No hacer fallback automático al campo del producto: si no hay apply_iva explícito, no aplicar IVA
-                if ($ivaRate <= 0) {
-                    $ivaRate = 0.0;
-                }
-
-                $precioUnitario = (float) ($producto->price_produc ?? 0);
-                $precioUnitarioConIva = round($precioUnitario * (1 + $ivaRate), 2);
-
-                $lineSubtotal = $precioUnitario * $cantidad;
-                $lineTotalConIva = $precioUnitarioConIva * $cantidad;
-                $lineIvaImport = $lineTotalConIva - $lineSubtotal;
-
-                $subtotal += $lineSubtotal;
-                $ivaTotal += $lineIvaImport;
-
-                $items[] = [
-                    'producto_id' => $producto->id,
-                    'name_produc' => $producto->name_produc,
-                    'description_produc' => $producto->description_produc ?? '',
-                    'unit_produc' => $producto->unit_produc ?? '',
-                    'po_amount' => $cantidad,
-                    'precio_unitario' => $precioUnitario,
-                    'iva' => $ivaRate * 100, // porcentaje para mostrar
-                    'precio_unitario_con_iva' => $precioUnitarioConIva,
-                    'total_con_iva' => $lineTotalConIva,
-                ];
             }
+
+            // Precio preferido en COP desde la línea si existe
+            $unitPriceCop = null;
+            foreach ($lineas as $ln) {
+                if ($ln->trm_oc !== null && $ln->trm_oc !== '') { $unitPriceCop = round((float)$ln->trm_oc, 2); break; }
+            }
+
+            // Precio y moneda original desde productoxproveedor (del proveedor de la OC si está)
+            $provId = optional($proveedor)->id;
+            $pxp = DB::table('productoxproveedor')
+                ->where('producto_id', $producto->id)
+                ->when($provId, function($q) use ($provId){ $q->where('proveedor_id', $provId); })
+                ->orderBy('id')
+                ->first();
+            if (!$pxp) {
+                $pxp = DB::table('productoxproveedor')
+                    ->where('producto_id', $producto->id)
+                    ->orderBy('id')
+                    ->first();
+            }
+            $priceRaw = (float)($pxp->price_produc ?? ($producto->price_produc ?? 0));
+            $mon = strtoupper($pxp->moneda ?? ($producto->moneda ?? 'COP'));
+
+            // Si no hay COP calculado, convertir desde TRM
+            if ($unitPriceCop === null) {
+                if ($mon === 'COP') { $unitPriceCop = round($priceRaw, 2); }
+                else {
+                    $rate = $this->fetchExchangeRateServer($mon, 'COP');
+                    $unitPriceCop = round(($rate ? ($priceRaw * $rate) : $priceRaw), 2);
+                }
+            }
+
+            // Cálculos COP (compatibilidad)
+            $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
+            $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
+            $lineSubtotalCop = round($unitPriceCop * $cantidad, 2);
+            $lineTotalWithIvaCop = round($unitWithIvaCop * $cantidad, 2);
+            $lineIvaCop = round($lineTotalWithIvaCop - $lineSubtotalCop, 2);
+            $subtotalCop += $lineSubtotalCop; $ivaTotalCop += $lineIvaCop;
+
+            // Cálculos en moneda original
+            $orderCurrency = $orderCurrency ?: $mon;
+            $unitIvaOrig = round($priceRaw * $ivaRate, 2);
+            $unitWithIvaOrig = round($priceRaw + $unitIvaOrig, 2);
+            $lineSubtotalOrig = round($priceRaw * $cantidad, 2);
+            $lineTotalWithIvaOrig = round($unitWithIvaOrig * $cantidad, 2);
+            $lineIvaOrig = round($lineTotalWithIvaOrig - $lineSubtotalOrig, 2);
+            $subtotalOrigin += $lineSubtotalOrig; $ivaTotalOrigin += $lineIvaOrig;
+
+            $items[] = [
+                'producto_id' => $producto->id,
+                'name_produc' => $producto->name_produc,
+                'description_produc' => $producto->description_produc ?? '',
+                'unit_produc' => $producto->unit_produc ?? '',
+                'po_amount' => $cantidad,
+                // COP (no usado en PDF ahora, pero se mantiene)
+                'precio_unitario' => $unitPriceCop,
+                'iva' => $ivaRate * 100,
+                'precio_unitario_con_iva' => $unitWithIvaCop,
+                'total_con_iva' => $lineTotalWithIvaCop,
+                // Moneda original (usado en PDF)
+                'currency' => $mon,
+                'unit_price' => $priceRaw,
+                'unit_price_con_iva' => $unitWithIvaOrig,
+                'line_total_with_iva' => $lineTotalWithIvaOrig,
+            ];
         }
 
         // Distribución por centros
@@ -1162,22 +1204,24 @@ class OrdenCompraController extends Controller
             ->get();
         $distribucion = [];
         foreach ($distRows as $r) {
-            $distribucion[$r->producto_id][] = [
-                'name_centro' => $r->name_centro,
-                'amount' => (int)$r->amount,
-            ];
+            $distribucion[$r->producto_id][] = [ 'name_centro' => $r->name_centro, 'amount' => (int)$r->amount ];
         }
 
-        $total = $subtotal + $ivaTotal;
+        $totalOrigin = round($subtotalOrigin + $ivaTotalOrigin, 2);
 
         return [
             'orden' => $orden,
             'proveedor' => $proveedor,
             'items' => $items,
             'distribucion' => $distribucion,
-            'subtotal' => $subtotal,
-            'iva_total' => $ivaTotal,
-            'total' => $total,
+            // Totales COP (compat)
+            'subtotal_cop' => $subtotalCop,
+            'iva_total_cop' => $ivaTotalCop,
+            // Totales originales (mostrar en PDF)
+            'subtotal' => $subtotalOrigin,
+            'iva_total' => $ivaTotalOrigin,
+            'total' => $totalOrigin,
+            'currency' => $orderCurrency ?: 'COP',
             'observaciones' => $orden->observaciones,
             'fecha_actual' => now()->format('d/m/Y H:i'),
             'logo' => $this->resolveLogoDataUri(),
