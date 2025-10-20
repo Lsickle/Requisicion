@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\Log;
 use App\Models\OrdenCompra;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EstatusRequisicionActualizado as EstatusRequisicionMail;
-use App\Jobs\NotificarAprobacionEtapaJob; // NUEVO
+use App\Jobs\NotificarAprobacionEtapaJob; 
+use App\Models\Productoxproveedor;
+use \App\Http\Controllers\requisicion\RequisicionController;
 
 class EstatusRequisicionController extends Controller
 {
@@ -121,6 +123,60 @@ class EstatusRequisicionController extends Controller
             return false;
         })->values();
 
+        // Cargar proveedores (productoxproveedor) y datos derivados por cada producto en cada requisición
+        foreach ($requisicionesFiltradas as $req) {
+            foreach ($req->productos as $prod) {
+                try {
+                    $provList = DB::table('productoxproveedor as pxp')
+                        ->join('proveedores as prov','pxp.proveedor_id','=','prov.id')
+                        ->where('pxp.producto_id', $prod->id)
+                        ->whereNull('pxp.deleted_at')
+                        ->select('pxp.id as pxp_id','prov.id','prov.prov_name','pxp.price_produc','pxp.moneda')
+                        ->orderBy('prov.prov_name')
+                        ->get();
+                } catch (\Throwable $e) { $provList = collect(); }
+
+                // usar método local de conversión a COP
+                $self = $this;
+                $provJson = $provList->map(function($pv) use ($self) {
+                    $priceCop = $self->convertToCop($pv->price_produc ?? 0, $pv->moneda ?? 'COP');
+                    return [
+                        'id' => $pv->id ?? null,
+                        'prov_name' => $pv->prov_name ?? null,
+                        'price_produc' => (float)($pv->price_produc ?? 0),
+                        'moneda' => strtoupper(trim($pv->moneda ?? 'COP')),
+                        'price_cop' => $priceCop,
+                        'pxp_id' => $pv->pxp_id ?? null,
+                    ];
+                });
+
+                $pivotPxpId = $prod->pivot->id_productoxproveedor ?? DB::table('producto_requisicion')
+                    ->where('id_requisicion', $req->id)
+                    ->where('id_producto', $prod->id)
+                    ->value('id_productoxproveedor');
+                $selProv = $pivotPxpId ? $provList->firstWhere('pxp_id', $pivotPxpId) : null;
+                $selProvId = $selProv->id ?? ($prod->pivot->proveedor_id ?? $prod->pivot->prov_id ?? $prod->proveedor_id ?? null);
+                $selPrice = isset($selProv) ? (float)($selProv->price_produc ?? 0) : ($prod->pivot->price_produc ?? $prod->pivot->price ?? $prod->price_produc ?? 0);
+                $selProvName = $selProv->prov_name ?? null;
+
+                $distribucion = DB::table('centro_producto')
+                    ->where('requisicion_id', $req->id)
+                    ->where('producto_id', $prod->id)
+                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                    ->select('centro.name_centro', 'centro_producto.amount')
+                    ->get();
+
+                // Adjuntar propiedades que la vista usaba directamente
+                $prod->provList = $provList;
+                $prod->provJson = $provJson;
+                $prod->pivotPxpId = $pivotPxpId;
+                $prod->selProvId = $selProvId;
+                $prod->selPrice = $selPrice;
+                $prod->selProvName = $selProvName;
+                $prod->distribucion = $distribucion;
+            }
+        }
+
         // Opciones (se mantienen para compatibilidad; la vista ahora calcula por requisición)
         $nextOptions = collect();
         if ($hasAreaCompras) { $nextOptions = Estatus::whereIn('id',[2,9])->pluck('status_name','id'); }
@@ -198,6 +254,56 @@ class EstatusRequisicionController extends Controller
             }
             if (!in_array($targetStatus, $allowedNext, true)) {
                 return response()->json(['success'=>false,'message'=>'Transición no permitida desde el estatus actual'],403);
+            }
+
+            // Si el frontend envío proveedores seleccionados (pxp_id), procesarlos y asegurar id_productoxproveedor en producto_requisicion
+            $proveedores = $request->input('proveedores', []);
+            if (is_array($proveedores) && count($proveedores) > 0) {
+                foreach ($proveedores as $p) {
+                    $productoId = isset($p['producto_id']) ? (int)$p['producto_id'] : null;
+                    if (!$productoId) continue;
+                    $pxpIdProvided = isset($p['pxp_id']) && is_numeric($p['pxp_id']) ? (int)$p['pxp_id'] : null;
+                    $proveedorId = isset($p['proveedor_id']) && is_numeric($p['proveedor_id']) ? (int)$p['proveedor_id'] : null;
+                    $price = isset($p['price']) && is_numeric($p['price']) ? (float)$p['price'] : null;
+                    $currency = isset($p['currency']) ? strtoupper(trim($p['currency'])) : null;
+
+                    try {
+                        if ($pxpIdProvided) {
+                            $pxp = Productoxproveedor::find($pxpIdProvided);
+                            if ($pxp) {
+                                $changed = false;
+                                if ($price !== null && $pxp->price_produc != $price) { $pxp->price_produc = $price; $changed = true; }
+                                if (!empty($currency) && ($pxp->moneda ?? '') !== $currency) { $pxp->moneda = $currency; $changed = true; }
+                                if ($changed) $pxp->save();
+                                // asegurar pivot
+                                $this->ensurePivotPxp($requisicionId, $productoId, $pxp->id);
+                                continue;
+                            }
+                        }
+
+                        // Si no vino pxp_id, crear o actualizar productoxproveedor por producto+proveedor
+                        if (!$proveedorId) continue;
+                        $pxp = Productoxproveedor::where('producto_id', $productoId)->where('proveedor_id', $proveedorId)->first();
+                        if (!$pxp) {
+                            $pxp = Productoxproveedor::create([
+                                'producto_id' => $productoId,
+                                'proveedor_id' => $proveedorId,
+                                'price_produc' => $price ?? 0,
+                                'moneda' => $currency ?? 'COP',
+                            ]);
+                        } else {
+                            $updated = false;
+                            if ($price !== null && $pxp->price_produc != $price) { $pxp->price_produc = $price; $updated = true; }
+                            if (!empty($currency) && ($pxp->moneda ?? '') !== $currency) { $pxp->moneda = $currency; $updated = true; }
+                            if ($updated) $pxp->save();
+                        }
+
+                        // asegurar pivot en producto_requisicion
+                        $this->ensurePivotPxp($requisicionId, $productoId, $pxp->id);
+                    } catch (\Throwable $e) {
+                        Log::warning('estatus.updateStatus ensureProveedor failed', ['req'=>$requisicionId,'prod'=>$productoId,'err'=>$e->getMessage()]);
+                    }
+                }
             }
 
             // Desactivar históricos
@@ -301,6 +407,47 @@ class EstatusRequisicionController extends Controller
             DB::rollBack();
             Log::error('ERROR CRÍTICO al actualizar estatus: '.$e->getMessage());
             return response()->json(['success'=>false,'message'=>'Error interno del servidor al actualizar el estatus: '.$e->getMessage()],500);
+        }
+    }
+
+    /**
+     * Asegura que la tabla producto_requisicion tenga id_productoxproveedor para una pareja requisicion-producto.
+     * Intenta actualizar; si no existe la fila, inserta una nueva con pr_amount inferido.
+     */
+    private function ensurePivotPxp(int $requisicionId, int $productoId, int $pxpId): bool
+    {
+        try {
+            $affected = DB::table('producto_requisicion')
+                ->where('id_requisicion', $requisicionId)
+                ->where('id_producto', $productoId)
+                ->update(['id_productoxproveedor' => $pxpId, 'deleted_at' => null, 'updated_at' => now()]);
+            if ($affected > 0) return true;
+
+            // Si no existía, intentar insertar la fila
+            $prAmount = (int) DB::table('centro_producto')
+                ->where('requisicion_id', $requisicionId)
+                ->where('producto_id', $productoId)
+                ->sum('amount');
+            if ($prAmount <= 0) {
+                $prev = DB::table('producto_requisicion')
+                    ->where('id_requisicion', $requisicionId)
+                    ->where('id_producto', $productoId)
+                    ->value('pr_amount');
+                $prAmount = (int) ($prev ?? 0);
+            }
+            DB::table('producto_requisicion')->insert([
+                'id_producto' => $productoId,
+                'id_requisicion' => $requisicionId,
+                'id_productoxproveedor' => $pxpId,
+                'pr_amount' => max(0, $prAmount),
+                'created_at' => now(),
+                'updated_at' => now(),
+                'deleted_at' => null,
+            ]);
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('ensurePivotPxp failed (estatus controller)', ['req'=>$requisicionId,'prod'=>$productoId,'pxp'=>$pxpId,'err'=>$e->getMessage()]);
+            return false;
         }
     }
 
@@ -483,4 +630,24 @@ class EstatusRequisicionController extends Controller
     // (Opcional) Métodos previos de notificación específicos se mantienen para compatibilidad
     // private function notificarAreaComprasAprobacion(...) { /* deprecated */ }
     // private function recipientsForOperation(...) { /* deprecated */ }
+
+    /**
+     * Convertir un monto a COP usando la tabla 'trm' si está disponible.
+     */
+    private function convertToCop($amount, $currency = 'COP')
+    {
+        $amt = floatval($amount ?: 0);
+        $cur = strtoupper(trim($currency ?? 'COP'));
+        if ($cur === 'COP') return round($amt, 2);
+        try {
+            $trm = DB::table('trm')->orderByDesc('date')->value('valor');
+            if (!$trm) { $trm = DB::table('trm')->orderByDesc('created_at')->value('valor'); }
+            $rate = floatval($trm ?: 0);
+            if ($rate <= 0) $rate = 1;
+            return round($amt * $rate, 2);
+        } catch (\Throwable $e) {
+            Log::warning('convertToCop fallback', ['err'=>$e->getMessage(),'amount'=>$amt,'currency'=>$cur]);
+            return round($amt, 2);
+        }
+    }
 }

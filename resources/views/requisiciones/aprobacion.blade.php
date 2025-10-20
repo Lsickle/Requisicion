@@ -157,8 +157,8 @@
                         <thead class="bg-gray-100 text-gray-700">
                             <tr>
                                 <th class="px-4 py-2 text-left">Producto</th>
-                                <th class="px-4 py-2 text-center">Cantidad</th>
-                                <th class="px-4 py-2 text-left">Proveedor</th>
+                                <th class="w-20 px-2 py-2 text-center">Cant</th>
+                                <th class="w-30 px-2 py-2 text-left">Proveedor</th>
                                 <th class="px-4 py-2 text-right">Precio</th>
                                 <th class="px-4 py-2 text-right">Total</th>
                                 <th class="px-4 py-2 text-left">Distribución por Centros</th>
@@ -168,71 +168,54 @@
                             @foreach($req->productos as $prod)
                             @php
                                 $cantidad = (float) ($prod->pivot->pr_amount ?? 0);
-                                // traer proveedores y precios disponibles
-                                $provList = collect();
-                                try {
-                                    $provList = DB::table('productoxproveedor as pxp')
-                                        ->join('proveedores as prov','pxp.proveedor_id','=','prov.id')
-                                        ->where('pxp.producto_id', $prod->id)
-                                        ->whereNull('pxp.deleted_at')
-                                        ->select('prov.id','prov.prov_name','pxp.price_produc','pxp.moneda')
-                                        ->orderBy('prov.prov_name')
-                                        ->get();
-                                } catch (\Throwable $e) { $provList = collect(); }
-
-                                // detectar proveedor ya seleccionado (si el backend lo guardó en pivot)
-                                $selProvId = $prod->pivot->proveedor_id ?? $prod->pivot->prov_id ?? $prod->proveedor_id ?? null;
-                                $selPrice = $prod->pivot->price_produc ?? $prod->pivot->price ?? $prod->price_produc ?? 0;
-
+                                // datos cargados por el controlador: provList, provJson, pivotPxpId, selProvId, selPrice, selProvName, distribucion
+                                $provList = $prod->provList ?? collect();
+                                $provJson = $prod->provJson ?? collect();
+                                $pivotPxpId = $prod->pivotPxpId ?? null;
+                                $selProvId = $prod->selProvId ?? null;
+                                $selPrice = $prod->selPrice ?? 0;
+                                $selProvName = $prod->selProvName ?? null;
                                 $totalProd = round(((float)$selPrice ?: 0) * $cantidad, 2);
                                 $totalGeneral = round($totalGeneral + $totalProd, 2);
-                                $distribucion = DB::table('centro_producto')
-                                    ->where('requisicion_id', $req->id)
-                                    ->where('producto_id', $prod->id)
-                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                                    ->select('centro.name_centro', 'centro_producto.amount')
-                                    ->get();
+                                $distribucion = $prod->distribucion ?? collect();
                             @endphp
                             <tr class="align-top" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}">
                                 <td class="px-4 py-3">{{ $prod->name_produc }}</td>
-                                <td class="px-4 py-3 text-center font-semibold">{{ number_format($cantidad, 0, ',', '.') }}</td>
-                                <td class="px-4 py-3">
-                                    @if($isComprasOrAdmin && (int)$estatusActual === 1)
-                                        @if($provList->count() === 1)
-                                            @php $only = $provList->first(); @endphp
-                                            <div class="flex items-center gap-2">
-                                                <div class="text-sm font-medium">{{ $only->prov_name }}</div>
-                                                <div class="text-sm text-gray-500">({{ number_format($only->price_produc ?? $only->price_produc ?? 0, 2, ',', '.') }})</div>
-                                            </div>
-                                            <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
-                                                <option value="{{ $only->id }}" data-price="{{ (float)($only->price_produc ?? 0) }}" selected>{{ $only->prov_name }}</option>
-                                            </select>
-                                        @else
-                                            <div class="flex items-center gap-3">
-                                                <div class="flex flex-col items-center gap-1">
-                                                    <button type="button" title="Seleccionar proveedor" class="open-prov-modal-btn inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700" data-providers='@json($provList)' data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-selected="{{ $selProvId ?? '' }}" aria-label="Seleccionar proveedor">
-                                                        <i class="fas fa-store"></i>
-                                                    </button>
-                                                    <div class="selected-prov-name text-xs text-center truncate w-28" id="selprov-{{ $req->id }}-{{ $prod->id }}">{{ $provList->firstWhere('id', $selProvId)->prov_name ?? 'No seleccionado' }}</div>
-                                                </div>
-                                            </div>
+                                <td class="w-20 px-2 py-1 text-center font-semibold">{{ number_format($cantidad, 0, ',', '.') }}</td>
+                                <td class="w-36 px-2 py-2 align-top">
+                                     @if($isComprasOrAdmin && (int)$estatusActual === 1)
+                                         @if($provList->count() === 1)
+                                             @php $only = $provJson->first(); @endphp
+                                             <div class="flex flex-col items-start gap-1">
+                                                 <div class="w-full bg-green-50 border border-green-100 rounded-md p-2">
+                                                     <div class="text-sm font-semibold text-green-800">{{ $only['prov_name'] ?? 'Proveedor' }}</div>
+                                                     <div class="text-xs text-gray-600">{{ number_format($only['price_produc'] ?? 0, 2, ',', '.') }} {{ $only['moneda'] ?? 'COP' }}</div>
+                                                 </div>
+                                                 <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
+                                                     <option value="{{ $only['pxp_id'] }}" data-prov-id="{{ $only['id'] }}" data-price="{{ (float)($only['price_cop'] ?? 0) }}" data-price-original="{{ (float)($only['price_produc'] ?? 0) }}" data-currency-original="{{ $only['moneda'] ?? 'COP' }}" selected>{{ $only['prov_name'] }}</option>
+                                                 </select>
+                                             </div>
+                                          @else
+                                             <div class="flex flex-col items-start gap-2">
+                                                 <button type="button" title="Seleccionar proveedor" class="open-prov-modal-btn inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white" data-providers='@json($provJson)' data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-selected="{{ $pivotPxpId ?? '' }}" aria-label="Seleccionar proveedor">
+                                                     <i class="fas fa-store"></i>
+                                                     <span class="text-sm font-medium">Seleccionar proveedor</span>
+                                                 </button>
+                                                 <div class="mt-1 w-56">
+                                                     <div id="selprov-name-{{ $req->id }}-{{ $prod->id }}" class="text-sm font-semibold truncate">{{ $selProvName ?? 'No seleccionado' }}</div>
+                                                 </div>
+                                             </div>
 
-                                            <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
-                                                <option value="">Seleccione</option>
-                                                @foreach($provList as $pv)
-                                                    <option value="{{ $pv->id }}" data-price="{{ (float)($pv->price_produc ?? 0) }}" data-currency="{{ $pv->moneda ?? 'COP' }}" {{ $selProvId && $selProvId == $pv->id ? 'selected' : '' }}>{{ $pv->prov_name }} @if(isset($pv->price_produc)) ({{ number_format($pv->price_produc,2) }}) @endif</option>
-                                                @endforeach
-                                            </select>
-                                        @endif
-                                    @else
-                                        @php
-                                            $provName = null;
-                                            if ($selProvId) {
-                                                $provName = DB::table('proveedores')->where('id', $selProvId)->value('prov_name');
-                                            }
-                                        @endphp
-                                        <div class="text-sm">{{ $provName ?? ($provList->first()->prov_name ?? 'Proveedor') }}</div>
-                                    @endif
+                                              <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
+                                                  <option value="">Seleccione</option>
+                                                  @foreach($provJson as $pvj)
+                                                      <option value="{{ $pvj['pxp_id'] }}" data-prov-id="{{ $pvj['id'] }}" data-price="{{ (float)($pvj['price_cop'] ?? 0) }}" data-price-original="{{ (float)($pvj['price_produc'] ?? 0) }}" data-currency-original="{{ $pvj['moneda'] ?? 'COP' }}" {{ ($pivotPxpId && $pivotPxpId == $pvj['pxp_id']) ? 'selected' : '' }}>{{ $pvj['prov_name'] }} ({{ number_format($pvj['price_produc'],2,',','.') }} {{ $pvj['moneda'] }})</option>
+                                                  @endforeach
+                                               </select>
+                                          @endif
+                                     @else
+                                        <div class="text-sm truncate">{{ $selProvName ?? ($provName ?? ($provList->first()->prov_name ?? 'Proveedor')) }}</div>
+                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right"><span class="precio-cell" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selPrice,2,',','.') }}</span></td>
                                 <td class="px-4 py-3 text-right font-semibold"><span class="total-cell" id="total-{{ $req->id }}-{{ $prod->id }}">{{ number_format($totalProd,2,',','.') }}</span></td>
@@ -265,21 +248,21 @@
             </div>
 
             <!-- Botones Aprobar/Rechazar -->
+            @php
+            $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
+            $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            $especial = in_array($opNorm, ['tecnologia','compras']);
+            $estatusAprobar = null;
+            if ($estatusActual === 1) {
+                $estatusAprobar = $especial ? 3 : 2;
+            } elseif ($estatusActual === 2) {
+                $estatusAprobar = 3;
+            } elseif ($estatusActual === 3) {
+                $estatusAprobar = 4;
+            }
+            $estatusRechazar = 9;
+            @endphp
             <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
-                @php
-                $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
-                $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
-                $especial = in_array($opNorm, ['tecnologia','compras']);
-                $estatusAprobar = null;
-                if ($estatusActual === 1) {
-                    $estatusAprobar = $especial ? 3 : 2; // salto directo si operación especial
-                } elseif ($estatusActual === 2) {
-                    $estatusAprobar = 3;
-                } elseif ($estatusActual === 3) {
-                    $estatusAprobar = 4;
-                }
-                $estatusRechazar = 9;
-                @endphp
                 @if($estatusAprobar)
                 <button class="status-btn bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
                     data-id="{{ $req->id }}" data-estatus="{{ $estatusAprobar }}" data-action="aprobar" data-estatus-actual="{{ $estatusActual }}" data-requires-providers="{{ ($isComprasOrAdmin && (int)$estatusActual === 1) ? '1' : '0' }}">Aprobar</button>
@@ -311,272 +294,7 @@
     @endsection
 
     @section('scripts')
+    <input type="hidden" id="csrf_token" value="{{ csrf_token() }}" />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-    // Formato a 2 decimales
-    function format2(n){ try{ const v=Number(n||0); return new Intl.NumberFormat('es-CO',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);}catch(_){const v=Number(n||0); return (Math.round(v*100)/100).toFixed(2);} }
-
-    // Exponer toggleModal en window para onclick inline
-    window.toggleModal = function(id){
-        try{
-            const modal = document.getElementById(id);
-            if(!modal) return;
-            if(modal.classList.contains('hidden')){
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                document.body.style.overflow = 'hidden';
-            } else {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-                document.body.style.overflow = 'auto';
-            }
-        } catch(e){ console.warn('toggleModal error', e); }
-    };
-
-    // Recalcular total general de una requisición
-    function recomputeTotals(reqId){
-        try{
-            const totals = Array.from(document.querySelectorAll(`#modal-${reqId} .total-cell`));
-            let sum = 0;
-            totals.forEach(el => {
-                const raw = (el.textContent || '').trim().replace(/\./g,'').replace(',','.');
-                const num = Number(raw);
-                if(!isNaN(num)) sum += num;
-            });
-            const span = document.getElementById(`total-general-${reqId}`);
-            if(span) span.textContent = format2(sum);
-        } catch(e){ console.warn('recomputeTotals', e); }
-    }
-
-    // Inicializar selects de proveedores: fijar precio/total inicial y bind change
-    function initProviderSelections(){
-        document.querySelectorAll('.prov-select').forEach(sel => {
-            const reqId = sel.dataset.req;
-            const prodId = sel.dataset.prod;
-            const qty = Number(sel.dataset.qty || 0);
-
-            const setFromOption = (opt) => {
-                const price = Number(opt?.dataset?.price || 0);
-                const precioEl = document.getElementById(`precio-${reqId}-${prodId}`);
-                const totalEl = document.getElementById(`total-${reqId}-${prodId}`);
-                if (precioEl) precioEl.textContent = format2(price);
-                if (totalEl) totalEl.textContent = format2(price * qty);
-            };
-
-            // aplicar opción seleccionada o la primera con precio
-            const cur = sel.options[sel.selectedIndex] || null;
-            if (cur && cur.value) setFromOption(cur);
-            else {
-                const first = Array.from(sel.options).find(o => typeof o.dataset.price !== 'undefined');
-                if (first) setFromOption(first);
-            }
-
-            sel.addEventListener('change', function(){
-                const opt = this.options[this.selectedIndex] || { dataset: { price: 0 } };
-                setFromOption(opt);
-                recomputeTotals(reqId);
-            });
-        });
-
-        // Recalcular totales generales iniciales
-        document.querySelectorAll('[id^="total-general-"]').forEach(span => {
-            const reqId = span.id.replace('total-general-','');
-            recomputeTotals(reqId);
-        });
-    }
-
-    // Confirmar cambio de estatus (envía proveedores si existen)
-    function confirmarCambioEstatus(requisicionId, estatusId, comentario = null){
-        const data = { estatus_id: estatusId, comentario };
-        try{
-            const selects = document.querySelectorAll(`#modal-${requisicionId} .prov-select`);
-            if (selects.length > 0) {
-                const proveedores = Array.from(selects).map(s => ({ producto_id: Number(s.dataset.prod), proveedor_id: Number(s.value || 0), price: Number((s.options[s.selectedIndex] && s.options[s.selectedIndex].dataset.price) || 0) }));
-                data.proveedores = proveedores;
-            }
-        }catch(e){ console.warn('confirmarCambioEstatus gather providers', e); }
-
-        Swal.fire({ title: 'Procesando...', html: 'Enviando solicitud, por favor espere.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        fetch(`/requisiciones/${requisicionId}/estatus`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-            body: JSON.stringify(data)
-        }).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(res => {
-            if (res.success) Swal.fire('Éxito', res.message || 'Estatus actualizado', 'success').then(()=> location.reload());
-            else Swal.fire('Error', res.message || 'No se pudo actualizar el estatus', 'error');
-        }).catch(err => { Swal.fire('Error', 'No se pudo actualizar el estatus: ' + err.message, 'error'); });
-    }
-
-    // Bindear botones de aprobar/rechazar
-    function bindStatusButtons(){
-        document.querySelectorAll('.status-btn').forEach(btn => {
-            btn.addEventListener('click', function(){
-                const requisicionId = this.dataset.id;
-                const estatusId = parseInt(this.dataset.estatus);
-                const accion = this.dataset.action;
-                const requiresProviders = this.dataset.requiresProviders === '1';
-                const estatusActual = parseInt(this.dataset.estatusActual || this.dataset.estatus_actual || '0');
-
-                if (accion === 'rechazar'){
-                    Swal.fire({ title: 'Motivo de rechazo (opcional)', input: 'textarea', inputPlaceholder: 'Escribe el motivo...', showCancelButton: true, confirmButtonText: 'Rechazar', cancelButtonText: 'Cancelar', confirmButtonColor: '#dc2626' })
-                    .then(r => {
-                        if (!r.isConfirmed) return;
-                        const comentario = (r.value || '').trim();
-                        if (!comentario) {
-                            Swal.fire({ title: 'Enviar rechazo sin comentario', text: '¿Deseas continuar sin comentario?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, rechazar' })
-                            .then(c => { if (c.isConfirmed) confirmarCambioEstatus(requisicionId, estatusId, null); });
-                        } else confirmarCambioEstatus(requisicionId, estatusId, comentario);
-                    });
-                    return;
-                }
-
-                // aprobar
-                if (requiresProviders && estatusActual === 1) {
-                    const selects = Array.from(document.querySelectorAll(`#modal-${requisicionId} .prov-select`));
-                    const faltantes = selects.filter(s => !s.value);
-                    if (faltantes.length > 0) { Swal.fire({ icon: 'warning', title: 'Seleccione proveedores', text: 'Debe seleccionar un proveedor por cada producto antes de aprobar.'}); return; }
-                }
-
-                Swal.fire({ title: `¿Seguro que deseas aprobar la requisición #${requisicionId}?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, aprobar', cancelButtonText: 'Cancelar', confirmButtonColor: '#16a34a' })
-                .then(r => { if (r.isConfirmed) confirmarCambioEstatus(requisicionId, estatusId, null); });
-            });
-        });
-    }
-
-    // Paginación y búsqueda
-    function setupPaginationAndSearch(){
-        const input = document.getElementById('busquedaAprob');
-        const pageSizeSel = document.getElementById('pageSizeSelectAprob');
-        let currentPage = 1;
-        let pageSize = parseInt(pageSizeSel?.value || '10', 10) || 10;
-
-        function getMatched(){ return Array.from(document.querySelectorAll('.aprob-item')).filter(el => (el.dataset.match ?? '1') !== '0'); }
-        function render(totalPages){
-            const container = document.getElementById('paginationControlsAprob'); container.innerHTML = '';
-            const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2);
-            const btnPrev = document.createElement('button'); btnPrev.textContent = 'Anterior'; btnPrev.className = 'px-3 py-1 border rounded text-sm ' + (currentPage===1? 'opacity-50 cursor-not-allowed':'hover:bg-gray-100'); btnPrev.disabled = currentPage===1; btnPrev.onclick = () => showPage(currentPage-1); container.appendChild(btnPrev);
-            for(let p=start;p<=end;p++){ const btn = document.createElement('button'); btn.textContent = p; btn.className = 'px-3 py-1 rounded text-sm ' + (p===currentPage? 'bg-blue-600 text-white':'border hover:bg-gray-100'); btn.onclick = () => showPage(p); container.appendChild(btn); }
-            const btnNext = document.createElement('button'); btnNext.textContent = 'Siguiente'; btnNext.className = 'px-3 py-1 border rounded text-sm ' + (currentPage===totalPages? 'opacity-50 cursor-not-allowed':'hover:bg-gray-100'); btnNext.disabled = currentPage===totalPages; btnNext.onclick = () => showPage(currentPage+1); container.appendChild(btnNext);
-        }
-        function showPage(page=1){
-            const items = getMatched(); const totalPages = Math.max(1, Math.ceil(items.length / pageSize)); currentPage = Math.min(Math.max(1, page), totalPages);
-            const start = (currentPage-1)*pageSize; const end = start + pageSize;
-            document.querySelectorAll('.aprob-item').forEach(el => el.style.display = 'none'); items.slice(start,end).forEach(el => el.style.display = '');
-            render(totalPages);
-            const info = document.getElementById('paginationInfoAprob'); if (info){ const total = items.length; const showing = Math.min(end, total); info.textContent = `Mostrando ${showing} de ${total}`; }
-        }
-
-        document.querySelectorAll('.aprob-item').forEach(el => el.dataset.match = '1');
-        if (pageSizeSel) pageSizeSel.addEventListener('change', e => { pageSize = parseInt(e.target.value,10)||10; showPage(1); });
-        if (input) input.addEventListener('keyup', function(){
-            const filtro = this.value.toLowerCase();
-            document.querySelectorAll('.aprob-item').forEach(el => {
-                el.dataset.match = el.textContent.toLowerCase().includes(filtro) ? '1' : '0';
-            });
-            showPage(1);
-            });
-
-        showPage(1);
-    }
-
-    // DOM ready
-    document.addEventListener('DOMContentLoaded', function(){
-        try{ initProviderSelections(); }catch(e){console.warn(e);} 
-        try{ bindStatusButtons(); }catch(e){console.warn(e);} 
-        try{ setupPaginationAndSearch(); }catch(e){console.warn(e);} 
-    });
-
-    // Proveedor modal functions
-    function openProviderChoiceModal(reqId, prodId, providers, selectedId = null) {
-        const modal = document.getElementById('providerChoiceModal');
-        const list = document.getElementById('providerChoiceList');
-        list.innerHTML = '';
-
-        providers.forEach(prov => {
-            const item = document.createElement('div');
-            item.className = 'flex justify-between items-center p-2 border-b';
-
-            const left = document.createElement('div');
-            left.innerHTML = `<div class="font-medium">${prov.prov_name}</div><div class="text-sm text-gray-500">Precio: ${format2(prov.price_produc)} ${prov.moneda || ''}</div>`;
-
-            const btn = document.createElement('button');
-            // minimal button: small circular icon
-            btn.className = 'select-prov-btn inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white';
-            btn.setAttribute('data-id', prov.id);
-            btn.setAttribute('data-req', reqId);
-            btn.setAttribute('data-prod', prodId);
-            btn.setAttribute('aria-label', 'Seleccionar proveedor');
-            btn.textContent = '✓';
-
-            // click handler directo: actualizar select oculto, UI y cerrar modal
-            btn.addEventListener('click', function(e){
-                e.stopPropagation();
-                const provId = this.getAttribute('data-id');
-                const rId = this.getAttribute('data-req');
-                const pId = this.getAttribute('data-prod');
-
-                const hiddenSelect = document.querySelector(`.prov-select[data-req="${rId}"][data-prod="${pId}"]`);
-                if (hiddenSelect) {
-                    const opt = Array.from(hiddenSelect.options).find(o => String(o.value) === String(provId));
-                    if (opt) {
-                        hiddenSelect.value = opt.value;
-                        hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    } else {
-                        const priceText = left.querySelector('.text-sm') ? (left.querySelector('.text-sm').textContent.match(/[-0-9.,]+/) || ['0'])[0] : '0';
-                        const parsedPrice = priceText.replace(/\./g,'').replace(',','.');
-                        const newOpt = document.createElement('option');
-                        newOpt.value = provId;
-                        newOpt.dataset.price = parsedPrice;
-                        newOpt.text = prov.prov_name || 'Proveedor';
-                        hiddenSelect.appendChild(newOpt);
-                        hiddenSelect.value = newOpt.value;
-                        hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                }
-
-                const selDiv = document.getElementById(`selprov-${rId}-${pId}`);
-                if (selDiv) selDiv.textContent = prov.prov_name || 'Seleccionado';
-
-                // cerrar modal
-                closeProviderChoiceModal();
-            });
-
-            item.appendChild(left);
-            item.appendChild(btn);
-            list.appendChild(item);
-        });
-
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeProviderChoiceModal() {
-        const modal = document.getElementById('providerChoiceModal');
-        if (!modal) return;
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.style.overflow = 'auto';
-    }
-
-    // confirmProviderChoice queda disponible pero la selección es inmediata al pulsar el botón minimalista
-    function confirmProviderChoice(){
-        // no-op fallback (se usa selección inmediata)
-        closeProviderChoiceModal();
-    }
-
-    // Abrir modal de proveedores cuando se pulsa el botón "Seleccionar proveedor"
-    document.addEventListener('click', function(e){
-        const btn = e.target.closest && e.target.closest('.open-prov-modal-btn');
-        if (!btn) return;
-        e.preventDefault();
-        let providers = [];
-        try { providers = JSON.parse(btn.getAttribute('data-providers') || '[]'); } catch(err) { providers = []; }
-        const reqId = btn.getAttribute('data-req');
-        const prodId = btn.getAttribute('data-prod');
-        const selectedId = btn.getAttribute('data-selected') || null;
-        openProviderChoiceModal(reqId, prodId, providers, selectedId);
-    });
-    </script>
+    <script src="{{ asset('js/aprobacion.js') }}"></script>
     @endsection

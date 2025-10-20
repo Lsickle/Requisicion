@@ -707,7 +707,7 @@
         agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio, selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP');
     }
 
-    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0, precioCurrency = 'COP', providersJson = '', priceCop = '') {
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0, precioCurrency = 'COP', providersJson = '', priceCop = '', productoxproveedorId = '') {
          const table = document.getElementById('productos-table');
          const rowId = `producto-${rowKey}`;
          if (document.getElementById(rowId)) return;
@@ -749,6 +749,8 @@
                  </div>
                  <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
                      data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}" data-price-currency="${precioCurrency}">
+                 <input type="hidden" name="productos[${rowKey}][proveedor_id]" value="${proveedorId||''}">
+                 <input type="hidden" name="productos[${rowKey}][productoxproveedor_id]" id="productoxproveedor-${rowKey}" value="${productoxproveedorId || ''}">
                  <input type="hidden" name="productos[${rowKey}][trm_oc]" id="trm_oc-${rowKey}" value="">
                  <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
                  <input type="hidden" name="productos[${rowKey}][price]" value="${precioNum}">

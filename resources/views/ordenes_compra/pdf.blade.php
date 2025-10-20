@@ -355,35 +355,51 @@
                 <thead>
                     <tr>
                         <th width="5%">#</th>
-                        <th width="20%">Producto</th>
-                        <th width="30%">Descripción</th>
+                        <th width="28%">Producto</th>
                         <th width="8%">Unidad</th>
-                        <th width="8%">Cantidad</th>
-                        <th width="8%">IVA</th>
-                        <th width="8%">Valor Unitario ({{ $currency ?? 'COP' }})</th>
-                        <th width="10%">Total (c/ IVA) ({{ $currency ?? 'COP' }})</th>
+                        <th width="6%">Cantidad</th>
+                        <th width="6%">IVA</th>
+                        <th width="12%">Valor Unitario (original)</th>
+                        <th width="12%">Total (original)</th>
+                        <th width="12%">Valor Unitario (COP)</th>
+                        <th width="11%">Total (COP)</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @php $pageGrandCop = 0; @endphp
                     @foreach($pageItems as $i => $item)
                     <tr>
-                        <td>{{ $pageIndex * $rowsPerPage + $i + 1 }}</td>
-                        <td>{{ $item['name_produc'] }}</td>
-                        <td>{{ $item['description_produc'] }}</td>
-                        <td>{{ $item['unit_produc'] }}</td>
-                        <td>{{ number_format($item['po_amount'], 0) }}</td>
                         @php
-                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; // porcentaje
-                        $ivaRate = $ivaPercent / 100;
-                        // Usar precio en moneda original si existe; fallback a COP
+                        $idx = $pageIndex * $rowsPerPage + $i + 1;
                         $unitPrice = (float)($item['unit_price'] ?? ($item['precio_unitario'] ?? 0));
-                        $unitIva = round($unitPrice * $ivaRate, 2);
-                        $unitWithIva = round($unitPrice + $unitIva, 2);
-                        $lineTotalWithIva = round($unitWithIva * (int)$item['po_amount'], 2);
+                        $origCurrency = $item['currency'] ?? ($currency ?? 'COP');
+                        // convertir a COP usando helper del controlador
+                        $unitPriceCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPrice, $origCurrency);
+
+                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0;
+                        $ivaRate = $ivaPercent / 100;
+
+                        $unitIvaOrig = round($unitPrice * $ivaRate, 2);
+                        $unitWithIvaOrig = round($unitPrice + $unitIvaOrig, 2);
+
+                        $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
+                        $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
+
+                        $qty = (int)$item['po_amount'];
+                        $lineTotalCop = round($unitWithIvaCop * $qty, 2);
+                        $lineTotalOrig = round($unitWithIvaOrig * $qty, 2);
+                        $pageGrandCop += $lineTotalCop;
                         @endphp
+
+                        <td>{{ $idx }}</td>
+                        <td>{{ $item['name_produc'] }}</td>
+                        <td>{{ $item['unit_produc'] }}</td>
+                        <td>{{ number_format($qty, 0) }}</td>
                         <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%' : '0%' }}</td>
-                        <td class="text-right">{{ $currency ?? 'COP' }} ${{ number_format($unitPrice, 2) }}<br><small>+ IVA {{ $currency ?? 'COP' }} ${{ number_format($unitIva,2) }}</small></td>
-                        <td class="text-right">{{ $currency ?? 'COP' }} ${{ number_format($lineTotalWithIva, 2) }}</td>
+                        <td class="text-right">{{ $origCurrency }} ${{ number_format($unitWithIvaOrig, 2) }}<br><small>(+ IVA {{ number_format($unitIvaOrig,2) }})</small></td>
+                        <td class="text-right">{{ $origCurrency }} ${{ number_format($lineTotalOrig, 2) }}</td>
+                        <td class="text-right">COP ${{ number_format($unitWithIvaCop, 2) }}<br><small>(equiv. unidad)</small></td>
+                        <td class="text-right">COP ${{ number_format($lineTotalCop, 2) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -398,10 +414,25 @@
             @php /* Antes: tarjeta .totals-card */ @endphp
 
             <div style="clear:both;"></div>
+            @php
+                // Calcular total general en COP sumando todas las páginas
+                $grandTotalCop = 0;
+                foreach($productPages as $pageItemsTmp) {
+                    foreach($pageItemsTmp as $it) {
+                        $u = (float)($it['unit_price'] ?? ($it['precio_unitario'] ?? 0));
+                        $c = $it['currency'] ?? ($currency ?? 'COP');
+                        $uCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($u, $c);
+                        $iva = isset($it['iva']) ? ((float)$it['iva'] / 100) : 0;
+                        $unitWithIvaCopTmp = round($uCop + ($uCop * $iva), 2);
+                        $qtyTmp = (int)($it['po_amount'] ?? 0);
+                        $grandTotalCop += round($unitWithIvaCopTmp * $qtyTmp, 2);
+                    }
+                }
+            @endphp
             <div class="totals-box" role="region" aria-label="Total General">
                 <div class="row total">
-                    <div class="label">TOTAL GENERAL ({{ $currency ?? 'COP' }})</div>
-                    <div class="value">{{ $currency ?? 'COP' }} ${{ number_format($total ?? $subtotal ?? 0, 2) }}</div>
+                    <div class="label">TOTAL GENERAL (COP)</div>
+                    <div class="value">COP ${{ number_format($grandTotalCop, 2) }}</div>
                 </div>
             </div>
             <div style="clear:both;"></div>
