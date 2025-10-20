@@ -38,9 +38,11 @@ class SyncTrmRatesJob implements ShouldQueue
 
             $now = now();
             $rows = [];
+            $allowed = ['COP','USD','EUR'];
             foreach ($json['rates'] as $code => $rate) {
                 if (!is_string($code) || !is_numeric($rate)) continue;
                 $code = strtoupper(substr($code, 0, 3));
+                if (!in_array($code, $allowed, true)) continue; // guardar solo COP, USD, EUR
                 $rows[] = [
                     'moneda'    => $code,
                     'price'     => (float)$rate,

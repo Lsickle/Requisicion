@@ -158,6 +158,13 @@ class EstatusRequisicionController extends Controller
                 $selProvId = $selProv->id ?? ($prod->pivot->proveedor_id ?? $prod->pivot->prov_id ?? $prod->proveedor_id ?? null);
                 $selPrice = isset($selProv) ? (float)($selProv->price_produc ?? 0) : ($prod->pivot->price_produc ?? $prod->pivot->price ?? $prod->price_produc ?? 0);
                 $selProvName = $selProv->prov_name ?? null;
+                // moneda del precio seleccionado (original)
+                $selCurrency = null;
+                if ($selProv && isset($selProv->moneda)) { $selCurrency = strtoupper(trim($selProv->moneda)); }
+                elseif (isset($prod->pivot->moneda)) { $selCurrency = strtoupper(trim($prod->pivot->moneda)); }
+                else { $selCurrency = 'COP'; }
+                // precio convertido a COP (usado para cálculos totales)
+                $selPriceCop = $this->convertToCop($selPrice, $selCurrency);
 
                 $distribucion = DB::table('centro_producto')
                     ->where('requisicion_id', $req->id)
@@ -172,6 +179,8 @@ class EstatusRequisicionController extends Controller
                 $prod->pivotPxpId = $pivotPxpId;
                 $prod->selProvId = $selProvId;
                 $prod->selPrice = $selPrice;
+                $prod->selCurrency = $selCurrency;
+                $prod->selPriceCop = $selPriceCop;
                 $prod->selProvName = $selProvName;
                 $prod->distribucion = $distribucion;
             }
@@ -640,11 +649,32 @@ class EstatusRequisicionController extends Controller
         $cur = strtoupper(trim($currency ?? 'COP'));
         if ($cur === 'COP') return round($amt, 2);
         try {
-            $trm = DB::table('trm')->orderByDesc('date')->value('valor');
-            if (!$trm) { $trm = DB::table('trm')->orderByDesc('created_at')->value('valor'); }
-            $rate = floatval($trm ?: 0);
-            if ($rate <= 0) $rate = 1;
-            return round($amt * $rate, 2);
+            // Buscar la tasa más reciente para la moneda solicitada
+            $rate = DB::table('trm')
+                ->where('moneda', $cur)
+                ->orderByDesc('update_date')
+                ->orderByDesc('id')
+                ->value('price');
+
+            // Si no se encuentra, intentar buscar por moneda en minúsculas/variantes
+            if (is_null($rate)) {
+                $rate = DB::table('trm')
+                    ->whereRaw('upper(moneda) = ?', [$cur])
+                    ->orderByDesc('update_date')
+                    ->orderByDesc('id')
+                    ->value('price');
+            }
+
+            $rate = floatval($rate ?: 0);
+            if ($rate <= 0) {
+                Log::warning('convertToCop missing or invalid rate', ['currency'=>$cur,'rate'=>$rate]);
+                return round($amt, 2);
+            }
+
+            // En la tabla trm la columna 'price' representa la cantidad de moneda extranjera por 1 COP
+            // Ej: USD => 0.000255 significa 1 COP = 0.000255 USD -> para convertir USD->COP: amount / rate
+            $converted = $amt / $rate;
+            return round($converted, 2);
         } catch (\Throwable $e) {
             Log::warning('convertToCop fallback', ['err'=>$e->getMessage(),'amount'=>$amt,'currency'=>$cur]);
             return round($amt, 2);

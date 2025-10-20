@@ -217,7 +217,10 @@
                                         <div class="text-sm truncate">{{ $selProvName ?? ($provName ?? ($provList->first()->prov_name ?? 'Proveedor')) }}</div>
                                      @endif
                                 </td>
-                                <td class="px-4 py-3 text-right"><span class="precio-cell" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selPrice,2,',','.') }}</span></td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="text-sm" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selPrice,2,',','.') }} {{ $prod->selCurrency ?? 'COP' }}</div>
+                                    <div class="text-xs text-gray-500" id="preciocop-{{ $req->id }}-{{ $prod->id }}">{{ number_format($prod->selPriceCop ?? $selPrice,2,',','.') }} COP</div>
+                                </td>
                                 <td class="px-4 py-3 text-right font-semibold"><span class="total-cell" id="total-{{ $req->id }}-{{ $prod->id }}">{{ number_format($totalProd,2,',','.') }}</span></td>
                                 <td class="px-4 py-3">
                                     @if($distribucion->count() > 0)

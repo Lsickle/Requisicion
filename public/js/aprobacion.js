@@ -28,7 +28,25 @@
         const price = Number(opt?.dataset?.price || 0); // en COP
         const precioEl = document.getElementById(`precio-${reqId}-${prodId}`);
         const totalEl = document.getElementById(`total-${reqId}-${prodId}`);
-        if (precioEl) precioEl.textContent = format2(price);
+        const precioCopEl = document.getElementById(`preciocop-${reqId}-${prodId}`);
+        const original = opt?.dataset?.priceOriginal;
+        const cur = (opt?.dataset?.currencyOriginal || 'COP').toUpperCase();
+
+        if (precioEl) {
+          if (cur === 'COP') {
+            // si la moneda ya es COP, mostrar solo una línea en precio
+            precioEl.textContent = format2(price) + ' COP';
+            if (precioCopEl) precioCopEl.textContent = '';
+          } else {
+            // mostrar precio original + moneda (si existe) y la conversión COP en la línea inferior
+            if (typeof original !== 'undefined') {
+              precioEl.textContent = (Number(original) ? format2(original) : format2(price)) + ' ' + cur;
+            } else {
+              precioEl.textContent = format2(price) + ' COP';
+            }
+            if (precioCopEl) precioCopEl.textContent = format2(price) + ' COP';
+          }
+        }
         if (totalEl) totalEl.textContent = format2(price * qty);
       };
 
@@ -70,9 +88,21 @@
     providers.forEach(prov => {
       const item = document.createElement('div'); item.className = 'flex justify-between items-center p-2 border-b';
       const left = document.createElement('div');
+      const code = (prov.moneda || '').toString().toUpperCase();
       const orig = (prov.price_produc != null) ? `${format2(prov.price_produc)} ${prov.moneda || ''}` : '';
       const cop  = (prov.price_cop != null)    ? `${format2(prov.price_cop)} COP` : '';
-      left.innerHTML = `<div class="font-medium">${prov.prov_name || 'Proveedor'}</div><div class="text-sm text-gray-500">Precio: ${orig}${orig && cop ? ' — ' : ''}${cop}</div>`;
+      let priceHtml = '';
+      if (code === 'COP') {
+        // si la moneda es COP, mostrar sólo el precio en COP
+        priceHtml = cop || orig || '';
+      } else {
+        // mostrar original y conversión si existen
+        priceHtml = '';
+        if (orig) priceHtml += orig;
+        if (orig && cop) priceHtml += ' — ';
+        if (cop) priceHtml += cop;
+      }
+      left.innerHTML = `<div class="font-medium">${prov.prov_name || 'Proveedor'}</div><div class="text-sm text-gray-500">Precio: ${priceHtml}</div>`;
       const btn = document.createElement('button'); btn.className='select-prov-btn inline-flex items-center justify-center px-3 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white';
       btn.setAttribute('data-id', prov.id); btn.setAttribute('data-pxp-id', prov.pxp_id); btn.setAttribute('data-req', reqId); btn.setAttribute('data-prod', prodId); btn.textContent = 'Seleccionar';
       btn.addEventListener('click', function(e){
@@ -100,8 +130,20 @@
         // actualizar etiquetas visibles
         const nameEl = document.getElementById(`selprov-name-${rId}-${pId}`);
         const priceEl = document.getElementById(`selprov-price-${rId}-${pId}`);
+        const precioOriginalEl = document.getElementById(`precio-${rId}-${pId}`);
+        const precioCopEl = document.getElementById(`preciocop-${rId}-${pId}`);
         if (nameEl) nameEl.textContent = prov.prov_name || 'Seleccionado';
-        if (priceEl) priceEl.textContent = (prov.price_cop ? format2(prov.price_cop) + ' COP' : '');
+        const code = (prov.moneda || '').toString().toUpperCase();
+        if (code === 'COP') {
+          // mostrar solo COP en la línea principal
+          if (precioOriginalEl) precioOriginalEl.textContent = (prov.price_cop ? format2(prov.price_cop) + ' COP' : (prov.price_produc ? format2(prov.price_produc) + ' COP' : ''));
+          if (precioCopEl) precioCopEl.textContent = '';
+          if (priceEl) priceEl.textContent = (prov.price_cop ? format2(prov.price_cop) + ' COP' : '');
+        } else {
+          if (precioOriginalEl) precioOriginalEl.textContent = (prov.price_produc ? format2(prov.price_produc) + ' ' + (prov.moneda||'') : '');
+          if (precioCopEl) precioCopEl.textContent = (prov.price_cop ? format2(prov.price_cop) + ' COP' : '');
+          if (priceEl) priceEl.textContent = (prov.price_cop ? format2(prov.price_cop) + ' COP' : '');
+        }
         modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow='auto';
       });
       item.appendChild(left); item.appendChild(btn); list.appendChild(item);
@@ -185,18 +227,84 @@
     const input = document.getElementById('busquedaAprob');
     const pageSizeSel = document.getElementById('pageSizeSelectAprob');
     let currentPage = 1; let pageSize = parseInt(pageSizeSel?.value || '10', 10) || 10;
-    function getMatched(){ return Array.from(document.querySelectorAll('.aprob-item')).filter(el => (el.dataset.match ?? '1') !== '0'); }
-    function render(totalPages){
+
+    // Agrupar elementos por requisición (data-id) para no duplicar filas y tarjetas
+    const raw = Array.from(document.querySelectorAll('.aprob-item'));
+    const seen = new Set();
+    const uniqueItems = [];
+    raw.forEach(el => {
+      const id = el.dataset.id || el.getAttribute('data-id');
+      if (!id) return;
+      if (!seen.has(id)) { seen.add(id); uniqueItems.push({ id: String(id), elements: [el] }); }
+      else { const ui = uniqueItems.find(u => u.id === String(id)); if (ui) ui.elements.push(el); }
+    });
+
+    const isDesktop = () => window.matchMedia('(min-width:768px)').matches;
+
+    let currentFilter = '';
+
+    const getMatched = ()=> {
+      const filtro = (currentFilter || '').toLowerCase();
+      return uniqueItems.filter(u => {
+        // combinar textos de sus elementos para buscar
+        const txt = u.elements.map(e=> (e.textContent||'')).join(' ').toLowerCase();
+        return txt.includes(filtro);
+      });
+    };
+
+    function renderControls(totalPages){
       const container = document.getElementById('paginationControlsAprob'); if (!container) return; container.innerHTML='';
-      const start = Math.max(1, currentPage - 2); const end = Math.min(totalPages, currentPage + 2);
-      const btnPrev = document.createElement('button'); btnPrev.textContent='Anterior'; btnPrev.className='px-3 py-1 border rounded text-sm ' + (currentPage===1? 'opacity-50 cursor-not-allowed':'hover:bg-gray-100'); btnPrev.disabled = currentPage===1; btnPrev.onclick = () => showPage(currentPage-1); container.appendChild(btnPrev);
-      for(let p=start;p<=end;p++){ const btn=document.createElement('button'); btn.textContent=String(p); btn.className='px-3 py-1 rounded text-sm ' + (p===currentPage? 'bg-blue-600 text-white':'border hover:bg-gray-100'); btn.onclick=()=>showPage(p); container.appendChild(btn); }
+      const btnPrev = document.createElement('button');
+      btnPrev.textContent='Anterior'; btnPrev.className='px-3 py-1 border rounded text-sm ' + (currentPage===1? 'opacity-50 cursor-not-allowed':'hover:bg-gray-100'); btnPrev.disabled = currentPage===1; btnPrev.onclick = () => showPage(currentPage-1); container.appendChild(btnPrev);
+
+      const maxButtons = 5;
+      let start = Math.max(1, currentPage - Math.floor(maxButtons/2));
+      let end = Math.min(totalPages, start + maxButtons -1);
+      if (end - start < maxButtons -1) start = Math.max(1, end - maxButtons +1);
+      for(let p=start;p<=end;p++){ const btn=document.createElement('button'); btn.textContent=String(p); btn.className='px-3 py-1 rounded text-sm ' + (p===currentPage? 'bg-blue-600 text-white':'border hover:bg-gray-100'); btn.onclick=()=> showPage(p); container.appendChild(btn); }
+
       const btnNext = document.createElement('button'); btnNext.textContent='Siguiente'; btnNext.className='px-3 py-1 border rounded text-sm ' + (currentPage===totalPages? 'opacity-50 cursor-not-allowed':'hover:bg-gray-100'); btnNext.disabled = currentPage===totalPages; btnNext.onclick = () => showPage(currentPage+1); container.appendChild(btnNext);
     }
-    function showPage(page){ const items=getMatched(); const totalPages=Math.max(1, Math.ceil(items.length / pageSize)); currentPage = Math.min(Math.max(1, page||1), totalPages); const start=(currentPage-1)*pageSize; const end=start+pageSize; document.querySelectorAll('.aprob-item').forEach(el => el.style.display='none'); items.slice(start,end).forEach(el => el.style.display=''); render(totalPages); const info=document.getElementById('paginationInfoAprob'); if(info){ const total=items.length; const showing=Math.min(end, total); info.textContent=`Mostrando ${showing} de ${total}`; } }
+
+    function showPage(page){
+      const items = getMatched();
+      const total = items.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      currentPage = Math.min(Math.max(1, page||1), totalPages);
+      const startIdx = (currentPage-1)*pageSize;
+      const endIdx = Math.min(startIdx + pageSize, total);
+
+      // ocultar todos los elementos inicialmente
+      raw.forEach(el => { el.style.display = 'none'; el.setAttribute('aria-hidden','true'); });
+
+      // mostrar para cada requisición el elemento adecuado según viewport
+      for(let i=startIdx;i<endIdx;i++){
+        const ui = items[i]; if (!ui) continue;
+        // elegir elemento preferido: TR en desktop, DIV en mobile
+        let elToShow = null;
+        if (isDesktop()) elToShow = ui.elements.find(e => (e.tagName||'').toUpperCase() === 'TR') || ui.elements[0];
+        else elToShow = ui.elements.find(e => (e.tagName||'').toUpperCase() === 'DIV') || ui.elements[0];
+        if (!elToShow) continue;
+        const tag = (elToShow.tagName || '').toUpperCase();
+        if (tag === 'TR') elToShow.style.display = 'table-row';
+        else if (tag === 'DIV') elToShow.style.display = 'block';
+        else elToShow.style.display = '';
+        elToShow.removeAttribute('aria-hidden');
+      }
+
+      renderControls(totalPages);
+
+      const info = document.getElementById('paginationInfoAprob');
+      if (info) {
+        info.textContent = total === 0 ? 'Mostrando 0 de 0' : `Mostrando ${endIdx} de ${total}`;
+      }
+    }
+
     if (pageSizeSel) pageSizeSel.addEventListener('change', e => { pageSize = parseInt(e.target.value,10)||10; showPage(1); });
-    if (input) input.addEventListener('keyup', function(){ const filtro=this.value.toLowerCase(); document.querySelectorAll('.aprob-item').forEach(el => { el.dataset.match = el.textContent.toLowerCase().includes(filtro) ? '1' : '0'; }); showPage(1); });
-    document.querySelectorAll('.aprob-item').forEach(el => el.dataset.match='1');
+
+    if (input) input.addEventListener('input', function(){ currentFilter = (this.value||''); showPage(1); });
+
+    // Inicializar
     showPage(1);
   }
 
