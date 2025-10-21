@@ -35,10 +35,24 @@
             <tbody class="text-gray-700">
                 @foreach($ordenes as $oc)
                 @php
-                    // calcular total de la OC sumando price_produc * cantidad por línea
+                    // calcular total de la OC sumando price * cantidad por línea
                     $ocTotal = 0;
                     foreach($oc->ordencompraProductos as $ln) {
-                        $price = optional($ln->producto)->price_produc ?? 0;
+                        // Priorizar precio en COP guardado en la línea (trm_oc). Si no existe, intentar obtener price_produc desde productoxproveedor para el proveedor de la línea
+                        $price = 0;
+                        try {
+                            if (!empty($ln->trm_oc)) {
+                                $price = (float)$ln->trm_oc;
+                            }
+                            if (empty($price) || $price === 0) {
+                                $pxp = DB::table('productoxproveedor')
+                                    ->where('producto_id', $ln->producto_id)
+                                    ->when(!empty($ln->proveedor_id), function($q) use($ln){ $q->where('proveedor_id', $ln->proveedor_id); })
+                                    ->orderBy('id')
+                                    ->first();
+                                $price = (float)($pxp->price_produc ?? 0);
+                            }
+                        } catch (\Throwable $e) { $price = 0; }
                         $qty = (int)($ln->total ?? 0);
                         $ocTotal += $price * $qty;
                     }
@@ -85,6 +99,22 @@
                     $estatusDisplay = '—';
                     $isTerminada = false;
                 }
+
+                // Calcular primer producto con cantidad pendiente (para prellenar nueva OC)
+                $pendingProductId = null;
+                $pendingQty = 0;
+                try {
+                    foreach ($oc->ordencompraProductos as $ln) {
+                        $ordered = (int) ($ln->total ?? 0);
+                        $received = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->where('producto_id', $ln->producto_id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                        $pend = max(0, $ordered - $received);
+                        if ($pend > 0) { $pendingProductId = $ln->producto_id; $pendingQty = $pend; break; }
+                    }
+                } catch (\Throwable $e) { /* noop */ }
+
+                // Determinar si mostrar el botón de crear nueva OC (cuando esté completada/anulada o soft-deleted)
+                $estatusLower = strtolower(trim((string)($estatusDisplay ?? '')));
+                $showCreate = ($oc->deleted_at !== null) || in_array($estatusLower, ['completada','anulada','cancelada']);
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
@@ -128,6 +158,11 @@
                             <button type="button" data-oc-id="{{ $oc->id }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
+                            @endif
+                            @if($showCreate)
+                                <a href="{{ route('ordenes_compra.create', ['requisicion_id' => $requisicionId, 'producto_id' => $pendingProductId, 'cantidad' => $pendingQty]) }}" title="Crear nueva OC" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" aria-label="Crear nueva OC">
+                                    <i class="fas fa-plus"></i>
+                                </a>
                             @endif
                             <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
                                 <i class="fas fa-file-pdf"></i>
@@ -183,10 +218,14 @@
                             ->leftJoinSub($recSum, 'r', function($j){
                                 $j->on('r.producto_id','=','ocp.producto_id');
                             })
+                            // intentar obtener precio desde productoxproveedor asociado a la línea (pxp)
+                            ->leftJoin('productoxproveedor as pxp', function($join){
+                                $join->on('pxp.producto_id','=','p.id')->on('pxp.proveedor_id','=','ocp.proveedor_id');
+                            })
                             ->select(
                                 'p.id as producto_id',
                                 'p.name_produc',
-                                'p.price_produc as price_produc',
+                                DB::raw('COALESCE(pxp.price_produc, 0) as price_produc'),
                                 'p.unit_produc as unit_produc',
                                 'ocp.total as cantidad_total',
                                 'r.recepcion_id as recepcion_id',
@@ -216,6 +255,7 @@
                             @foreach($recRows as $r)
                             @php
                                 $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
+                                // price_produc puede venir de pxp.price_produc; si no, 0
                                 $price = (float)($r->price_produc ?? 0);
                                 $lineTotal = $price * (int)$r->cantidad_total;
                                 $grandRecTotal += $lineTotal;
@@ -308,7 +348,22 @@
                                          @foreach($oc->ordencompraProductos as $linea)
                                          @if($linea->producto)
                                          @php
-                                             $unitPrice = $linea->producto->price_produc ?? 0;
+                                             // Determinar precio unitario: preferir trm_oc (COP) en la línea; si no, intentar productoxproveedor para el proveedor de la OC
+                                             $unitPrice = 0;
+                                             try {
+                                                 if (!empty($linea->trm_oc)) {
+                                                     $unitPrice = (float)$linea->trm_oc;
+                                                 }
+                                                 if (empty($unitPrice) || $unitPrice === 0) {
+                                                     $provId = optional(optional($oc->ordencompraProductos->first())->proveedor)->id ?? null;
+                                                     $pxp = DB::table('productoxproveedor')
+                                                         ->where('producto_id', $linea->producto_id)
+                                                         ->when($provId, function($q) use($provId){ $q->where('proveedor_id', $provId); })
+                                                         ->orderBy('id')
+                                                         ->first();
+                                                     $unitPrice = (float)($pxp->price_produc ?? 0);
+                                                 }
+                                             } catch (\Throwable $e) { $unitPrice = 0; }
                                              $unitName = $linea->producto->unit_produc ?? '—';
                                              $lineTotal = $unitPrice * (int)$linea->total;
                                          @endphp

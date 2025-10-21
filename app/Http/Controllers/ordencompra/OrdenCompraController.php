@@ -21,8 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
-use App\Jobs\EnviarOrdenCompraCreadaJob; // NUEVO
-
+use App\Jobs\EnviarOrdenCompraCreadaJob; 
 
 class OrdenCompraController extends Controller
 {
@@ -38,6 +37,7 @@ class OrdenCompraController extends Controller
     public function create(Request $request, $requisicion_id = null)
     {
         $reqId = $requisicion_id ?? $request->query('requisicion_id');
+
         $requisiciones = Requisicion::select('requisicion.*')
             ->whereExists(function ($query) {
                 $query->select(DB::raw(1))
@@ -335,11 +335,13 @@ class OrdenCompraController extends Controller
                         }
                         if ($unitPrice !== null) {
                             if ($cur === 'COP') {
+                                // moneda local COP: mantener el comportamiento previo (guardar precio unitario en COP)
                                 $trmOc = round($unitPrice, 2);
                             } else {
+                                // Obtener la tasa COP por 1 unidad de la moneda (p.ej. COP por USD) y guardarla en trm_oc
                                 $rate = $this->fetchExchangeRateServer($cur, 'COP');
                                 if ($rate) {
-                                    $trmOc = round($unitPrice * $rate, 2);
+                                    $trmOc = round($rate, 2);
                                 } else {
                                     // No guardar importe no-COP cuando no hay tasa
                                     $trmOc = null;
@@ -424,9 +426,9 @@ class OrdenCompraController extends Controller
                         } else {
                             $rate = $this->fetchExchangeRateServer($cur, 'COP');
                             if ($rate) {
-                                $trmOcValue = round($unitPrice * $rate, 2);
+                                // Guardar la tasa (COP por 1 unidad de la moneda) en trm_oc
+                                $trmOcValue = round($rate, 2);
                             } else {
-                                // No guardar importe no-COP cuando no hay tasa
                                 $trmOcValue = null;
                             }
                         }
@@ -462,7 +464,7 @@ class OrdenCompraController extends Controller
                         $computed = null;
                         if ($unitPrice !== null) {
                             if ($cur === 'COP') $computed = round($unitPrice, 2);
-                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($unitPrice * $rate, 2); }
+                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($rate, 2); }
                         }
                         if ($computed !== null) {
                             $last->trm_oc = $computed;

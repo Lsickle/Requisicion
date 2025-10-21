@@ -23,6 +23,7 @@ use App\Http\Controllers\dashboard\DashboardController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
+use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -242,6 +243,9 @@ Route::middleware([AuthSession::class])->group(function () {
             return response()->json(['message' => $e->getMessage()], 500);
         }
     })->name('ordenes_compra.terminar');
+
+    // Ruta para terminar una OC y crear una nueva con faltantes si aplica
+    Route::post('/ordenes_compra/terminar_con_faltantes/{id}', [OrdenCompraExtrasController::class, 'terminarAndCreateMissing'])->name('ordenes_compra.terminar_con_faltantes');
 
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])

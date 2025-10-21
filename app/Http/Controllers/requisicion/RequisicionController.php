@@ -1223,4 +1223,36 @@ class RequisicionController extends Controller
             return response()->json(['message' => 'Error interno al registrar entregas'], 500);
         }
     }
+
+    /**
+     * Convertir montos a COP consultando tabla `trm` (maneja monedas iguales y fallos).
+     * @param mixed $amount
+     * @param string|null $currency
+     * @return float|null
+     */
+    public static function convertToCop($amount, $currency = 'COP')
+    {
+        try {
+            $cur = strtoupper(trim((string)($currency ?? 'COP')));
+            $amt = is_numeric($amount) ? (float)$amount : floatval(str_replace(',', '.', preg_replace('/[^0-9,\.\-]/', '', (string)$amount)));
+            if ($cur === 'COP') return round($amt, 2);
+
+            // Intentar obtener tasa desde tabla `trm` (precio por 1 USD)
+            try {
+                $rowFrom = DB::table('trm')->where('moneda', $cur)->orderByDesc('update_date')->orderByDesc('id')->first();
+                $rowTo = DB::table('trm')->where('moneda', 'COP')->orderByDesc('update_date')->orderByDesc('id')->first();
+                if ($rowFrom && $rowTo && isset($rowFrom->price) && isset($rowTo->price) && (float)$rowFrom->price > 0) {
+                    $pFrom = (float)$rowFrom->price;
+                    $pTo = (float)$rowTo->price;
+                    $rate = $pTo / $pFrom; // from -> COP
+                    return round($amt * $rate, 2);
+                }
+            } catch (\Throwable $e) {
+                // noop
+            }
+        } catch (\Throwable $e) {
+            // noop
+        }
+        return null;
+    }
 }

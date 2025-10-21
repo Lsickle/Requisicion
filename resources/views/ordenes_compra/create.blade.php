@@ -736,7 +736,18 @@
 
          let cantidadParaComprar = cantidadOriginal;
          const precioNum = isNaN(precio) ? 0 : precio;
-         const precioStr = precioNum.toFixed(2);
+         // Formateo del precio original: si la moneda es COP mostrar directamente el precio formateado en COP
+         let formattedOriginal = '';
+         try {
+             const cur = (precioCurrency || 'COP').toString().toUpperCase();
+             if (cur === 'COP') {
+                 formattedOriginal = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(precioNum);
+             } else {
+                 // mostrar el número tal cual si no podemos formatear la moneda original
+                 try { formattedOriginal = new Intl.NumberFormat(undefined, { style: 'currency', currency: cur }).format(precioNum); }
+                 catch(e) { formattedOriginal = precioNum.toFixed(2) + ' ' + cur; }
+             }
+         } catch (e) { formattedOriginal = precioNum.toFixed(2); }
 
          const row = document.createElement('tr');
          row.id = rowId;
@@ -766,8 +777,8 @@
              <td class="p-3 text-center">${unidad || '-'}</td>
              <td class="p-3 text-center" id="moneda-${rowKey}">${precioCurrency}</td>
              <td class="p-3 text-center" id="precio-${rowKey}">
-                <div>${precioStr}</div>
-                <div class="text-xs text-gray-500 precio-cop-span"></div>
+                <div>${formattedOriginal}</div>
+                ${precioCurrency && precioCurrency.toUpperCase() !== 'COP' ? '<div class="text-xs text-gray-500 precio-cop-span"></div>' : ''}
              </td>
              <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
              <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
@@ -813,13 +824,19 @@
             try {
                 if (storedPriceCop && storedPriceCop !== '') {
                     const trmInput = document.getElementById(`trm_oc-${rowKey}`);
-                    const spanCop = document.querySelector(`#precio-${rowKey} .precio-cop-span`);
+                    const priceCell = document.getElementById(`precio-${rowKey}`);
+                    const spanCop = priceCell?.querySelector('.precio-cop-span');
+                    const priceDiv = priceCell?.querySelector('div');
                     const numeric = parseLocalizedNumber(storedPriceCop) ?? 0;
                     const rounded = Math.round((numeric + Number.EPSILON) * 100) / 100;
                     if (trmInput) trmInput.value = rounded;
+                    const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
                     if (spanCop) {
-                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
+                        // moneda original != COP: mostrar precio en COP en el span
                         spanCop.textContent = `COP ${formatted}`;
+                    } else if (priceDiv) {
+                        // moneda original es COP: actualizar la principal (evitar duplicado)
+                        priceDiv.textContent = formatted;
                     }
                 }
             } catch(e) { /* ignore */ }
@@ -1709,6 +1726,10 @@
                 if (span) {
                     const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(rounded);
                     span.textContent = `COP ${formatted}`;
+                } else {
+                    // si no existe el span (moneda COP), actualizar el primer div con el formato COP
+                    const priceDiv = document.querySelector(`#precio-${pk} div`);
+                    if (priceDiv) { priceDiv.textContent = (new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(rounded)); }
                 }
                 return rounded;
             }
@@ -1726,13 +1747,25 @@
                 return null;
             }
 
-            const cop = Math.round((Number(price || 0) * Number(rate) + Number.EPSILON) * 100) / 100;
-            if (input) input.value = cop;
+            // Guardar la tasa (COP por 1 unidad de la moneda) en el hidden trm_oc-{rowKey}
+            const trmValue = Math.round((Number(rate) + Number.EPSILON) * 100) / 100;
+            if (input) input.value = trmValue;
+
+            // Calcular precio unitario en COP usando la tasa
+            const copUnit = Math.round((Number(price || 0) * Number(rate) + Number.EPSILON) * 100) / 100;
             if (span) {
-                const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
-                span.textContent = `COP ${formatted}`;
+                const formattedUnit = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(copUnit);
+                const formattedRate = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(trmValue);
+                span.textContent = `COP ${formattedUnit} (1 ${currency} = ${formattedRate})`;
+            } else {
+                // si no existe el span (moneda COP), actualizar el primer div con el formato COP
+                const priceDiv = document.querySelector(`#precio-${pk} div`);
+                if (priceDiv) {
+                    const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(copUnit);
+                    priceDiv.textContent = formatted + ` (1 ${currency} = ` + (new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(trmValue)) + `)`;
+                }
             }
-            return cop;
+            return copUnit;
         } catch (err) {
             console.warn('updatePriceToCOP error', err);
             // No escribir el precio original en el hidden para evitar guardar moneda extranjera
@@ -1855,7 +1888,8 @@
                  cop = Math.round((Number(p.price_cop) + Number.EPSILON) * 100) / 100;
              }
              const formattedCOP = (cop != null) ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop) : '';
-             const displayCOP = formattedCOP ? ('precio en COP: ' + formattedCOP) : '';
+             // Mostrar el texto "precio en COP" solo si la moneda original NO es COP para evitar duplicados
+             const displayCOP = (cur !== 'COP' && formattedCOP) ? ('precio en COP: ' + formattedCOP) : '';
              let originalStr = '';
              if (/^[A-Z]{3}$/.test(cur)){
                  try { originalStr = new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price); }
@@ -1869,7 +1903,7 @@
                      <input type="radio" name="prov_choice" id="${id}" value="${p.proveedor_id}" data-price="${price}" data-currency="${cur}" data-price-cop="${cop != null ? cop : ''}" ${idx === 0 ? 'checked' : ''}>
                      <div class="flex-1">
                          <div class="font-medium">${p.prov_name}</div>
-                         <div class="text-xs text-gray-500">Precio: ${originalStr} · <span class="prov-cop-amount">${displayCOP}</span></div>
+                         <div class="text-xs text-gray-500">Precio: ${originalStr}${displayCOP ? ' · <span class="prov-cop-amount">' + displayCOP + '</span>' : ''}</div>
                      </div>
                  </label>
              `;
@@ -1894,8 +1928,11 @@
                         if (rate != null) {
                             const cop = Math.round(((price * Number(rate)) + Number.EPSILON) * 100) / 100;
                             r.dataset.priceCop = String(cop);
-                            const span = r.closest('label')?.querySelector('.prov-cop-amount');
-                            if (span) span.textContent = 'precio en COP: ' + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
+                            // Solo actualizar el span si la moneda original NO es COP (evita mostrar dos veces el mismo precio)
+                            if (cur !== 'COP') {
+                                const span = r.closest('label')?.querySelector('.prov-cop-amount');
+                                if (span) span.textContent = 'precio en COP: ' + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
+                            }
                         }
                     }
                 });
@@ -1938,10 +1975,13 @@
                         const r = exchangeCache[`${cur}_COP`] || 0;
                         const cop = Math.round((((r * price) || 0) + Number.EPSILON) * 100) / 100;
                         const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop || 0);
-                        const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precio en COP: ' + formatted;
+                        // Solo mostrar el span cuando la moneda original no es COP
+                        if (cur !== 'COP') {
+                            const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precio en COP: ' + formatted;
+                        }
                         div.querySelector('input[type="radio"]').dataset.priceCop = cop || '';
                     });
-                    return true;
+                     return true;
                  }
              } catch(e){ /* ignore and retry below */ }
              els.forEach(div => { const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = ''; });
