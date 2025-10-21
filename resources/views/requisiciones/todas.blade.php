@@ -291,21 +291,44 @@
                                         @php $grandTotalModal = 0; @endphp
                                         @foreach($req->productos as $prod)
                                             @php
-                                                $unitPrice = (float) ($prod->price_produc ?? 0);
-                                                $lineTotal = ($prod->pivot->pr_amount ?? 0) * $unitPrice;
+                                                $cantidadProd = ($prod->pivot->pr_amount ?? 0);
+                                                // Buscar precio por proveedor asociado en el pivot o tomar el último registrado
+                                                try {
+                                                    $pxp = null;
+                                                    $pivotPxpId = $prod->pivot->id_productoxproveedor ?? null;
+                                                    if ($pivotPxpId) {
+                                                        $pxp = DB::table('productoxproveedor')->where('id', $pivotPxpId)->first();
+                                                    }
+                                                    if (!$pxp) {
+                                                        $pxp = DB::table('productoxproveedor')->where('producto_id', $prod->id)->orderByDesc('id')->first();
+                                                    }
+                                                    $unitPriceOriginal = (float) ($pxp->price_produc ?? 0);
+                                                    $origCurrency = strtoupper(trim($pxp->moneda ?? 'COP'));
+                                                } catch (\Throwable $e) {
+                                                    $unitPriceOriginal = 0.0; $origCurrency = 'COP';
+                                                }
+                                                // Conversión a COP usando helper del controlador
+                                                try { $unitPriceCOP = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); }
+                                                catch (\Throwable $e) { $unitPriceCOP = null; }
+                                                $lineTotal = $cantidadProd * ($unitPriceCOP ?? $unitPriceOriginal);
                                                 $grandTotalModal += $lineTotal;
                                             @endphp
                                             <tr class="border-b">
                                                 <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}</td>
-                                                <td class="p-3 text-center align-top">{{ $prod->pivot->pr_amount }}</td>
+                                                <td class="p-3 text-center align-top">{{ $cantidadProd }}</td>
                                                 <td class="p-3 text-center align-top">{{ $prod->unit_produc ?? '-' }}</td>
-                                                <td class="p-3 text-center align-top">${{ number_format($unitPrice, 2) }}</td>
-                                                <td class="p-3 text-center align-top">${{ number_format($lineTotal, 2) }}</td>
+                                                <td class="p-3 text-center align-top">
+                                                    <div class="text-sm">{{ number_format($unitPriceOriginal, 2, ',', '.') }} {{ $origCurrency }}</div>
+                                                    @if(strtoupper(trim($origCurrency ?? 'COP')) !== 'COP' && $unitPriceCOP !== null)
+                                                        <div class="text-xs text-gray-500">{{ number_format($unitPriceCOP, 2, ',', '.') }} COP</div>
+                                                    @endif
+                                                </td>
+                                                <td class="p-3 text-center align-top">{{ number_format($lineTotal, 2) }} COP</td>
                                             </tr>
                                         @endforeach
                                         <tr class="bg-gray-50 border-t">
                                             <td colspan="4" class="p-3 text-right font-semibold">Total general</td>
-                                            <td class="p-3 text-center font-semibold">${{ number_format($grandTotalModal, 2) }}</td>
+                                            <td class="p-3 text-center font-semibold">${{ number_format($grandTotalModal, 2) }} COP</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -379,12 +402,14 @@
                                         ->whereNull('cantidad_recibido')
                                         ->sum('cantidad');
                                     $unit = $producto->unit_produc ?? '-';
-                                    // Obtener precio desde productoxproveedor (si existe) ya que productos no guarda precio
+                                    // Obtener precio y moneda desde productoxproveedor y convertir a COP
                                     try {
                                         $pp = DB::table('productoxproveedor')->where('producto_id', $productoId)->orderByDesc('id')->first();
-                                        $unitPrice = (float) ($pp->price_produc ?? 0);
-                                    } catch (\Throwable $e) { $unitPrice = 0.0; }
-                                    $lineTotalReq = $cantidadRequerida * $unitPrice;
+                                        $unitPriceOriginal = (float) ($pp->price_produc ?? 0);
+                                        $origCurrency = strtoupper(trim($pp->moneda ?? 'COP'));
+                                    } catch (\Throwable $e) { $unitPriceOriginal = 0.0; $origCurrency = 'COP'; }
+                                    try { $unitPriceCOP = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); } catch (\Throwable $e) { $unitPriceCOP = null; }
+                                    $lineTotalReq = $cantidadRequerida * ($unitPriceCOP ?? $unitPriceOriginal);
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-3 py-2 text-center">
@@ -393,16 +418,10 @@
                                     <td class="px-3 py-2">{{ $producto->name_produc }}</td>
                                     <td class="px-3 py-2 text-center">{{ $unit }}</td>
                                     <td class="px-3 py-2 text-center">{{ $cantidadRequerida }}</td>
-                                    <td class="px-3 py-2 text-center">${{ number_format($unitPrice,2) }}</td>
-                                    <td class="px-3 py-2 text-center">${{ number_format($lineTotalReq,2) }}</td>
-                                    <td class="px-3 py-2 text-center">{{ $entregado }}</td>
                                     <td class="px-3 py-2 text-center">
-                                        @if($isDone)
-                                            <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Completado</span>
-                                        @elseif($pendientesNoConfirmadas > 0)
-                                            <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Enviado, esperando confirmación ({{ $pendientesNoConfirmadas }})</span>
-                                        @else
-                                            <span class="text-xs">{{ $pendiente }}</span>
+                                        <div class="text-sm">{{ number_format($unitPriceOriginal,2,',','.') }} {{ $origCurrency }}</div>
+                                        @if(strtoupper(trim($origCurrency ?? 'COP')) !== 'COP' && $unitPriceCOP !== null)
+                                            <div class="text-xs text-gray-500">{{ number_format($unitPriceCOP,2,',','.') }} COP</div>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2 text-center">
