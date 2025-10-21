@@ -221,7 +221,7 @@
                                     <div class="text-sm" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selPrice,2,',','.') }} {{ $prod->selCurrency ?? 'COP' }}</div>
                                     <div class="text-xs text-gray-500" id="preciocop-{{ $req->id }}-{{ $prod->id }}">{{ number_format($prod->selPriceCop ?? $selPrice,2,',','.') }} COP</div>
                                 </td>
-                                <td class="px-4 py-3 text-right font-semibold"><span class="total-cell" id="total-{{ $req->id }}-{{ $prod->id }}">{{ number_format($totalProd,2,',','.') }}</span></td>
+                                <td class="px-4 py-3 text-right font-semibold"><span class="total-cell" id="total-{{ $req->id }}-{{ $prod->id }}">{{ number_format($totalProd,2,',','.') }}</span> COP</td>
                                 <td class="px-4 py-3">
                                     @if($distribucion->count() > 0)
                                     <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -242,7 +242,7 @@
                         <tfoot class="bg-gray-50">
                             <tr>
                                 <td class="px-4 py-3 text-right font-semibold" colspan="4">Total general</td>
-                                <td class="px-4 py-3 text-right font-bold"><span id="total-general-{{ $req->id }}">{{ number_format($totalGeneral, 2, ',', '.') }}</span></td>
+                                <td class="px-4 py-3 text-right font-bold"><span id="total-general-{{ $req->id }}">{{ number_format($totalGeneral, 2, ',', '.') }}</span> COP</td>
                                 <td></td>
                             </tr>
                         </tfoot>

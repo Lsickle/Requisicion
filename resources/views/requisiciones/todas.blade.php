@@ -351,10 +351,11 @@
                             </thead>
                             <tbody id="ent-req-tbody-{{ $req->id }}">
                                 @php
+                                    // No existe columna price_produc en productos: traer sólo datos básicos
                                     $productosReq = DB::table('producto_requisicion')
                                         ->join('productos', 'producto_requisicion.id_producto', '=', 'productos.id')
                                         ->where('producto_requisicion.id_requisicion', $req->id)
-                                        ->select('productos.id', 'productos.name_produc', 'productos.unit_produc', 'productos.price_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
+                                        ->select('productos.id', 'productos.name_produc', 'productos.unit_produc', 'producto_requisicion.pr_amount as cantidad_requerida')
                                         ->get();
 
                                     $entregasPorProducto = DB::table('entrega')
@@ -378,7 +379,11 @@
                                         ->whereNull('cantidad_recibido')
                                         ->sum('cantidad');
                                     $unit = $producto->unit_produc ?? '-';
-                                    $unitPrice = (float) ($producto->price_produc ?? 0);
+                                    // Obtener precio desde productoxproveedor (si existe) ya que productos no guarda precio
+                                    try {
+                                        $pp = DB::table('productoxproveedor')->where('producto_id', $productoId)->orderByDesc('id')->first();
+                                        $unitPrice = (float) ($pp->price_produc ?? 0);
+                                    } catch (\Throwable $e) { $unitPrice = 0.0; }
                                     $lineTotalReq = $cantidadRequerida * $unitPrice;
                                 @endphp
                                 <tr class="border-t">
