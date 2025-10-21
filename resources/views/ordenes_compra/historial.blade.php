@@ -114,7 +114,53 @@
 
                 // Determinar si mostrar el botón de crear nueva OC (cuando esté completada/anulada o soft-deleted)
                 $estatusLower = strtolower(trim((string)($estatusDisplay ?? '')));
-                $showCreate = ($oc->deleted_at !== null) || in_array($estatusLower, ['completada','anulada','cancelada']);
+                
+                // Comprobar si la requisición asociada ya está completa; si está completa, no permitir crear nueva OC
+                try {
+                    $requisicionCompleta = false;
+                    // obtener requerimiento por producto (centros) o fallback a producto_requisicion
+                    $reqPorProducto = DB::table('centro_producto')
+                        ->where('requisicion_id', $requisicionId)
+                        ->select('producto_id', DB::raw('SUM(amount) as req'))
+                        ->groupBy('producto_id')
+                        ->pluck('req', 'producto_id');
+
+                    if ($reqPorProducto->isEmpty()) {
+                        $reqPorProducto = DB::table('producto_requisicion')
+                            ->where('id_requisicion', $requisicionId)
+                            ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                            ->groupBy('id_producto')
+                            ->pluck('req', 'producto_id');
+                    }
+
+                    if (!$reqPorProducto->isEmpty()) {
+                        $recEnt = DB::table('entrega')
+                            ->where('requisicion_id', $requisicionId)
+                            ->whereNull('deleted_at')
+                            ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
+                            ->groupBy('producto_id')
+                            ->pluck('rec', 'producto_id');
+
+                        $recStock = DB::table('recepcion as r')
+                            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                            ->where('oc.requisicion_id', $requisicionId)
+                            ->whereNull('r.deleted_at')
+                            ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+                            ->groupBy('r.producto_id')
+                            ->pluck('rec', 'producto_id');
+
+                        $allComplete = true;
+                        foreach ($reqPorProducto as $pid => $req) {
+                            $recibido = (int)($recEnt[$pid] ?? 0) + (int)($recStock[$pid] ?? 0);
+                            if ($recibido < (int)$req) { $allComplete = false; break; }
+                        }
+                        $requisicionCompleta = $allComplete;
+                    }
+                } catch (\Throwable $e) {
+                    $requisicionCompleta = false;
+                }
+
+                $showCreate = (($oc->deleted_at !== null) || in_array($estatusLower, ['completada','anulada','cancelada'])) && !$requisicionCompleta;
                 @endphp
                 <tr class="border-b hover:bg-gray-50 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
@@ -409,9 +455,6 @@
                 <div class="sticky bottom-0 left-0 bg-white pt-4 pb-4 px-8 flex flex-wrap gap-3 justify-end border-t z-20">
                     <button type="button" class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-1 btn-open-estatus-oc" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-info-circle"></i> Ver Estatus
-                    </button>
-                    <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
-                        <i class="fas fa-box"></i> Recibir productos
                     </button>
                     <button type="button" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1 btn-download-oc-pdf" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
                         <i class="fas fa-file-pdf"></i> Descargar PDF
@@ -898,6 +941,23 @@
                     Swal.close();
                     await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' });
                 }
+                return;
+            }
+
+            // Crear OC desde línea pendiente (nuevo flujo)
+            const btnCreateFromPending = e.target.closest('.btn-create-from-pending');
+            if (btnCreateFromPending) {
+                const ocId = btnCreateFromPending.dataset.oc;
+                const productId = btnCreateFromPending.dataset.product;
+                const pendingQty = btnCreateFromPending.dataset.pending;
+                const selectEl = document.getElementById(`prov-select-${ocId}-${productId}`);
+                const proveedorId = selectEl ? selectEl.value : null;
+                if (!proveedorId) {
+                    return Swal.fire({ icon:'warning', title:'Proveedor requerido', text:'Seleccione un proveedor para continuar.' });
+                }
+                const baseUrl = btnCreateFromPending.dataset.base;
+                const createUrl = `${baseUrl}?producto_id=${productId}&cantidad=${pendingQty}&proveedor_id=${proveedorId}`;
+                window.location.href = createUrl;
                 return;
             }
         });

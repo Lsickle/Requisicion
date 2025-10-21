@@ -712,18 +712,47 @@
          const rowId = `producto-${rowKey}`;
          if (document.getElementById(rowId)) return;
 
+         // cantidad a comprar para esta fila (se usa para reescalar la distribución)
+         let cantidadParaComprar = cantidadOriginal;
          let distribucionProducto = distribucionOriginal[productoId] || {};
          let centrosHtml = '';
          let centrosConDistribucion = [];
          for (let centroId in distribucionProducto) {
-             if (distribucionProducto[centroId] > 0) {
-                 let centro = centros.find(c => c.id == centroId);
-                 if (centro) centrosConDistribucion.push(centro);
-             }
+             // incluir centros que tengan algún valor base o todos si no hay valores
+             let centro = centros.find(c => c.id == centroId);
+             if (centro) centrosConDistribucion.push(centro);
          }
          if (centrosConDistribucion.length === 0) centrosConDistribucion = centros;
-         centrosConDistribucion.forEach(centro => {
-             let cantidadCentro = distribucionProducto[centro.id] || 0;
+
+         // Calcular valores base y reescalar para que la suma sea exactamente cantidadParaComprar
+         const baseValues = centrosConDistribucion.map(c => parseInt(distribucionProducto[c.id] || 0));
+         const baseSum = baseValues.reduce((a,b) => a + (b||0), 0);
+         let assigned = [];
+         if (cantidadParaComprar <= 0) {
+             assigned = centrosConDistribucion.map(() => 0);
+         } else if (baseSum > 0) {
+             // repartir proporcionalmente según los valores base, usando floor y distribuyendo el resto
+             let total = cantidadParaComprar;
+             let acc = 0;
+             for (let i = 0; i < centrosConDistribucion.length; i++) {
+                 const val = Math.floor(((baseValues[i] || 0) / baseSum) * total);
+                 assigned[i] = val;
+                 acc += val;
+             }
+             let rem = total - acc;
+             for (let i = 0; i < centrosConDistribucion.length && rem > 0; i++, rem--) {
+                 assigned[i] = (assigned[i] || 0) + 1;
+             }
+         } else {
+             // sin base: repartir uniformemente para sumar cantidadParaComprar
+             const n = centrosConDistribucion.length || 1;
+             const per = Math.floor(cantidadParaComprar / n);
+             let rem = cantidadParaComprar % n;
+             assigned = centrosConDistribucion.map((_, idx) => idx < rem ? per + 1 : per);
+         }
+
+         centrosConDistribucion.forEach((centro, idx) => {
+             let cantidadCentro = assigned[idx] || 0;
              centrosHtml += `
                  <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
                      <span class="font-medium text-sm truncate">${centro.name_centro}</span>
@@ -734,7 +763,6 @@
              `;
          });
 
-         let cantidadParaComprar = cantidadOriginal;
          const precioNum = isNaN(precio) ? 0 : precio;
          // Formateo del precio original: si la moneda es COP mostrar directamente el precio formateado en COP
          let formattedOriginal = '';

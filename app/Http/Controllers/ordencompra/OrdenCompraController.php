@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OrdenCompra;
-use App\Models\OrdenCompraProducto; // corregido el import
+use App\Models\OrdenCompraProducto;
 use App\Models\OrdenCompraCentroProducto;
 use App\Models\Proveedor;
 use App\Models\Requisicion;
@@ -51,6 +51,7 @@ class OrdenCompraController extends Controller
         $requisicion = null;
         $productosDisponibles = collect();
         $productoSeleccionado = null;
+        $productoProveedores = collect();
         $proveedores = Proveedor::all();
         $centros = Centro::all();
         $lineasDistribuidas = collect();
@@ -95,7 +96,6 @@ class OrdenCompraController extends Controller
                 $lineasDistribuidas = DB::table('ordencompra_producto as ocp')
                     ->join('productos as p', 'ocp.producto_id', '=', 'p.id')
                     ->leftJoin('proveedores as prov', 'ocp.proveedor_id', '=', 'prov.id')
-                    // unir a productoxproveedor para obtener precio por proveedor si existe
                     ->leftJoin('productoxproveedor as pxp', function($join){
                         $join->on('pxp.producto_id', '=', 'p.id')
                              ->on('pxp.proveedor_id', '=', 'ocp.proveedor_id');
@@ -115,8 +115,6 @@ class OrdenCompraController extends Controller
                         'prov.prov_name'
                     )
                     ->get();
-
-                // Ya no ocultar líneas distribuidas por existir OC principal; se mostrarán hasta asociarlas
 
                 // Órdenes principales (no OC-DIST)
                 $ordenes = OrdenCompra::with('ordencompraProductos.producto', 'ordencompraProductos.proveedor')
@@ -145,8 +143,36 @@ class OrdenCompraController extends Controller
             }
         }
 
+        // Si se pasó producto_id en la query, cargar el producto y sus proveedores (sin eager load de relaciones inexistentes)
+        $prefillProducto = null;
         if ($request->has('producto_id') && $request->producto_id != 0) {
-            $productoSeleccionado = Producto::with('proveedor')->find($request->producto_id);
+            $productoSeleccionado = Producto::find($request->producto_id);
+            try {
+                $productoProveedores = DB::table('productoxproveedor as pxp')
+                    ->join('proveedores as prov', 'prov.id', '=', 'pxp.proveedor_id')
+                    ->where('pxp.producto_id', $request->producto_id)
+                    ->select('pxp.*', 'prov.id as proveedor_id', 'prov.prov_name')
+                    ->orderBy('pxp.id')
+                    ->get();
+            } catch (\Throwable $e) {
+                $productoProveedores = collect();
+            }
+
+            // Preparar datos para prellenar la vista (si vienen cantidad/proveedor en la query)
+            $prefillProducto = [
+                'producto_id' => (int)$request->producto_id,
+                'cantidad' => isset($request->cantidad) ? (int)$request->cantidad : (int)($request->query('cantidad') ?? 0),
+                'proveedor_id' => $request->query('proveedor_id') ?? $request->proveedor_id ?? null,
+            ];
+
+            // Asegurar que el producto seleccionado aparezca en la lista de productosDisponibles
+            try {
+                if (!empty($productoSeleccionado) && !$productosDisponibles->contains(fn($p)=> $p->id == $productoSeleccionado->id)) {
+                    $productoSeleccionado->setRelation('pivot', (object)['pr_amount' => $prefillProducto['cantidad'] ?? 0]);
+                    // Añadir al inicio para que quede visible en el selector
+                    $productosDisponibles->prepend($productoSeleccionado);
+                }
+            } catch (\Throwable $e) { /* noop */ }
         }
 
         // Obtener últimas tasas TRM por moneda desde la tabla `trm` y pasar a la vista
@@ -167,11 +193,13 @@ class OrdenCompraController extends Controller
             'requisicion',
             'productosDisponibles',
             'productoSeleccionado',
+            'productoProveedores',
             'proveedores',
             'centros',
             'lineasDistribuidas',
             'ordenes',
-            'trmLatest'
+            'trmLatest',
+            'prefillProducto'
         ));
     }
 
