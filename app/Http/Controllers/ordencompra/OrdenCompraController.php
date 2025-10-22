@@ -157,7 +157,7 @@ class OrdenCompraController extends Controller
                 $productoProveedores = collect();
             }
 
-            // Preparar datos para prellenar la vista (si vienen cantidad/proveedor en la query)
+            // Preparar datos para prellenar la vista (si vienen cantidad/proveedor in la query)
             $prefillProducto = [
                 'producto_id' => (int)$request->producto_id,
                 'cantidad' => isset($request->cantidad) ? (int)$request->cantidad : (int)($request->query('cantidad') ?? 0),
@@ -205,14 +205,13 @@ class OrdenCompraController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'proveedor_id'   => 'required|exists:proveedores,id',
-            'methods_oc'     => 'nullable|string|max:255',
-            'plazo_oc'       => 'nullable|string|max:255',
+            'proveedor_id'   => 'nullable|exists:proveedores,id',
             'observaciones'  => 'nullable|string',
             'requisicion_id' => 'required|exists:requisicion,id',
-            'date_oc'        => 'required|date|after_or_equal:today',
+            'date_oc'        => 'nullable|date|after_or_equal:today',
             'productos'      => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
+            'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.ocp_id' => 'nullable|integer|exists:ordencompra_producto,id',
             'productos.*.cantidad' => 'required|integer|min:1',
             'productos.*.centros' => 'nullable|array',
@@ -220,123 +219,196 @@ class OrdenCompraController extends Controller
             'productos.*.iva' => 'nullable|numeric',
             'productos.*.apply_iva' => 'nullable|boolean',
             'productos.*.stock_e' => 'nullable|integer|min:0',
-            // trm_oc puede llegar formateado (miles/coma) desde el frontend; parseamos manualmente
             'productos.*.trm_oc' => 'nullable',
+            'productos.*.price' => 'nullable|numeric',
+            'productos.*.currency' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
+        // Agrupar productos por proveedor (usar proveedor del item; si falta, usar proveedor global si viene)
+        $globalProv = $request->input('proveedor_id');
+        $grupos = [];
+        foreach ($request->productos as $rowKey => $productoData) {
+            $provId = (int)($productoData['proveedor_id'] ?? 0);
+            if (!$provId && $globalProv) { $provId = (int)$globalProv; }
+            if (!$provId) {
+                return redirect()->back()->withErrors(['productos' => 'Debe seleccionar proveedor para cada producto.'])->withInput();
+            }
+            if (!isset($grupos[$provId])) $grupos[$provId] = [];
+            $grupos[$provId][] = ['rowKey' => $rowKey, 'data' => $productoData];
+        }
+
         DB::beginTransaction();
         try {
-            // Crear SIEMPRE una nueva OC con el proveedor seleccionado
-            $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
-            $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
+            $ordenesCreadas = [];
 
-            $orden = OrdenCompra::create([
-                'requisicion_id' => $request->requisicion_id,
-                'observaciones'  => $request->observaciones,
-                'methods_oc'     => $request->methods_oc,
-                'plazo_oc'       => $request->plazo_oc,
-                'date_oc'        => $request->input('date_oc'),
-                'order_oc'       => $numeroOrden,
-            ]);
+            foreach ($grupos as $provId => $items) {
+                // Crear encabezado por proveedor
+                $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
+                $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
 
-            // Obtener datos del usuario desde la sesión (misma convención que RequisicionController)
-            $sessionUserId = session('user.id');
-            $sessionUserName = session('user.name') ?? $this->resolveCurrentUserName($request) ?? null;
-            $sessionUserEmail = session('user.email') ?? null;
-            $sessionUserOperacion = session('user.operaciones') ?? session('user.operacion') ?? null;
+                $orden = OrdenCompra::create([
+                    'requisicion_id' => $request->requisicion_id,
+                    'observaciones'  => $request->observaciones,
+                    'date_oc'        => $request->input('date_oc') ?: null,
+                    'order_oc'       => $numeroOrden,
+                ]);
 
-            // Guardar SOLO las columnas que existan en orden_compras (compatibilidad con esquemas distintos)
-            try {
-                $dirty = false;
-                if (Schema::hasColumn('orden_compras', 'user_id') && $sessionUserId) { $orden->user_id = $sessionUserId; $dirty = true; }
-                // Guardar nombre del creador en 'oc_user' si la columna existe
-                if (Schema::hasColumn('orden_compras', 'oc_user') && $sessionUserName) { $orden->oc_user = $sessionUserName; $dirty = true; }
-                if (Schema::hasColumn('orden_compras', 'name_user') && $sessionUserName) { $orden->name_user = $sessionUserName; $dirty = true; }
-                if (Schema::hasColumn('orden_compras', 'user_name') && $sessionUserName) { $orden->user_name = $sessionUserName; $dirty = true; }
-                if (Schema::hasColumn('orden_compras', 'email_user') && $sessionUserEmail) { $orden->email_user = $sessionUserEmail; $dirty = true; }
-                if (Schema::hasColumn('orden_compras', 'user_email') && $sessionUserEmail) { $orden->user_email = $sessionUserEmail; $dirty = true; }
-                if (Schema::hasColumn('orden_compras', 'operacion_user') && $sessionUserOperacion) { $orden->operacion_user = $sessionUserOperacion; $dirty = true; }
-                if ($dirty) { $orden->save(); }
-            } catch (\Throwable $e) {
-                Log::warning('No se pudo persistir info de usuario en orden ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
-            }
+                // Guardar info de usuario si existen columnas
+                try {
+                    $sessionUserId = session('user.id');
+                    $sessionUserName = session('user.name') ?? $this->resolveCurrentUserName($request) ?? null;
+                    $sessionUserEmail = session('user.email') ?? null;
+                    $sessionUserOperacion = session('user.operaciones') ?? session('user.operacion') ?? null;
 
-            // Crear estatus inicial 'Creada' (estatus_id = 1) solo si NO existe ningún estatus para esta orden.
-            // No desactivar el estatus creado por el Observer: evitar doble inserción y pérdida de activo.
-            try {
-                $initial = EstatusOrdenCompra::find(1) ?? EstatusOrdenCompra::where('status_name', 'Creada')->first() ?? EstatusOrdenCompra::first();
-                if ($initial) {
-                    $exists = OrdenCompraEstatus::where('orden_compra_id', $orden->id)->exists();
-                    if (!$exists) {
-                        OrdenCompraEstatus::create([
-                            'estatus_id' => $initial->id,
-                            'orden_compra_id' => $orden->id,
-                            'recepcion_id' => null,
-                            'activo' => 1,
-                            'date_update' => now(),
-                            'user_name' => $sessionUserName,
-                            'user_id' => $sessionUserId ?? null,
-                        ]);
-                    }
+                    $dirty = false;
+                    if (Schema::hasColumn('orden_compras', 'user_id') && $sessionUserId) { $orden->user_id = $sessionUserId; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'oc_user') && $sessionUserName) { $orden->oc_user = $sessionUserName; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'name_user') && $sessionUserName) { $orden->name_user = $sessionUserName; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'user_name') && $sessionUserName) { $orden->user_name = $sessionUserName; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'email_user') && $sessionUserEmail) { $orden->email_user = $sessionUserEmail; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'user_email') && $sessionUserEmail) { $orden->user_email = $sessionUserEmail; $dirty = true; }
+                    if (Schema::hasColumn('orden_compras', 'operacion_user') && $sessionUserOperacion) { $orden->operacion_user = $sessionUserOperacion; $dirty = true; }
+                    if ($dirty) { $orden->save(); }
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo persistir info de usuario en orden ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
                 }
-            } catch (\Throwable $e) {
-                Log::warning('No se pudo crear estatus inicial para OC ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
-            }
 
-            foreach ($request->productos as $rowKey => $productoData) {
-                if (empty($productoData['id'])) continue;
-
-                $productoId = (int) $productoData['id'];
-                $cantidadIngresada = (int) ($productoData['cantidad'] ?? 0);
-                $ocpId = $productoData['ocp_id'] ?? null;
-                $stockE = isset($productoData['stock_e']) && $productoData['stock_e'] !== '' ? (int)$productoData['stock_e'] : null;
-
-                if ($ocpId) {
-                    // Asociar línea pre-distribuida y forzar proveedor del formulario
-                    $ocp = OrdenCompraProducto::where('id', $ocpId)
-                        ->whereNull('orden_compras_id')
-                        ->where('requisicion_id', $request->requisicion_id)
-                        ->firstOrFail();
-
-                    // Forzar proveedor al seleccionado por el usuario
-                    $ocp->proveedor_id = (int)$request->proveedor_id;
-
-                    // Actualizar cantidad si el usuario la editó
-                    if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
-                        $ocp->total = $cantidadIngresada;
-                    }
-                    // Aplicar IVA si seleccionó la casilla: guardar el valor numérico del IVA; si no, dejar null
-                    if (!empty($productoData['apply_iva'])) {
-                        // Preferir valor enviado en el formulario; si no, usar IVA del producto; almacenar como fracción (p.ej. 12% => 0.12)
-                        $rate = null;
-                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
-                            $rate = (float)$productoData['iva'];
-                        } else {
-                            $prodTmp = Producto::find($productoId);
-                            $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
+                // Estatus inicial 'Creada' si no existe
+                try {
+                    $initial = EstatusOrdenCompra::find(1) ?? EstatusOrdenCompra::where('status_name', 'Creada')->first() ?? EstatusOrdenCompra::first();
+                    if ($initial) {
+                        $exists = OrdenCompraEstatus::where('orden_compra_id', $orden->id)->exists();
+                        if (!$exists) {
+                            OrdenCompraEstatus::create([
+                                'estatus_id' => $initial->id,
+                                'orden_compra_id' => $orden->id,
+                                'recepcion_id' => null,
+                                'activo' => 1,
+                                'date_update' => now(),
+                                'user_name' => session('user.name') ?? $this->resolveCurrentUserName($request) ?? null,
+                                'user_id' => session('user.id') ?? null,
+                            ]);
                         }
-                        // si el rate viene como porcentaje (>1) convertir a fracción
-                        $frac = ($rate > 1) ? ($rate / 100.0) : $rate;
-                        $ocp->apply_iva = ($frac > 0) ? $frac : null;
-                    } else {
-                        $ocp->apply_iva = null;
                     }
-                    $ocp->orden_compras_id = $orden->id;
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo crear estatus inicial para OC ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
+                }
 
-                    // Persistir trm_oc: preferir valor enviado por frontend; si no viene, intentar calcularlo en servidor
-                    $trmOc = null;
+                // Crear líneas para este proveedor
+                foreach ($items as $it) {
+                    $productoData = $it['data'];
+                    if (empty($productoData['id'])) continue;
+
+                    $productoId = (int) $productoData['id'];
+                    $cantidadIngresada = (int) ($productoData['cantidad'] ?? 0);
+                    $ocpId = $productoData['ocp_id'] ?? null;
+                    $stockE = isset($productoData['stock_e']) && $productoData['stock_e'] !== '' ? (int)$productoData['stock_e'] : null;
+
+                    if ($ocpId) {
+                        $ocp = OrdenCompraProducto::where('id', $ocpId)
+                            ->whereNull('orden_compras_id')
+                            ->where('requisicion_id', $request->requisicion_id)
+                            ->firstOrFail();
+
+                        // Forzar proveedor al del grupo
+                        $ocp->proveedor_id = (int)$provId;
+
+                        // Actualizar cantidad si el usuario la editó
+                        if ($cantidadIngresada > 0 && $cantidadIngresada !== (int)$ocp->total) {
+                            $ocp->total = $cantidadIngresada;
+                        }
+                        // Aplicar IVA si seleccionó la casilla
+                        if (!empty($productoData['apply_iva'])) {
+                            $rate = null;
+                            if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
+                                $rate = (float)$productoData['iva'];
+                            } else {
+                                $prodTmp = Producto::find($productoId);
+                                $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
+                            }
+                            $frac = ($rate > 1) ? ($rate / 100.0) : $rate;
+                            $ocp->apply_iva = ($frac > 0) ? $frac : null;
+                        } else {
+                            $ocp->apply_iva = null;
+                        }
+                        $ocp->orden_compras_id = $orden->id;
+
+                        // Persistir trm_oc: preferir valor enviado; si no, calcular
+                        $trmOc = null;
+                        if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
+                            $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
+                            if ($parsed !== null) { $trmOc = $parsed; }
+                        }
+                        if ($trmOc === null) {
+                            $unitPrice = null; $cur = 'COP';
+                            if (isset($productoData['price']) && is_numeric($productoData['price'])) {
+                                $unitPrice = (float)$productoData['price'];
+                                $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
+                            } else {
+                                try {
+                                    $pxp = DB::table('productoxproveedor')
+                                        ->where('producto_id', $productoId)
+                                        ->where('proveedor_id', (int)$provId)
+                                        ->orderBy('id')
+                                        ->first();
+                                    if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
+                                    else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
+                                } catch (\Throwable $e) { /* ignore */ }
+                            }
+                            if ($unitPrice !== null) {
+                                if ($cur === 'COP') { $trmOc = round($unitPrice, 2); }
+                                else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); $trmOc = $rate ? round($rate, 2) : null; }
+                            }
+                        }
+                        if ($trmOc !== null) { $ocp->trm_oc = $trmOc; }
+
+                        if ($stockE !== null) { $ocp->stock_e = $stockE; }
+                        $ocp->save();
+
+                        if ($stockE !== null && $stockE > 0) {
+                            $producto = Producto::lockForUpdate()->findOrFail($productoId);
+                            $producto->stock_produc = max(0, (int)$producto->stock_produc - $stockE);
+                            $producto->save();
+                        }
+
+                        // Distribución por centros (recrear)
+                        OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
+                            ->where('producto_id', $productoId)
+                            ->delete();
+
+                        if (!empty($productoData['centros'])) {
+                            foreach ($productoData['centros'] as $centroId => $cantidad) {
+                                if ((int)$cantidad > 0) {
+                                    OrdenCompraCentroProducto::create([
+                                        'orden_compra_id' => $orden->id,
+                                        'producto_id'     => $productoId,
+                                        'centro_id'       => $centroId,
+                                        'amount'          => (int)$cantidad,
+                                    ]);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Línea normal con proveedor del grupo
+                    $applyFrac = null;
+                    if (!empty($productoData['apply_iva'])) {
+                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) { $rate = (float)$productoData['iva']; }
+                        else { $prodTmp = Producto::find($productoId); $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0; }
+                        $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                    }
+
+                    $trmOcValue = null;
                     if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
                         $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
-                        if ($parsed !== null) {
-                            $trmOc = $parsed;
-                        }
+                        if ($parsed !== null) $trmOcValue = $parsed;
                     }
-                    if ($trmOc === null) {
-                        // intentar obtener precio unitario y moneda desde payload (price/currency) o desde productoxproveedor
+                    if ($trmOcValue === null) {
                         $unitPrice = null; $cur = 'COP';
                         if (isset($productoData['price']) && is_numeric($productoData['price'])) {
                             $unitPrice = (float)$productoData['price'];
@@ -345,41 +417,54 @@ class OrdenCompraController extends Controller
                             try {
                                 $pxp = DB::table('productoxproveedor')
                                     ->where('producto_id', $productoId)
-                                    ->where('proveedor_id', $ocp->proveedor_id ?? (int)$request->proveedor_id)
+                                    ->where('proveedor_id', (int)$provId)
                                     ->orderBy('id')
                                     ->first();
-                                if ($pxp) {
-                                    $unitPrice = (float)($pxp->price_produc ?? 0);
-                                    $cur = strtoupper($pxp->moneda ?? 'COP');
-                                } else {
-                                    $prodTmp = Producto::find($productoId);
-                                    if ($prodTmp && isset($prodTmp->price_produc)) {
-                                        $unitPrice = (float)$prodTmp->price_produc;
-                                        $cur = strtoupper($prodTmp->moneda ?? 'COP');
-                                    }
-                                }
+                                if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
+                                else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
                             } catch (\Throwable $e) { /* ignore */ }
                         }
                         if ($unitPrice !== null) {
-                            if ($cur === 'COP') {
-                                // moneda local COP: mantener el comportamiento previo (guardar precio unitario en COP)
-                                $trmOc = round($unitPrice, 2);
-                            } else {
-                                // Obtener la tasa COP por 1 unidad de la moneda (p.ej. COP por USD) y guardarla en trm_oc
-                                $rate = $this->fetchExchangeRateServer($cur, 'COP');
-                                if ($rate) {
-                                    $trmOc = round($rate, 2);
-                                } else {
-                                    // No guardar importe no-COP cuando no hay tasa
-                                    $trmOc = null;
-                                }
-                            }
+                            if ($cur === 'COP') { $trmOcValue = round($unitPrice, 2); }
+                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); $trmOcValue = $rate ? round($rate, 2) : null; }
                         }
                     }
-                    if ($trmOc !== null) { $ocp->trm_oc = $trmOc; }
 
-                    if ($stockE !== null) { $ocp->stock_e = $stockE; }
-                    $ocp->save();
+                    OrdenCompraProducto::create([
+                        'producto_id'      => $productoId,
+                        'orden_compras_id' => $orden->id,
+                        'requisicion_id'   => $request->requisicion_id,
+                        'proveedor_id'     => (int)$provId,
+                        'total'            => $cantidadIngresada,
+                        'stock_e'          => $stockE,
+                        'apply_iva'        => $applyFrac,
+                        'trm_oc'           => $trmOcValue,
+                    ]);
+
+                    // Asegurar trm_oc si quedó NULL
+                    try {
+                        $last = OrdenCompraProducto::where('orden_compras_id', $orden->id)
+                            ->where('producto_id', $productoId)
+                            ->where('proveedor_id', (int)$provId)
+                            ->orderBy('id', 'desc')
+                            ->first();
+                        if ($last && ($last->trm_oc === null || $last->trm_oc === '')) {
+                            $unitPrice = null; $cur = 'COP';
+                            $pxp = DB::table('productoxproveedor')
+                                ->where('producto_id', $productoId)
+                                ->where('proveedor_id', (int)$provId)
+                                ->orderBy('id')
+                                ->first();
+                            if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
+                            else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
+                            $computed = null;
+                            if ($unitPrice !== null) {
+                                if ($cur === 'COP') $computed = round($unitPrice, 2);
+                                else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($rate, 2); }
+                            }
+                            if ($computed !== null) { $last->trm_oc = $computed; $last->save(); }
+                        }
+                    } catch (\Throwable $e) { /* noop */ }
 
                     if ($stockE !== null && $stockE > 0) {
                         $producto = Producto::lockForUpdate()->findOrFail($productoId);
@@ -404,186 +489,63 @@ class OrdenCompraController extends Controller
                             }
                         }
                     }
-
-                    continue;
                 }
 
-                // Línea normal: usar el proveedor del formulario
-                // Calcular apply_iva como fracción si corresponde
-                $applyFrac = null;
-                if (!empty($productoData['apply_iva'])) {
-                    if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
-                        $rate = (float)$productoData['iva'];
-                    } else {
-                        $prodTmp = Producto::find($productoId);
-                        $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
-                    }
-                    $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
-                }
+                $ordenesCreadas[] = $orden;
+            }
 
-                // Determinar trm_oc si no lo envió el frontend
-                $trmOcValue = null;
-                if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
-                    $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
-                    if ($parsed !== null) $trmOcValue = $parsed;
-                }
-                if ($trmOcValue === null) {
-                    // intentar obtener precio unitario desde payload o desde productoxproveedor para el proveedor seleccionado
-                    $unitPrice = null; $cur = 'COP';
-                    if (isset($productoData['price']) && is_numeric($productoData['price'])) {
-                        $unitPrice = (float)$productoData['price'];
-                        $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
-                    } else {
-                        try {
-                            $pxp = DB::table('productoxproveedor')
-                                ->where('producto_id', $productoId)
-                                ->where('proveedor_id', (int)$request->proveedor_id)
-                                ->orderBy('id')
-                                ->first();
-                            if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
-                            else {
-                                $prodTmp = Producto::find($productoId);
-                                if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); }
-                            }
-                        } catch (\Throwable $e) { /* ignore */ }
-                    }
-                    if ($unitPrice !== null) {
-                        if ($cur === 'COP') {
-                            $trmOcValue = round($unitPrice, 2);
-                        } else {
-                            $rate = $this->fetchExchangeRateServer($cur, 'COP');
-                            if ($rate) {
-                                // Guardar la tasa (COP por 1 unidad de la moneda) en trm_oc
-                                $trmOcValue = round($rate, 2);
-                            } else {
-                                $trmOcValue = null;
-                            }
-                        }
-                    }
-                }
-
-                OrdenCompraProducto::create([
-                    'producto_id'      => $productoId,
-                    'orden_compras_id' => $orden->id,
-                    'requisicion_id'   => $request->requisicion_id,
-                    'proveedor_id'     => $request->proveedor_id,
-                    'total'            => $cantidadIngresada,
-                    'stock_e'          => $stockE,
-                    'apply_iva'        => $applyFrac,
-                    'trm_oc'           => $trmOcValue,
-                ]);
-                // Asegurar que trm_oc no quede NULL: si no se calculó, intentar fallback y actualizar el registro
+            // Generar PDF y enviar correos por cada orden creada
+            foreach ($ordenesCreadas as $orden) {
                 try {
-                    $last = OrdenCompraProducto::where('orden_compras_id', $orden->id)
-                        ->where('producto_id', $productoId)
-                        ->where('proveedor_id', $request->proveedor_id)
-                        ->orderBy('id', 'desc')
-                        ->first();
-                    if ($last && ($last->trm_oc === null || $last->trm_oc === '')) {
-                        $unitPrice = null; $cur = 'COP';
-                        $pxp = DB::table('productoxproveedor')
-                            ->where('producto_id', $productoId)
-                            ->where('proveedor_id', (int)$request->proveedor_id)
-                            ->orderBy('id')
-                            ->first();
-                        if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
-                        else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
-                        $computed = null;
-                        if ($unitPrice !== null) {
-                            if ($cur === 'COP') $computed = round($unitPrice, 2);
-                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($rate, 2); }
-                        }
-                        if ($computed !== null) {
-                            $last->trm_oc = $computed;
-                            $last->save();
-                        }
+                    $orden->load('ordencompraProductos.producto', 'ordencompraProductos.proveedor');
+                    $pdfData = $this->buildPdfData($orden);
+                    $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
+                    $content = $pdf->output();
+                    $orden->storePdfBlob($content);
+                    $fileHash = hash('sha256', $content);
+                    if (empty($orden->validation_hash)) {
+                        $orden->validation_hash = $fileHash;
+                        $orden->save();
                     }
                 } catch (\Throwable $e) { /* noop */ }
 
-                if ($stockE !== null && $stockE > 0) {
-                    $producto = Producto::lockForUpdate()->findOrFail($productoId);
-                    $producto->stock_produc = max(0, (int)$producto->stock_produc - $stockE);
-                    $producto->save();
-                }
+                try {
+                    $requisicionObj = Requisicion::find($orden->requisicion_id);
+                    $conf = (array) config('requisiciones.destinatarios_oc', []);
+                    $toConfig = array_values(array_unique((array)($conf['to'] ?? [])));
+                    $ccConfig = array_values(array_unique((array)($conf['cc'] ?? [])));
 
-                // Distribución por centros (recrear)
-                OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
-                    ->where('producto_id', $productoId)
-                    ->delete();
+                    if (!empty($requisicionObj?->email_user)) {
+                        try { Mail::to($requisicionObj->email_user)->send(new \App\Mail\OrdenCompraCreada($orden)); }
+                        catch (\Throwable $e) { Log::warning('No se pudo enviar correo al solicitante ' . $requisicionObj->email_user . ': ' . $e->getMessage()); }
+                    }
 
-                if (!empty($productoData['centros'])) {
-                    foreach ($productoData['centros'] as $centroId => $cantidad) {
-                        if ((int)$cantidad > 0) {
-                            OrdenCompraCentroProducto::create([
-                                'orden_compra_id' => $orden->id,
-                                'producto_id'     => $productoId,
-                                'centro_id'       => $centroId,
-                                'amount'          => (int)$cantidad,
-                            ]);
+                    $toFiltered = array_values(array_filter($toConfig, function($addr) use ($requisicionObj) {
+                        if (empty($addr)) return false;
+                        if (!empty($requisicionObj?->email_user) && $addr === $requisicionObj->email_user) return false;
+                        return true;
+                    }));
+
+                    if (!empty($toFiltered)) {
+                        try {
+                            $m = new \App\Mail\OrdenCompraCreada($orden);
+                            if (!empty($ccConfig)) Mail::to($toFiltered)->cc($ccConfig)->send($m);
+                            else Mail::to($toFiltered)->send($m);
+                        } catch (\Throwable $e) {
+                            Log::warning('No se pudo enviar correo OC creada a destinatarios configurados: ' . $e->getMessage());
                         }
                     }
+                } catch (\Throwable $e) {
+                    Log::warning('Error durante envío de correos OC creada: ' . $e->getMessage());
                 }
-            }
-
-            // Generar PDF, guardar binario en la orden y calcular SHA256 para validation_hash
-            try {
-                $orden->load('ordencompraProductos.producto', 'ordencompraProductos.proveedor');
-                $pdfData = $this->buildPdfData($orden);
-                $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
-                $content = $pdf->output();
-                $orden->storePdfBlob($content);
-                $fileHash = hash('sha256', $content);
-                if (empty($orden->validation_hash)) {
-                    $orden->validation_hash = $fileHash;
-                    $orden->save();
-                }
-            } catch (\Throwable $e) {
-                // noop
-            }
-
-            // Enviar notificación por correo: primero al solicitante (email guardado en la requisición),
-            // luego a los destinatarios configurados (si existen), evitando duplicados.
-            try {
-                $requisicionObj = Requisicion::find($request->requisicion_id);
-                $conf = (array) config('requisiciones.destinatarios_oc', []);
-                $toConfig = array_values(array_unique((array)($conf['to'] ?? [])));
-                $ccConfig = array_values(array_unique((array)($conf['cc'] ?? [])));
-
-                // Enviar al email del solicitante si existe
-                if (!empty($requisicionObj?->email_user)) {
-                    try {
-                        Mail::to($requisicionObj->email_user)->send(new \App\Mail\OrdenCompraCreada($orden));
-                    } catch (\Throwable $e) {
-                        Log::warning('No se pudo enviar correo al solicitante ' . $requisicionObj->email_user . ': ' . $e->getMessage());
-                    }
-                }
-
-                // Enviar a destinatarios configurados (evitar reenviar al mismo email del solicitante)
-                $toFiltered = array_values(array_filter($toConfig, function($addr) use ($requisicionObj) {
-                    if (empty($addr)) return false;
-                    if (!empty($requisicionObj?->email_user) && $addr === $requisicionObj->email_user) return false;
-                    return true;
-                }));
-
-                if (!empty($toFiltered)) {
-                    try {
-                        $m = new \App\Mail\OrdenCompraCreada($orden);
-                        if (!empty($ccConfig)) Mail::to($toFiltered)->cc($ccConfig)->send($m);
-                        else Mail::to($toFiltered)->send($m);
-                    } catch (\Throwable $e) {
-                        Log::warning('No se pudo enviar correo OC creada a destinatarios configurados: ' . $e->getMessage());
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Error durante envío de correos OC creada: ' . $e->getMessage());
             }
 
             DB::commit();
             return redirect()->route('ordenes_compra.create', ['requisicion_id' => $request->requisicion_id])
-                ->with('success', 'Orden guardada correctamente.');
+                ->with('success', 'Órdenes guardadas correctamente (' . count($ordenesCreadas) . ').');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creando orden de compra: ' . $e->getMessage());
+            Log::error('Error creando orden(es) de compra: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
@@ -596,8 +558,6 @@ class OrdenCompraController extends Controller
             'distribucion' => 'required|array|min:2',
             'distribucion.*.proveedor_id' => 'required|exists:proveedores,id',
             'distribucion.*.cantidad' => 'required|integer|min:1',
-            'distribucion.*.methods_oc' => 'nullable|string',
-            'distribucion.*.plazo_oc' => 'nullable|string',
             'distribucion.*.observaciones' => 'nullable|string',
         ]);
 
@@ -690,7 +650,7 @@ class OrdenCompraController extends Controller
     {
         $requisicion = Requisicion::findOrFail($requisicionId);
         $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
-            ->with(['ordencompraProductos.producto'])
+            ->with(['ordencompraProductos.producto', 'ordencompraProductos.proveedor'])
             ->get();
 
         if ($ordenes->isEmpty()) {
@@ -743,7 +703,8 @@ class OrdenCompraController extends Controller
                 }
 
                 // Generar PDF y almacenar en la orden (si no existe o si el stored no era válido)
-                $pdf = Pdf::loadView('ordenes_compra.pdf', ['ordenCompra' => $orden]);
+                $pdfData = $this->buildPdfData($orden);
+                $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
                 $content = $pdf->output();
 
                 try {
@@ -868,8 +829,6 @@ class OrdenCompraController extends Controller
         $ordenCompra = OrdenCompra::with('requisicion')->findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'methods_oc'     => 'nullable|string|max:255',
-            'plazo_oc'       => 'nullable|string|max:255',
             'observaciones'  => 'nullable|string',
             'productos'      => 'required|array|min:1',
             'productos.*.cantidad' => 'nullable|integer|min:0',
@@ -885,8 +844,6 @@ class OrdenCompraController extends Controller
         try {
             $ordenCompra->update([
                 'observaciones'  => $request->observaciones,
-                'methods_oc'     => $request->methods_oc,
-                'plazo_oc'       => $request->plazo_oc,
             ]);
 
             foreach ($request->productos as $productoId => $productoData) {
@@ -1280,8 +1237,9 @@ class OrdenCompraController extends Controller
             'fecha_actual' => now()->format('d/m/Y H:i'),
             'logo' => $this->resolveLogoDataUri(),
             'date_oc' => ($orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('d/m/Y') : ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y'))),
-            'methods_oc' => $orden->methods_oc,
-            'plazo_oc' => $orden->plazo_oc,
+            // Traer método y plazo de pago desde el proveedor
+            'methods_oc' => $proveedor->methods_oc ?? '',
+            'plazo_oc' => $proveedor->plazo_oc ?? '',
         ];
     }
 
@@ -1589,6 +1547,7 @@ class OrdenCompraController extends Controller
 
         // Fallback: si no hay distribución por centros, usar producto_requisicion
         if ($reqPorProducto->isEmpty()) {
+           
             $reqPorProducto = DB::table('producto_requisicion')
                 ->where('id_requisicion', $requisicionId)
                 ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
@@ -1726,5 +1685,23 @@ class OrdenCompraController extends Controller
         if ($s === '' || $s === '-' ) return null;
         $num = floatval($s);
         return is_nan($num) ? null : $num;
+    }
+
+    public function updateBasicos(Request $request, $id)
+    {
+        $data = $request->validate([
+            'date_oc' => 'required|date|after_or_equal:today',
+            'observaciones' => 'nullable|string',
+        ]);
+        try {
+            $orden = \App\Models\OrdenCompra::findOrFail($id);
+            $orden->date_oc = $data['date_oc'];
+            $orden->observaciones = $data['observaciones'] ?? null;
+            $orden->save();
+            return redirect()->back()->with('success', 'Orden actualizada correctamente.');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('updateBasicos error: '.$e->getMessage());
+            return redirect()->back()->with('error', 'Error: '.$e->getMessage());
+        }
     }
 }

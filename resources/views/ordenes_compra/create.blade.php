@@ -170,18 +170,6 @@
                     @csrf
                     <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">Fecha de la OC *</label>
-                            <input type="date" name="date_oc" value="{{ old('date_oc', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-600 mb-1">Observaciones</label>
-                            <textarea name="observaciones" rows="2"
-                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"></textarea>
-                        </div>
-                    </div>
-
                     <!-- Selector de productos -->
                     <div class="mt-6">
                         <label class="block text-sm font-medium text-gray-600 mb-2">Añadir Producto</label>
@@ -436,6 +424,7 @@
                             <th class="p-3">Proveedor</th>
                             <th class="p-3">Productos</th>
                             <th class="p-3">Fecha de creación</th>
+                            <th class="p-3">Fecha y Observación</th>
                             <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
@@ -458,6 +447,35 @@
                                 @endforeach
                             </td>
                             <td class="p-3">{{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}</td>
+                            <td class="p-3">
+                                @php 
+                                    $hasDate = !is_null($orden->date_oc);
+                                    $hasObs  = !is_null($orden->observaciones);
+                                @endphp
+                                @if($hasDate || $hasObs)
+                                    <div class="space-y-1">
+                                        <div>
+                                            <span class="text-gray-600 text-xs">Fecha:</span>
+                                            <span class="font-medium">{{ $hasDate ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : 'Sin fecha' }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-600 text-xs">Observación:</span>
+                                            <span class="font-medium">{{ $hasObs ? $orden->observaciones : 'Sin observación' }}</span>
+                                        </div>
+                                    </div>
+                                @else
+                                    <form action="{{ route('ordenes_compra.updateBasicos', $orden->id) }}" method="POST" class="oc-basicos-form flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                                        @csrf
+                                        <input type="date" name="date_oc" min="{{ now()->format('Y-m-d') }}"
+                                               value="{{ $orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : '' }}"
+                                               class="border rounded p-1 text-sm" required>
+                                        <input type="text" name="observaciones" placeholder="Observación"
+                                               value="{{ old('observaciones', $orden->observaciones) }}"
+                                               class="border rounded p-1 text-sm w-full sm:w-64">
+                                        <button type="submit" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">Guardar</button>
+                                    </form>
+                                @endif
+                            </td>
                             <td class="p-3 text-center">
                                 <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
                                     @csrf
@@ -1078,7 +1096,6 @@
                     const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
                     const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
                     const ocpId = opt.dataset.ocpId || null;
-                    const rowKey = `${productoId}-${ocpId||'0'}`;
                     try {
                         // remove option so it no longer appears
                         try { opt.remove(); } catch(e) {}
@@ -1158,9 +1175,53 @@
     // Modal: abrir, cerrar, validar y guardar por AJAX
     document.addEventListener('DOMContentLoaded', function() {
         configurarAutoCargaProveedor();
+        // Confirmar guardar sin observación en cada fila (y forzar fecha)
+        document.querySelectorAll('.oc-basicos-form').forEach(function(form){
+            form.addEventListener('submit', async function(e){
+                if (form.dataset.confirmed === '1') return; // evitar doble envío
+                const dateInp = form.querySelector('input[name="date_oc"]');
+                const obsInp = form.querySelector('input[name="observaciones"]');
+                const dateVal = (dateInp?.value || '').trim();
+                const obsVal = (obsInp?.value || '').trim();
+                if (!dateVal) {
+                    e.preventDefault();
+                    Swal.fire({ icon:'warning', title:'Fecha obligatoria', text:'Ingrese la fecha de la OC.' });
+                    return;
+                }
+                if (!obsVal) {
+                    e.preventDefault();
+                    const res = await Swal.fire({
+                        icon:'question',
+                        title:'Guardar sin observación',
+                        text:'La observación está vacía. ¿Desea guardar así?',
+                        showCancelButton:true,
+                        confirmButtonText:'Sí, guardar',
+                        cancelButtonText:'Cancelar'
+                    });
+                    if (res.isConfirmed) { form.dataset.confirmed = '1'; form.submit(); }
+                }
+            });
+        });
         // Bloquear descarga si no hay datos o si existen salidas pendientes por confirmar
         const btnZip = document.getElementById('btn-download-zip');
         if (btnZip) {
+            // Utilidad para revisar faltantes en la tabla
+            function getOCBasicosStatus(){
+                let missingDate = 0, missingObs = 0;
+                const rows = document.querySelectorAll('#ordenes-table tbody tr');
+                rows.forEach(tr => {
+                    const cell = tr.querySelector('td:nth-child(6)');
+                    if (!cell) return;
+                    if (cell.querySelector('.oc-basicos-form')) { // ambos faltan
+                        missingDate++; missingObs++;
+                        return;
+                    }
+                    const txt = (cell.textContent || '').toLowerCase();
+                    if (txt.includes('sin fecha')) missingDate++;
+                    if (txt.includes('sin observación') || txt.includes('sin observacion')) missingObs++;
+                });
+                return { missingDate, missingObs };
+            }
             btnZip.addEventListener('click', async function(e){
                 e.preventDefault();
                 if (window.haySalidasPendientes) {
@@ -1171,7 +1232,12 @@
                     Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
                     return;
                 }
-
+                const status = getOCBasicosStatus();
+                if (status.missingDate > 0) {
+                    Swal.fire({ icon:'warning', title:'Falta fecha', text:'Hay órdenes sin fecha de OC. Complete las fechas antes de descargar.' });
+                    return;
+                }
+                // Nota: permitir descarga aunque falten observaciones (sin alerta)
                 try {
                     showStockLoader('Generando hashes y preparando descarga...');
                     const resp = await fetch(`{{ route('ordenes_compra.ensure_hashes', $requisicion->id) }}`, {
@@ -1182,11 +1248,8 @@
                     const data = await resp.json();
                     hideStockLoader();
                     if (!resp.ok) throw new Error(data.message || 'Error preparando la descarga');
-
                     const href = this.getAttribute('href');
-                    if (href) {
-                        window.location.href = href;
-                    }
+                    if (href) window.location.href = href;
                 } catch (err) {
                     hideStockLoader();
                     Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error al preparar la descarga.' });

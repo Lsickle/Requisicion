@@ -323,3 +323,6 @@ Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class
 // Ruta para actualizar proveedores de un producto
 Route::post('productos/{id}/providers', [ProductosController::class, 'updateProviders'])->name('productos.updateProviders');
 
+// Ruta para actualizar date_oc y observaciones por orden de compra
+Route::post('/ordenes-compra/{id}/basicos', [OrdenCompraController::class, 'updateBasicos'])->name('ordenes_compra.updateBasicos');
+
