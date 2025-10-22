@@ -13,10 +13,12 @@ return new class extends Migration
     {
         Schema::create('productoxproveedor', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade');
-            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade');
-            $table->decimal('price_produc', 20, 2);
-            $table->string('moneda')->nullable();
+            $table->foreignId('producto_id')->constrained('productos')->onDelete('cascade'); #id del producto
+            $table->foreignId('proveedor_id')->constrained('proveedores')->onDelete('cascade'); #id del proveedor
+            $table->string('methods_oc', 255)->nullable(); #metodos de pago
+            $table->string('plazo_oc', 255)->nullable(); #plazos de pago
+            $table->decimal('price_produc', 20, 2); # precio por proveedor
+            $table->string('moneda')->nullable(); # moneda del precio
             $table->timestamps();
             $table->softDeletes();
         });

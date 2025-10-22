@@ -11,6 +11,7 @@
 </head>
 
 <body class="bg-gray-100 pt-16">
+    @php $ISO_CURRENCIES = ['COP', 'USD', 'EUR']; @endphp
     <x-sidebar />
     <div class="max-w-7xl mx-auto mt-4 bg-white">
         <!-- Header -->
@@ -385,7 +386,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
                                 <input type="number" id="stock_produc" name="stock_produc" min="0" step="1"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                    value="0" class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                             <div>
@@ -636,7 +637,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
                                 <input type="number" id="solicitud_stock_produc" name="stock_produc" min="0" step="1" value="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                    value="0" class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="solicitud_stock_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
@@ -725,49 +726,73 @@
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Añadir proveedor</label>
                         <div class="flex gap-2 items-center mb-2">
-                            <div class="relative flex-1">
-                                <input type="text" id="manage_prov_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
-                                <!-- Dropdown movido al final del body para evitar recorte -->
+                             <div class="relative flex-1">
+                                 <input type="text" id="manage_prov_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
+                                 <!-- Dropdown movido al final del body para evitar recorte -->
+                             </div>
+                             <!-- Botón para abrir modal de crear proveedor desde gestionar proveedores -->
+                             <button type="button" onclick="openModal('proveedor')" title="Nuevo proveedor" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600">
+                                 <i class="fas fa-plus"></i>
+                             </button>
+                             <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
+                             <div class="relative">
+                                 <select id="manage_prov_moneda" class="w-36 md:w-48 px-3 py-2 border rounded-md">
+                                     <option value="COP">COP</option>
+                                     <option value="USD">USD</option>
+                                     <option value="EUR">EUR</option>
+                                 </select>
+                             </div>
+                         </div>
+                         <!-- Controles Método y Plazo: colocados aquí, alineados debajo del primer control -->
+                        <div class="mb-6">
+                            <div class="flex items-start md:items-center gap-3">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:w-1/2">
+                                    <div>
+                                        <label class="block text-sm text-gray-700 mb-1">Método de Pago</label>
+                                        <select id="manage_prov_methods" class="w-full border rounded px-2 py-2">
+                                            <option value="">(Vacío)</option>
+                                            <option value="Efectivo">Efectivo</option>
+                                            <option value="Transferencia">Transferencia</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-700 mb-1">Plazo de Pago</label>
+                                        <select id="manage_prov_plazo" class="w-full border rounded px-2 py-2">
+                                            <option value="">(Vacío)</option>
+                                            <option value="Contado">Contado</option>
+                                            <option value="30 días">30 días</option>
+                                            <option value="45 días">45 días</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <button type="button" onclick="addManageProviderRow()" class="ml-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700">Agregar</button>
+                                </div>
                             </div>
-                            <!-- Botón para abrir modal de crear proveedor desde gestionar proveedores -->
-                            <button type="button" onclick="openModal('proveedor')" title="Nuevo proveedor" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                            <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
-                            <div class="relative">
-                                <input type="text" id="manage_prov_moneda_input" placeholder="Moneda (ej: COP)" value="COP" class="w-36 md:w-48 px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
-                            </div>
-                            <select id="manage_prov_moneda" class="hidden">
-                                @php
-                                    $ISO_CURRENCIES = ['COP', 'USD', 'EUR'];
-                                @endphp
-                                @foreach($ISO_CURRENCIES as $cc)
-                                    <option value="{{ $cc }}" {{ $cc === 'COP' ? 'selected' : '' }}>{{ $cc }}</option>
-                                @endforeach
-                            </select>
-                            <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addManageProviderRow()">Agregar</button>
                         </div>
+ 
+                          <div class="overflow-auto max-h-48 border rounded">
+                              <table class="w-full text-sm" id="manageProvidersTable">
+                                  <thead class="bg-gray-50">
+                                      <tr>
+                                          <th class="px-3 py-2 text-left">Proveedor</th>
+                                          <th class="px-3 py-2 text-left">Precio</th>
+                                          <th class="px-3 py-2 text-left">Moneda</th>
+                                          <th class="px-3 py-2 text-left">Método</th>
+                                          <th class="px-3 py-2 text-left">Plazo</th>
+                                          <th class="px-3 py-2 text-center">Acción</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody></tbody>
+                              </table>
+                          </div>
+                         <div id="manageProvidersInputs"></div>
+                     </div>
 
-                        <div class="overflow-auto max-h-48 border rounded">
-                            <table class="w-full text-sm" id="manageProvidersTable">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left">Proveedor</th>
-                                        <th class="px-3 py-2 text-left">Precio</th>
-                                        <th class="px-3 py-2 text-left">Moneda</th>
-                                        <th class="px-3 py-2 text-center">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                        <div id="manageProvidersInputs"></div>
-                    </div>
-
-                    <div class="flex justify-end gap-2">
+                     <div class="flex justify-end gap-2">
                         <button class="px-4 py-2 bg-gray-300 text-gray-700 rounded" onclick="closeModal('manageProviders')">Cerrar</button>
                         <button class="px-4 py-2 bg-indigo-600 text-white rounded" onclick="submitManageProviders()">Guardar proveedores</button>
-                    </div>
+                     </div>
                 </div>
             </div>
         </div>
@@ -1031,6 +1056,8 @@
         const provName = nameInput.value.trim();
         const price = parseFloat(priceInput.value);
         const moneda = monedaSelect ? monedaSelect.value : '';
+        const methods = (document.getElementById('manage_prov_methods') && document.getElementById('manage_prov_methods').value) ? document.getElementById('manage_prov_methods').value : '';
+        const plazo = (document.getElementById('manage_prov_plazo') && document.getElementById('manage_prov_plazo').value) ? document.getElementById('manage_prov_plazo').value : '';
         if (!provName) { Swal.fire({icon:'info', title:'Proveedor', text:'Seleccione un proveedor'}); return; }
         if (isNaN(price) || price < 0) { Swal.fire({icon:'info', title:'Precio', text:'Ingrese un precio válido'}); return; }
         // Buscar opción por nombre (case-insensitive)
@@ -1040,15 +1067,15 @@
         if (document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${providerId}"]`)) { Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'}); return; }
         const tr = document.createElement('tr');
         tr.setAttribute('data-prov-id', providerId);
-        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
         tbody.appendChild(tr);
         const inputsDiv = document.getElementById('manageProvidersInputs');
         const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
         wrapper.setAttribute('data-prov-id', providerId);
-        wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+        wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}"><input type="hidden" name="providers[${manageProviderIndex}][methods_oc]" value="${methods}"><input type="hidden" name="providers[${manageProviderIndex}][plazo_oc]" value="${plazo}">`;
         inputsDiv.appendChild(wrapper);
         manageProviderIndex++;
-        nameInput.value = ''; priceInput.value = '';
+        nameInput.value = ''; priceInput.value = ''; 
     }
 
     function removeManageProviderRow(idx) {
@@ -1074,14 +1101,16 @@
             const name = p.prov_name || p.prov_name || '';
             const price = parseFloat(p.price_produc || p.price || 0);
             const moneda = p.moneda || p.currency || '';
+            const methods = p.methods_oc || p.methods || '';
+            const plazo = p.plazo_oc || p.plazo || '';
             const provId = p.prov_id || p.id || p.proveedor_id;
             const tr = document.createElement('tr');
             tr.setAttribute('data-prov-id', provId);
-            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
             tbody.appendChild(tr);
             const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
             wrapper.setAttribute('data-prov-id', provId);
-            wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${provId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+            wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${provId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}"><input type="hidden" name="providers[${manageProviderIndex}][methods_oc]" value="${methods}"><input type="hidden" name="providers[${manageProviderIndex}][plazo_oc]" value="${plazo}">`;
             inputsDiv.appendChild(wrapper);
             manageProviderIndex++;
         });
@@ -1090,12 +1119,16 @@
     function submitManageProviders() {
         const modal = document.getElementById('manageProvidersModal');
         const productId = modal.dataset.productId;
-        const inputs = Array.from(document.querySelectorAll('#manageProvidersInputs input'));
+        const wrappers = Array.from(document.querySelectorAll('#manageProvidersInputs > div'));
         const providers = [];
-        for (let i = 0; i < inputs.length; i += 3) {
-            const pid = inputs[i].value; const price = inputs[i+1].value; const moneda = inputs[i+2].value;
-            providers.push({provider_id: pid, price: price, moneda: moneda});
-        }
+        wrappers.forEach(w => {
+            const pid = w.querySelector('input[name$="[provider_id]"]')?.value || null;
+            const price = w.querySelector('input[name$="[price]"]')?.value || 0;
+            const moneda = w.querySelector('input[name$="[moneda]"]')?.value || null;
+            const methods = w.querySelector('input[name$="[methods_oc]"]')?.value || null;
+            const plazo = w.querySelector('input[name$="[plazo_oc]"]')?.value || null;
+            if (pid) providers.push({provider_id: pid, price: price, moneda: moneda, methods_oc: methods, plazo_oc: plazo});
+        });
 
         // Si no se agregaron proveedores, avisar y no enviar
         if (!providers.length) {
@@ -1306,7 +1339,7 @@
         const errorElements = document.querySelectorAll('[id$="_error"]');
         errorElements.forEach(element => {
             element.classList.add('hidden');
-            element.textContent = '';
+ element.textContent = '';
         });
     }
 
@@ -1772,63 +1805,13 @@
     
     // Dropdown de moneda con lista corta visible (scrollable)
     document.addEventListener('DOMContentLoaded', function(){
-        const cInput = document.getElementById('manage_prov_moneda_input');
-        const cHidden = document.getElementById('manage_prov_moneda');
-        if (cInput && cHidden) {
-            // sincronizar valor por defecto desde select oculto
-            try { const sel = cHidden.options[cHidden.selectedIndex]; if (sel) cInput.value = sel.value || 'COP'; } catch(e){}
-            let cDrop = document.getElementById('manage_currency_dropdown');
-            if (!cDrop) {
-                cDrop = document.createElement('div');
-                cDrop.id = 'manage_currency_dropdown';
-                cDrop.className = 'fixed z-50 bg-white border border-gray-300 rounded-md shadow-lg';
-                // contenido: lista de códigos con filtro simple
-                cDrop.innerHTML = `
-                    <div style="padding:4px 0; max-height: 180px; overflow:auto;">
-                        @foreach($ISO_CURRENCIES as $cc)
-                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer currency-item" data-code="{{ $cc }}">{{ $cc }}</div>
-                        @endforeach
-                    </div>
-                `;
-                document.body.appendChild(cDrop);
-            }
-            // estilos base
-            cDrop.style.position = 'fixed';
-            cDrop.style.display = 'none';
-            cDrop.style.zIndex = 10000;
-
-            const updatePos = () => {
-                const r = cInput.getBoundingClientRect();
-                cDrop.style.left = r.left + 'px';
-                cDrop.style.top = (r.bottom + 0) + 'px';
-                cDrop.style.width = r.width + 'px';
-            };
-            const showC = () => { updatePos(); cDrop.style.display = 'block'; cDrop.classList.remove('hidden'); };
-            const hideC = () => { cDrop.style.display = 'none'; cDrop.classList.add('hidden'); };
-
-            cInput.addEventListener('focus', showC);
-            cInput.addEventListener('click', showC);
-            cInput.addEventListener('input', function(){
-                const q = (this.value||'').toUpperCase();
-                cDrop.querySelectorAll('.currency-item').forEach(it => {
-                    const code = (it.getAttribute('data-code')||'').toUpperCase();
-                    it.style.display = code.indexOf(q) > -1 ? '' : 'none';
-                });
-                showC();
-            });
-            cDrop.addEventListener('click', function(e){
-                const it = e.target.closest('.currency-item');
-                if (!it) return;
-                const code = it.getAttribute('data-code') || 'COP';
-                cInput.value = code;
-                try { cHidden.value = code; } catch(e){}
-                hideC();
-            });
-            document.addEventListener('click', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); });
-            window.addEventListener('resize', hideC);
-            document.addEventListener('scroll', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); }, true);
+        // Si existe el select de moneda, no necesitamos crear un dropdown dinámico.
+        const cSelect = document.getElementById('manage_prov_moneda');
+        if (cSelect) {
+            // valor por defecto ya está en el HTML (COP). Si se necesita sincronizar con otro campo, hacerlo aquí.
+            // No se agrega comportamiento adicional: el código que lee la moneda (addManageProviderRow) busca el elemento por id 'manage_prov_moneda'.
         }
-  });
+    });
 
     // Helper: convertir cualquier representación numérica (p. ej. "782,47" o " 782.47 ") a entero
     function sanitizeToInt(val) {

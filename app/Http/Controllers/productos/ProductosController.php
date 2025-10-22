@@ -105,6 +105,8 @@ class ProductosController extends Controller
                 DB::table('productoxproveedor')->insert([
                     'producto_id' => $producto->id,
                     'proveedor_id' => $provId,
+                    'methods_oc' => $request->input('methods_oc') ?? null,
+                    'plazo_oc' => $request->input('plazo_oc') ?? null,
                     'price_produc' => $price,
                     'moneda' => $moneda,
                     'created_at' => now(),
@@ -296,10 +298,14 @@ public function storeProveedor(Request $request)
                 $provId = $p['provider_id'] ?? null;
                 $price = $p['price'] ?? 0;
                 $moneda = $p['moneda'] ?? null;
+                $methods = $p['methods_oc'] ?? null;
+                $plazo = $p['plazo_oc'] ?? null;
                 if (!$provId) continue;
                 $inserts[] = [
                     'producto_id' => $id,
                     'proveedor_id' => $provId,
+                    'methods_oc' => $methods,
+                    'plazo_oc' => $plazo,
                     'price_produc' => $price,
                     'moneda' => $moneda,
                     'created_at' => $now,

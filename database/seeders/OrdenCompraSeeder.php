@@ -46,8 +46,6 @@ class OrdenCompraSeeder extends Seeder
                 'oc_user'        => $req->name_user ?? 'Seeder',
                 'observaciones'  => 'OC generada por seeder',
                 'date_oc'        => $date->toDateString(),
-                'methods_oc'     => 'Transferencia',
-                'plazo_oc'       => rand(1, 2) === 1 ? 'Contado' : '30 días',
                 'order_oc'       => 'OC-' . strtoupper(Str::random(6)),
                 'validation_hash'=> null,
                 'created_at'     => $date,

@@ -172,16 +172,6 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">Proveedor *</label>
-                            <select id="proveedor_id" name="proveedor_id"
-                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
-                                <option value="">Seleccione un proveedor</option>
-                                @foreach($proveedores as $proveedor)
-                                <option value="{{ $proveedor->id }}">{{ $proveedor->prov_name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">Fecha de la OC *</label>
                             <input type="date" name="date_oc" value="{{ old('date_oc', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
                         </div>
