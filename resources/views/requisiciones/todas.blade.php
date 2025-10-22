@@ -313,8 +313,28 @@
                                                 $lineTotal = $cantidadProd * ($unitPriceCOP ?? $unitPriceOriginal);
                                                 $grandTotalModal += $lineTotal;
                                             @endphp
+                                            @php
+                                                // Obtener distribución por centros para este producto y requisición
+                                                try {
+                                                    $distribucion = DB::table('centro_producto')
+                                                        ->where('requisicion_id', $req->id)
+                                                        ->where('producto_id', $prod->id)
+                                                        ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                                        ->select('centro.name_centro', 'centro_producto.amount')
+                                                        ->get();
+                                                } catch (\Throwable $e) { $distribucion = collect(); }
+                                            @endphp
                                             <tr class="border-b">
-                                                <td class="p-3 font-medium text-gray-800 align-top">{{ $prod->name_produc }}</td>
+                                                <td class="p-3 font-medium text-gray-800 align-top">
+                                                    <div class="truncate">{{ $prod->name_produc }}</div>
+                                                    @if(!empty($distribucion) && $distribucion->count())
+                                                        <div class="mt-2 flex flex-wrap gap-2">
+                                                            @foreach($distribucion as $c)
+                                                                <span class="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">{{ $c->name_centro }}: {{ $c->amount }}</span>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+                                                </td>
                                                 <td class="p-3 text-center align-top">{{ $cantidadProd }}</td>
                                                 <td class="p-3 text-center align-top">{{ $prod->unit_produc ?? '-' }}</td>
                                                 <td class="p-3 text-center align-top">

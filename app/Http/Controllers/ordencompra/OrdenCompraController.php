@@ -21,7 +21,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
-use App\Jobs\EnviarOrdenCompraCreadaJob; 
 
 class OrdenCompraController extends Controller
 {
@@ -542,16 +541,41 @@ class OrdenCompraController extends Controller
                 // noop
             }
 
-            // Encolar notificación por correo (HTML) solo a destinatarios configurados (sin solicitante)
+            // Enviar notificación por correo: primero al solicitante (email guardado en la requisición),
+            // luego a los destinatarios configurados (si existen), evitando duplicados.
             try {
+                $requisicionObj = Requisicion::find($request->requisicion_id);
                 $conf = (array) config('requisiciones.destinatarios_oc', []);
-                $to = array_values(array_unique((array)($conf['to'] ?? [])));
-                $cc = array_values(array_unique((array)($conf['cc'] ?? [])));
-                if (!empty($to)) {
-                    EnviarOrdenCompraCreadaJob::dispatch((int)$orden->id, $to, $cc);
+                $toConfig = array_values(array_unique((array)($conf['to'] ?? [])));
+                $ccConfig = array_values(array_unique((array)($conf['cc'] ?? [])));
+
+                // Enviar al email del solicitante si existe
+                if (!empty($requisicionObj?->email_user)) {
+                    try {
+                        Mail::to($requisicionObj->email_user)->send(new \App\Mail\OrdenCompraCreada($orden));
+                    } catch (\Throwable $e) {
+                        Log::warning('No se pudo enviar correo al solicitante ' . $requisicionObj->email_user . ': ' . $e->getMessage());
+                    }
+                }
+
+                // Enviar a destinatarios configurados (evitar reenviar al mismo email del solicitante)
+                $toFiltered = array_values(array_filter($toConfig, function($addr) use ($requisicionObj) {
+                    if (empty($addr)) return false;
+                    if (!empty($requisicionObj?->email_user) && $addr === $requisicionObj->email_user) return false;
+                    return true;
+                }));
+
+                if (!empty($toFiltered)) {
+                    try {
+                        $m = new \App\Mail\OrdenCompraCreada($orden);
+                        if (!empty($ccConfig)) Mail::to($toFiltered)->cc($ccConfig)->send($m);
+                        else Mail::to($toFiltered)->send($m);
+                    } catch (\Throwable $e) {
+                        Log::warning('No se pudo enviar correo OC creada a destinatarios configurados: ' . $e->getMessage());
+                    }
                 }
             } catch (\Throwable $e) {
-                Log::warning('No se pudo encolar correo OC creada: '.$e->getMessage());
+                Log::warning('Error durante envío de correos OC creada: ' . $e->getMessage());
             }
 
             DB::commit();

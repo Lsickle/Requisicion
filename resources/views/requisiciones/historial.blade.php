@@ -224,19 +224,17 @@
                              <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
                          </div>
                          @php
+                             // Mostrar motivo sólo si el estatus activo actual es 11 (Ajustes requeridos)
                              $registroComentarioModal = null;
-                             if ($req->estatusHistorial && $req->estatusHistorial->count()) {
-                                 $registroComentarioModal = $req->estatusHistorial->whereIn('estatus_id', [11, 9, 13])->sortByDesc('created_at')->first();
-                             }
-                             $boxClasses = '';
-                             if ($registroComentarioModal) {
-                                 $boxClasses = in_array($registroComentarioModal->estatus_id, [9,13])
-                                     ? 'bg-red-50 border border-red-200 text-red-800'
-                                     : 'bg-amber-50 border border-amber-200 text-amber-800';
+                             if ((int)($estatusActualId ?? 0) === 11) {
+                                 if ($req->estatusHistorial && $req->estatusHistorial->count()) {
+                                     // obtener el comentario más reciente con estatus 11
+                                     $registroComentarioModal = $req->estatusHistorial->where('estatus_id', 11)->sortByDesc('created_at')->first();
+                                 }
                              }
                          @endphp
-                         @if(!empty($registroComentarioModal?->comentario))
-                             <div class="col-span-1 md:col-span-2 mt-2 rounded-lg p-3 text-sm {{ $boxClasses }}">
+                         @if((int)($estatusActualId ?? 0) === 11 && !empty($registroComentarioModal?->comentario))
+                             <div class="col-span-1 md:col-span-2 mt-2 rounded-lg p-3 text-sm bg-amber-50 border border-amber-200 text-amber-800">
                                  <strong>Motivo:</strong> {{ $registroComentarioModal->comentario }}
                              </div>
                          @endif

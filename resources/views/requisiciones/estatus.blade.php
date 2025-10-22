@@ -12,114 +12,67 @@
 
     <div class="relative border-l-2 border-blue-400 ml-4">
         @php
-        $estatusOrdenados = $estatusOrdenados ?? collect();
-        $currentId = optional($estatusActual)->id ?? 0;
-
-        // Determinar timestamp actual de forma segura:
-        // - Construir lista de timestamps con isset() para evitar Optional falsos
-        $allTimestamps = $estatusOrdenados->map(function($i){
-            $date = (isset($i->pivot) && isset($i->pivot->created_at)) ? $i->pivot->created_at : null;
-            return $date ? strtotime((string)$date) : null;
-        })->filter()->values();
-
-        // - Buscar el estatus activo (pivot.estatus == 1) de forma segura
-        $active = $estatusOrdenados->first(function($i){
-            return isset($i->pivot) && isset($i->pivot->estatus) && $i->pivot->estatus == 1;
-        });
-        $activeTimestamp = ($active && isset($active->pivot->created_at)) ? strtotime((string)$active->pivot->created_at) : null;
-
-        $currentTs = $activeTimestamp ?? ($allTimestamps->isNotEmpty() ? $allTimestamps->max() : null);
-
-        // Deduplicar: conservar solo el más reciente por id, luego ordenar cronológicamente
-        // Mantener múltiples registros para estatus 12 (entrega parcial).
-        // Para los demás estatus, conservar sólo el más reciente por id.
-        $estatusSortedDesc = $estatusOrdenados->sortByDesc(function($i){
-            return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
-        })->values();
-
-        $seenIds = collect();
-        $filtered = collect();
-        foreach ($estatusSortedDesc as $e) {
-            if (isset($e->id) && (int)$e->id === 12) {
-                // conservar todas las entradas 12
-                $filtered->push($e);
-            } else {
-                if (!$seenIds->contains($e->id)) {
-                    $seenIds->push($e->id);
-                    $filtered->push($e);
-                }
+            // Cargar historial real desde estatus_requisicion (join con estatus) en orden cronológico asc
+            try {
+                $historial = DB::table('estatus_requisicion as er')
+                    ->where('er.requisicion_id', $requisicion->id)
+                    ->whereNull('er.deleted_at')
+                    ->join('estatus as s', 's.id', '=', 'er.estatus_id')
+                    ->select('er.*', 's.status_name')
+                    ->orderBy('er.created_at', 'asc')
+                    ->get();
+            } catch (\Throwable $e) {
+                $historial = collect();
             }
-        }
 
-        // Ordenar cronológicamente ascendente para mostrar en timeline
-        $estatusFiltrados = $filtered->sortBy(function($i){
-            return (isset($i->pivot) && isset($i->pivot->created_at)) ? strtotime((string)$i->pivot->created_at) : null;
-        })->values();
+            // Determinar registro activo (estatus = 1). Si existe, ese es el actual; si no, tomar el último registro del historial
+            $activeRow = $historial->firstWhere('estatus', 1) ?? $historial->last();
+            $currentId = $activeRow->estatus_id ?? null;
+            $currentTs = isset($activeRow->created_at) ? strtotime((string)$activeRow->created_at) : null;
 
-        // Traer todas las entregas de la requisición para poder vincular a estatus 12 repetidos
-        $entregasAll = DB::table('entrega')
-            ->where('requisicion_id', $requisicion->id)
-            ->whereNull('entrega.deleted_at')
-            ->join('productos', 'entrega.producto_id', '=', 'productos.id')
-            ->select('entrega.*', 'productos.name_produc')
-            ->orderBy('entrega.created_at', 'asc')
-            ->get();
+            // Traer todas las entregas para poder vincular a estatus 12
+            try {
+                $entregasAll = DB::table('entrega')
+                    ->where('requisicion_id', $requisicion->id)
+                    ->whereNull('entrega.deleted_at')
+                    ->join('productos', 'entrega.producto_id', '=', 'productos.id')
+                    ->select('entrega.*', 'productos.name_produc')
+                    ->orderBy('entrega.created_at', 'asc')
+                    ->get();
+            } catch (\Throwable $e) {
+                $entregasAll = collect();
+            }
 
-        // Flujo normal
-        $flujo = [
-            1 => 2,
-            2 => 3,
-            3 => 4,
-            4 => 5,
-            5 => 7,
-            7 => 8,
-            8 => 10
-        ];
-
-        // Calcular siguiente
-        if (in_array($currentId, [1, 2, 3])) {
-            $siguiente = 'pendiente';
-        } elseif (isset($flujo[$currentId])) {
-            $siguiente = $flujo[$currentId];
-        } else {
-            $siguiente = null;
-        }
-
-        // Cancelado, rechazado o completado
-        if (in_array($currentId, [6, 9, 10, 13])) {
-            $siguiente = null;
-        } elseif ($currentId == 11) {
-            $siguiente = 'pendiente_gerencia';
-        }
-        @endphp 
+            // Flujo normal para sugerir siguiente estatus
+            $flujo = [1 => 2, 2 => 3, 3 => 4, 4 => 5, 5 => 7, 7 => 8, 8 => 10];
+            if (in_array($currentId, [1,2,3])) $siguiente = 'pendiente';
+            elseif (isset($flujo[$currentId])) $siguiente = $flujo[$currentId];
+            else $siguiente = null;
+            if (in_array($currentId, [6,9,10,13])) $siguiente = null;
+            elseif ((int)$currentId === 11) $siguiente = 'pendiente_correccion';
+        @endphp
 
         {{-- Mostrar estatus --}}
-        @foreach($estatusFiltrados as $item)
-            @php
-                // Flags y timestamps
-                $itemCreated = (isset($item->pivot) && isset($item->pivot->created_at)) ? $item->pivot->created_at : null;
+        @foreach($historial as $item)
+             @php
+                // Flags y timestamps: ahora $item proviene de estatus_requisicion (er.*) y tiene status_name
+                $itemCreated = isset($item->created_at) ? $item->created_at : null;
                 $itemTs = $itemCreated ? strtotime((string)$itemCreated) : null;
-                if ($itemTs !== null && $currentTs !== null) {
-                    $isCompleted = $itemTs <= $currentTs;
-                } else {
-                    $isCompleted = ($item->id == 7) || ($item->id < $currentId);
-                }
-                $isCurrent = $item->id === $currentId;
-                $isRejected  = in_array($item->id, [9,13]);
-                $isCanceled  = $item->id === 6;
-                $isCorregir  = $item->id === 11;
+                $isCompleted = ($currentTs !== null && $itemTs !== null) ? ($itemTs <= $currentTs) : false;
+                $isCurrent = (isset($item->estatus) && (int)$item->estatus === 1);
+                $isRejected = in_array((int)($item->estatus_id ?? 0), [9,13]);
+                $isCanceled = ((int)($item->estatus_id ?? 0) === 6);
+                $isCorregir = ((int)($item->estatus_id ?? 0) === 11);
 
                 // Preparar entregas relacionadas (solo para estatus 12)
                 $entregasRelacionadas = collect();
-                if (isset($item->id) && $item->id == 12) {
-                    $statusDate = isset($item->pivot->created_at) ? \Carbon\Carbon::parse($item->pivot->created_at)->toDateString() : null;
-                    if ($statusDate) {
-                        $entregasRelacionadas = $entregasAll->filter(function($e) use ($statusDate){
-                            return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
-                        })->values();
-                    }
+                if ((int)($item->estatus_id ?? 0) === 12 && isset($item->created_at)) {
+                    $statusDate = \Carbon\Carbon::parse($item->created_at)->toDateString();
+                    $entregasRelacionadas = $entregasAll->filter(function($e) use ($statusDate){
+                        return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
+                    })->values();
                 }
-            @endphp
+             @endphp
 
             <div class="mb-6 ml-6 relative">
                 {{-- Icono izquierdo --}}
@@ -159,7 +112,7 @@
                                 {{ $item->status_name }}
                             </h3>
 
-                            @if(isset($item->pivot->created_at))
+                            @if(isset($item->created_at) && $item->created_at)
                                 <p class="text-sm 
                                     @if($isRejected || $isCanceled) text-red-600
                                     @elseif($isCorregir && $isCurrent) text-yellow-600
@@ -167,13 +120,13 @@
                                     @elseif($isCurrent) text-blue-600
                                     @endif mt-1">
                                     <i class="far fa-clock mr-1"></i>
-                                    {{ optional($item->pivot->created_at)->format('d/m/Y H:i') }}
+                                    {{ \Carbon\Carbon::parse($item->created_at)->format('d/m/Y H:i') }}
                                 </p>
                             @endif
 
-                            @if(isset($item->pivot->comentario) && $item->pivot->comentario)
+                            @if(isset($item->comentario) && $item->comentario)
                                 <div class="mt-2 p-2 bg-white rounded border text-sm text-gray-700">
-                                    <strong>Comentario:</strong> {{ $item->pivot->comentario }}
+                                    <strong>Comentario:</strong> {{ $item->comentario }}
                                 </div>
                             @endif
 
@@ -235,11 +188,12 @@
         @endforeach
 
         @php
-            $hasRechazo = $estatusFiltrados->contains('id', 9) || $estatusFiltrados->contains('id', 13);
-            $isCompletado = optional($estatusActual)->id === 10;
+            $hasRechazo = ($historial->where('estatus_id', 9)->isNotEmpty() || $historial->where('estatus_id', 13)->isNotEmpty());
+            $isCompletado = (($currentId !== null) && ((int)$currentId === 10));
             $showRed = $hasRechazo;
             $showGreen = !$hasRechazo && $isCompletado;
-            $showGray = !$hasRechazo && !$isCompletado && in_array($currentId, [6, 11]);
+            // Excluir 11 (Ajustes requeridos) de mostrar como 'Proceso finalizado'
+            $showGray = !$hasRechazo && !$isCompletado && in_array((int)$currentId, [6]);
         @endphp
 
         @if($showRed)
@@ -303,6 +257,18 @@
         </div>
         @endif
 
+        @if($siguiente === 'pendiente_correccion')
+        <div class="mb-6 ml-6 relative">
+            <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-400 text-white shadow-md">
+                <i class="fas fa-exclamation text-xs"></i>
+            </span>
+            <div class="p-4 rounded-lg shadow-sm border bg-gray-100 border-gray-400">
+                <h3 class="font-semibold text-gray-700">Pendiente por corrección</h3>
+                <p class="text-sm text-gray-500 mt-1"><i class="far fa-clock mr-1"></i>La requisición requiere ajustes antes de continuar.</p>
+            </div>
+        </div>
+        @endif
+
         @if(is_numeric($siguiente))
             <div class="mb-6 ml-6 relative">
                 <span class="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-gray-400 text-white shadow-md">
@@ -313,7 +279,7 @@
                     <div class="flex justify-between items-start">
                         <div>
                             @php
-                                $sigNombre = optional($estatusOrdenados->firstWhere('id', $siguiente))->status_name
+                                $sigNombre = optional($historial->firstWhere('id', $siguiente))->status_name
                                     ?? (DB::table('estatus')->where('id', $siguiente)->value('status_name') ?? 'Pendiente siguiente');
                             @endphp
                             <h3 class="font-semibold text-gray-700">{{ $sigNombre }}</h3>

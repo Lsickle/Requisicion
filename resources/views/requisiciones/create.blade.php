@@ -865,17 +865,24 @@
         resetModalProducto();
     });
 
+    // Validación y envío único: verificar operación y productos antes de mostrar carga
     requisicionForm.addEventListener('submit', function(e) {
+        // Validar que se haya seleccionado una operación
+        if (!operacionSelectHidden.value || (operacionSelectHidden.value || '').trim() === '') {
+            e.preventDefault();
+            Swal.fire({icon:'error', title:'Operación requerida', text:'Debe seleccionar una operación.'}).then(function(){ operacionFilter.focus(); });
+            return;
+        }
+
+        // Validar que exista al menos un producto agregado
         if (productos.length === 0) {
             e.preventDefault();
             mostrarError('Debes agregar al menos un producto.');
             return;
         }
-        
-        // Mostrar alerta de carga
+
+        // Todas las validaciones OK: mostrar alerta de carga y permitir envío
         mostrarCarga();
-        
-        // El formulario se enviará normalmente después de esto
     });
 
     // Campo Operación: selección y búsqueda
@@ -922,21 +929,6 @@
             operacionesDropdown.classList.add('hidden');
         }
     });
-
-    // Validar antes de enviar
-    requisicionForm.addEventListener('submit', function(ev){
-        if (!operacionSelectHidden.value) {
-            ev.preventDefault();
-            Swal.fire({icon:'error', title:'Operación requerida', text:'Debe seleccionar una operación.'});
-            operacionFilter.focus();
-            return;
-        }
-    }, {capture:true});
-
-    // Si había old() valor pero input vacío, sincronizar
-    if (operacionSelectHidden.value && !operacionFilter.value) {
-        operacionFilter.value = operacionSelectHidden.value;
-    }
 
     // Aplicar precarga si existe
     if (PREFILL_DATA) {

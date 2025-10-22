@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ordencompra\OrdenCompraController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\excel\ExcelController;
 use App\Http\Controllers\PDF\PdfController;
 use App\Http\Controllers\requisicion\RequisicionController;
 use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
@@ -244,9 +243,6 @@ Route::middleware([AuthSession::class])->group(function () {
         }
     })->name('ordenes_compra.terminar');
 
-    // Ruta para terminar una OC y crear una nueva con faltantes si aplica
-    Route::post('/ordenes_compra/terminar_con_faltantes/{id}', [OrdenCompraExtrasController::class, 'terminarAndCreateMissing'])->name('ordenes_compra.terminar_con_faltantes');
-
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
@@ -315,13 +311,6 @@ Route::resource('nuevo_producto', NuevoProductoController::class);
 // Logout
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
 
-// Reportes excel
-Route::prefix('exportar')->group(function () {
-    Route::get('/productos', [ExcelController::class, 'export'])->name('export.productos')->defaults('type', 'productos');
-    Route::get('/ordenes-compra', [ExcelController::class, 'export'])->name('export.ordenes-compra')->defaults('type', 'ordenes-compra');
-    Route::get('/requisiciones', [ExcelController::class, 'export'])->name('export.requisiciones')->defaults('type', 'requisiciones');
-    Route::get('/estatus-requisicion', [ExcelController::class, 'export'])->name('export.estatus-requisicion')->defaults('type', 'estatus-requisicion');
-});
 
 Route::view('/index', 'index')->name('index');
 
@@ -334,8 +323,3 @@ Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class
 // Ruta para actualizar proveedores de un producto
 Route::post('productos/{id}/providers', [ProductosController::class, 'updateProviders'])->name('productos.updateProviders');
 
-// Nuevas rutas TRM
-Route::prefix('trm')->group(function(){
-    Route::post('/sync', [TrmController::class, 'sync'])->name('trm.sync');
-    Route::get('/latest', [TrmController::class, 'latest'])->name('trm.latest');
-});

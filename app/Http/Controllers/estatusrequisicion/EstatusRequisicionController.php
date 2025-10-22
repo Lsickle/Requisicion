@@ -257,10 +257,7 @@ class EstatusRequisicionController extends Controller
             } else {
                 return response()->json(['success'=>false,'message'=>'Estatus actual no gestionable desde este panel'],403);
             }
-            // Ajuste: si operación especial y target 2, forzar salto a 3
-            if ($currentStatus == 1 && $operacionEspecial && $targetStatus == 2) {
-                $targetStatus = 3; // salto directo
-            }
+            // Ya no se fuerza salto; si target=3 desde 1 en operaciones especiales, se insertará 2 como intermedio histórico.
             if (!in_array($targetStatus, $allowedNext, true)) {
                 return response()->json(['success'=>false,'message'=>'Transición no permitida desde el estatus actual'],403);
             }
@@ -371,21 +368,43 @@ class EstatusRequisicionController extends Controller
                     $mensajeAccion = 'rechazada';
                 }
             } else {
-                // Aprobación directa al estatus solicitado (2->3, 3->4, 1->2)
-                $nuevoEstatus = Estatus_Requisicion::create([
-                    'requisicion_id'=>$requisicionId,
-                    'estatus_id'=>$targetStatus,
-                    'estatus'=>1,
-                    'comentario'=>null,
-                    'date_update'=>now(),
-                    'user_id'=>session('user.id')
-                ]);
+                // Aprobación con paso intermedio para operaciones especiales cuando se aprueba a 3 desde 1
+                if ($currentStatus == 1 && $operacionEspecial && $targetStatus == 3) {
+                    // Insertar estatus 2 como histórico para trazabilidad
+                    Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicionId,
+                        'estatus_id'     => 2,
+                        'estatus'        => 0,
+                        'comentario'     => null,
+                        'date_update'    => now(),
+                        'user_id'        => session('user.id')
+                    ]);
+                    // Insertar estatus 3 como activo
+                    $nuevoEstatus = Estatus_Requisicion::create([
+                        'requisicion_id'=>$requisicionId,
+                        'estatus_id'=>3,
+                        'estatus'=>1,
+                        'comentario'=>null,
+                        'date_update'=>now(),
+                        'user_id'=>session('user.id')
+                    ]);
+                } else {
+                    // Aprobación directa al estatus solicitado (2->3, 3->4, 1->2)
+                    $nuevoEstatus = Estatus_Requisicion::create([
+                        'requisicion_id'=>$requisicionId,
+                        'estatus_id'=>$targetStatus,
+                        'estatus'=>1,
+                        'comentario'=>null,
+                        'date_update'=>now(),
+                        'user_id'=>session('user.id')
+                    ]);
+                }
                 if ($targetStatus == 4) {
                     Log::info("Aprobación final (estatus 4) requisición {$requisicionId}");
                 }
 
-                // NUEVO: notificar por correo según etapa destino y operación
-                $this->notificarPorEtapa($requisicion, $nuevoEstatus, $targetStatus);
+                // Notificar por la etapa final aplicada (si hubo intermedio, es 3)
+                $this->notificarPorEtapa($requisicion, $nuevoEstatus, ($currentStatus == 1 && $operacionEspecial && $targetStatus == 3) ? 3 : $targetStatus);
             }
 
             // Notificación correo (igual anterior)
