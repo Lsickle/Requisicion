@@ -175,23 +175,6 @@
                             <label class="block text-sm font-medium text-gray-600 mb-1">Fecha de la OC *</label>
                             <input type="date" name="date_oc" value="{{ old('date_oc', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400" required>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">Método de Pago</label>
-                            <select name="methods_oc"
-                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Transferencia">Transferencia</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">Plazo de Pago</label>
-                            <select name="plazo_oc"
-                                class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
-                                <option value="Contado">Contado</option>
-                                <option value="30 días">30 días</option>
-                                <option value="45 días">45 días</option>
-                            </select>
-                        </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-600 mb-1">Observaciones</label>
                             <textarea name="observaciones" rows="2"

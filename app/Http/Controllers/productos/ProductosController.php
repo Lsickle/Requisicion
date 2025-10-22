@@ -105,8 +105,6 @@ class ProductosController extends Controller
                 DB::table('productoxproveedor')->insert([
                     'producto_id' => $producto->id,
                     'proveedor_id' => $provId,
-                    'methods_oc' => $request->input('methods_oc') ?? null,
-                    'plazo_oc' => $request->input('plazo_oc') ?? null,
                     'price_produc' => $price,
                     'moneda' => $moneda,
                     'created_at' => now(),
@@ -155,6 +153,8 @@ public function storeProveedor(Request $request)
                 'prov_adress' => 'required|string|max:255',
                 'prov_city'   => 'required|string|max:100',
                 'prov_descrip' => 'required|string|max:1000', // Ahora es obligatorio
+                'methods_oc' => 'nullable|string|max:255',
+                'plazo_oc' => 'nullable|string|max:255',
             ]);
 
             if ($validator->fails()) {
@@ -164,7 +164,7 @@ public function storeProveedor(Request $request)
                 ], 422);
             }
 
-            Proveedor::create($request->all());
+            Proveedor::create($request->only(['prov_name','prov_descrip','prov_nit','prov_name_c','prov_phone','prov_adress','prov_city','methods_oc','plazo_oc']));
 
             return response()->json([
                 'success' => true,
@@ -298,14 +298,10 @@ public function storeProveedor(Request $request)
                 $provId = $p['provider_id'] ?? null;
                 $price = $p['price'] ?? 0;
                 $moneda = $p['moneda'] ?? null;
-                $methods = $p['methods_oc'] ?? null;
-                $plazo = $p['plazo_oc'] ?? null;
                 if (!$provId) continue;
                 $inserts[] = [
                     'producto_id' => $id,
                     'proveedor_id' => $provId,
-                    'methods_oc' => $methods,
-                    'plazo_oc' => $plazo,
                     'price_produc' => $price,
                     'moneda' => $moneda,
                     'created_at' => $now,

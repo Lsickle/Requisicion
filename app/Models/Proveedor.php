@@ -20,7 +20,9 @@ class Proveedor extends Model
         'prov_name_c',
         'prov_phone',
         'prov_adress',
-        'prov_city'
+        'prov_city',
+        'methods_oc',
+        'plazo_oc',
     ];
 
     // Relación con productoxproveedor (1 a muchos)

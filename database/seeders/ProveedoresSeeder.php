@@ -25,6 +25,9 @@ class ProveedoresSeeder extends Seeder
                 'prov_phone' => $faker->e164PhoneNumber,
                 'prov_adress' => $faker->address,
                 'prov_city' => $faker->city,
+                // Campos opcionales añadidos en la migración
+                'methods_oc' => $faker->randomElement([null, 'Efectivo', 'Transferencia']),
+                'plazo_oc' => $faker->randomElement([null, 'Contado', '30 días', '45 días']),
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
