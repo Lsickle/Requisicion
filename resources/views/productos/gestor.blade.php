@@ -86,7 +86,6 @@
                             <th class="px-4 py-2 text-left">Proveedor</th>
                             <th class="px-4 py-2 text-left">Stock</th>
                             <th class="px-4 py-2 text-left">Unidad</th>
-                            <th class="px-4 py-2 text-left">Precio</th>
                             <th class="px-4 py-2 text-left">IVA</th>
                             <th class="px-4 py-2 text-left">Estado</th>
                             <th class="px-4 py-2 text-center">Acciones</th>
@@ -120,7 +119,6 @@
                             </td>
                             <td class="px-4 py-2">{{ number_format($producto->stock_produc, 0) }}</td>
                             <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
-                            <td class="px-4 py-2">@if($firstProv) ${{ number_format($firstProv->price_produc, 2) }} @else - @endif</td>
                             <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
                             <td class="px-4 py-2" data-col="estado">
                                 @if($producto->trashed())
