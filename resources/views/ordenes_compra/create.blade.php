@@ -1655,6 +1655,13 @@
         // Si no fue prevenido por validaciones, mostrar loader (tiempo breve antes de la navegación)
         // La validación anterior previene el submit cuando hay errores; si llegamos aquí, mostrar loader
         if (!e.defaultPrevented) {
+            try {
+                Swal.fire({
+                    title: 'Creando orden de compra...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+            } catch(_) { /* ignore if Swal unavailable */ }
             showStockLoader('Creando orden de compra');
         }
     });
