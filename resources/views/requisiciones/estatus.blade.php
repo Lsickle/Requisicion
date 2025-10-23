@@ -50,16 +50,43 @@
             else $siguiente = null;
             if (in_array($currentId, [6,9,10,13])) $siguiente = null;
             elseif ((int)$currentId === 11) $siguiente = 'pendiente_correccion';
+
+            // Normalizar operación y ocultar visualmente estatus 3 para Tecnologia/Tecnología o Compras
+            $rawOp = (string) ($requisicion->operacion_user ?? '');
+            $opNorm = strtolower(trim(strtr($rawOp, [
+                'á'=>'a','à'=>'a','ä'=>'a','â'=>'a','Á'=>'a','À'=>'a','Ä'=>'a','Â'=>'a',
+                'é'=>'e','è'=>'e','ë'=>'e','ê'=>'e','É'=>'e','È'=>'e','Ë'=>'e','Ê'=>'e',
+                'í'=>'i','ì'=>'i','ï'=>'i','î'=>'i','Í'=>'i','Ì'=>'i','Ï'=>'i','Î'=>'i',
+                'ó'=>'o','ò'=>'o','ö'=>'o','ô'=>'o','Ó'=>'o','Ò'=>'o','Ö'=>'o','Ô'=>'o',
+                'ú'=>'u','ù'=>'u','ü'=>'u','û'=>'u','Ú'=>'u','Ù'=>'u','Ü'=>'u','Û'=>'u',
+                'ñ'=>'n','Ñ'=>'n'
+            ])));
+            $hideGerenciaApproval = in_array($opNorm, ['tecnologia','compras']);
+            // Si el actual es 3 y debe ocultarse, mostrar visualmente el anterior como "actual"
+            $displayActiveRow = $activeRow;
+            $displayCurrentId = $currentId;
+            $displayCurrentTs = $currentTs;
+            if ($hideGerenciaApproval && (int)$currentId === 3) {
+                $prev = $historial->where('estatus_id', '!=', 3)->last();
+                if ($prev) {
+                    $displayActiveRow = $prev;
+                    $displayCurrentId = $prev->estatus_id ?? $currentId;
+                    $displayCurrentTs = isset($prev->created_at) ? strtotime((string)$prev->created_at) : $currentTs;
+                }
+            }
         @endphp
 
         {{-- Mostrar estatus --}}
         @foreach($historial as $item)
-             @php
-                // Flags y timestamps: ahora $item proviene de estatus_requisicion (er.*) y tiene status_name
+            @if($hideGerenciaApproval && (int)($item->estatus_id ?? 0) === 3)
+                @continue
+            @endif
+            @php
+                // Flags y timestamps referenciando el estatus actual a mostrar (display)
                 $itemCreated = isset($item->created_at) ? $item->created_at : null;
                 $itemTs = $itemCreated ? strtotime((string)$itemCreated) : null;
-                $isCompleted = ($currentTs !== null && $itemTs !== null) ? ($itemTs <= $currentTs) : false;
-                $isCurrent = (isset($item->estatus) && (int)$item->estatus === 1);
+                $isCompleted = ($displayCurrentTs !== null && $itemTs !== null) ? ($itemTs <= $displayCurrentTs) : false;
+                $isCurrent = ((isset($item->estatus) && (int)$item->estatus === 1) || ((int)($item->estatus_id ?? 0) === (int)$displayCurrentId));
                 $isRejected = in_array((int)($item->estatus_id ?? 0), [9,13]);
                 $isCanceled = ((int)($item->estatus_id ?? 0) === 6);
                 $isCorregir = ((int)($item->estatus_id ?? 0) === 11);
@@ -72,7 +99,7 @@
                         return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
                     })->values();
                 }
-             @endphp
+            @endphp
 
             <div class="mb-6 ml-6 relative">
                 {{-- Icono izquierdo --}}
@@ -189,11 +216,11 @@
 
         @php
             $hasRechazo = ($historial->where('estatus_id', 9)->isNotEmpty() || $historial->where('estatus_id', 13)->isNotEmpty());
-            $isCompletado = (($currentId !== null) && ((int)$currentId === 10));
+            $isCompletado = (($displayCurrentId !== null) && ((int)$displayCurrentId === 10));
             $showRed = $hasRechazo;
             $showGreen = !$hasRechazo && $isCompletado;
             // Excluir 11 (Ajustes requeridos) de mostrar como 'Proceso finalizado'
-            $showGray = !$hasRechazo && !$isCompletado && in_array((int)$currentId, [6]);
+            $showGray = !$hasRechazo && !$isCompletado && in_array((int)$displayCurrentId, [6]);
         @endphp
 
         @if($showRed)

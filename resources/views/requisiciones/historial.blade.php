@@ -70,15 +70,6 @@
                                 : null;
                             $ultimoEstatusId = $ultimoEstatus->estatus_id ?? null;
                             $nombreEstatus = $ultimoEstatus && $ultimoEstatus->estatusRelation ? $ultimoEstatus->estatusRelation->status_name : 'Pendiente';
-                            switch($ultimoEstatusId) {
-                                case 1: $colorEstatus = 'bg-blue-600'; break;
-                                case 2: case 3: case 4: $colorEstatus = 'bg-yellow-500'; break;
-                                case 5: $colorEstatus = 'bg-purple-600'; break;
-                                case 6: case 9: case 13: $colorEstatus = 'bg-red-600'; break;
-                                case 7: case 8: $colorEstatus = 'bg-indigo-600'; break;
-                                case 10: $colorEstatus = 'bg-green-600'; break;
-                                case 11: $colorEstatus = 'bg-orange-500'; break;
-                            }
                             // Descripciones por estatus (IDs 1 a 13 en el orden del seeder)
                             $descripcionesEstatus = [
                                 1 => 'Requisición creada por el solicitante.',
@@ -95,9 +86,60 @@
                                 12 => 'Solo se ha entregado una parte de la requisición.',
                                 13 => 'Rechazado por gerencia.',
                             ];
-                            $tooltip = $descripcionesEstatus[$ultimoEstatusId] ?? 'Pendiente por gestión.';
+                            // Cálculo de color por estatus
+                            $calcColor = function($id){
+                                switch($id){
+                                    case 1: return 'bg-blue-600';
+                                    case 2: case 3: case 4: return 'bg-yellow-500';
+                                    case 5: return 'bg-purple-600';
+                                    case 6: case 9: case 13: return 'bg-red-600';
+                                    case 7: case 8: return 'bg-indigo-600';
+                                    case 10: return 'bg-green-600';
+                                    case 11: return 'bg-orange-500';
+                                    default: return 'bg-gray-500';
+                                }
+                            };
+                            // Normalizar operación (remover acentos y minúsculas)
+                            $rawOp = (string) ($req->operacion_user ?? '');
+                            $opNorm = strtolower(trim(strtr($rawOp, [
+                                'á'=>'a','à'=>'a','ä'=>'a','â'=>'a','Á'=>'a','À'=>'a','Ä'=>'a','Â'=>'a',
+                                'é'=>'e','è'=>'e','ë'=>'e','ê'=>'e','É'=>'e','È'=>'e','Ë'=>'e','Ê'=>'e',
+                                'í'=>'i','ì'=>'i','ï'=>'i','î'=>'i','Í'=>'i','Ì'=>'i','Ï'=>'i','Î'=>'i',
+                                'ó'=>'o','ò'=>'o','ö'=>'o','ô'=>'o','Ó'=>'o','Ò'=>'o','Ö'=>'o','Ô'=>'o',
+                                'ú'=>'u','ù'=>'u','ü'=>'u','û'=>'u','Ú'=>'u','Ù'=>'u','Ü'=>'u','Û'=>'u',
+                                'ñ'=>'n','Ñ'=>'n'
+                            ])));
+                            // Ocultar visual de estatus 3 para tecnologia/compras mostrando el anterior
+                            $ocultarGerencia = in_array($opNorm, ['tecnologia','compras']);
+                            $displayId = $ultimoEstatusId;
+                            $displayNombre = $nombreEstatus;
+                            $displayTooltip = $descripcionesEstatus[$ultimoEstatusId] ?? 'Pendiente por gestión.';
+                            if ($ocultarGerencia && (int)($ultimoEstatusId ?? 0) === 3) {
+                                $histDesc = ($req->estatusHistorial && $req->estatusHistorial->count()) ? $req->estatusHistorial->sortByDesc('created_at') : collect();
+                                $lastThree = $histDesc->firstWhere('estatus_id', 3);
+                                $prevRegistro = null;
+                                if ($lastThree) {
+                                    $lastThreeTs = \Carbon\Carbon::parse($lastThree->created_at);
+                                    $prevRegistro = $histDesc->first(function($row) use ($lastThreeTs){
+                                        return \Carbon\Carbon::parse($row->created_at)->lt($lastThreeTs);
+                                    });
+                                }
+                                if (!$prevRegistro) {
+                                    $prevRegistro = ($req->estatusHistorial && $req->estatusHistorial->count())
+                                        ? $req->estatusHistorial->where('estatus_id','!=',3)->sortByDesc('created_at')->first()
+                                        : null;
+                                }
+                                $displayId = $prevRegistro->estatus_id ?? 2;
+                                if (isset($prevRegistro) && $prevRegistro->estatusRelation) {
+                                    $displayNombre = $prevRegistro->estatusRelation->status_name;
+                                } else {
+                                    $displayNombre = $displayId === 2 ? 'Revisado por compras' : ($displayId === null ? 'Pendiente' : ($descripcionesEstatus[$displayId] ?? 'Pendiente'));
+                                }
+                                $displayTooltip = $descripcionesEstatus[$displayId] ?? 'Pendiente por gestión.';
+                            }
+                            $colorEstatus = $calcColor($displayId);
                         @endphp
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">{{ $nombreEstatus }}</span>
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $displayTooltip }}">{{ $displayNombre }}</span>
                     </td>
 
                     <!-- Acciones -->
@@ -186,22 +228,13 @@
                          <div><span class="font-medium">Prioridad:</span> {{ ucfirst($req->prioridad_requisicion) }}
                          </div>
                          <div><span class="font-medium">Recobrable:</span> {{ $req->Recobrable }}</div>
+                         <div><span class="font-medium">Operación:</span> {{ $req->operacion_user ?? '—' }}</div>
                          @php
                              $hist = $req->estatusHistorial;
                              $ultimoActivo = ($hist && $hist->count()) ? ($hist->firstWhere('estatus', 1) ?? $hist->sortByDesc('created_at')->first()) : null;
                              $estatusActualId = $ultimoActivo->estatus_id ?? null;
                              $estatusActualNombre = $ultimoActivo && $ultimoActivo->estatusRelation ? $ultimoActivo->estatusRelation->status_name : 'Pendiente';
-                             $colorActual = 'bg-gray-500';
-                             switch($estatusActualId) {
-                                 case 1: $colorActual = 'bg-blue-600'; break;
-                                 case 2: case 3: case 4: $colorActual = 'bg-yellow-500'; break;
-                                 case 5: $colorActual = 'bg-purple-600'; break;
-                                 case 6: case 9: $colorActual = 'bg-red-600'; break;
-                                 case 7: case 8: $colorActual = 'bg-indigo-600'; break;
-                                 case 10: $colorActual = 'bg-green-600'; break;
-                                 case 11: $colorActual = 'bg-orange-500'; break;
-                             }
-                             // Descripciones iguales a la tabla (IDs 1-13)
+                             // Mapa de descripciones para modal
                              $descripcionesEstatusModal = [
                                  1 => 'Requisición creada por el solicitante.',
                                  2 => 'Revisado por compras; en espera de aprobación.',
@@ -217,11 +250,59 @@
                                  12 => 'Solo se ha entregado una parte de la requisición.',
                                  13 => 'Rechazado por gerencia.',
                              ];
+                             // Función color para modal
+                             $calcColorModal = function($id){
+                                 switch($id){
+                                     case 1: return 'bg-blue-600';
+                                     case 2: case 3: case 4: return 'bg-yellow-500';
+                                     case 5: return 'bg-purple-600';
+                                     case 6: case 9: return 'bg-red-600';
+                                     case 7: case 8: return 'bg-indigo-600';
+                                     case 10: return 'bg-green-600';
+                                     case 11: return 'bg-orange-500';
+                                     default: return 'bg-gray-500';
+                                 }
+                             };
+                             // Ocultar visual de estatus 3 en modal para tecnologia/compras mostrando el anterior
+                             $rawOpM = (string) ($req->operacion_user ?? '');
+                             $opNormM = strtolower(trim(strtr($rawOpM, [
+                                'á'=>'a','à'=>'a','ä'=>'a','â'=>'a','Á'=>'a','À'=>'a','Ä'=>'a','Â'=>'a',
+                                'é'=>'e','è'=>'e','ë'=>'e','ê'=>'e','É'=>'e','È'=>'e','Ë'=>'e','Ê'=>'e',
+                                'í'=>'i','ì'=>'i','ï'=>'i','î'=>'i','Í'=>'i','Ì'=>'i','Ï'=>'i','Î'=>'i',
+                                'ó'=>'o','ò'=>'o','ö'=>'o','ô'=>'o','Ó'=>'o','Ò'=>'o','Ö'=>'o','Ô'=>'o',
+                                'ú'=>'u','ù'=>'u','ü'=>'u','û'=>'u','Ú'=>'u','Ù'=>'u','Ü'=>'u','Û'=>'u',
+                                'ñ'=>'n','Ñ'=>'n'
+                             ])));
+                             $ocultarGerenciaModal = in_array($opNormM, ['tecnologia','compras']);
+                             $displayActualId = $estatusActualId;
+                             $displayActualNombre = $estatusActualNombre;
                              $tooltipModal = $descripcionesEstatusModal[$estatusActualId] ?? 'Pendiente por gestión.';
+                             if ($ocultarGerenciaModal && (int)($estatusActualId ?? 0) === 3) {
+                                 $histDescM = ($hist && $hist->count()) ? $hist->sortByDesc('created_at') : collect();
+                                 $lastThreeM = $histDescM->firstWhere('estatus_id', 3);
+                                 $prevRegistro = null;
+                                 if ($lastThreeM) {
+                                     $lastThreeTsM = \Carbon\Carbon::parse($lastThreeM->created_at);
+                                     $prevRegistro = $histDescM->first(function($row) use ($lastThreeTsM){
+                                         return \Carbon\Carbon::parse($row->created_at)->lt($lastThreeTsM);
+                                     });
+                                 }
+                                 if (!$prevRegistro) {
+                                     $prevRegistro = ($hist && $hist->count()) ? $hist->where('estatus_id','!=',3)->sortByDesc('created_at')->first() : null;
+                                 }
+                                 $displayActualId = $prevRegistro->estatus_id ?? 2;
+                                 if ($prevRegistro && $prevRegistro->estatusRelation) {
+                                     $displayActualNombre = $prevRegistro->estatusRelation->status_name;
+                                 } else {
+                                     $displayActualNombre = $displayActualId === 2 ? 'Revisado por compras' : ($descripcionesEstatusModal[$displayActualId] ?? 'Pendiente');
+                                 }
+                                 $tooltipModal = $descripcionesEstatusModal[$displayActualId] ?? 'Pendiente por gestión.';
+                             }
+                             $colorActual = $calcColorModal($displayActualId);
                          @endphp
                          <div>
                              <span class="font-medium">Estatus actual:</span>
-                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
+                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $displayActualNombre }}</span>
                          </div>
                          @php
                              // Mostrar motivo sólo si el estatus activo actual es 11 (Ajustes requeridos)
