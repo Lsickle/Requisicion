@@ -400,7 +400,7 @@ class OrdenCompraController extends Controller
                     if (!empty($productoData['apply_iva'])) {
                         if (isset($productoData['iva']) && is_numeric($productoData['iva'])) { $rate = (float)$productoData['iva']; }
                         else { $prodTmp = Producto::find($productoId); $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0; }
-                        $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                        $applyFrac = ($rate > 0) ?  ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
                     }
 
                     $trmOcValue = null;
@@ -555,8 +555,9 @@ class OrdenCompraController extends Controller
         $validator = Validator::make($request->all(), [
             'producto_id' => 'required|exists:productos,id',
             'requisicion_id' => 'required|exists:requisicion,id',
-            'distribucion' => 'required|array|min:2',
-            'distribucion.*.proveedor_id' => 'required|exists:proveedores,id',
+            'distribucion' => 'required|array|min:1',
+            // permitir proveedor_id nulo: ahora solo se pide cantidad
+            'distribucion.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'distribucion.*.cantidad' => 'required|integer|min:1',
             'distribucion.*.observaciones' => 'nullable|string',
         ]);
@@ -574,7 +575,7 @@ class OrdenCompraController extends Controller
             $requisicionId = (int)$request->requisicion_id;
             $distribuciones = $request->distribucion;
 
-            // Validar suma exacta
+            // Validar suma exacta contra cantidad original de la requisición
             $cantidadOriginal = (int) DB::table('producto_requisicion')
                 ->where('id_requisicion', $requisicionId)
                 ->where('id_producto', $productoId)
@@ -589,29 +590,19 @@ class OrdenCompraController extends Controller
                 return redirect()->back()->with('error', $msg);
             }
 
-            // Evitar proveedores duplicados
-            $provIds = array_map(fn($d) => (int)$d['proveedor_id'], $distribuciones);
-            if (count($provIds) !== count(array_unique($provIds))) {
-                $msg = 'No se permite repetir proveedores en la distribución.';
-                if ($request->expectsJson()) {
-                    return response()->json(['message' => $msg], 422);
-                }
-                return redirect()->back()->with('error', $msg);
-            }
-
             $producto = Producto::findOrFail($productoId);
 
             $lineas = [];
             foreach ($distribuciones as $dist) {
+                $provId = isset($dist['proveedor_id']) && $dist['proveedor_id'] !== '' ? (int)$dist['proveedor_id'] : null;
                 $ocp = OrdenCompraProducto::create([
                     'producto_id'      => $productoId,
-                    // No establecer orden_compras_id aquí; quedará NULL por defecto
                     'requisicion_id'   => $requisicionId,
-                    'proveedor_id'     => (int)$dist['proveedor_id'],
+                    'proveedor_id'     => $provId, // puede ser null ahora
                     'total'            => (int)$dist['cantidad'],
                 ]);
 
-                $prov = Proveedor::find($dist['proveedor_id']);
+                $prov = $provId ? Proveedor::find($provId) : null;
 
                 $lineas[] = [
                     'ocp_id' => $ocp->id,
@@ -620,7 +611,7 @@ class OrdenCompraController extends Controller
                     'unidad' => $producto->unit_produc,
                     'stock' => $producto->stock_produc,
                     'cantidad' => (int)$dist['cantidad'],
-                    'proveedor_id' => (int)$dist['proveedor_id'],
+                    'proveedor_id' => $provId,
                     'proveedor_nombre' => $prov?->prov_name ?? 'Proveedor',
                 ];
             }
@@ -660,7 +651,7 @@ class OrdenCompraController extends Controller
         // Marcar estatus 5 (OC generada) o 10 si ya está completa
         try { 
             $estatus = $this->isRequisitionComplete((int)$requisicionId) ? 10 : 5;
-            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':'Cambio automático al descargar OC'); 
+            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':null);
         } catch (\Throwable $e) {}
         
         $zip = new \ZipArchive();
@@ -734,7 +725,7 @@ class OrdenCompraController extends Controller
         return redirect()->back()->with('error', 'Error al crear el archivo ZIP.');
     }
 
-    /**
+    /** 
      * Anular orden (soft delete de orden y sus relaciones)
      */
     public function anular($id)
@@ -756,7 +747,7 @@ class OrdenCompraController extends Controller
                 }
             }
 
-            // Borrar distribución por centros
+            // Borrar distribución por centros (relaciones)
             OrdenCompraCentroProducto::where('orden_compra_id', $id)->delete();
 
             // Soft delete del encabezado
@@ -766,8 +757,42 @@ class OrdenCompraController extends Controller
             try {
                 OrdenCompraEstatus::where('orden_compra_id', $id)->delete();
             } catch (\Throwable $e) {
-                // no bloquear la anulación si falla el borrado de estatus, pero loguear
                 Log::warning('No se pudo borrar estatus de OC '.$id.': '.$e->getMessage());
+            }
+
+            // Si, tras anular, no quedan órdenes activas para la requisición -> revertir estatus si el activo es 5
+            try {
+                $reqId = $orden->requisicion_id;
+                $remaining = OrdenCompra::where('requisicion_id', $reqId)->whereNull('deleted_at')->count();
+
+                if ($remaining === 0) {
+                    $active = Estatus_Requisicion::where('requisicion_id', $reqId)->where('estatus', 1)->first();
+                    if ($active && (int)$active->estatus_id === 5) {
+                        // soft-delete del estatus activo (5)
+                        try {
+                            $active->delete();
+                        } catch (\Throwable $e) {
+                            Log::warning('No se pudo soft-delete estatus_requisicion activo (5) para requisicion '.$reqId.': '.$e->getMessage());
+                        }
+
+                        // Reactivar el último estatus previo (estatus = 0)
+                        try {
+                            $prev = Estatus_Requisicion::where('requisicion_id', $reqId)
+                                ->where('estatus', 0)
+                                ->orderByDesc('id')
+                                ->first();
+                            if ($prev) {
+                                $prev->estatus = 1;
+                                $prev->updated_at = now();
+                                $prev->save();
+                            }
+                        } catch (\Throwable $e) {
+                            Log::warning('No se pudo reactivar estatus previo para requisicion ' . $reqId . ': ' . $e->getMessage());
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Error comprobando órdenes restantes tras anulación OC '.$id.': '.$e->getMessage());
             }
 
             DB::commit();
@@ -861,7 +886,7 @@ class OrdenCompraController extends Controller
                             $prodTmp = Producto::find($productoId);
                             $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0;
                         }
-                        $applyFrac = ($rate > 0) ? ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                        $applyFrac = ($rate > 0) ?  ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
                     }
                     $ordenProducto->update([
                         'total' => $productoData['cantidad'] ?? 0,
@@ -973,7 +998,7 @@ class OrdenCompraController extends Controller
         // Marcar estatus 5 (OC generada) o 10 si ya está completa
         try { 
             $estatus = $this->isRequisitionComplete((int)$requisicionId) ? 10 : 5;
-            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':'Cambio automático al descargar OC'); 
+            $this->setRequisicionStatus((int)$requisicionId, $estatus, $estatus===10?'Requisición completa':null); 
         } catch (\Throwable $e) {}
 
         $ordenes = OrdenCompra::where('requisicion_id', $requisicionId)
@@ -1115,13 +1140,35 @@ class OrdenCompraController extends Controller
     // Añadir helper para construir los datos del PDF (usado por download/export)
     private function buildPdfData(\App\Models\OrdenCompra $orden): array
     {
-        $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
+        // Resolver proveedor de forma robusta: usar proveedor_id de líneas o, si falta, inferir desde productoxproveedor
+        $proveedor = null;
+        try {
+            $lineas = $orden->ordencompraProductos ?? collect();
+            if ($lineas instanceof \Illuminate\Support\Collection && $lineas->count()) {
+                $withProv = $lineas->first(fn($l) => !empty($l->proveedor_id));
+                if ($withProv) {
+                    $proveedor = $withProv->proveedor ?: Proveedor::find($withProv->proveedor_id);
+                }
+                if (!$proveedor) {
+                    $firstLinea = $lineas->first();
+                    $pid = $firstLinea?->producto_id;
+                    if ($pid) {
+                        $provId = DB::table('productoxproveedor')
+                            ->where('producto_id', $pid)
+                            ->orderBy('id')
+                            ->value('proveedor_id');
+                        if ($provId) { $proveedor = Proveedor::find($provId); }
+                    }
+                }
+            }
+        } catch (\Throwable $e) { /* noop */ }
+        if (!$proveedor) {
+            $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
+        }
 
         $items = [];
         $porProducto = $orden->ordencompraProductos->groupBy('producto_id');
-        // Totales en COP (compatibilidad)
         $subtotalCop = 0.0; $ivaTotalCop = 0.0;
-        // Totales en moneda original (para mostrar)
         $subtotalOrigin = 0.0; $ivaTotalOrigin = 0.0;
         $orderCurrency = null;
 
@@ -1130,7 +1177,6 @@ class OrdenCompraController extends Controller
             if (!$producto) { continue; }
             $cantidad = (int) $lineas->sum('total');
 
-            // IVA como fracción
             $ivaRate = 0.0;
             foreach ($lineas as $ln) {
                 if ($ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
@@ -1140,13 +1186,11 @@ class OrdenCompraController extends Controller
                 }
             }
 
-            // Precio preferido en COP desde la línea si existe
             $unitPriceCop = null;
             foreach ($lineas as $ln) {
                 if ($ln->trm_oc !== null && $ln->trm_oc !== '') { $unitPriceCop = round((float)$ln->trm_oc, 2); break; }
             }
 
-            // Precio y moneda original desde productoxproveedor (del proveedor de la OC si está)
             $provId = optional($proveedor)->id;
             $pxp = DB::table('productoxproveedor')
                 ->where('producto_id', $producto->id)
@@ -1158,6 +1202,10 @@ class OrdenCompraController extends Controller
                     ->where('producto_id', $producto->id)
                     ->orderBy('id')
                     ->first();
+            }
+            // NUEVO: si aún no hay proveedor resuelto, tomarlo del registro productoxproveedor
+            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) {
+                $proveedor = Proveedor::find($pxp->proveedor_id);
             }
             $priceRaw = (float)($pxp->price_produc ?? ($producto->price_produc ?? 0));
             $mon = strtoupper($pxp->moneda ?? ($producto->moneda ?? 'COP'));
@@ -1314,16 +1362,62 @@ class OrdenCompraController extends Controller
     private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null)
     {
         try {
+            // Obtener estatus activo actual (si existe)
+            $currentActive = DB::table('estatus_requisicion')
+                ->where('requisicion_id', $requisicionId)
+                ->where('estatus', 1)
+                ->value('estatus_id');
+
+            // Si ya tiene el mismo estatus activo, solo actualizar comentario/fecha si se pidió
+            if (!is_null($currentActive) && (int)$currentActive === (int)$estatusId) {
+                if (!is_null($comentario)) {
+                    DB::table('estatus_requisicion')
+                        ->where('requisicion_id', $requisicionId)
+                        ->where('estatus', 1)
+                        ->update(['comentario' => $comentario, 'date_update' => now(), 'updated_at' => now()]);
+                }
+                return;
+            }
+
+            // Desactivar cualquier estatus activo previo
             DB::table('estatus_requisicion')
                 ->where('requisicion_id', $requisicionId)
                 ->where('estatus', 1)
                 ->update(['estatus' => 0, 'updated_at' => now()]);
 
+            // Intentar reutilizar un registro existente con el mismo estatus_id (incluso soft-deleted)
+            try {
+                $existing = Estatus_Requisicion::withTrashed()
+                    ->where('requisicion_id', $requisicionId)
+                    ->where('estatus_id', $estatusId)
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($existing) {
+                    // Si estaba soft-deleted, restaurarlo
+                    if (method_exists($existing, 'trashed') && $existing->trashed()) {
+                        try { $existing->restore(); } catch (\Throwable $e) { /* ignore restore errors */ }
+                    }
+
+                    $existing->estatus = 1;
+                    $existing->comentario = $comentario;
+                    $existing->date_update = now();
+                    $existing->updated_at = now();
+                    $existing->save();
+                    return;
+                }
+            } catch (\Throwable $e) {
+                // Si falla la búsqueda con el modelo, continuar intentando insertar (no bloquear)
+                Log::warning('setRequisicionStatus: fallo buscando registro existente: ' . $e->getMessage());
+            }
+
+            // Insertar nuevo estatus activo si no existe uno reutilizable
             DB::table('estatus_requisicion')->insert([
                 'requisicion_id' => $requisicionId,
                 'estatus_id' => $estatusId,
                 'estatus' => 1,
                 'comentario' => $comentario,
+                'date_update' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
