@@ -14,6 +14,7 @@ use App\Models\Estatus_Requisicion;
 use App\Models\Entrega;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
+use App\Jobs\RequisicionEntregaRegistradaJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -1172,6 +1173,7 @@ class RequisicionController extends Controller
             DB::beginTransaction();
 
             $insertados = 0;
+            $resumenItems = [];
             foreach ($items as $it) {
                 $pid = (int)($it['producto_id'] ?? 0);
                 $cant = (int)($it['cantidad'] ?? 0);
@@ -1189,6 +1191,12 @@ class RequisicionController extends Controller
                     'updated_at' => $now,
                 ]);
                 $insertados++;
+
+                // armar resumen
+                try {
+                    $nombre = DB::table('productos')->where('id', $pid)->value('name_produc') ?: ('Producto #'.$pid);
+                } catch (\Throwable $e) { $nombre = 'Producto #'.$pid; }
+                $resumenItems[] = ['id'=>$pid, 'nombre'=>$nombre, 'cantidad'=>$cant];
             }
 
             if ($insertados === 0) {
@@ -1216,6 +1224,17 @@ class RequisicionController extends Controller
             }
 
             DB::commit();
+
+            // Despachar notificación por correo al solicitante
+            try {
+                $requisicion = Requisicion::find($reqId);
+                if ($requisicion) {
+                    RequisicionEntregaRegistradaJob::dispatch($requisicion, $resumenItems);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo despachar correo de entrega registrada para requisicion '.$reqId.': '.$e->getMessage());
+            }
+
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();
