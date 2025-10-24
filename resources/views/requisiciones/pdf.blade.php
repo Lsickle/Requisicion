@@ -271,11 +271,27 @@
         @php
         $rowsPerPage = 18;
         $productPages = $requisicion->productos->chunk($rowsPerPage);
-        $grandTotal = $requisicion->productos->reduce(function($carry, $p) {
-        $qty = (int)($p->pivot->pr_amount ?? 0);
-        $unit = (float)($p->price_produc ?? 0);
-        return $carry + ($qty * $unit);
-        }, 0);
+        // Calcular total general usando productoxproveedor (por id guardado en producto_requisicion o primer registro)
+        $grandTotal = 0.0;
+        foreach ($requisicion->productos as $p) {
+            $qty = (int)($p->pivot->pr_amount ?? 0);
+            $pxp = null;
+            try {
+                if (!empty($p->pivot->id_productoxproveedor)) {
+                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                        ->where('id', $p->pivot->id_productoxproveedor)
+                        ->first();
+                }
+                if (!$pxp) {
+                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                        ->where('producto_id', $p->id)
+                        ->orderBy('id')
+                        ->first();
+                }
+            } catch (\Throwable $e) { $pxp = null; }
+            $unit = $pxp ? (float)($pxp->price_produc ?? 0) : (float)($p->price_produc ?? 0);
+            $grandTotal += ($qty * $unit);
+        }
         @endphp
 
         @foreach($productPages as $pageIndex => $page)
@@ -297,11 +313,26 @@
                     <td>{{ $producto->unit_produc ?? '-' }}</td>
                     <td>{{ $producto->pivot->pr_amount }}</td>
                     @php
-                    $unitPrice = (float) ($producto->price_produc ?? 0);
-                    $lineTotal = $unitPrice * ((int)($producto->pivot->pr_amount ?? 0));
+                        $pxpRow = null; $mon = null;
+                        try {
+                            if (!empty($producto->pivot->id_productoxproveedor)) {
+                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                    ->where('id', $producto->pivot->id_productoxproveedor)
+                                    ->first();
+                            }
+                            if (!$pxpRow) {
+                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                    ->where('producto_id', $producto->id)
+                                    ->orderBy('id')
+                                    ->first();
+                            }
+                        } catch (\Throwable $e) { $pxpRow = null; }
+                        $unitPrice = (float) ($pxpRow->price_produc ?? $producto->price_produc ?? 0);
+                        $mon = strtoupper($pxpRow->moneda ?? 'COP');
+                        $lineTotal = $unitPrice * ((int)($producto->pivot->pr_amount ?? 0));
                     @endphp
-                    <td>${{ number_format($unitPrice, 2) }}</td>
-                    <td>${{ number_format($lineTotal, 2) }}</td>
+                    <td>{{ $mon }} {{ number_format($unitPrice, 2) }}</td>
+                    <td>{{ $mon }} {{ number_format($lineTotal, 2) }}</td>
                     <td class="centros-lista">
                         <ul>
                             @php
@@ -340,7 +371,7 @@
         <table class="totals-table">
             <tr>
                 <td class="label total-label">TOTAL GENERAL:</td>
-                <td class="value total-value">${{ number_format($grandTotal, 2) }}</td>
+                <td class="value total-value">{{ number_format($grandTotal, 2) }}</td>
             </tr>
         </table>
         <div class="clear"></div>
