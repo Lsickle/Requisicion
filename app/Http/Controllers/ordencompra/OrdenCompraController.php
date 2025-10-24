@@ -753,11 +753,20 @@ class OrdenCompraController extends Controller
             // Soft delete del encabezado
             $orden->delete();
 
-            // Soft delete del estatus asociado a esta orden de compra (si existe)
-            try {
-                OrdenCompraEstatus::where('orden_compra_id', $id)->delete();
-            } catch (\Throwable $e) {
-                Log::warning('No se pudo borrar estatus de OC '.$id.': '.$e->getMessage());
+            // Mantener histórico de estatus: desactivar estatus previos y crear un nuevo estatus 'Anulada' (no borrar registros)
+            // Desactivar estatus anteriores (mantener histórico) y crear nuevo registro 'Anulada'
+            OrdenCompraEstatus::where('orden_compra_id', $id)->update(['activo' => 0]);
+            $anulada = EstatusOrdenCompra::find(4) ?: EstatusOrdenCompra::where('status_name', 'Anulada')->first() ?: EstatusOrdenCompra::first();
+            if ($anulada) {
+                OrdenCompraEstatus::create([
+                    'estatus_id' => $anulada->id,
+                    'orden_compra_id' => $id,
+                    'recepcion_id' => null,
+                    'activo' => 1,
+                    'date_update' => now(),
+                    'user_name' => session('user.name') ?? $this->resolveCurrentUserName(null) ?? null,
+                    'user_id' => session('user.id') ?? null,
+                ]);
             }
 
             // Si, tras anular, no quedan órdenes activas para la requisición -> revertir estatus si el activo es 5

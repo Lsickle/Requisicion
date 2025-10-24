@@ -4,6 +4,53 @@
 
 @section('content')
 <div class="flex pt-20">
+    <style>
+        /* Contenedor: permite scroll horizontal y vertical local sin afectar al body */
+        .table-responsive { width:100%; max-width:100%; overflow-x:auto; overflow-y:auto; -webkit-overflow-scrolling: touch; max-height:48vh; }
+
+        /* Usar layout fijo para que las columnas respeten anchos asignados y no 'colapsen' en anchos
+           muy pequeños que provocan el salto de línea letra por letra en los headers. */
+        .table-responsive table { min-width: 760px; width:100%; table-layout: fixed; border-collapse: collapse; }
+
+        /* Encabezados en una línea (no se partan). Las celdas de datos sí pueden hacer wrap. */
+        .table-responsive thead th { position: sticky; top: 0; z-index: 10; background: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .table-responsive td { white-space: normal; word-break: break-word; vertical-align: middle; }
+
+        /* Limitar ancho de la columna 'Producto' para que no empuje las demás */
+        .table-responsive td:first-child, .table-responsive th:first-child { max-width: 360px; }
+
+        /* Reducir ancho de la columna 'Distribución' para que no ocupe tanto espacio
+           y dejar espacio a las columnas clave (precio, stock, acciones). Se usa !important
+           para sobreescribir los estilos inline si existen. */
+        .table-responsive th:nth-child(9), .table-responsive td:nth-child(9) { width:220px !important; max-width:220px !important; }
+
+        /* Botón de basura compacto y sin texto para evitar desacomodar filas */
+        .btn-trash { background: transparent; border: none; display: inline-flex; align-items: center; justify-content: center; width:36px; height:36px; border-radius:6px; cursor:pointer; }
+        .btn-trash svg { width:18px; height:18px; }
+        .btn-trash:hover { background-color: rgba(239,68,68,0.08); }
+
+        /* Mostrar como máximo 2 elementos de distribución; si hay más, habilitar scroll vertical aquí
+           para evitar que la fila crezca y rompa el layout. Estimamos ~2.5rem por item (ajustable). */
+        .table-responsive td:nth-child(9) .max-h-40 {
+            max-height: 5.2rem !important; /* aprox. 2 items */
+            overflow-y: auto !important;
+        }
+
+        /* Si el contenido interior tiene 'space-y-2', asegurar que el bloque sea display:block para que
+           el overflow funcione correctamente en todos los navegadores. */
+        .table-responsive td:nth-child(9) .space-y-2 { display: block; }
+
+        /* Ajustes para pantallas pequeñas */
+        @media (max-width: 1024px) {
+            .table-responsive td:first-child, .table-responsive th:first-child { max-width: 260px; }
+            .table-responsive th:nth-child(9), .table-responsive td:nth-child(9) { width:180px !important; max-width:180px !important; }
+        }
+        @media (max-width: 640px) {
+            .table-responsive table { min-width: 640px; }
+            .table-responsive td:first-child, .table-responsive th:first-child { max-width: 180px; }
+            .table-responsive th:nth-child(9), .table-responsive td:nth-child(9) { width:140px !important; max-width:140px !important; }
+        }
+    </style>
     <!-- Sidebar -->
     <x-sidebar />
 
@@ -282,24 +329,26 @@
                     <!-- Tabla productos (editable para crear la orden) -->
                     <div class="overflow-x-auto mt-6 max-h-[60vh] overflow-y-auto">
                         <h3 class="text-lg font-medium text-gray-700 mb-2">Productos en la Orden</h3>
-                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-fixed">
-                            <thead class="bg-gray-100 sticky top-0 z-10">
-                                <tr>
-                                    <th class="p-3 text-left" style="width:30%">Producto</th>
-                                    <th class="p-3 text-center" style="width:70px">Total</th>
-                                    <th class="p-3 text-center" style="width:90px">Unidad</th>
-                                    <th class="p-3 text-center" style="width:80px">Moneda</th>
-                                    <th class="p-3 text-center" style="width:110px">Precio unitario</th>
-                                    <th class="p-3 text-center" style="width:70px">IVA</th>
-                                    <th class="p-3 text-center" style="width:100px">Sacado</th>
-                                    <th class="p-3 text-center" style="width:110px">Stock</th>
-                                    <th class="p-3" style="width:30%">Distribución</th>
-                                    <th class="p-3 text-center" style="width:90px">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productos-table"></tbody>
+                        <div class="table-responsive">
+                        <table class="w-full border text-sm rounded-lg overflow-hidden bg-white table-auto">
+                             <thead class="bg-gray-100 sticky top-0 z-10">
+                                 <tr>
+                                     <th class="p-3 text-left" style="width:25%">Producto</th>
+                                     <th class="p-3 text-center" style="width:70px">Total</th>
+                                     <th class="p-3 text-center" style="width:90px">Unidad</th>
+                                     <th class="p-3 text-center" style="width:80px">Moneda</th>
+                                     <th class="p-3 text-center" style="width:160px">Precio unitario</th>
+                                     <th class="p-3 text-center" style="width:90px">IVA</th>
+                                     <th class="p-3 text-center" style="width:100px">Sacado</th>
+                                     <th class="p-3 text-center" style="width:110px">Stock</th>
+                                     <th class="p-3" style="width:40%">Distribución</th>
+                                     <th class="p-3 text-center" style="width:90px">Acciones</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="productos-table"></tbody>
                         </table>
-                    </div>
+                        </div>
+                     </div>
 
                     <!-- Modal Proveedores por Producto -->
                     <div id="modal-proveedores" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center overflow-y-auto">
@@ -764,7 +813,7 @@
              let cantidadCentro = assigned[idx] || 0;
              centrosHtml += `
                  <div class="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
-                     <span class="font-medium text-sm truncate">${centro.name_centro}</span>
+                     <span class="font-medium text-sm break-words">${centro.name_centro}</span>
                      <input type="number" name="productos[${rowKey}][centros][${centro.id}]" 
                             min="0" value="${cantidadCentro}" class="w-24 border rounded p-1 text-center ml-3 distribucion-centro"
                             data-rowkey="${rowKey}" onchange="actualizarTotal('${rowKey}', this)">
@@ -792,7 +841,7 @@
              <td class="p-3">
                  <div class="flex items-start gap-3">
                      <div class="flex-1 min-w-0">
-                         <div class="font-semibold text-gray-800 truncate">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
+                         <div class="font-semibold text-gray-800">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
                      </div>
                  </div>
                  <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
@@ -811,13 +860,13 @@
                      id="cantidad-total-${rowKey}" 
                      onchange="onCantidadTotalChange('${rowKey}')" required>
              </td>
-             <td class="p-3 text-center">${unidad || '-'}</td>
+             <td class="p-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
              <td class="p-3 text-center" id="moneda-${rowKey}">${precioCurrency}</td>
-             <td class="p-3 text-center" id="precio-${rowKey}">
+             <td class="p-3 text-right whitespace-nowrap" id="precio-${rowKey}">
                 <div>${formattedOriginal}</div>
                 ${precioCurrency && precioCurrency.toUpperCase() !== 'COP' ? '<div class="text-xs text-gray-500 precio-cop-span"></div>' : ''}
              </td>
-             <td class="p-3 text-center" id="iva-${rowKey}">${iva}%</td>
+             <td class="p-3 text-center whitespace-nowrap" id="iva-${rowKey}">${iva}%</td>
              <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
              <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
              <td class="p-3">
@@ -828,13 +877,15 @@
                  </div>
              </td>
              <td class="p-3 text-center align-middle">
-                 <div class="flex flex-col items-center gap-2">
-                   <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                     <input type="checkbox" name="productos[${rowKey}][apply_iva]" class="apply-iva-checkbox form-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="1">
-                     <span class="ml-1">Aplicar IVA</span>
-                   </label>
-                   <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" title="Quitar producto" class="flex items-center gap-2 px-4 py-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md text-sm">
-                    <span class="font-medium">Quitar</span>
+                <div class="flex flex-col items-center gap-2">
+                  <div class="text-sm font-medium text-gray-700">Aplicar IVA</div>
+                  <label class="mt-1 inline-flex items-center">
+                    <input type="checkbox" name="productos[${rowKey}][apply_iva]" class="apply-iva-checkbox form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="1">
+                  </label>
+                  <button type="button" id="btn-quitar-${rowKey}" onclick="quitarProducto('${rowId}', '${rowKey}', ${ocpId?`'${ocpId}'`:'null'})" title="Quitar producto" class="btn-trash text-red-600" aria-label="Quitar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M9 3a1 1 0 00-.894.553L7 5H4a1 1 0 100 2h16a1 1 0 100-2h-3l-1.106-1.447A1 1 0 0015 3H9zM6 8a1 1 0 011 1v9a2 2 0 002 2h6a2 2 0 002-2V9a1 1 0 112 0v9a4 4 0 01-4 4H9a4 4 0 01-4-4V9a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
                   </button>
                 </div>
              </td>
@@ -1212,7 +1263,7 @@
                         icon:'question',
                         title:'Guardar sin observación',
                         text:'La observación está vacía. ¿Desea guardar así?',
-                        showCancelButton:true,
+                                               showCancelButton:true,
                         confirmButtonText:'Sí, guardar',
                         cancelButtonText:'Cancelar'
                     });
@@ -1268,7 +1319,7 @@
                     if (!resp.ok) throw new Error(data.message || 'Error preparando la descarga');
                     const href = this.getAttribute('href');
                     if (href) window.location.href = href;
-                } catch (err) {
+                } catch ( err) {
                     hideStockLoader();
                     Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error al preparar la descarga.' });
                 }
@@ -1300,9 +1351,16 @@
         selectProd.addEventListener('change', function() {
             const opt = this.options[this.selectedIndex];
             const max = parseInt(opt?.dataset?.max || '0', 10);
+
+
+
+
+
+
+
             spanMax.textContent = max;
             spanTotalMax.textContent = max;
-            spanUnidad.textContent = opt?.dataset?.unidad || '';
+                       spanUnidad.textContent = opt?.dataset?.unidad || '';
             calcularTotal();
             if (btnAddFila) btnAddFila.disabled = !this.value || (parseInt(spanTotal.textContent||'0',10) >= max);
         });
@@ -1312,7 +1370,7 @@
             const totalActual = parseInt(spanTotal.textContent || '0', 10);
             const restante = max - totalActual;
             if (!selectProd.value) {
-                Swal.fire({icon: 'info', title: 'Seleccione un producto', text: 'Debe elegir un producto antes de añadir cantidades', confirmButtonText: 'Cerrar'});
+                Swal.fire({icon: 'info', title: 'Seleccione', text: 'Debe elegir un producto antes de añadir cantidades', confirmButtonText: 'Cerrar'});
                 return;
             }
             if (restante <= 0) {
@@ -1805,7 +1863,9 @@
             let rate = getExchangeRateSync(currency, 'COP');
             if (!rate) {
                 try { rate = await getExchangeRate(currency, 'COP'); } catch(e){ rate = null; }
-                if (!rate) { try { rate = await getExchangeRate(currency, 'COP', 3, 8000); } catch(e){ rate = null; } }
+                if (!rate) {
+                    try { rate = await getExchangeRate(currency, 'COP', 3, 8000); } catch(e){ rate = null; }
+                }
             }
 
             if (!rate) {
@@ -1966,7 +2026,7 @@
              const monedaRaw = p.moneda ?? p.moneda_prov ?? p.currency ?? 'COP';
              const cur = normalizeCurrency(monedaRaw);
              const price = Number(p.price_produc ?? p.price ?? 0);
-             // Usar TRM local primero; si no hay, caer a price_cop del servidor
+             // Intentar calcular COP inmediatamente con TRM local o usar price_cop del servidor
              const rateSync = (cur === 'COP') ? 1 : getExchangeRateSync(cur, 'COP');
              let cop = null;
              if (rateSync != null) {
@@ -1975,14 +2035,18 @@
                  cop = Math.round((Number(p.price_cop) + Number.EPSILON) * 100) / 100;
              }
              const formattedCOP = (cop != null) ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop) : '';
-             // Mostrar el texto "precio en COP" solo si la moneda original NO es COP para evitar duplicados
-             const displayCOP = (cur !== 'COP' && formattedCOP) ? ('precio en COP: ' + formattedCOP) : '';
+
+             // Siempre producir un texto para el span .prov-cop-amount cuando la moneda NO es COP
+             let displayCOP = '';
+             if (cur !== 'COP') {
+                 displayCOP = formattedCOP || 'calculando precio en COP...';
+             }
+
              let originalStr = '';
-             if (/^[A-Z]{3}$/.test(cur)){
-                 try { originalStr = new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price); }
-                 catch(e) { originalStr = price + ' ' + cur; }
-             } else { originalStr = price + ' ' + (String(monedaRaw) || ''); }
- 
+             try {
+                 originalStr = (/^[A-Z]{3}$/.test(cur)) ? new Intl.NumberFormat(undefined, { style:'currency', currency: cur }).format(price) : (price + ' ' + (String(monedaRaw) || ''));
+             } catch (e) { originalStr = price + ' ' + cur; }
+
              const div = document.createElement('div');
              div.className = 'flex items-center justify-between p-2 border rounded';
              div.innerHTML = `
@@ -1990,18 +2054,40 @@
                      <input type="radio" name="prov_choice" id="${id}" value="${p.proveedor_id}" data-price="${price}" data-currency="${cur}" data-price-cop="${cop != null ? cop : ''}" ${idx === 0 ? 'checked' : ''}>
                      <div class="flex-1">
                          <div class="font-medium">${p.prov_name}</div>
-                         <div class="text-xs text-gray-500">Precio: ${originalStr}${displayCOP ? ' · <span class="prov-cop-amount">' + displayCOP + '</span>' : ''}</div>
+                         <div class="text-xs text-gray-500">Precio: ${originalStr}${cur !== 'COP' ? ' · <span class="prov-cop-amount">' + displayCOP + '</span>' : ''}</div>
                      </div>
                  </label>
              `;
              div.dataset.currency = cur;
              container.appendChild(div);
+            // Asegurar texto visible en el span de conversión y dataset en el radio
+            try {
+                if (cur !== 'COP') {
+                    const spanEl = div.querySelector('.prov-cop-amount');
+                    if (spanEl) spanEl.textContent = displayCOP;
+                }
+                const radioEl = div.querySelector('input[type="radio"]');
+                if (radioEl && cop != null) radioEl.dataset.priceCop = String(cop);
+            } catch(_) { /* ignore */ }
          });
  
          // Mostrar modal inmediatamente
          const modal = document.getElementById('modal-proveedores');
          modal.classList.remove('hidden');
          modal.classList.add('flex');
+
+        // Asegurar que los spans de conversión existan y tengan texto por defecto si están vacíos
+        try {
+            const spans = container.querySelectorAll('.prov-cop-amount');
+            spans.forEach(s => {
+                if (!s.textContent || s.textContent.trim() === '') s.textContent = 'calculando precio en COP...';
+                // asegurar que el radio correspondiente tenga dataset.priceCop al menos vacío
+                const radio = s.closest('label')?.querySelector('input[type="radio"]');
+                if (radio && (radio.dataset.priceCop === undefined || radio.dataset.priceCop === null)) radio.dataset.priceCop = '';
+            });
+            // también asegurar radios sin span tengan dataset.priceCop definido
+            container.querySelectorAll('input[name="prov_choice"]').forEach(r => { if (r.dataset.priceCop === undefined || r.dataset.priceCop === null) r.dataset.priceCop = ''; });
+        } catch(_) { /* ignore */ }
 
         // Rellenar COP inmediatamente con TRM local (sin esperar async)
         (function immediateFillCOP(){
@@ -2015,7 +2101,7 @@
                         if (rate != null) {
                             const cop = Math.round(((price * Number(rate)) + Number.EPSILON) * 100) / 100;
                             r.dataset.priceCop = String(cop);
-                            // Solo actualizar el span si la moneda original NO es COP (evita mostrar dos veces el mismo precio)
+                            // Solo actualizar el span cuando la moneda original NO es COP (evita mostrar dos veces el mismo precio)
                             if (cur !== 'COP') {
                                 const span = r.closest('label')?.querySelector('.prov-cop-amount');
                                 if (span) span.textContent = 'precio en COP: ' + new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop);
@@ -2052,26 +2138,64 @@
         // fetch each missing currency and update matching rows
         async function fetchAndUpdateCurrency(cur){
              const els = container.querySelectorAll(`[data-currency='${cur}']`);
+             // Primero, intentar calcular usando trmMap (sincrónico)
              try {
-                 let rate = await getExchangeRate(cur, 'COP');
-                 if (!rate) rate = await getExchangeRate(cur, 'COP', 3, 8000);
-                 if (rate){
-                    exchangeCache[`${cur}_COP`] = rate;
-                    els.forEach(div => {
-                        const price = Number(div.querySelector('input[type="radio"]').dataset.price || 0);
-                        const r = exchangeCache[`${cur}_COP`] || 0;
-                        const cop = Math.round((((r * price) || 0) + Number.EPSILON) * 100) / 100;
-                        const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop || 0);
-                        // Solo mostrar el span cuando la moneda original no es COP
-                        if (cur !== 'COP') {
-                            const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = 'precio en COP: ' + formatted;
-                        }
-                        div.querySelector('input[type="radio"]').dataset.priceCop = cop || '';
-                    });
+                 const rateSync = getExchangeRateSync(cur, 'COP');
+                 let rate = (rateSync != null) ? rateSync : null;
+
+                 // Si no hay rate síncrono, intentar la versión async (que también usa trmMap como fuente)
+                 if (rate === null) {
+                     try { rate = await getExchangeRate(cur, 'COP'); } catch(e){ rate = null; }
+                     if (!rate) {
+                         try { rate = await getExchangeRate(cur, 'COP', 3, 8000); } catch(e){ rate = null; }
+                     }
+                 }
+
+                 if (rate) {
+                     // Guardar en cache y actualizar cada fila correspondiente
+                     exchangeCache[`${cur}_COP`] = rate;
+                     els.forEach(node => {
+                         try {
+                             const radio = node.querySelector('input[type="radio"]');
+                             const price = Number(radio?.dataset?.price || 0);
+                             const cop = Math.round(((Number(price || 0) * Number(rate)) + Number.EPSILON) * 100) / 100;
+                             const formatted = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cop || 0);
+
+                             // Actualizar span visible si corresponde
+                             if (cur !== 'COP') {
+                                 const span = node.querySelector('.prov-cop-amount');
+                                 if (span) span.textContent = 'precio en COP: ' + formatted;
+                                 else {
+                                     // si no existía, añadirlo de forma segura al texto
+                                     const txtDiv = node.querySelector('.text-xs.text-gray-500');
+                                     if (txtDiv && txtDiv.textContent.indexOf('precio en COP:') === -1) {
+                                         txtDiv.innerHTML = txtDiv.innerHTML + ' · <span class="prov-cop-amount">precio en COP: ' + formatted + '</span>';
+                                     }
+                                 }
+                             }
+
+                             // Asegurar dataset y atributo HTML actualizado (dataset puede no reflejar atributo en DOM)
+                             if (radio) {
+                                 radio.dataset.priceCop = String(cop);
+                                 try { radio.setAttribute('data-price-cop', String(cop)); } catch(_){}
+                             }
+                         } catch (_) { /* noop per-row */ }
+                     });
                      return true;
                  }
-             } catch(e){ /* ignore and retry below */ }
-             els.forEach(div => { const span = div.querySelector('.prov-cop-amount'); if (span) span.textContent = ''; });
+             } catch(e) { /* ignore */ }
+
+             // Si no se obtuvo tasa, mantener el texto informando y dejar dataset vacío
+             els.forEach(node => {
+                 try {
+                     const span = node.querySelector('.prov-cop-amount');
+                     if (span && (!span.textContent || span.textContent.trim() === '' || span.textContent.indexOf('calculando') !== -1)) {
+                         span.textContent = 'calculando precio en COP...';
+                     }
+                     const radio = node.querySelector('input[type="radio"]');
+                     if (radio) { radio.dataset.priceCop = radio.dataset.priceCop ?? ''; try { radio.setAttribute('data-price-cop', radio.dataset.priceCop); } catch(_){} }
+                 } catch(_){}
+             });
              return false;
          }
         const promises = Array.from(needed).map(cur => fetchAndUpdateCurrency(cur));

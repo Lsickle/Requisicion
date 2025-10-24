@@ -167,8 +167,8 @@
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
                     <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</td>
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
-                    <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
-                    <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
+                    <td class="p-3">{{ optional($proveedor)->methods_oc ?? $oc->methods_oc ?? '—' }}</td>
+                    <td class="p-3">{{ optional($proveedor)->plazo_oc ?? $oc->plazo_oc ?? '—' }}</td>
                     <td class="p-3 text-right font-semibold">{{ number_format($ocTotal, 2) }}</td>
                     @php
                         // clase por defecto
@@ -359,8 +359,8 @@
                             <div><span class="font-medium">Fecha de creación:</span> {{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
                             <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
                             <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
-                            <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
-                            <div><span class="font-medium">Plazo de pago:</span> {{ $oc->plazo_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Método de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->methods_oc ?? $oc->methods_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Plazo de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->plazo_oc ?? $oc->plazo_oc ?? '—' }}</div>
                             @if(!empty($oc->observaciones))
                             <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones }}</div>
                             @endif
