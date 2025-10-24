@@ -339,7 +339,7 @@
                                      <th class="p-3 text-center" style="width:80px">Moneda</th>
                                      <th class="p-3 text-center" style="width:160px">Precio unitario</th>
                                      <th class="p-3 text-center" style="width:90px">IVA</th>
-                                     <th class="p-3 text-center" style="width:100px">Sacado</th>
+                                     <th class="p-3 text-center" style="width:100px">Entregado</th>
                                      <th class="p-3 text-center" style="width:110px">Stock</th>
                                      <th class="p-3" style="width:40%">Distribución</th>
                                      <th class="p-3 text-center" style="width:90px">Acciones</th>
@@ -867,7 +867,7 @@
                 ${precioCurrency && precioCurrency.toUpperCase() !== 'COP' ? '<div class="text-xs text-gray-500 precio-cop-span"></div>' : ''}
              </td>
              <td class="p-3 text-center whitespace-nowrap" id="iva-${rowKey}">${iva}%</td>
-             <td class="p-3 text-center" id="sacado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? (totalConfirmadoPorProducto[productoId] + ' Entregado') : '0' )}</td>
+             <td class="p-3 text-center" id="entregado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? `${totalConfirmadoPorProducto[productoId]}` : '0' )}</td>
              <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
              <td class="p-3">
                  <div class="max-h-40 overflow-y-auto">

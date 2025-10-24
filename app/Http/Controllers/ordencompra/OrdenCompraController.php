@@ -55,6 +55,7 @@ class OrdenCompraController extends Controller
         $centros = Centro::all();
         $lineasDistribuidas = collect();
         $ordenes = collect();
+        $totalConfirmadoPorProducto = collect();
 
         if ($reqId) {
             $requisicion = Requisicion::find($reqId);
@@ -125,6 +126,18 @@ class OrdenCompraController extends Controller
                     })
                     ->orderBy('id', 'desc')
                     ->get();
+
+                // Totales entregados (confirmados) por producto para esta requisición (tabla entrega)
+                try {
+                    $totalConfirmadoPorProducto = DB::table('entrega')
+                        ->where('requisicion_id', $requisicion->id)
+                        ->whereNull('deleted_at')
+                        ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as total'))
+                        ->groupBy('producto_id')
+                        ->pluck('total', 'producto_id');
+                } catch (\Throwable $e) {
+                    $totalConfirmadoPorProducto = collect();
+                }
 
                 // Si ya está completa, actualizar estatus a 10 si no lo está
                 try {
@@ -198,7 +211,8 @@ class OrdenCompraController extends Controller
             'lineasDistribuidas',
             'ordenes',
             'trmLatest',
-            'prefillProducto'
+            'prefillProducto',
+            'totalConfirmadoPorProducto'
         ));
     }
 
@@ -1371,7 +1385,7 @@ class OrdenCompraController extends Controller
     private function setRequisicionStatus(int $requisicionId, int $estatusId, ?string $comentario = null)
     {
         try {
-            // Obtener estatus activo actual (si existe)
+            // Obtener estatus activo currente (si existe)
             $currentActive = DB::table('estatus_requisicion')
                 ->where('requisicion_id', $requisicionId)
                 ->where('estatus', 1)
