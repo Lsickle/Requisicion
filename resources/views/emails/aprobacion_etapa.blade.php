@@ -2,46 +2,50 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ $subject ?? ('Requisición #'.$requisicion->id) }}</title>
-    <style>
-        body{font-family: Arial, Helvetica, sans-serif; color:#111;}
-        .card{max-width:720px;margin:0 auto;background:#ffffff;border-radius:8px;border:1px solid #e5e7eb;padding:24px}
-        .h1{font-size:20px;margin:0 0 12px;font-weight:700;color:#111827}
-        .p{margin:0 0 10px;line-height:1.45}
-        .meta{background:#f3f4f6;border-radius:6px;padding:12px;margin:14px 0}
-        .btn{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px}
-        .small{color:#6b7280;font-size:12px}
-        ul{padding-left:18px}
-    </style>
 </head>
-<body>
-    <div class="card">
-        <h1 class="h1">Requisición #{{ $requisicion->id }}</h1>
-        <p class="p">{{ $mensajePrincipal }}</p>
+<body style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fb; padding:24px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden;">
+        <tr>
+            <td style="background:#1e40af; padding:16px 24px; color:#ffffff;">
+                <strong>Vigía Plus Logistics</strong>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:24px; color:#111827;">
+                <h1 style="font-size:20px; margin:0 0 12px; font-weight:700; color:#111827;">Requisición #{{ $requisicion->id }}</h1>
+                <p style="margin:0 0 10px; line-height:1.45;">{{ $mensajePrincipal }}</p>
 
-        <div class="meta">
-            <p class="p"><strong>Operación:</strong> {{ $requisicion->operacion_user ?? 'N/A' }}</p>
-            <p class="p"><strong>Solicitante:</strong> {{ $requisicion->name_user ?? 'N/A' }}</p>
-            <p class="p"><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion ?? '') }}</p>
-            <p class="p"><strong>Fecha:</strong> {{ optional($estatus->date_update ?? $estatus->created_at)->format('d/m/Y H:i') }}</p>
-        </div>
+                <div style="background:#f3f4f6; border-radius:6px; padding:12px; margin:14px 0;">
+                    <p style="margin:0 0 6px;"><strong>Operación:</strong> {{ $requisicion->operacion_user ?? 'N/A' }}</p>
+                    <p style="margin:0 0 6px;"><strong>Solicitante:</strong> {{ $requisicion->name_user ?? 'N/A' }}</p>
+                    <p style="margin:0 0 6px;"><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion ?? '') }}</p>
+                    <p style="margin:0;"><strong>Fecha:</strong> {{ optional($estatus->date_update ?? $estatus->created_at)->format('d/m/Y H:i') }}</p>
+                </div>
 
-        @if($requisicion->productos && count($requisicion->productos))
-            <p class="p"><strong>Productos:</strong></p>
-            <ul>
-                @foreach($requisicion->productos as $producto)
-                    <li>{{ $producto->name_produc }} ({{ $producto->pivot->pr_amount }} {{ $producto->unit_produc }})</li>
-                @endforeach
-            </ul>
-        @endif
+                @if($requisicion->productos && count($requisicion->productos))
+                    <p style="margin:0 0 6px;"><strong>Productos:</strong></p>
+                    <ul style="padding-left:18px; margin:0 0 10px;">
+                        @foreach($requisicion->productos as $producto)
+                            <li>{{ $producto->name_produc }} ({{ $producto->pivot->pr_amount }} {{ $producto->unit_produc }})</li>
+                        @endforeach
+                    </ul>
+                @endif
 
-        <p class="p">
-            <a href="{{ $panelUrl }}" class="btn" target="_blank" rel="noopener">Ir al Panel de Aprobación</a>
-            &nbsp; <a href="{{ $detalleUrl }}" class="btn" style="background:#059669" target="_blank" rel="noopener">Ver Detalle</a>
-        </p>
+                <p style="margin:12px 0 0;">
+                    <a href="{{ $panelUrl }}" target="_blank" rel="noopener" style="display:inline-block; background:#2563eb; color:#fff; text-decoration:none; padding:10px 16px; border-radius:6px;">Ir al Panel de Aprobación</a>
+                    &nbsp;
+                    <a href="{{ $detalleUrl }}" target="_blank" rel="noopener" style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:10px 16px; border-radius:6px;">Ver Detalle</a>
+                </p>
 
-        <p class="small">Este mensaje fue generado automáticamente por el sistema de requisiciones.</p>
-    </div>
+                <p style="color:#6b7280; font-size:12px; margin-top:14px;">Este mensaje fue generado automáticamente por el sistema de requisiciones.</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:12px 24px; color:#6b7280; font-size:12px; background:#f9fafb;">© {{ date('Y') }} Vigía Plus Logistics</td>
+        </tr>
+    </table>
 </body>
 </html>
