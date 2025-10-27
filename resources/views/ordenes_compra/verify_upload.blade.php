@@ -106,6 +106,7 @@
     (function(){
         const run = function(){
             const valid = {{ $valid ? 'true' : 'false' }};
+            const outdated = {{ !empty($outdated) ? 'true' : 'false' }};
             const message = {!! json_encode($message ?? '') !!};
             const ordenExists = {{ (isset($orden) && $orden !== null) ? 'true' : 'false' }};
 
@@ -114,7 +115,9 @@
                 return;
             }
 
-            if (valid) {
+            if (valid && outdated) {
+                Swal.fire({ icon: 'warning', title: 'PDF válido pero desactualizado', text: message || 'El archivo es válido pero no corresponde al hash más reciente.' });
+            } else if (valid) {
                 Swal.fire({ icon: 'success', title: 'PDF válido', text: message || 'El archivo coincide con el original.' });
             } else {
                 Swal.fire({

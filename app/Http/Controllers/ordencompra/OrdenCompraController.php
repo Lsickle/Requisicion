@@ -450,7 +450,7 @@ class OrdenCompraController extends Controller
                         'stock_e'          => $stockE,
                         'apply_iva'        => $applyFrac,
                         'trm_oc'           => $trmOcValue,
-                        'trm_factura'      => $trmOcValue, // igual que trm_oc
+                        'trm_factura'      => $trmOcValue,
                     ]);
 
                     // Asegurar trm_oc si quedó NULL

@@ -108,10 +108,15 @@ class OrdenCompraVerifyController extends Controller
             }
         }
 
+        $latest = $expectedHashes[0] ?? null;
+        $outdated = $valid && $matched !== null && $latest !== null && !hash_equals($matched, $latest);
+
         $message = '';
         if (empty($expectedHashes)) {
             $message = 'No hay hashes registrados para esta orden.';
-        } else if ($valid) {
+        } elseif ($valid && $outdated) {
+            $message = 'El archivo coincide con un hash válido, pero no es el más reciente. El documento está desactualizado.';
+        } elseif ($valid) {
             $message = 'El archivo coincide con el hash de validación registrado.';
         } else {
             $message = 'El documento no coincide con ninguno de los hashes registrados.';
@@ -119,8 +124,9 @@ class OrdenCompraVerifyController extends Controller
 
         return view('ordenes_compra.verify_upload', [
             'valid' => $valid,
+            'outdated' => $outdated,
             'message' => $message,
-            'expected' => $matched ?? ($expectedHashes[0] ?? null),
+            'expected' => $matched ?? ($latest ?? null),
             'provided' => $providedSan,
             'orden' => $orden,
         ]);
