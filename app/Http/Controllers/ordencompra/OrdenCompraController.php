@@ -695,10 +695,7 @@ class OrdenCompraController extends Controller
                         // Calcular hash y guardar si es distinto
                         try {
                             $fileHash = hash('sha256', $bin);
-                            if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                                $orden->validation_hash = $fileHash;
-                                $orden->save();
-                            }
+                            $this->storeOrderPdfHash((int)$orden->id, $fileHash);
                         } catch (\Throwable $e) { /* noop */ }
 
                         $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
@@ -723,10 +720,7 @@ class OrdenCompraController extends Controller
                 // Calcular y guardar hash sobre el contenido que realmente se agregará
                 try {
                     $fileHash = hash('sha256', $content);
-                    if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                        $orden->validation_hash = $fileHash;
-                        $orden->save();
-                    }
+                    $this->storeOrderPdfHash((int)$orden->id, $fileHash);
                 } catch (\Throwable $e) { /* noop */ }
 
                 $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
@@ -1037,22 +1031,17 @@ class OrdenCompraController extends Controller
             $orden = $ordenes->first();
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
 
-            // Si ya hay un PDF almacenado en la orden, devolver ese binario (asegura mismo hash)
             if (!empty($orden->pdf_file)) {
                 // Intentar decodificar base64 estrictamente
                 $bin = @base64_decode($orden->pdf_file, true);
                 if ($bin === false || strpos($bin, '%PDF') !== 0) {
-                    // Si no parece base64 valido con PDF header, tratar como binario bruto
                     $bin = $orden->pdf_file;
                 }
 
-                // Calcular hash y guardar si es distinto
+                // Calcular y registrar hash en tabla orden_hash
                 try {
                     $fileHash = hash('sha256', $bin);
-                    if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                        $orden->validation_hash = $fileHash;
-                        $orden->save();
-                    }
+                    $this->storeOrderPdfHash((int)$orden->id, $fileHash);
                 } catch (\Throwable $e) { /* noop */ }
 
                 return response($bin, 200, [
@@ -1061,24 +1050,16 @@ class OrdenCompraController extends Controller
                 ]);
             }
 
-            // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
+            // Generar PDF, guardar blob y registrar hash
             $data = $this->buildPdfData($orden);
-            $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
             $content = $pdf->output();
 
-            try {
-                $orden->storePdfBlob($content);
-            } catch (\Throwable $e) {
-                // noop: no bloquear la descarga si falla el guardado
-            }
+            try { $orden->storePdfBlob($content); } catch (\Throwable $e) { /* noop */ }
 
-            // Calcular y guardar hash del contenido servido
             try {
                 $fileHash = hash('sha256', $content);
-                if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                    $orden->validation_hash = $fileHash;
-                    $orden->save();
-                }
+                $this->storeOrderPdfHash((int)$orden->id, $fileHash);
             } catch (\Throwable $e) { /* noop */ }
 
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
@@ -1104,48 +1085,34 @@ class OrdenCompraController extends Controller
         foreach ($ordenes as $orden) {
             $fileName = 'orden_' . ($orden->order_oc ?? ('OC-' . $orden->id)) . '.pdf';
 
-            // Si ya hay un PDF almacenado en la orden, agregarlo al ZIP (decodificando si es base64)
             if (!empty($orden->pdf_file)) {
                 $bin = null;
                 $decoded = @base64_decode($orden->pdf_file, true);
-                if ($decoded !== false && strpos($decoded, '%PDF') === 0) {
-                    $bin = $decoded;
-                } elseif (strpos($orden->pdf_file, '%PDF') === 0) {
-                    $bin = $orden->pdf_file;
-                }
+                if ($decoded !== false && strpos($decoded, '%PDF') === 0) { $bin = $decoded; }
+                elseif (strpos($orden->pdf_file, '%PDF') === 0) { $bin = $orden->pdf_file; }
 
                 if ($bin !== null) {
+                    // Registrar hash en orden_hash
                     try {
                         $fileHash = hash('sha256', $bin);
-                        if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                            $orden->validation_hash = $fileHash;
-                            $orden->save();
-                        }
+                        $this->storeOrderPdfHash((int)$orden->id, $fileHash);
                     } catch (\Throwable $e) { /* noop */ }
 
                     $zip->addFromString($fileName, $bin);
                     continue;
                 }
-                // si no logramos obtener binario válido, caeremos a generar
             }
 
-            // Generar PDF y almacenar en la orden (si no existe)
+            // Generar PDF y registrar hash
             $data = $this->buildPdfData($orden);
             $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
             $content = $pdf->output();
 
-            try {
-                $orden->storePdfBlob($content);
-            } catch (\Throwable $e) {
-                // noop
-            }
+            try { $orden->storePdfBlob($content); } catch (\Throwable $e) { /* noop */ }
 
             try {
                 $fileHash = hash('sha256', $content);
-                if (empty($orden->validation_hash) || $orden->validation_hash !== $fileHash) {
-                    $orden->validation_hash = $fileHash;
-                    $orden->save();
-                }
+                $this->storeOrderPdfHash((int)$orden->id, $fileHash);
             } catch (\Throwable $e) { /* noop */ }
 
             $zip->addFromString($fileName, $content);
@@ -1566,7 +1533,7 @@ class OrdenCompraController extends Controller
             }
 
             // actualizar estatus por cada requisición afectada (únicos)
-            // Si las recepciones (tabla 'recepcion') cubren todo => estatus 7 (Material recibido)
+            // Si las recepciones (tabla 'recepcion') cubren todo => estatus  7 (Material recibido)
             // El estatus 10 (completado) se mantiene para el proceso final que considere también las entregas
             $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
             foreach ($affectedRequisiciones as $reqId) {
@@ -1838,6 +1805,20 @@ class OrdenCompraController extends Controller
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('updateBasicos error: '.$e->getMessage());
             return redirect()->back()->with('error', 'Error: '.$e->getMessage());
+        }
+    }
+
+    private function storeOrderPdfHash(int $ordenId, string $hash): void
+    {
+        try {
+            DB::table('orden_hash')->insert([
+                'orden_compra_id' => $ordenId,
+                'validation_hash' => strtolower($hash),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo registrar hash para OC ' . $ordenId . ': ' . $e->getMessage());
         }
     }
 }

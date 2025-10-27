@@ -47,7 +47,6 @@ class OrdenCompraSeeder extends Seeder
                 'observaciones'  => 'OC generada por seeder',
                 'date_oc'        => $date->toDateString(),
                 'order_oc'       => 'OC-' . strtoupper(Str::random(6)),
-                'validation_hash'=> null,
                 'created_at'     => $date,
                 'updated_at'     => $date,
             ]);

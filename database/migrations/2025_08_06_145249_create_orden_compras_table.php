@@ -15,7 +15,6 @@ return new class extends Migration
             $table->text('observaciones')->nullable(); #observaciones por orden de compra
             $table->date('date_oc')->nullable(); #fecha de orden de compra
             $table->string('order_oc')->nullable(); #numero de orden
-            $table->text('validation_hash')->nullable(); #hash de validación HMAC-SHA256 (nullable)
             $table->timestamps();
             $table->softDeletes();
         });

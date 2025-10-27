@@ -86,33 +86,41 @@ class OrdenCompraVerifyController extends Controller
             ]);
         }
 
-        // No se guarda el PDF binario en BD; usar sólo el hash de validación
-        $expectedHash = $orden->validation_hash;
+        // Obtener todos los hashes históricos de esta orden desde orden_hash
+        $expectedHashes = DB::table('orden_hash')
+            ->where('orden_compra_id', $orden->id)
+            ->orderByDesc('created_at')
+            ->pluck('validation_hash')
+            ->map(function($h){ return strtolower(trim(preg_replace('/[^a-f0-9]/', '', (string)$h))); })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $uploadedPath = $request->file('pdf')->getRealPath();
         $providedHash = hash_file('sha256', $uploadedPath);
-
         $providedSan = strtolower(trim(preg_replace('/[^a-f0-9]/', '', $providedHash)));
-        $expectedSan = strtolower(trim(preg_replace('/[^a-f0-9]/', '', (string)$expectedHash)));
 
-        $valid = false;
-        if ($providedSan !== '' && $expectedSan !== '') {
-            $valid = hash_equals($expectedSan, $providedSan);
+        $valid = false; $matched = null;
+        foreach ($expectedHashes as $h) {
+            if ($providedSan !== '' && $h !== '' && hash_equals($h, $providedSan)) {
+                $valid = true; $matched = $h; break;
+            }
         }
 
         $message = '';
-        if (empty($expectedSan)) {
-            $message = 'No hay hash de validación almacenado para esta orden.';
+        if (empty($expectedHashes)) {
+            $message = 'No hay hashes registrados para esta orden.';
         } else if ($valid) {
-            $message = 'El archivo coincide con el hash de validación (SHA256 igual).';
+            $message = 'El archivo coincide con el hash de validación registrado.';
         } else {
-            $message = 'El documento ha sido alterado o no coincide con el hash de validación.';
+            $message = 'El documento no coincide con ninguno de los hashes registrados.';
         }
 
         return view('ordenes_compra.verify_upload', [
             'valid' => $valid,
             'message' => $message,
-            'expected' => $expectedSan,
+            'expected' => $matched ?? ($expectedHashes[0] ?? null),
             'provided' => $providedSan,
             'orden' => $orden,
         ]);
