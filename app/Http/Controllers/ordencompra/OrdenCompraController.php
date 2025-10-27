@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
+use App\Jobs\RequisicionEntregaRegistradaJob; // NUEVO
 
 class OrdenCompraController extends Controller
 {
@@ -170,7 +171,7 @@ class OrdenCompraController extends Controller
                 $productoProveedores = collect();
             }
 
-            // Preparar datos para prellenar la vista (si vienen cantidad/proveedor in la query)
+            // Preparar datos para prellenar la vista (si vienen cantidad/proveedor in the query)
             $prefillProducto = [
                 'producto_id' => (int)$request->producto_id,
                 'cantidad' => isset($request->cantidad) ? (int)$request->cantidad : (int)($request->query('cantidad') ?? 0),
@@ -1062,7 +1063,7 @@ class OrdenCompraController extends Controller
 
             // Generar PDF, guardar blob en la orden (solo si no existe) y devolverlo
             $data = $this->buildPdfData($orden);
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('ordenes_compra.pdf', $data);
+            $pdf = Pdf::loadView('ordenes_compra.pdf', $data);
             $content = $pdf->output();
 
             try {
@@ -1614,9 +1615,13 @@ class OrdenCompraController extends Controller
 
                                     $lista = !empty($productNames) ? implode(', ', $productNames) : 'Productos disponibles';
                                     $subject = "Material recibido en bodega - Requisición #{$reqId}";
-                                    $body = "El/los producto(s) solicitado(s): {$lista} han sido recibidos en bodega. Por favor, pase a recogerlos.";
+                                    $viewData = [
+                                        'requisicion' => $requisicion,
+                                        'productos' => $productNames,
+                                        'lista' => $lista,
+                                    ];
 
-                                    Mail::raw($body, function ($message) use ($requisicion, $subject) {
+                                    Mail::send('emails.requisicion_material_recibido', $viewData, function ($message) use ($requisicion, $subject) {
                                         $message->to($requisicion->email_user)->subject($subject);
                                     });
                                 }
@@ -1741,6 +1746,20 @@ class OrdenCompraController extends Controller
             $this->setRequisicionStatus((int)$data['requisicion_id'], 12, 'Salida de stock registrada');
 
             DB::commit();
+
+            // Enviar correo de entrega registrada (sin requerir queue worker)
+            try {
+                $requisicion = Requisicion::find((int)$data['requisicion_id']);
+                $producto = Producto::find((int)$data['producto_id']);
+                if ($requisicion && $producto) {
+                    $items = [[ 'id' => (int)$producto->id, 'nombre' => (string)$producto->name_produc, 'cantidad' => (int)$cantidad ]];
+                    // Ejecutar de forma sincrónica para garantizar envío inmediato
+                    RequisicionEntregaRegistradaJob::dispatchSync($requisicion, $items);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo enviar correo de entrega registrada: ' . $e->getMessage());
+            }
+
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             DB::rollBack();

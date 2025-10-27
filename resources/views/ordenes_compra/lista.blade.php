@@ -207,14 +207,27 @@
                             ->select('centro.name_centro', 'centro_producto.amount')
                             ->get();
                         $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $req->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
-                        // Ignorar tabla recepcion aquí; solo considerar entregas
                         $confirmadoStock = 0;
                         $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
+                        // Cantidad pendiente por confirmar en entregas (salida de stock)
+                        $pendienteConfirmacion = (int) DB::table('entrega')
+                            ->where('requisicion_id', $req->id)
+                            ->where('producto_id', $prod->id)
+                            ->whereNull('deleted_at')
+                            ->sum(DB::raw('GREATEST(cantidad - COALESCE(cantidad_recibido,0), 0)'));
                         @endphp
 
                         <tr>
                             <td class="px-3 py-2 border min-w-0">{{ $prod->name_produc }}</td>
-                            <td class="px-3 py-2 border text-center font-semibold w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                            <td class="px-3 py-2 border text-center font-semibold w-20">
+                                {{ $prod->pivot->pr_amount }}
+                                @if($totalConfirmado>0)
+                                    <span class="block text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>
+                                @endif
+                                @if($pendienteConfirmacion>0)
+                                    <span class="block text-xs text-amber-700 font-semibold">En espera de confirmación de recepción por {{ $pendienteConfirmacion }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 border text-center">{{ $prod->unit_produc ?? '-' }}</td>
                             <td class="px-3 py-2 border align-top">
                                 @if($distribucion->count() > 0)
@@ -616,8 +629,12 @@
                 Swal.fire({icon:'warning', title:'Datos incompletos', text:'Seleccione producto y cantidad válida'}); return;
             }
             try {
+                // Mostrar loader y bloquear botón Guardar
+                try { Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); } catch(_) {}
+                btnSave.disabled = true;
+
                 const body = { requisicion_id: requisicionId, producto_id: productoId, cantidad };
-                if (ocpId) body.ocp_id = ocpId; // enviar ocp_id para que backend lo use si está implementado
+                if (ocpId) body.ocp_id = ocpId;
 
                 const resp = await fetch(`{{ route('recepciones.storeSalidaStockEnEntrega') }}`, {
                     method:'POST',
@@ -626,10 +643,16 @@
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar');
+
+                try { Swal.close(); } catch(_) {}
                 close();
-                Swal.fire({icon:'success', title:'Listo', text:'Salida de stock registrada.'}).then(()=> location.reload());
+                await Swal.fire({icon:'success', title:'Listo', text:'Salida de stock registrada.'});
+                location.reload();
             } catch(e){
+                try { Swal.close(); } catch(_) {}
                 Swal.fire({icon:'error', title:'Error', text:e.message});
+            } finally {
+                btnSave.disabled = false;
             }
         });
 
