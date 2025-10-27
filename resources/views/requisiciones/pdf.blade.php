@@ -271,26 +271,27 @@
         @php
         $rowsPerPage = 18;
         $productPages = $requisicion->productos->chunk($rowsPerPage);
-        // Calcular total general usando productoxproveedor (por id guardado en producto_requisicion o primer registro)
-        $grandTotal = 0.0;
+        // Totales generales: original y COP (conversión como en OC)
+        $grandTotalOrig = 0.0; $grandTotalCop = 0.0;
         foreach ($requisicion->productos as $p) {
             $qty = (int)($p->pivot->pr_amount ?? 0);
             $pxp = null;
             try {
                 if (!empty($p->pivot->id_productoxproveedor)) {
-                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
-                        ->where('id', $p->pivot->id_productoxproveedor)
-                        ->first();
+                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('id', $p->pivot->id_productoxproveedor)->first();
                 }
                 if (!$pxp) {
-                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
-                        ->where('producto_id', $p->id)
-                        ->orderBy('id')
-                        ->first();
+                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('producto_id', $p->id)->orderBy('id')->first();
                 }
             } catch (\Throwable $e) { $pxp = null; }
             $unit = $pxp ? (float)($pxp->price_produc ?? 0) : (float)($p->price_produc ?? 0);
-            $grandTotal += ($qty * $unit);
+            $mon = strtoupper($pxp->moneda ?? 'COP');
+            $grandTotalOrig += ($qty * $unit);
+            try {
+                $uCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unit, $mon);
+            } catch (\Throwable $e) { $uCop = null; }
+            $uCop = ($uCop === null) ? ($mon === 'COP' ? $unit : 0) : (float)$uCop;
+            $grandTotalCop += ($qty * $uCop);
         }
         @endphp
 
@@ -301,8 +302,10 @@
                     <th>Producto</th>
                     <th>Unidad</th>
                     <th>Cantidad</th>
-                    <th>Valor Unitario</th>
-                    <th>Valor Total</th>
+                    <th>Valor Unitario (original)</th>
+                    <th>Valor Total (original)</th>
+                    <th>Valor Unitario (COP)</th>
+                    <th>Valor Total (COP)</th>
                     <th>Asignación a centros</th>
                 </tr>
             </thead>
@@ -313,48 +316,50 @@
                     <td>{{ $producto->unit_produc ?? '-' }}</td>
                     <td>{{ $producto->pivot->pr_amount }}</td>
                     @php
-                        $pxpRow = null; $mon = null;
+                        $pxpRow = null;
                         try {
                             if (!empty($producto->pivot->id_productoxproveedor)) {
-                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')
-                                    ->where('id', $producto->pivot->id_productoxproveedor)
-                                    ->first();
+                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('id', $producto->pivot->id_productoxproveedor)->first();
                             }
                             if (!$pxpRow) {
-                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')
-                                    ->where('producto_id', $producto->id)
-                                    ->orderBy('id')
-                                    ->first();
+                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('producto_id', $producto->id)->orderBy('id')->first();
                             }
                         } catch (\Throwable $e) { $pxpRow = null; }
                         $unitPrice = (float) ($pxpRow->price_produc ?? $producto->price_produc ?? 0);
                         $mon = strtoupper($pxpRow->moneda ?? 'COP');
-                        $lineTotal = $unitPrice * ((int)($producto->pivot->pr_amount ?? 0));
+                        $qty = (int)($producto->pivot->pr_amount ?? 0);
+                        $lineTotal = $unitPrice * $qty;
+                        // Conversión a COP usando helper del controlador (como OC)
+                        try { $unitPriceCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPrice, $mon); }
+                        catch (\Throwable $e) { $unitPriceCop = null; }
+                        $unitPriceCop = ($unitPriceCop === null) ? ($mon === 'COP' ? $unitPrice : 0) : (float)$unitPriceCop;
+                        $lineTotalCop = $unitPriceCop * $qty;
                     @endphp
                     <td>{{ $mon }} {{ number_format($unitPrice, 2) }}</td>
                     <td>{{ $mon }} {{ number_format($lineTotal, 2) }}</td>
+                    <td>COP {{ number_format($unitPriceCop, 2) }}</td>
+                    <td>COP {{ number_format($lineTotalCop, 2) }}</td>
                     <td class="centros-lista">
                         <ul>
                             @php
                             $distros = null;
-                            if (isset($producto->distribucion_centros) && is_countable($producto->distribucion_centros)
-                            && count($producto->distribucion_centros) > 0) {
-                            $distros = $producto->distribucion_centros;
+                            if (isset($producto->distribucion_centros) && is_countable($producto->distribucion_centros) && count($producto->distribucion_centros) > 0) {
+                                $distros = $producto->distribucion_centros;
                             } else {
-                            $distros = \Illuminate\Support\Facades\DB::table('centro_producto')
-                            ->where('requisicion_id', $requisicion->id)
-                            ->where('producto_id', $producto->id)
-                            ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
-                            ->select('centro.name_centro', 'centro_producto.amount')
-                            ->get();
+                                $distros = \Illuminate\Support\Facades\DB::table('centro_producto')
+                                    ->where('requisicion_id', $requisicion->id)
+                                    ->where('producto_id', $producto->id)
+                                    ->join('centro', 'centro_producto.centro_id', '=', 'centro.id')
+                                    ->select('centro.name_centro', 'centro_producto.amount')
+                                    ->get();
                             }
                             @endphp
                             @if($distros && is_countable($distros) && count($distros) > 0)
-                            @foreach($distros as $centro)
-                            <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
-                            @endforeach
+                                @foreach($distros as $centro)
+                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                                @endforeach
                             @else
-                            <li>No hay centros asignados</li>
+                                <li>No hay centros asignados</li>
                             @endif
                         </ul>
                     </td>
@@ -370,8 +375,8 @@
         <!-- Totales generales en tabla SIMPLE y visible en PDF -->
         <table class="totals-table">
             <tr>
-                <td class="label total-label">TOTAL GENERAL:</td>
-                <td class="value total-value">{{ number_format($grandTotal, 2) }}</td>
+                <td class="label total-label">TOTAL GENERAL (COP):</td>
+                <td class="value total-value">COP {{ number_format($grandTotalCop, 2) }}</td>
             </tr>
         </table>
         <div class="clear"></div>
