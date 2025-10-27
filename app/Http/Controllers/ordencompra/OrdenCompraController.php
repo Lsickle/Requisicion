@@ -352,36 +352,35 @@ class OrdenCompraController extends Controller
                         }
                         $ocp->orden_compras_id = $orden->id;
 
-                        // Persistir trm_oc: preferir valor enviado; si no, calcular
+                        // Persistir trm_oc como tasa: 1 unidad de la moneda del producto en COP (para COP => 1)
                         $trmOc = null;
-                        if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
-                            $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
-                            if ($parsed !== null) { $trmOc = $parsed; }
+                        // Intentar determinar precio y moneda del item para conocer la moneda
+                        $cur = 'COP';
+                        if (isset($productoData['currency']) && $productoData['currency'] !== '') {
+                            $cur = strtoupper($productoData['currency'] ?? 'COP');
+                        } else if (isset($productoData['moneda']) && $productoData['moneda'] !== '') {
+                            $cur = strtoupper($productoData['moneda'] ?? 'COP');
+                        } else {
+                            try {
+                                $pxpTmp = DB::table('productoxproveedor')
+                                    ->where('producto_id', $productoId)
+                                    ->where('proveedor_id', (int)$provId)
+                                    ->orderBy('id')
+                                    ->first();
+                                if ($pxpTmp && !empty($pxpTmp->moneda)) { $cur = strtoupper($pxpTmp->moneda); }
+                            } catch (\Throwable $e) { /* ignore */ }
                         }
-                        if ($trmOc === null) {
-                            $unitPrice = null; $cur = 'COP';
-                            if (isset($productoData['price']) && is_numeric($productoData['price'])) {
-                                $unitPrice = (float)$productoData['price'];
-                                $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
-                            } else {
-                                try {
-                                    $pxp = DB::table('productoxproveedor')
-                                        ->where('producto_id', $productoId)
-                                        ->where('proveedor_id', (int)$provId)
-                                        ->orderBy('id')
-                                        ->first();
-                                    if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
-                                    else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
-                                } catch (\Throwable $e) { /* ignore */ }
-                            }
-                            if ($unitPrice !== null) {
-                                if ($cur === 'COP') { $trmOc = round($unitPrice, 2); }
-                                else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); $trmOc = $rate ? round($rate, 2) : null; }
-                            }
+                        if ($cur === 'COP') {
+                            $trmOc = 1.0;
+                        } else {
+                            $rate = $this->fetchExchangeRateServer($cur, 'COP');
+                            $trmOc = $rate ? round($rate, 6) : null;
                         }
-                        if ($trmOc !== null) { $ocp->trm_oc = $trmOc; }
+                        if ($trmOc !== null) {
+                            $ocp->trm_oc = $trmOc;
+                            $ocp->trm_factura = $trmOc; // mismo valor para factura
+                        }
 
-                        if ($stockE !== null) { $ocp->stock_e = $stockE; }
                         $ocp->save();
 
                         if ($stockE !== null && $stockE > 0) {
@@ -419,30 +418,27 @@ class OrdenCompraController extends Controller
                     }
 
                     $trmOcValue = null;
-                    if (isset($productoData['trm_oc']) && $productoData['trm_oc'] !== '') {
-                        $parsed = $this->parseLocalizedNumber($productoData['trm_oc']);
-                        if ($parsed !== null) $trmOcValue = $parsed;
+                    // Determinar moneda para calcular tasa
+                    $cur = 'COP';
+                    if (isset($productoData['currency']) && $productoData['currency'] !== '') {
+                        $cur = strtoupper($productoData['currency'] ?? 'COP');
+                    } else if (isset($productoData['moneda']) && $productoData['moneda'] !== '') {
+                        $cur = strtoupper($productoData['moneda'] ?? 'COP');
+                    } else {
+                        try {
+                            $pxpMon = DB::table('productoxproveedor')
+                                ->where('producto_id', $productoId)
+                                ->where('proveedor_id', (int)$provId)
+                                ->orderBy('id')
+                                ->first();
+                            if ($pxpMon && !empty($pxpMon->moneda)) { $cur = strtoupper($pxpMon->moneda); }
+                        } catch (\Throwable $e) { /* ignore */ }
                     }
-                    if ($trmOcValue === null) {
-                        $unitPrice = null; $cur = 'COP';
-                        if (isset($productoData['price']) && is_numeric($productoData['price'])) {
-                            $unitPrice = (float)$productoData['price'];
-                            $cur = strtoupper($productoData['currency'] ?? $productoData['moneda'] ?? 'COP');
-                        } else {
-                            try {
-                                $pxp = DB::table('productoxproveedor')
-                                    ->where('producto_id', $productoId)
-                                    ->where('proveedor_id', (int)$provId)
-                                    ->orderBy('id')
-                                    ->first();
-                                if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
-                                else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
-                            } catch (\Throwable $e) { /* ignore */ }
-                        }
-                        if ($unitPrice !== null) {
-                            if ($cur === 'COP') { $trmOcValue = round($unitPrice, 2); }
-                            else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); $trmOcValue = $rate ? round($rate, 2) : null; }
-                        }
+                    if ($cur === 'COP') {
+                        $trmOcValue = 1.0;
+                    } else {
+                        $rate = $this->fetchExchangeRateServer($cur, 'COP');
+                        $trmOcValue = $rate ? round($rate, 6) : null;
                     }
 
                     OrdenCompraProducto::create([
@@ -454,6 +450,7 @@ class OrdenCompraController extends Controller
                         'stock_e'          => $stockE,
                         'apply_iva'        => $applyFrac,
                         'trm_oc'           => $trmOcValue,
+                        'trm_factura'      => $trmOcValue, // igual que trm_oc
                     ]);
 
                     // Asegurar trm_oc si quedó NULL
@@ -464,20 +461,23 @@ class OrdenCompraController extends Controller
                             ->orderBy('id', 'desc')
                             ->first();
                         if ($last && ($last->trm_oc === null || $last->trm_oc === '')) {
-                            $unitPrice = null; $cur = 'COP';
                             $pxp = DB::table('productoxproveedor')
                                 ->where('producto_id', $productoId)
                                 ->where('proveedor_id', (int)$provId)
                                 ->orderBy('id')
                                 ->first();
-                            if ($pxp) { $unitPrice = (float)($pxp->price_produc ?? 0); $cur = strtoupper($pxp->moneda ?? 'COP'); }
-                            else { $prodTmp = Producto::find($productoId); if ($prodTmp && isset($prodTmp->price_produc)) { $unitPrice = (float)$prodTmp->price_produc; $cur = strtoupper($prodTmp->moneda ?? 'COP'); } }
-                            $computed = null;
-                            if ($unitPrice !== null) {
-                                if ($cur === 'COP') $computed = round($unitPrice, 2);
-                                else { $rate = $this->fetchExchangeRateServer($cur, 'COP'); if ($rate) $computed = round($rate, 2); }
+                            $curFix = strtoupper($pxp->moneda ?? 'COP');
+                            $computed = ($curFix === 'COP') ? 1.0 : ($this->fetchExchangeRateServer($curFix, 'COP') ?: null);
+                            if ($computed !== null) {
+                                $val = round($computed, 6);
+                                $last->trm_oc = $val;
+                                if ($last->trm_factura === null || $last->trm_factura === '') { $last->trm_factura = $val; }
+                                $last->save();
                             }
-                            if ($computed !== null) { $last->trm_oc = $computed; $last->save(); }
+                        } else if ($last && ($last->trm_factura === null || $last->trm_factura === '')) {
+                            // Si ya hay trm_oc pero falta trm_factura, copiarlo
+                            $last->trm_factura = $last->trm_oc;
+                            $last->save();
                         }
                     } catch (\Throwable $e) { /* noop */ }
 
@@ -1178,10 +1178,7 @@ class OrdenCompraController extends Controller
             }
 
             $unitPriceCop = null;
-            foreach ($lineas as $ln) {
-                if ($ln->trm_oc !== null && $ln->trm_oc !== '') { $unitPriceCop = round((float)$ln->trm_oc, 2); break; }
-            }
-
+            // Precio y moneda base (de proveedor)
             $provId = optional($proveedor)->id;
             $pxp = DB::table('productoxproveedor')
                 ->where('producto_id', $producto->id)
@@ -1194,20 +1191,20 @@ class OrdenCompraController extends Controller
                     ->orderBy('id')
                     ->first();
             }
-            // NUEVO: si aún no hay proveedor resuelto, tomarlo del registro productoxproveedor
-            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) {
-                $proveedor = Proveedor::find($pxp->proveedor_id);
-            }
+            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) { $proveedor = Proveedor::find($pxp->proveedor_id); }
             $priceRaw = (float)($pxp->price_produc ?? ($producto->price_produc ?? 0));
             $mon = strtoupper($pxp->moneda ?? ($producto->moneda ?? 'COP'));
 
-            // Si no hay COP calculado, convertir desde TRM
-            if ($unitPriceCop === null) {
-                if ($mon === 'COP') { $unitPriceCop = round($priceRaw, 2); }
-                else {
-                    $rate = $this->fetchExchangeRateServer($mon, 'COP');
-                    $unitPriceCop = round(($rate ? ($priceRaw * $rate) : $priceRaw), 2);
-                }
+            // Si hay trm_oc en la línea, interpretarlo como tasa y convertir priceRaw
+            $lineWithRate = $lineas->first(function($ln){ return $ln->trm_oc !== null && $ln->trm_oc !== ''; });
+            if ($mon === 'COP') {
+                $unitPriceCop = round($priceRaw, 2);
+            } else if ($lineWithRate) {
+                $rate = (float) $lineWithRate->trm_oc; // tasa COP por 1 unidad
+                $unitPriceCop = round($priceRaw * $rate, 2);
+            } else {
+                $rate = $this->fetchExchangeRateServer($mon, 'COP');
+                $unitPriceCop = round(($rate ? ($priceRaw * $rate) : $priceRaw), 2);
             }
 
             // Cálculos COP (compatibilidad)
@@ -1289,20 +1286,21 @@ class OrdenCompraController extends Controller
             $to = strtoupper(trim($to ?: 'COP'));
             if ($from === $to) return 1;
 
-            // Intentar obtener desde tabla `trm` (cada fila contiene price para 1 USD)
+            // Tabla `trm`:
+            // price = unidades de la MONEDA por 1 COP (ej.: USD => 0.000258, EUR => 0.000222, COP => 1)
+            // Conversión FROM -> TO: rate = pTo / pFrom
+            // Ej.: USD->COP => 1 / 0.000258 ≈ 3876 (porque pTo=COP=1)
             try {
                 $rowFrom = DB::table('trm')->where('moneda', $from)->orderByDesc('update_date')->orderByDesc('id')->first();
                 $rowTo = DB::table('trm')->where('moneda', $to)->orderByDesc('update_date')->orderByDesc('id')->first();
                 if ($rowFrom && $rowTo && isset($rowFrom->price) && isset($rowTo->price)) {
-                    $pFrom = (float)$rowFrom->price; // units of FROM per 1 USD
-                    $pTo = (float)$rowTo->price;     // units of TO per 1 USD
+                    $pFrom = (float)$rowFrom->price; // unidades FROM por 1 COP
+                    $pTo = (float)$rowTo->price;     // unidades TO por 1 COP
                     if ($pFrom > 0) {
-                        // FROM -> TO = pTo / pFrom
-                        return $pTo / $pFrom;
+                        return $pTo / $pFrom; // unidades TO por 1 FROM
                     }
                 }
             } catch (\Throwable $e) {
-                // Si falla la lectura de BD, retornar null (no intentar APIs externas)
                 Log::warning('fetchExchangeRateServer: fallo lectura tabla trm: ' . $e->getMessage());
             }
         } catch (\Throwable $e) { /* noop */ }

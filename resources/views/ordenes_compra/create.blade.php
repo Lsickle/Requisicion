@@ -50,6 +50,18 @@
             .table-responsive td:first-child, .table-responsive th:first-child { max-width: 180px; }
             .table-responsive th:nth-child(9), .table-responsive td:nth-child(9) { width:140px !important; max-width:140px !important; }
         }
+
+        /* Nuevo: truncar el nombre de producto a 2 líneas con elipsis y permitir cortes de palabra seguros */
+        .table-responsive .product-name {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
+            white-space: normal;
+            line-height: 1.2;
+            max-width: 100%;
+        }
     </style>
     <!-- Sidebar -->
     <x-sidebar />
@@ -841,16 +853,16 @@
              <td class="p-3">
                  <div class="flex items-start gap-3">
                      <div class="flex-1 min-w-0">
-                         <div class="font-semibold text-gray-800">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
+                         <div class="font-semibold text-gray-800 product-name" title="${productoNombre}">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
                      </div>
                  </div>
                  <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
-                     data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precioNum}" data-price-currency="${precioCurrency}">
+                     data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precio}" data-price-currency="${precioCurrency}">
                  <input type="hidden" name="productos[${rowKey}][proveedor_id]" value="${proveedorId||''}">
                  <input type="hidden" name="productos[${rowKey}][productoxproveedor_id]" id="productoxproveedor-${rowKey}" value="${productoxproveedorId || ''}">
                  <input type="hidden" name="productos[${rowKey}][trm_oc]" id="trm_oc-${rowKey}" value="">
                  <input type="hidden" name="productos[${rowKey}][iva]" value="${iva}">
-                 <input type="hidden" name="productos[${rowKey}][price]" value="${precioNum}">
+                 <input type="hidden" name="productos[${rowKey}][price]" value="${precio}">
                  <input type="hidden" name="productos[${rowKey}][currency]" value="${precioCurrency}">
                  ${ocpId ? `<input type=\"hidden\" name=\"productos[${rowKey}][ocp_id]\" value=\"${ocpId}\">` : ``}
              </td>
@@ -890,7 +902,7 @@
                 </div>
              </td>
          `;
-        table.appendChild(row);
+         table.appendChild(row);
 
         // Guardar providers JSON en el input oculto para poder restaurarlo al quitar
         try {
