@@ -5,7 +5,7 @@
 @section('content')
 <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md oc-scope">
     <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de Órdenes de Compra</h1>
 
     <div class="mb-6 flex justify-between items-center">
@@ -205,6 +205,10 @@
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
+                            {{-- Nuevo botón: editar precios factura/TRM (una sola vez) --}}
+                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </button>
                             @if($showCreate)
                                 <a href="{{ route('ordenes_compra.create', ['requisicion_id' => $requisicionId, 'producto_id' => $pendingProductId, 'cantidad' => $pendingQty]) }}" title="Crear nueva OC" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" aria-label="Crear nueva OC">
                                     <i class="fas fa-plus"></i>
@@ -236,12 +240,11 @@
         <div class="flex flex-wrap gap-1" id="paginationControlsOC"></div>
     </div>
 
-    <!-- Modales fuera de la tabla para evitar problemas de layout -->
+    <!-- Modales: recibir + precios factura -->
     @foreach($ordenes as $oc)
         @php $requisicionId = $oc->requisicion->id ?? ($oc->requisicion_id ?? null); @endphp
 
-        <!-- El modal anterior que listaba únicamente filas desde 'recepcion' fue eliminado porque ocultaba la posibilidad de crear recepciones para líneas de la OC. Se conserva el modal que muestra las líneas de la OC y permite anotar cantidades a recibir. -->
-
+        <!-- Modal recibir productos -->
         <div id="modal-recibir-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}">
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
             <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
@@ -331,6 +334,61 @@
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
                         <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar recepción</button>
+                    </div>
+                    @else
+                        <div class="text-gray-600">Esta orden no tiene líneas.</div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal precios factura/TRM (una sola vez) -->
+        <div id="modal-precios-factura-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}">
+            <div class="absolute inset-0 bg-black/50" data-close="1"></div>
+            <div class="relative bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                <div class="flex justify-between items-center px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold">Editar precios de factura - {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
+                    <button type="button" class="text-gray-600 hover:text-gray-800 pf-close" data-oc-id="{{ $oc->id }}">✕</button>
+                </div>
+                <div class="p-6">
+                    @php $lines = $oc->ordencompraProductos; @endphp
+                    @if(($lines ?? collect())->count())
+                    <table class="w-full text-sm border rounded overflow-hidden bg-white">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 text-left">Producto</th>
+                                <th class="p-2 text-left">Proveedor</th>
+                                <th class="p-2 text-center">Cant.</th>
+                                <th class="p-2 text-center">Precio factura</th>
+                                <th class="p-2 text-center">TRM factura</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($lines as $ln)
+                                @php
+                                    $provName = optional($ln->proveedor)->prov_name ?? '—';
+                                    $cant = (int)($ln->total ?? 0);
+                                    $pFac  = $ln->precio_factura; // puede ser null
+                                    $trm   = $ln->trm_factura;    // puede ser null
+                                    $disabled = !is_null($pFac);
+                                @endphp
+                                <tr class="border-t pf-row" data-ocp-id="{{ $ln->id }}">
+                                    <td class="p-2">{{ optional($ln->producto)->name_produc ?? ('#'.$ln->producto_id) }}</td>
+                                    <td class="p-2">{{ $provName }}</td>
+                                    <td class="p-2 text-center">{{ $cant }}</td>
+                                    <td class="p-2 text-center">
+                                        <input type="number" step="0.01" min="0" class="pf-price border rounded p-1 w-28 text-right" value="{{ !is_null($pFac) ? number_format((float)$pFac, 2, '.', '') : '' }}" {{ $disabled ? 'disabled' : '' }} placeholder="0.00">
+                                    </td>
+                                    <td class="p-2 text-center">
+                                        <input type="number" step="0.01" min="0" class="pf-trm border rounded p-1 w-28 text-right" value="{{ !is_null($trm) ? number_format((float)$trm, 2, '.', '') : '' }}" {{ $disabled ? 'disabled' : '' }} placeholder="1.00">
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button type="button" class="px-4 py-2 border rounded pf-close" data-oc-id="{{ $oc->id }}">Cancelar</button>
+                        <button type="button" class="px-4 py-2 bg-cyan-600 text-white rounded pf-save" data-oc-id="{{ $oc->id }}">Guardar</button>
                     </div>
                     @else
                         <div class="text-gray-600">Esta orden no tiene líneas.</div>
@@ -455,9 +513,6 @@
                 <div class="sticky bottom-0 left-0 bg-white pt-4 pb-4 px-8 flex flex-wrap gap-3 justify-end border-t z-20">
                     <button type="button" class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-1 btn-open-estatus-oc" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-info-circle"></i> Ver Estatus
-                    </button>
-                    <button type="button" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1 btn-download-oc-pdf" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
-                        <i class="fas fa-file-pdf"></i> Descargar PDF
                     </button>
                 </div>
                 <!-- Modal Estatus para esta OC -->
@@ -663,8 +718,9 @@
                                                             <td class="p-2">{{ $rec->reception_user ?? '—' }}</td>
                                                         </tr>
                                                     </tbody>
-                                                </div>
-                                            </details>
+                                                </table>
+                                            </div>
+                                        </details>
                                     @endforeach
                                 @endif
 
@@ -770,206 +826,318 @@
         container.appendChild(btnNext);
     }
 
-    document.addEventListener('DOMContentLoaded', function(){
-        document.querySelectorAll('#tablaOC tbody tr').forEach(r => r.dataset.match = '1');
-        const sel = document.getElementById('pageSizeSelectOC');
-        if (sel) {
-            ocPageSize = parseInt(sel.value, 10) || 10;
-            sel.addEventListener('change', (e) => {
-                ocPageSize = parseInt(e.target.value, 10) || 10;
-                ocShowPage(1);
+    // Inicialización robusta: ejecutar ahora o al DOMContentLoaded
+    (function(){
+        const init = function(){
+            // Helpers para formatear/sanitizar 2 decimales (usados por .pf-save)
+            const twoDec = (val) => {
+                if (val === null || val === undefined) return '';
+                const num = parseFloat((''+val).replace(',', '.'));
+                if (isNaN(num) || num < 0) return '';
+                return (Math.round(num * 100) / 100).toFixed(2);
+            };
+            const sanitizeTarget = (t) => {
+                if (!t) return;
+                const v = (t.value || '').toString();
+                if (v === '') return;
+                const m = v.replace(',', '.').match(/^\d*(?:\.\d{0,2})?/);
+                t.value = m ? m[0] : '';
+            };
+
+            document.querySelectorAll('#tablaOC tbody tr').forEach(r => r.dataset.match = '1');
+            const sel = document.getElementById('pageSizeSelectOC');
+            if (sel) {
+                ocPageSize = parseInt(sel.value, 10) || 10;
+                sel.addEventListener('change', (e) => {
+                    ocPageSize = parseInt(e.target.value, 10) || 10;
+                    ocShowPage(1);
+                });
+            }
+            ocShowPage(1);
+
+            // Input sanitization delegated (recepción)
+            document.addEventListener('input', function(e){
+                if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
+                    const max = parseInt(e.target.max || '0', 10);
+                    let v = parseInt(e.target.value || '0', 10);
+                    if (isNaN(v) || v < 0) v = 0;
+                    if (v > max) v = max;
+                    e.target.value = v;
+                }
+                // Sanitizar inputs de precios/trm a 2 decimales en tiempo real
+                if (e.target && (e.target.classList?.contains('pf-price') || e.target.classList?.contains('pf-trm'))){
+                    sanitizeTarget(e.target);
+                }
             });
-        }
-        ocShowPage(1);
+            document.addEventListener('change', function(e){
+                if (e.target && (e.target.classList?.contains('pf-price') || e.target.classList?.contains('pf-trm'))){
+                    e.target.value = twoDec(e.target.value);
+                }
+            });
 
-        // Input sanitization delegated
-        document.addEventListener('input', function(e){
-            if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
-                const max = parseInt(e.target.max || '0', 10);
-                let v = parseInt(e.target.value || '0', 10);
-                if (isNaN(v) || v < 0) v = 0;
-                if (v > max) v = max;
-                e.target.value = v;
-            }
-        });
-
-        // Delegated click handler for modal actions, rc-save and terminar
-        document.addEventListener('click', async function(e){
-            // Descargar PDF/ZIP navegando en la misma pestaña
-            const dlBtn = e.target.closest('.btn-download-oc-pdf');
-            if (dlBtn) {
-                const href = dlBtn.dataset.href;
-                if (href) {
-                    try {
-                        Swal.fire({ title: 'Preparando descarga', text: 'Espere un momento...', allowOutsideClick: false, timer: 600, didOpen: () => Swal.showLoading() })
-                            .then(() => { window.location.href = href; });
-                    } catch (_) {
-                        window.location.href = href;
+            // Delegated click handler para abrir/cerrar modales y acciones
+            document.addEventListener('click', async function(e){
+                // Descargar PDF/ZIP navegando en la misma pestaña
+                const dlBtn = e.target.closest('.btn-download-oc-pdf');
+                if (dlBtn) {
+                    const href = dlBtn.dataset.href;
+                    if (href) {
+                        try {
+                            if (window.Swal) {
+                                Swal.fire({ title: 'Preparando descarga', text: 'Espere un momento...', allowOutsideClick: false, timer: 600, didOpen: () => Swal.showLoading() })
+                                    .then(() => { window.location.href = href; });
+                            } else {
+                                window.location.href = href;
+                            }
+                        } catch (_) {
+                            window.location.href = href;
+                        }
                     }
+                    return;
                 }
-                return;
-            }
 
-            // open recibir modal
-            const btnRec = e.target.closest('.btn-open-recibir');
-            if (btnRec) {
-                const ocId = btnRec.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (modal) {
-                    if (modal.parentNode !== document.body) document.body.appendChild(modal);
-                    modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden';
-                }
-                return;
-            }
-            // open ver modal
-            const btnVer = e.target.closest('.btn-open-ver');
-            if (btnVer) {
-                const ocId = btnVer.dataset.ocId;
-                const modal = document.getElementById(`modal-${ocId}`);
-                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // open estatus modal
-            const btnEstatus = e.target.closest('.btn-open-estatus-oc');
-            if (btnEstatus) {
-                const ocId = btnEstatus.dataset.ocId;
-                const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
-                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // open recibir from view
-            const btnRecFromView = e.target.closest('.btn-open-recibir-from-view');
-            if (btnRecFromView) {
-                const ocId = btnRecFromView.dataset.ocId;
-                const vModal = document.getElementById(`modal-${ocId}`);
-                if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
-                const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (rModal) { if (rModal.parentNode !== document.body) document.body.appendChild(rModal); rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // close recibir modal via buttons
-            const btnClose = e.target.closest('.rc-close, .rc-cancel');
-            if (btnClose) {
-                const ocId = btnClose.dataset.ocId;
-                if (ocId) {
+                // open recibir modal
+                const btnRec = e.target.closest('.btn-open-recibir');
+                if (btnRec) {
+                    const ocId = btnRec.dataset.ocId;
                     const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    if (modal) {
+                        if (modal.parentNode !== document.body) document.body.appendChild(modal);
+                        modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden';
+                    }
+                    return;
+                }
+                // open ver modal
+                const btnVer = e.target.closest('.btn-open-ver');
+                if (btnVer) {
+                    const ocId = btnVer.dataset.ocId;
+                    const modal = document.getElementById(`modal-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // open estatus modal
+                const btnEstatus = e.target.closest('.btn-open-estatus-oc');
+                if (btnEstatus) {
+                    const ocId = btnEstatus.dataset.ocId;
+                    const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // open recibir from view
+                const btnRecFromView = e.target.closest('.btn-open-recibir-from-view');
+                if (btnRecFromView) {
+                    const ocId = btnRecFromView.dataset.ocId;
+                    const vModal = document.getElementById(`modal-${ocId}`);
+                    if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
+                    const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    if (rModal) { if (rModal.parentNode !== document.body) document.body.appendChild(rModal); rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // close recibir modal via buttons
+                const btnClose = e.target.closest('.rc-close, .rc-cancel');
+                if (btnClose) {
+                    const ocId = btnClose.dataset.ocId;
+                    if (ocId) {
+                        const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow = ''; }
+                    }
+                    return;
+                }
+                // backdrop close for any modal with data-close="1"
+                if (e.target && e.target.dataset && e.target.dataset.close === '1') {
+                    const parent = e.target.closest('[id^="modal-"]');
+                    if (parent) { parent.classList.add('hidden'); parent.classList.remove('flex'); document.body.style.overflow = ''; }
+                    return;
+                }
+
+                // rc-save: guardar recepciones
+                const btnSave = e.target.closest('.rc-save');
+                if (btnSave) {
+                    const ocId = btnSave.dataset.ocId;
+                    const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    const rows = Array.from(modal.querySelectorAll('.rc-row'));
+                    if (rows.length === 0) {
+                        if (window.Swal) await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
+                        return;
+                    }
+                    const items = rows.map(tr => {
+                        const recId = tr.dataset.recId || null;
+                        const prodId = parseInt(tr.dataset.productoId, 10);
+                        const total = parseInt(tr.dataset.total || '0', 10);
+                        const current = parseInt(tr.dataset.current || '0', 10);
+                        const inp = tr.querySelector('.rcx-input');
+                        if (!inp || inp.disabled) return null;
+                        const max = parseInt(inp.max || '0', 10);
+                        let inc = parseInt(inp.value || '0', 10);
+                        if (isNaN(inc) || inc < 0) inc = 0;
+                        if (inc > max) inc = max;
+                        const nuevoAcumulado = Math.min(total, current + inc);
+                        return { recId, prodId, total, current, inc, nuevoAcumulado };
+                    }).filter(Boolean).filter(it => it.inc > 0);
+                    if (items.length === 0) {
+                        if (window.Swal) await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
+                        return;
+                    }
+                    if (window.Swal){
+                        const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                        if (!confirm.isConfirmed) return;
+                        Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
+                        const payload = { items: items.map(it => ({
+                            recepcion_id: it.recId || undefined,
+                            orden_compra_id: it.recId ? undefined : ocId,
+                            producto_id: it.prodId,
+                            cantidad: it.total,
+                            cantidad_recibido: it.nuevoAcumulado,
+                            reception_user: receptionUser
+                        })) };
+
+                        const resp = await fetch("{{ route('recepciones.confirmar') }}", {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
+                        if (window.Swal){ Swal.close(); await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'}); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({icon:'error', title:'Error', text: err.message || 'Ocurrió un error al guardar.'}); }
+                    }
+                    return;
+                }
+
+                // Terminar OC
+                const btnTerm = e.target.closest('.btn-terminar-oc');
+                if (btnTerm) {
+                    const ocId = btnTerm.dataset.ocId;
+                    if (window.Swal){
+                        const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
+                        if (!confirmed.isConfirmed) return;
+                        Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const resp = await fetch("{{ url('/ordenes_compra/terminar') }}/"+ocId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
+                    return;
+                }
+
+                // Crear OC desde línea pendiente
+                const btnCreateFromPending = e.target.closest('.btn-create-from-pending');
+                if (btnCreateFromPending) {
+                    const ocId = btnCreateFromPending.dataset.oc;
+                    const productId = btnCreateFromPending.dataset.product;
+                    const pendingQty = btnCreateFromPending.dataset.pending;
+                    const selectEl = document.getElementById(`prov-select-${ocId}-${productId}`);
+                    const proveedorId = selectEl ? selectEl.value : null;
+                    if (!proveedorId) {
+                        if (window.Swal) return Swal.fire({ icon:'warning', title:'Proveedor requerido', text:'Seleccione un proveedor para continuar.' });
+                        return;
+                    }
+                    const baseUrl = btnCreateFromPending.dataset.base;
+                    const createUrl = `${baseUrl}?producto_id=${productId}&cantidad=${pendingQty}&proveedor_id=${proveedorId}`;
+                    window.location.href = createUrl;
+                    return;
+                }
+
+                // Abrir modal precios factura
+                const btnPf = e.target.closest('.btn-open-precios-factura');
+                if (btnPf) {
+                    const ocId = btnPf.dataset.ocId;
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+
+                // Cerrar modal precios
+                const btnPfClose = e.target.closest('.pf-close');
+                if (btnPfClose) {
+                    const ocId = btnPfClose.dataset.ocId;
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
                     if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow = ''; }
-                }
-                return;
-            }
-            // backdrop close for any modal with data-close="1"
-            if (e.target && e.target.dataset && e.target.dataset.close === '1') {
-                const parent = e.target.closest('[id^="modal-"]');
-                if (parent) { parent.classList.add('hidden'); parent.classList.remove('flex'); document.body.style.overflow = ''; }
-                return;
-            }
-
-            // rc-save: guardar recepciones
-            const btnSave = e.target.closest('.rc-save');
-            if (btnSave) {
-                const ocId = btnSave.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                const rows = Array.from(modal.querySelectorAll('.rc-row'));
-                if (rows.length === 0) {
-                    await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
                     return;
                 }
-                const items = rows.map(tr => {
-                    const recId = tr.dataset.recId || null;
-                    const prodId = parseInt(tr.dataset.productoId, 10);
-                    const total = parseInt(tr.dataset.total || '0', 10);
-                    const current = parseInt(tr.dataset.current || '0', 10);
-                    const inp = tr.querySelector('.rcx-input');
-                    if (!inp || inp.disabled) return null;
-                    const max = parseInt(inp.max || '0', 10);
-                    let inc = parseInt(inp.value || '0', 10);
-                    if (isNaN(inc) || inc < 0) inc = 0;
-                    if (inc > max) inc = max;
-                    const nuevoAcumulado = Math.min(total, current + inc);
-                    return { recId, prodId, total, current, inc, nuevoAcumulado };
-                }).filter(Boolean).filter(it => it.inc > 0);
-                if (items.length === 0) {
-                    await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
+
+                // Guardar precios factura (una sola vez)
+                const btnPfSave = e.target.closest('.pf-save');
+                if (btnPfSave) {
+                    const ocId = parseInt(btnPfSave.dataset.ocId, 10);
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
+                    const rows = Array.from(modal.querySelectorAll('.pf-row'));
+                    const items = rows.map(tr => {
+                        const ocpId = parseInt(tr.dataset.ocpId, 10);
+                        const priceEl = tr.querySelector('.pf-price');
+                        const trmEl = tr.querySelector('.pf-trm');
+                        if (priceEl?.disabled || trmEl?.disabled) return null;
+                        const precio = parseFloat(twoDec(priceEl?.value || ''));
+                        const trmTxt = trmEl?.value === '' ? null : twoDec(trmEl.value);
+                        const trm = trmTxt === null ? null : parseFloat(trmTxt);
+                        if (isNaN(precio) || precio < 0) return null;
+                        if (trm !== null && (isNaN(trm) || trm < 0)) return null;
+                        return { ocp_id: ocpId, precio_factura: precio, trm_factura: trm };
+                    }).filter(Boolean);
+
+                    if (items.length === 0) {
+                        if (window.Swal) await Swal.fire({ icon:'info', title:'Sin cambios', text:'No hay líneas editables o datos válidos.' });
+                        return;
+                    }
+
+                    if (window.Swal){
+                        const confirm = await Swal.fire({ title: 'Confirmar', text: 'Se guardarán los precios de factura y TRM. Esta acción solo se puede realizar una vez por línea.', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                        if (!confirm.isConfirmed) return;
+                        Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const resp = await fetch("{{ url('/ordenes_compra/actualizar-precios-factura') }}", {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orden_compra_id: ocId, items })
+                        });
+                        const data = await resp.json().catch(()=>({}));
+                        if (!resp.ok) throw new Error(data.message || 'Error al actualizar precios');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon:'success', title:'Actualizado', text:`Líneas actualizadas: ${data.updated}.` }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon:'error', title:'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
                     return;
                 }
-                const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
-                if (!confirm.isConfirmed) return;
-                Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
-                    const payload = { items: items.map(it => ({
-                        recepcion_id: it.recId || undefined,
-                        orden_compra_id: it.recId ? undefined : ocId,
-                        producto_id: it.prodId,
-                        cantidad: it.total,
-                        cantidad_recibido: it.nuevoAcumulado,
-                        reception_user: receptionUser
-                    })) };
-
-                    const resp = await fetch("{{ route('recepciones.confirmar') }}", {
-                        method: 'POST', credentials: 'same-origin',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
-                    Swal.close();
-                    await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'});
-                    location.reload();
-                } catch (err) {
-                    Swal.close();
-                    await Swal.fire({icon:'error', title:'Error', text: err.message || 'Ocurrió un error al guardar.'});
-                }
-                return;
-            }
-
-            // Terminar OC
-            const btnTerm = e.target.closest('.btn-terminar-oc');
-            if (btnTerm) {
-                const ocId = btnTerm.dataset.ocId;
-                const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
-                if (!confirmed.isConfirmed) return;
-                Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    const resp = await fetch("{{ url('/ordenes_compra/terminar') }}/"+ocId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
-                    Swal.close();
-                    await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' });
-                    location.reload();
-                } catch (err) {
-                    Swal.close();
-                    await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' });
-                }
-                return;
-            }
-
-            // Crear OC desde línea pendiente (nuevo flujo)
-            const btnCreateFromPending = e.target.closest('.btn-create-from-pending');
-            if (btnCreateFromPending) {
-                const ocId = btnCreateFromPending.dataset.oc;
-                const productId = btnCreateFromPending.dataset.product;
-                const pendingQty = btnCreateFromPending.dataset.pending;
-                const selectEl = document.getElementById(`prov-select-${ocId}-${productId}`);
-                const proveedorId = selectEl ? selectEl.value : null;
-                if (!proveedorId) {
-                    return Swal.fire({ icon:'warning', title:'Proveedor requerido', text:'Seleccione un proveedor para continuar.' });
-                }
-                const baseUrl = btnCreateFromPending.dataset.base;
-                const createUrl = `${baseUrl}?producto_id=${productId}&cantidad=${pendingQty}&proveedor_id=${proveedorId}`;
-                window.location.href = createUrl;
-                return;
-            }
-        });
-    });
+            });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
 </script>
-@endsection
 
 <style>
         /* Flecha rotatoria para summaries */
         .details-summary-arrow{ transition: transform .18s ease; }
         details[open] .details-summary-arrow{ transform: rotate(180deg); }
-    </style>
+        
+        /* Scope local: evitar que el sidebar/nav herede color azul en esta vista */
+        .oc-scope { color: #111827; }
+        .oc-scope hr { color: #e5e7eb; border-color: #e5e7eb; }
+        .oc-scope a { color: inherit; }
+
+        /* Forzar colores correctos del sidebar solo en esta vista */
+        #sidebar { color: #ffffff !important; }
+        #sidebar a { color: #ffffff !important; }
+        #sidebar a:hover { color: #fdba74 !important; } /* orange-300 aprox */
+        /* Ajustar divisores del sidebar para que no se vean azules brillantes */
+        #sidebar hr { border-color: rgba(30,58,138,0.3) !important; }
+        #sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(30,58,138,0.3) !important; }
+</style>
 <script>
 // Inyectar span de info de paginación de OC si falta
 document.addEventListener('DOMContentLoaded', () => {

@@ -18,7 +18,6 @@ use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
 use App\Http\Controllers\Proveedores\ProveedoresController;
-use App\Http\Controllers\dashboard\DashboardController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
@@ -325,4 +324,8 @@ Route::post('productos/{id}/providers', [ProductosController::class, 'updateProv
 
 // Ruta para actualizar date_oc y observaciones por orden de compra
 Route::post('/ordenes-compra/{id}/basicos', [OrdenCompraController::class, 'updateBasicos'])->name('ordenes_compra.updateBasicos');
+
+// Ruta específica para actualizar precios de factura (debe ir antes del resource para no colisionar con {orden_compra})
+Route::post('/ordenes_compra/actualizar-precios-factura', [OrdenCompraController::class, 'actualizarPreciosFactura'])
+    ->name('ordenes_compra.actualizar_precios_factura');
 

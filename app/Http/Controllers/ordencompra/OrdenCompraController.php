@@ -328,7 +328,6 @@ class OrdenCompraController extends Controller
                             ->whereNull('orden_compras_id')
                             ->where('requisicion_id', $request->requisicion_id)
                             ->firstOrFail();
-
                         // Forzar proveedor al del grupo
                         $ocp->proveedor_id = (int)$provId;
 
@@ -352,93 +351,141 @@ class OrdenCompraController extends Controller
                         }
                         $ocp->orden_compras_id = $orden->id;
 
-                        // Persistir trm_oc como tasa: 1 unidad de la moneda del producto en COP (para COP => 1)
-                        $trmOc = null;
-                        // Intentar determinar precio y moneda del item para conocer la moneda
-                        $cur = 'COP';
-                        if (isset($productoData['currency']) && $productoData['currency'] !== '') {
-                            $cur = strtoupper($productoData['currency'] ?? 'COP');
-                        } else if (isset($productoData['moneda']) && $productoData['moneda'] !== '') {
-                            $cur = strtoupper($productoData['moneda'] ?? 'COP');
-                        } else {
-                            try {
-                                $pxpTmp = DB::table('productoxproveedor')
+                        // Obtener precio y moneda del proveedor seleccionado
+                        $precioOriginalRaw = null; $cur = 'COP';
+                        try {
+                            $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                ->where('producto_id', $productoId)
+                                ->where('proveedor_id', (int)$provId)
+                                ->orderBy('id')
+                                ->first();
+                            if (!$pxp) {
+                                $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
                                     ->where('producto_id', $productoId)
-                                    ->where('proveedor_id', (int)$provId)
                                     ->orderBy('id')
                                     ->first();
-                                if ($pxpTmp && !empty($pxpTmp->moneda)) { $cur = strtoupper($pxpTmp->moneda); }
-                            } catch (\Throwable $e) { /* ignore */ }
+                            }
+                            if ($pxp && isset($pxp->price_produc)) {
+                                $precioOriginalRaw = (float)$pxp->price_produc;
+                                if (!empty($pxp->moneda)) { $cur = $this->normalizeCurrency($pxp->moneda); }
+                            }
+                        } catch (\Throwable $e) { /* noop */ }
+                        if ($precioOriginalRaw === null && isset($productoData['price'])) {
+                            $precioOriginalRaw = (float) $productoData['price'];
                         }
+                        if ($precioOriginalRaw === null) { $precioOriginalRaw = 0.0; }
+                        // Si no se obtuvo moneda del pxp, usar la del request si viene
                         if ($cur === 'COP') {
-                            $trmOc = 1.0;
+                            if (!empty($productoData['currency'])) $cur = $this->normalizeCurrency($productoData['currency']);
+                            elseif (!empty($productoData['moneda'])) $cur = $this->normalizeCurrency($productoData['moneda']);
+                        }
+                        // Calcular TRM hacia COP
+                        $rate = null;
+                        if (strtoupper($cur) === 'COP') {
+                            $rate = 1.0;
                         } else {
                             $rate = $this->fetchExchangeRateServer($cur, 'COP');
-                            $trmOc = $rate ? round($rate, 6) : null;
-                        }
-                        if ($trmOc !== null) {
-                            $ocp->trm_oc = $trmOc;
-                            $ocp->trm_factura = $trmOc; // mismo valor para factura
-                        }
-
-                        $ocp->save();
-
-                        if ($stockE !== null && $stockE > 0) {
-                            $producto = Producto::lockForUpdate()->findOrFail($productoId);
-                            $producto->stock_produc = max(0, (int)$producto->stock_produc - $stockE);
-                            $producto->save();
-                        }
-
-                        // Distribución por centros (recrear)
-                        OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
-                            ->where('producto_id', $productoId)
-                            ->delete();
-
-                        if (!empty($productoData['centros'])) {
-                            foreach ($productoData['centros'] as $centroId => $cantidad) {
-                                if ((int)$cantidad > 0) {
-                                    OrdenCompraCentroProducto::create([
-                                        'orden_compra_id' => $orden->id,
-                                        'producto_id'     => $productoId,
-                                        'centro_id'       => $centroId,
-                                        'amount'          => (int)$cantidad,
-                                    ]);
-                                }
+                            if ($rate !== null) { $rate = round((float)$rate, 6); }
+                            // Fallback: trm enviada por cliente
+                            if ($rate === null) {
+                                $fromClient = $this->parseLocalizedNumber($productoData['trm_oc'] ?? null);
+                                if (is_numeric($fromClient) && $fromClient > 0) { $rate = round((float)$fromClient, 6); }
                             }
                         }
+                        // Calcular precio en COP (si falta rate en moneda extranjera, guardar crudo como último recurso)
+                        $precioCOP = null;
+                        if ($rate !== null) { $precioCOP = round(((float)$precioOriginalRaw) * ((float)$rate), 2); }
+                        else { $precioCOP = round((float)$precioOriginalRaw, 2); }
+
+                        // Guardar conversiones y TRM
+                        $ocp->precio_original = $precioCOP;
+                        if ($ocp->precio_factura === null) { $ocp->precio_factura = $precioCOP; }
+                        if ($rate !== null) {
+                            $ocp->trm_oc = $rate;
+                            $ocp->trm_factura = $rate;
+                        }
+                        $ocp->save();
+
+                        // ...existing code...
                         continue;
                     }
 
                     // Línea normal con proveedor del grupo
                     $applyFrac = null;
                     if (!empty($productoData['apply_iva'])) {
-                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) { $rate = (float)$productoData['iva']; }
-                        else { $prodTmp = Producto::find($productoId); $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0; }
-                        $applyFrac = ($rate > 0) ?  ( ($rate > 1) ? ($rate/100.0) : $rate ) : null;
+                        if (isset($productoData['iva']) && is_numeric($productoData['iva'])) { $rateIva = (float)$productoData['iva']; }
+                        else { $prodTmp = Producto::find($productoId); $rateIva = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float)$prodTmp->iva : 0; }
+                        $applyFrac = ($rateIva > 0) ?  ( ($rateIva > 1) ? ($rateIva/100.0) : $rateIva ) : null;
                     }
 
                     $trmOcValue = null;
                     // Determinar moneda para calcular tasa
                     $cur = 'COP';
-                    if (isset($productoData['currency']) && $productoData['currency'] !== '') {
-                        $cur = strtoupper($productoData['currency'] ?? 'COP');
-                    } else if (isset($productoData['moneda']) && $productoData['moneda'] !== '') {
-                        $cur = strtoupper($productoData['moneda'] ?? 'COP');
+                    if (!empty($productoData['currency'])) {
+                        $cur = $this->normalizeCurrency($productoData['currency']);
+                    } elseif (!empty($productoData['moneda'])) {
+                        $cur = $this->normalizeCurrency($productoData['moneda']);
                     } else {
                         try {
-                            $pxpMon = DB::table('productoxproveedor')
+                            $pxpMon = \Illuminate\Support\Facades\DB::table('productoxproveedor')
                                 ->where('producto_id', $productoId)
                                 ->where('proveedor_id', (int)$provId)
                                 ->orderBy('id')
                                 ->first();
-                            if ($pxpMon && !empty($pxpMon->moneda)) { $cur = strtoupper($pxpMon->moneda); }
+                            if ($pxpMon && !empty($pxpMon->moneda)) { $cur = $this->normalizeCurrency($pxpMon->moneda); }
                         } catch (\Throwable $e) { /* ignore */ }
                     }
                     if ($cur === 'COP') {
                         $trmOcValue = 1.0;
                     } else {
-                        $rate = $this->fetchExchangeRateServer($cur, 'COP');
-                        $trmOcValue = $rate ? round($rate, 6) : null;
+                        $rateSrv = $this->fetchExchangeRateServer($cur, 'COP');
+                        $trmOcValue = $rateSrv ? round($rateSrv, 6) : null;
+                    }
+                    // Fallback: usar trm enviada desde el cliente solo si no hay TRM de servidor
+                    if ($trmOcValue === null && $cur !== 'COP') {
+                        $trmFromClient = $this->parseLocalizedNumber($productoData['trm_oc'] ?? null);
+                        if (is_numeric($trmFromClient) && $trmFromClient > 0) { $trmOcValue = round((float)$trmFromClient, 6); }
+                    }
+
+                    // Precio base del proveedor
+                    $precioOriginalRaw = null; $curFromPxp = $cur;
+                    try {
+                        $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                            ->where('producto_id', $productoId)
+                            ->where('proveedor_id', (int)$provId)
+                            ->orderBy('id')
+                            ->first();
+                        if (!$pxp) {
+                            $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                ->where('producto_id', $productoId)
+                                ->orderBy('id')
+                                ->first();
+                        }
+                        if ($pxp && isset($pxp->price_produc)) {
+                            $precioOriginalRaw = (float) $pxp->price_produc;
+                            if (!empty($pxp->moneda)) { $curFromPxp = $this->normalizeCurrency($pxp->moneda); }
+                        }
+                    } catch (\Throwable $e) { /* noop */ }
+                    if ($precioOriginalRaw === null && isset($productoData['price'])) {
+                        $precioOriginalRaw = (float) $productoData['price'];
+                    }
+                    if ($precioOriginalRaw === null) { $precioOriginalRaw = 0.0; }
+
+                    // Usar TRM (1 si COP) para convertir a COP
+                    $precioOriginalCOP = null;
+                    $monUpper = strtoupper($curFromPxp ?? $cur ?? 'COP');
+                    if ($monUpper === 'COP') {
+                        $precioOriginalCOP = round((float)$precioOriginalRaw, 2);
+                        $trmOcValue = $trmOcValue ?: 1.0;
+                    } else {
+                        // Si aún no hay TRM, intentar servidor de nuevo por la moneda de pxp
+                        if ($trmOcValue === null) {
+                            $rateSrv2 = $this->fetchExchangeRateServer($monUpper, 'COP');
+                            $trmOcValue = $rateSrv2 ? round($rateSrv2, 6) : null;
+                        }
+                        $precioOriginalCOP = ($trmOcValue !== null)
+                            ? round(((float)$precioOriginalRaw) * ((float)$trmOcValue), 2)
+                            : round((float)$precioOriginalRaw, 2);
                     }
 
                     OrdenCompraProducto::create([
@@ -451,6 +498,8 @@ class OrdenCompraController extends Controller
                         'apply_iva'        => $applyFrac,
                         'trm_oc'           => $trmOcValue,
                         'trm_factura'      => $trmOcValue,
+                        'precio_original'  => $precioOriginalCOP,
+                        'precio_factura'   => $precioOriginalCOP,
                     ]);
 
                     // Asegurar trm_oc si quedó NULL
@@ -1333,6 +1382,24 @@ class OrdenCompraController extends Controller
         }
         return asset('images/VigiaLogoC.png');
     }
+    // Normaliza cadenas de moneda a códigos ISO (COP, USD, EUR, etc.)
+    private function normalizeCurrency(?string $s): string
+    {
+        if (!$s) return 'COP';
+        $s = strtoupper(trim($s));
+        // Limpieza básica de símbolos comunes y mapeos
+        $map = [
+            'US$' => 'USD', 'USD$' => 'USD', 'U$D' => 'USD', 'U$S' => 'USD', '$US' => 'USD', '$U' => 'USD', 'COL$' => 'COP', 'COP$' => 'COP', '€' => 'EUR', 'US DOLLAR' => 'USD', 'DOLLAR' => 'USD', 'DOLAR' => 'USD', 'EURO' => 'EUR', 'PESOS' => 'COP', 'PESO COLOMBIANO' => 'COP', 'PESO COLOMBIA' => 'COP'
+        ];
+        if (isset($map[$s])) return $map[$s];
+        if ($s === '$') return 'USD';
+        if (strpos($s, 'USD') !== false) return 'USD';
+        if (strpos($s, 'COP') !== false || strpos($s, 'COLOMB') !== false) return 'COP';
+        if (strpos($s, 'EUR') !== false) return 'EUR';
+        if (preg_match('/^[A-Z]{3}$/', $s)) return $s;
+        if (strpos($s, '$') !== false) return 'USD';
+        return $s ?: 'COP';
+    }
 
     // Historial público de órdenes de compra
     public function historial()
@@ -1817,6 +1884,62 @@ class OrdenCompraController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::warning('No se pudo registrar hash para OC ' . $ordenId . ': ' . $e->getMessage());
+        }
+    }
+
+    public function actualizarPreciosFactura(Request $request)
+    {
+        $data = $request->all();
+        $validator = \Illuminate\Support\Facades\Validator::make($data, [
+            'orden_compra_id' => 'required|integer|exists:orden_compras,id',
+            'items' => 'required|array|min:1',
+            'items.*.ocp_id' => 'required|integer|exists:ordencompra_producto,id',
+            'items.*.precio_factura' => ['required','numeric','min:0','regex:/^\d+(?:\.\d{1,2})?$/'],
+            'items.*.trm_factura' => ['nullable','numeric','min:0','regex:/^\d+(?:\.\d{1,2})?$/'],
+        ], [
+            'items.*.precio_factura.regex' => 'El precio de factura debe tener máximo 2 decimales.',
+            'items.*.trm_factura.regex' => 'La TRM debe tener máximo 2 decimales.',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 422);
+        }
+
+        $ocId = (int)$data['orden_compra_id'];
+        $items = $data['items'];
+
+        DB::beginTransaction();
+        try {
+            $updated = 0; $locked = 0; $skipped = [];
+            foreach ($items as $it) {
+                $line = OrdenCompraProducto::where('id', (int)$it['ocp_id'])
+                    ->where('orden_compras_id', $ocId)
+                    ->lockForUpdate()
+                    ->first();
+                if (!$line) { $skipped[] = (int)$it['ocp_id']; continue; }
+
+                // Bloquear edición solo si ya existe precio_factura (indicador de que ya se guardó una vez)
+                if (!is_null($line->precio_factura)) { $locked++; continue; }
+
+                $pf = round((float)$it['precio_factura'], 2);
+                $trm = (array_key_exists('trm_factura', $it) && $it['trm_factura'] !== null && $it['trm_factura'] !== '')
+                    ? round((float)$it['trm_factura'], 2) : null;
+
+                // Guardar únicamente campos de factura
+                $line->precio_factura = $pf;
+                if ($trm !== null) { $line->trm_factura = $trm; }
+                $line->save();
+                $updated++;
+            }
+            DB::commit();
+
+            if ($updated === 0) {
+                $msg = $locked > 0 ? 'Las líneas ya habían sido actualizadas previamente.' : 'No se actualizaron líneas.';
+                return response()->json(['ok' => false, 'updated' => 0, 'locked' => $locked, 'skipped' => $skipped, 'message' => $msg], 200);
+            }
+            return response()->json(['ok' => true, 'updated' => $updated, 'locked' => $locked, 'skipped' => $skipped]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
 }

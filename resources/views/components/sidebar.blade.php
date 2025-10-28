@@ -210,4 +210,12 @@
 #sidebar ul::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(180deg, #2563eb 0%, #3b82f6 100%); /* azul 600 -> 500 */
 }
+
+/* FIX: asegurar texto blanco y divisores neutros dentro del sidebar en todas las vistas */
+#sidebar { color: #ffffff; }
+#sidebar a { color: #ffffff !important; text-decoration: none; }
+#sidebar a:hover { color: #fdba74 !important; }
+/* divisores (tailwind divide-y) y cualquier hr dentro del sidebar */
+#sidebar hr { border-color: rgba(255,255,255,0.18) !important; }
+#sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.18) !important; }
 </style>
