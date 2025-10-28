@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('productos', function (Blueprint $table) {
             $table->id();
             $table->text('categoria_produc'); #categoria del producto
-            $table->string('name_produc', 255); #nombre del producto
+            $table->text('name_produc'); #nombre del producto
             $table->integer('stock_produc'); #stock del producto
             $table->text('description_produc'); #descripcion 
             $table->decimal('iva')->default(0); #iva del producto

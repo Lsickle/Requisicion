@@ -1598,8 +1598,7 @@ class OrdenCompraController extends Controller
             }
 
             // actualizar estatus por cada requisición afectada (únicos)
-            // Si las recepciones (tabla 'recepcion') cubren todo => estatus  7 (Material recibido)
-            // El estatus 10 (completado) se mantiene para el proceso final que considere también las entregas
+            // Si hay cualquier recepción, mover a estatus 7 (Material recibido)
             $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
             foreach ($affectedRequisiciones as $reqId) {
                     // Para cada requisición, comprobar si todas las órdenes de compra asociadas están completamente recibidas
@@ -1622,8 +1621,9 @@ class OrdenCompraController extends Controller
                         }
                     }
 
-                    $desiredStatus = $allComplete ? 7 : 12;
-                    $desiredMessage = $allComplete ? 'Recepción completa: material recibido por compras' : 'Recepción registrada';
+                    // Forzar estatus 7 independientemente de si está completa o parcial
+                    $desiredStatus = 7;
+                    $desiredMessage = 'Recepción registrada';
 
                     // Comprobar estatus activo currente y solo cambiar si difiere
                     $currentActive = DB::table('estatus_requisicion')
@@ -1634,32 +1634,30 @@ class OrdenCompraController extends Controller
                     if ((int)$currentActive !== (int)$desiredStatus) {
                         $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
 
-                        // Si el nuevo estatus es 7 (Material recibido en bodega), enviar email al solicitante
-                        if ((int)$desiredStatus === 7) {
-                            try {
-                                $requisicion = Requisicion::find($reqId);
-                                if ($requisicion && !empty($requisicion->email_user)) {
-                                    $productNames = DB::table('producto_requisicion as pr')
-                                        ->join('productos as p', 'pr.id_producto', '=', 'p.id')
-                                        ->where('pr.id_requisicion', $reqId)
-                                        ->pluck('p.name_produc')
-                                        ->toArray();
+                        // Enviar email cuando queda en estatus 7 (Material recibido en bodega)
+                        try {
+                            $requisicion = Requisicion::find($reqId);
+                            if ($requisicion && !empty($requisicion->email_user)) {
+                                $productNames = DB::table('producto_requisicion as pr')
+                                    ->join('productos as p', 'pr.id_producto', '=', 'p.id')
+                                    ->where('pr.id_requisicion', $reqId)
+                                    ->pluck('p.name_produc')
+                                    ->toArray();
 
-                                    $lista = !empty($productNames) ? implode(', ', $productNames) : 'Productos disponibles';
-                                    $subject = "Material recibido en bodega - Requisición #{$reqId}";
-                                    $viewData = [
-                                        'requisicion' => $requisicion,
-                                        'productos' => $productNames,
-                                        'lista' => $lista,
-                                    ];
+                                $lista = !empty($productNames) ? implode(', ', $productNames) : 'Productos disponibles';
+                                $subject = "Material recibido en bodega - Requisición #{$reqId}";
+                                $viewData = [
+                                    'requisicion' => $requisicion,
+                                    'productos' => $productNames,
+                                    'lista' => $lista,
+                                ];
 
-                                    Mail::send('emails.requisicion_material_recibido', $viewData, function ($message) use ($requisicion, $subject) {
-                                        $message->to($requisicion->email_user)->subject($subject);
-                                    });
-                                }
-                            } catch (\Throwable $e) {
-                                Log::warning('Error enviando notificación por estatus 7 para requisicion '.$reqId.': '.$e->getMessage());
+                                Mail::send('emails.requisicion_material_recibido', $viewData, function ($message) use ($requisicion, $subject) {
+                                    $message->to($requisicion->email_user)->subject($subject);
+                                });
                             }
+                        } catch (\Throwable $e) {
+                            Log::warning('Error enviando notificación por estatus 7 para requisicion ' . $reqId . ': ' . $e->getMessage());
                         }
                     }
                  
