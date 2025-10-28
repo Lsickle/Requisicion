@@ -370,17 +370,17 @@
                                     $cant = (int)($ln->total ?? 0);
                                     $pFac  = $ln->precio_factura; // puede ser null
                                     $trm   = $ln->trm_factura;    // puede ser null
-                                    $disabled = !is_null($pFac);
+                                    $disabled = false; // siempre editable
                                 @endphp
                                 <tr class="border-t pf-row" data-ocp-id="{{ $ln->id }}">
                                     <td class="p-2">{{ optional($ln->producto)->name_produc ?? ('#'.$ln->producto_id) }}</td>
                                     <td class="p-2">{{ $provName }}</td>
                                     <td class="p-2 text-center">{{ $cant }}</td>
                                     <td class="p-2 text-center">
-                                        <input type="number" step="0.01" min="0" class="pf-price border rounded p-1 w-28 text-right" value="{{ !is_null($pFac) ? number_format((float)$pFac, 2, '.', '') : '' }}" {{ $disabled ? 'disabled' : '' }} placeholder="0.00">
+                                        <input type="number" step="0.01" min="0" class="pf-price border rounded p-1 w-28 text-right" value="{{ !is_null($pFac) ? number_format((float)$pFac, 2, '.', '') : '' }}" placeholder="0.00">
                                     </td>
                                     <td class="p-2 text-center">
-                                        <input type="number" step="0.01" min="0" class="pf-trm border rounded p-1 w-28 text-right" value="{{ !is_null($trm) ? number_format((float)$trm, 2, '.', '') : '' }}" {{ $disabled ? 'disabled' : '' }} placeholder="1.00">
+                                        <input type="number" step="0.01" min="0" class="pf-trm border rounded p-1 w-28 text-right" value="{{ !is_null($trm) ? number_format((float)$trm, 2, '.', '') : '' }}" placeholder="1.00">
                                     </td>
                                 </tr>
                             @endforeach
@@ -1076,7 +1076,6 @@
                         const ocpId = parseInt(tr.dataset.ocpId, 10);
                         const priceEl = tr.querySelector('.pf-price');
                         const trmEl = tr.querySelector('.pf-trm');
-                        if (priceEl?.disabled || trmEl?.disabled) return null;
                         const precio = parseFloat(twoDec(priceEl?.value || ''));
                         const trmTxt = trmEl?.value === '' ? null : twoDec(trmEl.value);
                         const trm = trmTxt === null ? null : parseFloat(trmTxt);
@@ -1086,12 +1085,12 @@
                     }).filter(Boolean);
 
                     if (items.length === 0) {
-                        if (window.Swal) await Swal.fire({ icon:'info', title:'Sin cambios', text:'No hay líneas editables o datos válidos.' });
+                        if (window.Swal) await Swal.fire({ icon:'info', title:'Sin cambios', text:'No hay líneas con datos válidos.' });
                         return;
                     }
 
                     if (window.Swal){
-                        const confirm = await Swal.fire({ title: 'Confirmar', text: 'Se guardarán los precios de factura y TRM. Esta acción solo se puede realizar una vez por línea.', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                        const confirm = await Swal.fire({ title: 'Confirmar', text: 'Se guardarán los precios de factura y TRM.', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
                         if (!confirm.isConfirmed) return;
                         Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     }

@@ -1910,6 +1910,7 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             $updated = 0; $locked = 0; $skipped = [];
+            $userName = session('user.name') ?? $this->resolveCurrentUserName($request) ?? (session('user.email') ?? session('user.id') ?? null);
             foreach ($items as $it) {
                 $line = OrdenCompraProducto::where('id', (int)$it['ocp_id'])
                     ->where('orden_compras_id', $ocId)
@@ -1917,26 +1918,48 @@ class OrdenCompraController extends Controller
                     ->first();
                 if (!$line) { $skipped[] = (int)$it['ocp_id']; continue; }
 
-                // Bloquear edición solo si ya existe precio_factura (indicador de que ya se guardó una vez)
-                if (!is_null($line->precio_factura)) { $locked++; continue; }
-
                 $pf = round((float)$it['precio_factura'], 2);
                 $trm = (array_key_exists('trm_factura', $it) && $it['trm_factura'] !== null && $it['trm_factura'] !== '')
                     ? round((float)$it['trm_factura'], 2) : null;
 
-                // Guardar únicamente campos de factura
+                // Permitir actualizar siempre
                 $line->precio_factura = $pf;
                 if ($trm !== null) { $line->trm_factura = $trm; }
+                else if ($line->trm_factura === null) { /* no-op */ }
                 $line->save();
+
+                // Log por cada campo en tabla genérica 'logs'
+                try {
+                    DB::table('logs')->insert([
+                        'table_name' => 'ordencompra_producto',
+                        'ordencompra_producto_id' => (int)$line->id,
+                        'user_name' => $userName,
+                        'field_name' => 'precio_factura',
+                        'new_value' => number_format($pf, 2, '.', ''),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    if ($trm !== null) {
+                        DB::table('logs')->insert([
+                            'table_name' => 'ordencompra_producto',
+                            'ordencompra_producto_id' => (int)$line->id,
+                            'user_name' => $userName,
+                            'field_name' => 'trm_factura',
+                            'new_value' => number_format($trm, 2, '.', ''),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                } catch (\Throwable $e) { /* noop logging */ }
+
                 $updated++;
             }
             DB::commit();
 
             if ($updated === 0) {
-                $msg = $locked > 0 ? 'Las líneas ya habían sido actualizadas previamente.' : 'No se actualizaron líneas.';
-                return response()->json(['ok' => false, 'updated' => 0, 'locked' => $locked, 'skipped' => $skipped, 'message' => $msg], 200);
+                return response()->json(['ok' => false, 'updated' => 0, 'locked' => 0, 'skipped' => $skipped, 'message' => 'No se actualizaron líneas.'], 200);
             }
-            return response()->json(['ok' => true, 'updated' => $updated, 'locked' => $locked, 'skipped' => $skipped]);
+            return response()->json(['ok' => true, 'updated' => $updated, 'locked' => 0, 'skipped' => $skipped]);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
