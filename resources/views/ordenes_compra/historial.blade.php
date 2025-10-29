@@ -176,7 +176,7 @@
                         $badgeClass = 'bg-gray-100 text-gray-800';
                         if ($estatusLower === 'completada' || $estatusLower === 'completado') {
                             $badgeClass = 'bg-green-100 text-green-700';
-                        } elseif (strpos($estatusLower, 'recib') !== false) {
+                        } elseif (strpos($estatusLower, 'recib' !== false)) {
                             // cualquier etiqueta que contenga 'recib' -> Recibido (amarillo)
                             $badgeClass = 'bg-amber-100 text-amber-700';
                         } elseif ($estatusLower === 'pendiente') {
@@ -430,12 +430,8 @@
                         <div class="border rounded-lg overflow-hidden">
                             <div>
                                 @php
-                                    // calcular total general de la orden (suma de price_produc * cantidad)
+                                    // Inicializar total general; se acumula con el precio correcto por línea (COP)
                                     $grandTotal = 0;
-                                    foreach($oc->ordencompraProductos as $__ln) {
-                                        $up = $__ln->producto->price_produc ?? 0;
-                                        $grandTotal += $up * (int)$__ln->total;
-                                    }
                                 @endphp
                                  <table class="w-full text-sm bg-white">
                                      <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
@@ -452,13 +448,14 @@
                                          @foreach($oc->ordencompraProductos as $linea)
                                          @if($linea->producto)
                                          @php
-                                             // Determinar precio unitario: preferir trm_oc (COP) en la línea; si no, intentar productoxproveedor para el proveedor de la OC
-                                             $unitPrice = 0;
-                                             try {
-                                                 if (!empty($linea->trm_oc)) {
-                                                     $unitPrice = (float)$linea->trm_oc;
-                                                 }
-                                                 if (empty($unitPrice) || $unitPrice === 0) {
+                                             // Precio unitario en COP por línea: preferir precio_factura, luego precio_original; si no, fallback a pxp
+                                             $unitPrice = null;
+                                             if (!is_null($linea->precio_factura)) {
+                                                 $unitPrice = (float) $linea->precio_factura;
+                                             } elseif (!is_null($linea->precio_original)) {
+                                                 $unitPrice = (float) $linea->precio_original;
+                                             } else {
+                                                 try {
                                                      $provId = optional(optional($oc->ordencompraProductos->first())->proveedor)->id ?? null;
                                                      $pxp = DB::table('productoxproveedor')
                                                          ->where('producto_id', $linea->producto_id)
@@ -466,16 +463,17 @@
                                                          ->orderBy('id')
                                                          ->first();
                                                      $unitPrice = (float)($pxp->price_produc ?? 0);
-                                                 }
-                                             } catch (\Throwable $e) { $unitPrice = 0; }
+                                                 } catch (\Throwable $e) { $unitPrice = 0; }
+                                             }
                                              $unitName = $linea->producto->unit_produc ?? '—';
-                                             $lineTotal = $unitPrice * (int)$linea->total;
+                                             $lineTotal = ((float)$unitPrice) * (int)$linea->total;
+                                             $grandTotal += $lineTotal;
                                          @endphp
                                          <tr class="border-b">
                                              <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
                                              <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
                                              <td class="p-3 text-center align-top">{{ $unitName }}</td>
-                                             <td class="p-3 text-center align-top">{{ number_format($unitPrice, 2) }}</td>
+                                             <td class="p-3 text-center align-top">{{ number_format((float)$unitPrice, 2) }}</td>
                                              <td class="p-3 text-center align-top">{{ number_format($lineTotal, 2) }}</td>
                                              <td class="p-3 align-top">
                                                  @php
