@@ -444,8 +444,17 @@
                                             <div class="text-xs text-gray-500">{{ number_format($unitPriceCOP,2,',','.') }} COP</div>
                                         @endif
                                     </td>
+                                    <td class="px-3 py-2 text-center">{{ number_format($lineTotalReq, 2, ',', '.') }} COP</td>
+                                    <td class="px-3 py-2 text-center">{{ $entregado }}</td>
+                                    <td class="px-3 py-2 text-center">{{ $pendiente }}</td>
                                     <td class="px-3 py-2 text-center">
-                                        <input type="number" min="0" max="{{ $pendiente }}" value="{{ $pendiente }}" class="w-24 border rounded p-1 text-center ent-req-cant-input" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
+                                        @if($isDone)
+                                            <span class="inline-block bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-semibold">Completado</span>
+                                        @elseif($pendientesNoConfirmadas > 0)
+                                            <span class="inline-block bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-semibold">En espera de confirmación</span>
+                                        @else
+                                            <input type="number" min="0" max="{{ $pendiente }}" value="{{ $pendiente }}" class="w-24 border rounded p-1 text-center ent-req-cant-input">
+                                        @endif
                                     </td>
                                 </tr>
                                 @empty
