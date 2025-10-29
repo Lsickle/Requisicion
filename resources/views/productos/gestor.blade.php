@@ -492,6 +492,11 @@
                                 <span id="prov_city_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico *</label>
+                                <input type="email" id="prov_email" name="prov_email" class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_email_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Método de Pago</label>
                                 <select id="methods_oc" name="methods_oc" class="w-full px-3 py-2 border rounded-md">
                                     <option value="">(Vacío)</option>
@@ -1382,6 +1387,7 @@
         const prov_adress = document.getElementById('prov_adress');
         const prov_city = document.getElementById('prov_city');
         const prov_descrip = document.getElementById('prov_descrip');
+        const prov_email = document.getElementById('prov_email');
 
         if (!prov_name || !prov_name.value.trim()) { const e = document.getElementById('prov_name_error'); if (e) { e.textContent = 'El nombre del proveedor es requerido'; e.classList.remove('hidden'); } isValid = false; }
         if (!prov_nit || !prov_nit.value.trim()) { const e = document.getElementById('prov_nit_error'); if (e) { e.textContent = 'El NIT es requerido'; e.classList.remove('hidden'); } isValid = false; }
@@ -1389,6 +1395,13 @@
         if (!prov_phone || !prov_phone.value.trim()) { const e = document.getElementById('prov_phone_error'); if (e) { e.textContent = 'El teléfono es requerido'; e.classList.remove('hidden'); } isValid = false; }
         if (!prov_adress || !prov_adress.value.trim()) { const e = document.getElementById('prov_adress_error'); if (e) { e.textContent = 'La dirección es requerida'; e.classList.remove('hidden'); } isValid = false; }
         if (!prov_city || !prov_city.value.trim()) { const e = document.getElementById('prov_city_error'); if (e) { e.textContent = 'La ciudad es requerida'; e.classList.remove('hidden'); } isValid = false; }
+        // Nuevo: validar correo
+        if (!prov_email || !prov_email.value.trim()) { const e = document.getElementById('prov_email_error'); if (e) { e.textContent = 'El correo es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        else {
+            const emailVal = prov_email.value.trim();
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!re.test(emailVal)) { const e = document.getElementById('prov_email_error'); if (e) { e.textContent = 'Correo inválido'; e.classList.remove('hidden'); } isValid = false; }
+        }
         if (!prov_descrip || !prov_descrip.value.trim()) { const e = document.getElementById('prov_descrip_error'); if (e) { e.textContent = 'La descripción es requerida'; e.classList.remove('hidden'); } isValid = false; }
         return isValid;
     }

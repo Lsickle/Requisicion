@@ -20,7 +20,8 @@ return new class extends Migration
             $table->string('prov_phone', 255); #telefono del proveedor
             $table->text('prov_adress'); #direccion del proveedor
             $table->string('prov_city', 255); #ciudad del proveedor
-            $table->string('methods_oc', 255)->nullable(); #metodos de pago
+            $table->string('prov_email', 255); #email del proveedor
+            $table->text('methods_oc')->nullable(); #metodos de pago
             $table->string('plazo_oc', 255)->nullable(); #plazos de pago
             $table->timestamps();
             $table->softDeletes();

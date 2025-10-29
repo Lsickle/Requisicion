@@ -23,6 +23,7 @@ class Proveedor extends Model
         'prov_city',
         'methods_oc',
         'plazo_oc',
+        'prov_email',
     ];
 
     // Relación con productoxproveedor (1 a muchos)

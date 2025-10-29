@@ -152,6 +152,7 @@ public function storeProveedor(Request $request)
                 'prov_phone'  => 'required|string|max:20',
                 'prov_adress' => 'required|string|max:255',
                 'prov_city'   => 'required|string|max:100',
+                'prov_email'  => 'required|email|max:255',
                 'prov_descrip' => 'required|string|max:1000', // Ahora es obligatorio
                 'methods_oc' => 'nullable|string|max:255',
                 'plazo_oc' => 'nullable|string|max:255',
@@ -164,7 +165,18 @@ public function storeProveedor(Request $request)
                 ], 422);
             }
 
-            Proveedor::create($request->only(['prov_name','prov_descrip','prov_nit','prov_name_c','prov_phone','prov_adress','prov_city','methods_oc','plazo_oc']));
+            Proveedor::create($request->only([
+                'prov_name',
+                'prov_descrip',
+                'prov_nit',
+                'prov_name_c',
+                'prov_phone',
+                'prov_adress',
+                'prov_city',
+                'prov_email',
+                'methods_oc',
+                'plazo_oc'
+            ]));
 
             return response()->json([
                 'success' => true,
