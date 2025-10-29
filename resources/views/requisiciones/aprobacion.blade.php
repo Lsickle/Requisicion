@@ -168,14 +168,32 @@
                             @foreach($req->productos as $prod)
                             @php
                                 $cantidad = (float) ($prod->pivot->pr_amount ?? 0);
-                                // datos cargados por el controlador: provList, provJson, pivotPxpId, selProvId, selPrice, selProvName, distribucion
                                 $provList = $prod->provList ?? collect();
                                 $provJson = $prod->provJson ?? collect();
-                                $pivotPxpId = $prod->pivotPxpId ?? null;
+                                $pivotPxpId = $prod->pivotPxpId ?? ($prod->pivot->id_productoxproveedor ?? null);
                                 $selProvId = $prod->selProvId ?? null;
-                                $selPrice = $prod->selPrice ?? 0;
                                 $selProvName = $prod->selProvName ?? null;
-                                $totalProd = round(((float)$selPrice ?: 0) * $cantidad, 2);
+                                $selPrice = (float) ($prod->selPrice ?? 0);
+
+                                // localizar selección en provJson por pxp_id o id proveedor
+                                $selected = null;
+                                if ($provJson instanceof \Illuminate\Support\Collection) {
+                                    if ($pivotPxpId) { $selected = $provJson->firstWhere('pxp_id', $pivotPxpId); }
+                                    if (!$selected && $selProvId) { $selected = $provJson->firstWhere('id', $selProvId); }
+                                } else if (is_array($provJson)) {
+                                    foreach ($provJson as $pj) { if ($pivotPxpId && (($pj['pxp_id'] ?? null) == $pivotPxpId)) { $selected = $pj; break; } }
+                                    if (!$selected && $selProvId) {
+                                        foreach ($provJson as $pj) { if (($pj['id'] ?? null) == $selProvId) { $selected = $pj; break; } }
+                                    }
+                                }
+
+                                // valores a mostrar
+                                $selectedName = $selProvName ?: ($selected['prov_name'] ?? ($selected->prov_name ?? null));
+                                $selectedPrice = $selPrice ?: (float) ($selected['price_produc'] ?? ($selected->price_produc ?? 0));
+                                $selectedCurrency = $prod->selCurrency ?? ($selected['moneda'] ?? ($selected->moneda ?? 'COP'));
+                                $selectedPriceCop = (float) ($prod->selPriceCop ?? ($selected['price_cop'] ?? ($selected->price_cop ?? $selectedPrice)));
+
+                                $totalProd = round(((float)$selectedPrice ?: 0) * $cantidad, 2);
                                 $totalGeneral = round($totalGeneral + $totalProd, 2);
                                 $distribucion = $prod->distribucion ?? collect();
                             @endphp
@@ -192,7 +210,7 @@
                                                      <div class="text-xs text-gray-600">{{ number_format($only['price_produc'] ?? 0, 2, ',', '.') }} {{ $only['moneda'] ?? 'COP' }}</div>
                                                  </div>
                                                  <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
-                                                     <option value="{{ $only['pxp_id'] }}" data-prov-id="{{ $only['id'] }}" data-price="{{ (float)($only['price_cop'] ?? 0) }}" data-price-original="{{ (float)($only['price_produc'] ?? 0) }}" data-currency-original="{{ $only['moneda'] ?? 'COP' }}" selected>{{ $only['prov_name'] }}</option>
+                                                     <option value="{{ $only['pxp_id'] ?? '' }}" data-prov-id="{{ $only['id'] ?? '' }}" data-price="{{ (float)($only['price_cop'] ?? ($only['price_produc'] ?? 0)) }}" data-price-original="{{ (float)($only['price_produc'] ?? 0) }}" data-currency-original="{{ $only['moneda'] ?? 'COP' }}" selected>{{ $only['prov_name'] ?? 'Proveedor' }}</option>
                                                  </select>
                                              </div>
                                           @else
@@ -202,24 +220,30 @@
                                                      <span class="text-sm font-medium">Seleccionar proveedor</span>
                                                  </button>
                                                  <div class="mt-1 w-56">
-                                                     <div id="selprov-name-{{ $req->id }}-{{ $prod->id }}" class="text-sm font-semibold truncate">{{ $selProvName ?? 'No seleccionado' }}</div>
+                                                     <div id="selprov-name-{{ $req->id }}-{{ $prod->id }}" class="text-sm font-semibold truncate">{{ $selectedName ?? 'No seleccionado' }}</div>
                                                  </div>
                                              </div>
 
                                               <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
                                                   <option value="">Seleccione</option>
                                                   @foreach($provJson as $pvj)
-                                                      <option value="{{ $pvj['pxp_id'] }}" data-prov-id="{{ $pvj['id'] }}" data-price="{{ (float)($pvj['price_cop'] ?? 0) }}" data-price-original="{{ (float)($pvj['price_produc'] ?? 0) }}" data-currency-original="{{ $pvj['moneda'] ?? 'COP' }}" {{ ($pivotPxpId && $pivotPxpId == $pvj['pxp_id']) ? 'selected' : '' }}>{{ $pvj['prov_name'] }} ({{ number_format($pvj['price_produc'],2,',','.') }} {{ $pvj['moneda'] }})</option>
+                                                      <option value="{{ $pvj['pxp_id'] }}" data-prov-id="{{ $pvj['id'] }}" data-price="{{ (float)($pvj['price_cop'] ?? ($pvj['price_produc'] ?? 0)) }}" data-price-original="{{ (float)($pvj['price_produc'] ?? 0) }}" data-currency-original="{{ $pvj['moneda'] ?? 'COP' }}" {{ ($pivotPxpId && $pivotPxpId == $pvj['pxp_id']) ? 'selected' : '' }}>{{ $pvj['prov_name'] }} ({{ number_format($pvj['price_produc'],2,',','.') }} {{ $pvj['moneda'] }})</option>
                                                   @endforeach
                                                </select>
                                           @endif
                                      @else
-                                        <div class="text-sm truncate">{{ $selProvName ?? ($provName ?? ($provList->first()->prov_name ?? 'Proveedor')) }}</div>
+                                        <div class="text-sm truncate">{{ $selectedName ?? 'Proveedor' }}</div>
+                                        <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
+                                            @php $pxpId = $pivotPxpId ?? ($selected['pxp_id'] ?? ($selected->pxp_id ?? '')); @endphp
+                                            @if($pxpId)
+                                                <option value="{{ $pxpId }}" data-prov-id="{{ $selected['id'] ?? ($selected->id ?? '') }}" data-price="{{ (float)($selected['price_cop'] ?? ($selected->price_cop ?? $selectedPrice)) }}" data-price-original="{{ (float)($selected['price_produc'] ?? ($selected->price_produc ?? $selectedPrice)) }}" data-currency-original="{{ $selected['moneda'] ?? ($selected->moneda ?? $selectedCurrency) }}" selected>{{ $selectedName ?? 'Proveedor' }}</option>
+                                            @endif
+                                        </select>
                                      @endif
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <div class="text-sm" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selPrice,2,',','.') }} {{ $prod->selCurrency ?? 'COP' }}</div>
-                                    <div class="text-xs text-gray-500" id="preciocop-{{ $req->id }}-{{ $prod->id }}">{{ number_format($prod->selPriceCop ?? $selPrice,2,',','.') }} COP</div>
+                                    <div class="text-sm" id="precio-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selectedPrice,2,',','.') }} {{ $selectedCurrency }}</div>
+                                    <div class="text-xs text-gray-500" id="preciocop-{{ $req->id }}-{{ $prod->id }}">{{ number_format($selectedPriceCop,2,',','.') }} COP</div>
                                 </td>
                                 <td class="px-4 py-3 text-right font-semibold"><span class="total-cell" id="total-{{ $req->id }}-{{ $prod->id }}">{{ number_format($totalProd,2,',','.') }}</span> COP</td>
                                 <td class="px-4 py-3">
