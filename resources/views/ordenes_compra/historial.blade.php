@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Historial de Órdenes de Compra')
-
+    <link rel="icon" type="image/png" href="{{ asset('images/favicon1.png') }}">
 @section('content')
 <x-sidebar />
 
