@@ -187,11 +187,33 @@
                                     }
                                 }
 
+                                // Fallback: si no se encontró en provJson y hay id de pxp, consultar BD
+                                $fallbackRow = null;
+                                if (!$selected && $pivotPxpId) {
+                                    try {
+                                        $fallbackRow = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
+                                            ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
+                                            ->where('pxp.id', $pivotPxpId)
+                                            ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc','pxp.moneda')
+                                            ->first();
+                                    } catch (\Throwable $e) { $fallbackRow = null; }
+                                }
+
                                 // valores a mostrar
-                                $selectedName = $selProvName ?: ($selected['prov_name'] ?? ($selected->prov_name ?? null));
-                                $selectedPrice = $selPrice ?: (float) ($selected['price_produc'] ?? ($selected->price_produc ?? 0));
-                                $selectedCurrency = $prod->selCurrency ?? ($selected['moneda'] ?? ($selected->moneda ?? 'COP'));
-                                $selectedPriceCop = (float) ($prod->selPriceCop ?? ($selected['price_cop'] ?? ($selected->price_cop ?? $selectedPrice)));
+                                $selectedName = $selProvName
+                                    ?: ($selected['prov_name'] ?? ($selected->prov_name ?? null))
+                                    ?: ($fallbackRow->prov_name ?? null);
+
+                                $selectedPrice = $selPrice
+                                    ?: (float) ($selected['price_produc'] ?? ($selected->price_produc ?? 0))
+                                    ?: (float) ($fallbackRow->price_produc ?? 0);
+
+                                $selectedCurrency = $prod->selCurrency
+                                    ?? ($selected['moneda'] ?? ($selected->moneda ?? null))
+                                    ?? ($fallbackRow->moneda ?? 'COP');
+
+                                $selectedPriceCop = (float) ($prod->selPriceCop ?? ($selected['price_cop'] ?? ($selected->price_cop ?? 0)));
+                                if (!$selectedPriceCop) { $selectedPriceCop = ($selectedCurrency === 'COP') ? $selectedPrice : $selectedPrice; }
 
                                 $totalProd = round(((float)$selectedPrice ?: 0) * $cantidad, 2);
                                 $totalGeneral = round($totalGeneral + $totalProd, 2);
@@ -234,9 +256,16 @@
                                      @else
                                         <div class="text-sm truncate">{{ $selectedName ?? 'Proveedor' }}</div>
                                         <select class="prov-select hidden" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
-                                            @php $pxpId = $pivotPxpId ?? ($selected['pxp_id'] ?? ($selected->pxp_id ?? '')); @endphp
+                                            @php
+                                                $pxpId = $pivotPxpId ?? ($selected['pxp_id'] ?? ($selected->pxp_id ?? ''));
+                                                $optProvId = $selected['id'] ?? ($selected->id ?? ($fallbackRow->prov_id ?? ''));
+                                                $optPriceCop = (float)($selected['price_cop'] ?? ($selected->price_cop ?? $selectedPrice));
+                                                if (!$optPriceCop) { $optPriceCop = $selectedPrice; }
+                                                $optPriceOrig = (float)($selected['price_produc'] ?? ($selected->price_produc ?? $selectedPrice));
+                                                $optCurrency = $selected['moneda'] ?? ($selected->moneda ?? $selectedCurrency);
+                                            @endphp
                                             @if($pxpId)
-                                                <option value="{{ $pxpId }}" data-prov-id="{{ $selected['id'] ?? ($selected->id ?? '') }}" data-price="{{ (float)($selected['price_cop'] ?? ($selected->price_cop ?? $selectedPrice)) }}" data-price-original="{{ (float)($selected['price_produc'] ?? ($selected->price_produc ?? $selectedPrice)) }}" data-currency-original="{{ $selected['moneda'] ?? ($selected->moneda ?? $selectedCurrency) }}" selected>{{ $selectedName ?? 'Proveedor' }}</option>
+                                                <option value="{{ $pxpId }}" data-prov-id="{{ $optProvId }}" data-price="{{ $optPriceCop }}" data-price-original="{{ $optPriceOrig }}" data-currency-original="{{ $optCurrency }}" selected>{{ $selectedName ?? 'Proveedor' }}</option>
                                             @endif
                                         </select>
                                      @endif
