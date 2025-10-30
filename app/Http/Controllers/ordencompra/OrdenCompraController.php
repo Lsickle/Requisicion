@@ -323,6 +323,9 @@ class OrdenCompraController extends Controller
                     $ocpId = $productoData['ocp_id'] ?? null;
                     $stockE = isset($productoData['stock_e']) && $productoData['stock_e'] !== '' ? (int)$productoData['stock_e'] : null;
 
+                    // Asegurar pxp_id en pivot producto_requisicion
+                    try { $this->setProductRequisitionPxpId((int)$request->requisicion_id, (int)$productoId, (int)$provId); } catch (\Throwable $e) { Log::warning('setProductRequisitionPxpId fallo (store, pre-linea): '.$e->getMessage()); }
+
                     if ($ocpId) {
                         $ocp = OrdenCompraProducto::where('id', $ocpId)
                             ->whereNull('orden_compras_id')
@@ -350,6 +353,8 @@ class OrdenCompraController extends Controller
                             $ocp->apply_iva = null;
                         }
                         $ocp->orden_compras_id = $orden->id;
+                        // Reintentar fijar pxp_id por si proveedor cambió
+                        try { $this->setProductRequisitionPxpId((int)$request->requisicion_id, (int)$productoId, (int)$provId); } catch (\Throwable $e) { /* noop */ }
 
                         // Obtener precio y moneda del proveedor seleccionado
                         $precioOriginalRaw = null; $cur = 'COP';
@@ -558,6 +563,9 @@ class OrdenCompraController extends Controller
                 $ordenesCreadas[] = $orden;
             }
 
+            // Sincronizar pxp en producto_requisicion con las líneas creadas
+            try { $this->syncPxpIdsForRequisition((int)$request->requisicion_id); } catch (\Throwable $e) { Log::warning('syncPxpIdsForRequisition fallo: '.$e->getMessage()); }
+
             // Generar PDF y enviar correos por cada orden creada
             foreach ($ordenesCreadas as $orden) {
                 try {
@@ -665,6 +673,9 @@ class OrdenCompraController extends Controller
                     'proveedor_id'     => $provId, // puede ser null ahora
                     'total'            => (int)$dist['cantidad'],
                 ]);
+
+                // Fijar pxp_id en producto_requisicion si es posible (por proveedor, o único pxp del producto)
+                try { $this->setProductRequisitionPxpId((int)$requisicionId, (int)$productoId, $provId ? (int)$provId : null); } catch (\Throwable $e) { Log::warning('setProductRequisitionPxpId fallo (distribucion): '.$e->getMessage()); }
 
                 $prov = $provId ? Proveedor::find($provId) : null;
 
@@ -1060,6 +1071,9 @@ class OrdenCompraController extends Controller
         }
     }
 
+    /**
+     * Descargar un archivo PDF de la orden de compra
+     */
     public function download($requisicionId)
     {
         // Marcar estatus 5 (OC generada) o 10 si ya está completa
@@ -1961,6 +1975,65 @@ class OrdenCompraController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function setProductRequisitionPxpId(int $requisicionId, int $productoId, ?int $proveedorId = null): ?int
+    {
+        try {
+            $current = DB::table('producto_requisicion')
+                ->where('id_requisicion', $requisicionId)
+                ->where('id_producto', $productoId)
+                ->value('id_productoxproveedor');
+
+            $targetPxpId = null;
+            if ($proveedorId) {
+                $targetPxpId = DB::table('productoxproveedor')
+                    ->where('producto_id', $productoId)
+                    ->where('proveedor_id', $proveedorId)
+                    ->orderBy('id')
+                    ->value('id');
+            }
+            if (!$targetPxpId) {
+                $rows = DB::table('productoxproveedor')
+                    ->where('producto_id', $productoId)
+                    ->orderBy('id')
+                    ->pluck('id');
+                if ($rows->count() === 1) { $targetPxpId = (int)$rows->first(); }
+            }
+            if ($targetPxpId && ((int)$current !== (int)$targetPxpId)) {
+                DB::table('producto_requisicion')
+                    ->where('id_requisicion', $requisicionId)
+                    ->where('id_producto', $productoId)
+                    ->update(['id_productoxproveedor' => (int)$targetPxpId]);
+                return (int)$targetPxpId;
+            }
+            return $current ? (int)$current : null;
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo fijar id_productoxproveedor: '.$e->getMessage());
+        }
+        return null;
+    }
+
+    private function syncPxpIdsForRequisition(int $requisicionId): void
+    {
+        // Para cada producto en la requisición, si hay proveedor definido en alguna línea OC, fijar pxp
+        $pairs = DB::table('ordencompra_producto')
+            ->where('requisicion_id', $requisicionId)
+            ->whereNull('deleted_at')
+            ->select('producto_id', 'proveedor_id')
+            ->whereNotNull('proveedor_id')
+            ->groupBy('producto_id', 'proveedor_id')
+            ->get();
+        foreach ($pairs as $p) {
+            try { $this->setProductRequisitionPxpId($requisicionId, (int)$p->producto_id, (int)$p->proveedor_id); } catch (\Throwable $e) { /* noop */ }
+        }
+        // Además, para productos sin líneas OC pero con un único pxp, fijarlo
+        $prodIds = DB::table('producto_requisicion')
+            ->where('id_requisicion', $requisicionId)
+            ->pluck('id_producto');
+        foreach ($prodIds as $pid) {
+            try { $this->setProductRequisitionPxpId($requisicionId, (int)$pid, null); } catch (\Throwable $e) { /* noop */ }
         }
     }
 }

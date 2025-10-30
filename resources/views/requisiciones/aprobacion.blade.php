@@ -242,14 +242,14 @@
                                                  </div>
                                              </div>
 
-                                              <select class="prov-select hidden" name="prov_select[{{ $prod->id }}]" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
-                                                  <option value="">Seleccione</option>
-                                                  @foreach($provJson as $pvj)
-                                                      <option value="{{ $pvj['pxp_id'] }}" data-prov-id="{{ $pvj['id'] }}" data-price="{{ (float)($pvj['price_cop'] ?? ($pvj['price_produc'] ?? 0)) }}" data-price-original="{{ (float)($pvj['price_produc'] ?? 0) }}" data-currency-original="{{ $pvj['moneda'] ?? 'COP' }}" {{ ($pxpId && $pxpId == $pvj['pxp_id']) ? 'selected' : '' }}>{{ $pvj['prov_name'] }} ({{ number_format($pvj['price_produc'],2,',','.') }} {{ $pvj['moneda'] }})</option>
-                                                  @endforeach
-                                               </select>
-                                          @endif
-                                     @else
+                                            <select class="prov-select hidden" name="prov_select[{{ $prod->id }}]" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
+                                                <option value="">Seleccione</option>
+                                                @foreach($provJson as $pvj)
+                                                    <option value="{{ $pvj['pxp_id'] }}" data-prov-id="{{ $pvj['id'] }}" data-price="{{ (float)($pvj['price_cop'] ?? ($pvj['price_produc'] ?? 0)) }}" data-price-original="{{ (float)($pvj['price_produc'] ?? 0) }}" data-currency-original="{{ $pvj['moneda'] ?? 'COP' }}" {{ ($pxpId && $pxpId == $pvj['pxp_id']) ? 'selected' : '' }}>{{ $pvj['prov_name'] }} ({{ number_format($pvj['price_produc'],2,',','.') }} {{ $pvj['moneda'] }})</option>
+                                                @endforeach
+                                            </select>
+                                        @endif
+                                    @else
                                         <div class="text-sm truncate">{{ $selectedName ?? 'Proveedor' }}</div>
                                         <select class="prov-select hidden" name="prov_select[{{ $prod->id }}]" data-req="{{ $req->id }}" data-prod="{{ $prod->id }}" data-qty="{{ $cantidad }}">
                                             @php
