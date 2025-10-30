@@ -17,7 +17,6 @@ use App\Http\Controllers\productos\ProductosController;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
-use App\Http\Controllers\Proveedores\ProveedoresController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
@@ -313,8 +312,6 @@ Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
 
 Route::view('/index', 'index')->name('index');
 
-
-Route::resource('proveedores', ProveedoresController::class);
 
 // Ruta para notificar por correo al añadir el producto solicitado
 Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class, 'notifyAdded'])->name('nuevo_producto.notifyAdded');
