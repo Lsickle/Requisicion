@@ -66,78 +66,112 @@
 
 @section('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('productoForm');
-        
-        form.addEventListener('submit', function(event) {
-            event.preventDefault();
-            
-            let isValid = true;
-            const nombre = document.getElementById('nombre');
-            const descripcion = document.getElementById('descripcion');
-            
-            // Reset errors
-            nombre.classList.remove('border-red-500');
-            descripcion.classList.remove('border-red-500');
-            
-            // Validar nombre
-            if (!nombre.value.trim()) {
-                isValid = false;
-                nombre.classList.add('border-red-500');
-            }
-            
-            // Validar descripción
-            if (!descripcion.value.trim()) {
-                isValid = false;
-                descripcion.classList.add('border-red-500');
-            }
-            
-            if (!isValid) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Por favor, completa todos los campos correctamente.',
-                    confirmButtonColor: '#2563eb'
-                });
-                return;
-            }
-            
-            // Confirmación antes de enviar
-            Swal.fire({
-                title: '¿Confirmar envío?',
-                text: "¿Estás seguro de que deseas solicitar este producto?",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#2563eb',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Sí, solicitar',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Mostrar alerta de carga
-                    Swal.fire({
-                        title: 'Enviando solicitud...',
-                        text: 'Por favor espera mientras procesamos tu solicitud.',
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('productoForm');
+    if (!form) return;
 
-                    form.submit();
+    // obtener token CSRF desde el formulario
+    const csrfToken = form.querySelector('input[name="_token"]')?.value || '';
+
+    function showValidationError(messages) {
+        let html = '<ul style="text-align:left;margin:0;padding-left:18px;">';
+        messages.forEach(m => { html += `<li>${m}</li>`; });
+        html += '</ul>';
+        Swal.fire({ icon: 'error', title: 'Error', html: html, confirmButtonColor: '#2563eb' });
+    }
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const nombre = document.getElementById('nombre');
+        const descripcion = document.getElementById('descripcion');
+
+        // Reset visual errors
+        nombre.classList.remove('border-red-500');
+        descripcion.classList.remove('border-red-500');
+
+        // Client-side validation
+        const errors = [];
+        if (!nombre || !nombre.value.trim()) { errors.push('El nombre es requerido'); nombre.classList.add('border-red-500'); }
+        if (!descripcion || !descripcion.value.trim()) { errors.push('La descripción es requerida'); descripcion.classList.add('border-red-500'); }
+
+        if (errors.length) {
+            showValidationError(errors);
+            return;
+        }
+
+        // Confirmación con SweetAlert
+        Swal.fire({
+            title: '¿Confirmar envío?',
+            text: "¿Estás seguro de que deseas solicitar este producto?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, solicitar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            // Mostrar loading
+            Swal.fire({ title: 'Enviando solicitud...', text: 'Por favor espera...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            // Enviar por fetch (AJAX) para manejar respuesta y errores sin depender del comportamiento de submit del navegador
+            const fd = new FormData(form);
+
+            fetch(form.action, {
+                method: (form.method || 'POST').toUpperCase(),
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                },
+                body: fd
+            }).then(async (res) => {
+                let data = null;
+                try { data = await res.json(); } catch (e) { data = null; }
+
+                // Si el servidor redirige (res.redirected), seguir la redirección
+                if (res.redirected) {
+                    window.location.href = res.url;
+                    return;
                 }
+
+                // Cerrar loading antes de mostrar resultado
+                Swal.close();
+
+                if (res.ok) {
+                    // Si envia mensaje de éxito en JSON
+                    const msg = (data && (data.success ? (data.message || 'Solicitud enviada') : (data.message || '')) ) || 'Solicitud enviada';
+                    Swal.fire({ icon: 'success', title: '¡Éxito!', text: msg, confirmButtonColor: '#2563eb' }).then(() => {
+                        // Si el servidor indica una ruta de redirect, usarla; sino recargar
+                        if (data && data.redirect) window.location.href = data.redirect;
+                        else window.location.reload();
+                    });
+                } else {
+                    // Manejar errores de validación u otros
+                    if (data && data.errors) {
+                        // data.errors puede ser objeto de arrays
+                        const msgs = [];
+                        Object.keys(data.errors).forEach(k => { (data.errors[k] || []).forEach(m => msgs.push(m)); });
+                        showValidationError(msgs);
+                    } else if (data && data.message) {
+                        Swal.fire({ icon: 'error', title: 'Error', text: data.message, confirmButtonColor: '#2563eb' });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: 'Error al enviar la solicitud', confirmButtonColor: '#2563eb' });
+                    }
+                }
+            }).catch((err) => {
+                console.error('Network error sending nuevo producto:', err);
+                Swal.close();
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Error de red al enviar la solicitud', confirmButtonColor: '#2563eb' });
             });
         });
-        
-        // Mostrar alerta de éxito si viene de una redirección con sesión flash
-        @if(session('success'))
-        Swal.fire({
-            icon: 'success',
-            title: '¡Éxito!',
-            text: '{{ session('success') }}',
-            confirmButtonColor: '#2563eb'
-        });
-        @endif
     });
+
+    // Mostrar alerta de éxito si viene de una redirección con sesión flash (caso no-AJAX)
+    @if(session('success'))
+        Swal.fire({ icon: 'success', title: '¡Éxito!', text: '{{ session('success') }}', confirmButtonColor: '#2563eb' });
+    @endif
+});
 </script>
 @endsection

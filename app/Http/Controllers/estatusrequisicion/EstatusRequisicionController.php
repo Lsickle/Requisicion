@@ -237,29 +237,45 @@ class EstatusRequisicionController extends Controller
             $hasRole = fn($name)=> in_array(mb_strtolower($name,'UTF-8'), $rolesLower, true);
             $hasAdmin = $hasRole('Admin requisicion');
 
-            // Reglas por estatus actual
-            $allowedNext = [];
-            if ($currentStatus == 1) {
-                if (!($hasRole('Area de compras') || $hasAdmin)) { return response()->json(['success'=>false,'message'=>'Solo Área de compras o Admin pueden aprobar estatus 1'],403); }
-                // Si operación especial, permitir salto directo a 3
-                $allowedNext = $operacionEspecial ? [2,3,9] : [2,9];
-                if ($hasAdmin) { $allowedNext = array_unique(array_merge($allowedNext,[3])); }
-            } elseif ($currentStatus == 2) {
-                if (!($hasAdmin || $hasRole('Gerente operaciones') || $hasRole('Gerente talento humano') || $hasRole('Director de proyectos') || $hasRole('Director contable') || $hasRole('Gerente financiero'))) {
-                    return response()->json(['success'=>false,'message'=>'No puedes aprobar requisiciones en estatus 2'],403);
+            // NUEVO: asegurar id_productoxproveedor desde servidor si falta (evita depender de la vista)
+            try {
+                foreach ($requisicion->productos as $prod) {
+                    $productoId = $prod->id;
+                    $existing = DB::table('producto_requisicion')
+                        ->where('id_requisicion', $requisicionId)
+                        ->where('id_producto', $productoId)
+                        ->value('id_productoxproveedor');
+                    if (!empty($existing)) {
+                        continue;
+                    }
+
+                    // 1) intentar por proveedor en pivot
+                    $pivotProvId = $prod->pivot->proveedor_id ?? null;
+                    $foundPxp = null;
+                    if ($pivotProvId) {
+                        $foundPxp = DB::table('productoxproveedor')
+                            ->where('producto_id', $productoId)
+                            ->where('proveedor_id', $pivotProvId)
+                            ->whereNull('deleted_at')
+                            ->value('id');
+                    }
+
+                    // 2) si no, si sólo existe una fila productoxproveedor para el producto usarla
+                    if (!$foundPxp) {
+                        $rows = DB::table('productoxproveedor')
+                            ->where('producto_id', $productoId)
+                            ->whereNull('deleted_at')
+                            ->pluck('id');
+                        if ($rows->count() === 1) { $foundPxp = (int) $rows->first(); }
+                    }
+
+                    // 3) si se encontró, asegurar pivot
+                    if ($foundPxp) {
+                        try { $this->ensurePivotPxp($requisicionId, $productoId, (int)$foundPxp); } catch (\Throwable $e) { Log::warning('auto-assign pxp failed', ['req'=>$requisicionId,'prod'=>$productoId,'err'=>$e->getMessage()]); }
+                    }
                 }
-                $allowedNext = [3,9];
-            } elseif ($currentStatus == 3) {
-                if (!($hasAdmin || $hasRole('Director contable') || $hasRole('Gerente financiero'))) {
-                    return response()->json(['success'=>false,'message'=>'No puedes aprobar requisiciones en estatus 3'],403);
-                }
-                $allowedNext = [4,9];
-            } else {
-                return response()->json(['success'=>false,'message'=>'Estatus actual no gestionable desde este panel'],403);
-            }
-            // Ya no se fuerza salto; si target=3 desde 1 en operaciones especiales, se insertará 2 como intermedio histórico.
-            if (!in_array($targetStatus, $allowedNext, true)) {
-                return response()->json(['success'=>false,'message'=>'Transición no permitida desde el estatus actual'],403);
+            } catch (\Throwable $e) {
+                Log::warning('auto-assign pxp loop failed', ['req'=>$requisicionId,'err'=>$e->getMessage()]);
             }
 
             // Si el frontend envío proveedores seleccionados (pxp_id), procesarlos y asegurar id_productoxproveedor en producto_requisicion

@@ -77,8 +77,8 @@
             @if($hasPermission('total requisiciones'))
             <li>
                 <a href="{{ route('requisiciones.todas') }}"
-                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
-                    de requisiciones</a>
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Todas las
+                    requisiciones</a>
             </li>
             @endif
 
@@ -96,6 +96,11 @@
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">gestión de productos</a>
             </li>
             @endif
+
+            <li>
+                <a href="{{ route('centros.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Gestión de Centros</a>
+            </li>
 
         </ul>
 

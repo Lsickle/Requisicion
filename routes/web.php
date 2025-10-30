@@ -17,11 +17,11 @@ use App\Http\Controllers\productos\ProductosController;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
-use App\Http\Controllers\Proveedores\ProveedoresController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
 use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
+use App\Http\Controllers\centros\CentroController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -300,6 +300,18 @@ Route::middleware([AuthSession::class])->group(function () {
     // Endpoint para obtener usuarios desde servicio VPL_CORE (proxy)
     Route::get('requisiciones/usuarios-external', [RequisicionController::class, 'fetchExternalUsers'])
         ->name('requisiciones.usuarios_external');
+
+    // Rutas para gestión de centros y subcentros
+    Route::prefix('centros')->name('centros.')->group(function(){
+        Route::get('/', [CentroController::class, 'index'])->name('index');
+        Route::post('/', [CentroController::class, 'store'])->name('store');
+        Route::put('/{id}', [CentroController::class, 'update'])->name('update');
+        Route::delete('/{id}', [CentroController::class, 'destroy'])->name('destroy');
+
+        Route::post('/{centro}/subcentros', [CentroController::class, 'storeSubcentro'])->name('subcentros.store');
+        Route::put('/subcentros/{id}', [CentroController::class, 'updateSubcentro'])->name('subcentros.update');
+        Route::delete('/subcentros/{id}', [CentroController::class, 'destroySubcentro'])->name('subcentros.destroy');
+    });
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista
@@ -313,8 +325,6 @@ Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
 
 Route::view('/index', 'index')->name('index');
 
-
-Route::resource('proveedores', ProveedoresController::class);
 
 // Ruta para notificar por correo al añadir el producto solicitado
 Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class, 'notifyAdded'])->name('nuevo_producto.notifyAdded');
