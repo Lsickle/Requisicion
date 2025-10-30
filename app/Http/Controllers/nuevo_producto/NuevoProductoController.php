@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use App\Jobs\NuevoProductoSolicitadoJob;
 use App\Jobs\SendRequestedProductAddedEmail;
 use App\Jobs\SendRequestedProductRejectedEmail;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 
 class NuevoProductoController extends Controller
@@ -67,17 +69,41 @@ class NuevoProductoController extends Controller
                 'email_user'  => $emailUser,
             ]);
 
-            // Despachar el Job para enviar el correo
-            NuevoProductoSolicitadoJob::dispatch($nuevoProducto);
+            // Despachar el Job para enviar el correo (no debe romper el flujo si falla)
+            $mailError = null;
+            try {
+                NuevoProductoSolicitadoJob::dispatch($nuevoProducto);
+            } catch (\Throwable $e) {
+                // Registrar y continuar: la creación del registro no debe fallar por problemas SMTP/queue
+                $mailError = $e->getMessage();
+                \Illuminate\Support\Facades\Log::warning('NuevoProductoController::store - mail dispatch failed: ' . $mailError, ['producto_id' => $nuevoProducto->id]);
+            }
 
             DB::commit();
 
+            $message = 'Solicitud de producto creada exitosamente.';
+            if ($mailError) {
+                // Registrar detalle técnico en log y mostrar advertencia genérica al usuario
+                Log::warning('NuevoProductoController::store - mail dispatch error: ' . $mailError, ['producto_id' => $nuevoProducto->id]);
+                $message .= ' (Advertencia: Error en la notificación del correo.)';
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([ 'success' => true, 'message' => $message, 'redirect' => route('productos.nuevoproducto') ], 200);
+            }
+
             return redirect()->route('productos.nuevoproducto')
-                ->with('success', 'Solicitud de producto creada exitosamente. Se ha enviado una notificación.');
+                ->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
+
+            $errMsg = 'Error al crear la solicitud: ' . $e->getMessage();
+            if ($request->expectsJson()) {
+                return response()->json([ 'success' => false, 'message' => $errMsg ], 500);
+            }
+
             return back()->withInput()->withErrors([
-                'error' => 'Error al crear la solicitud: ' . $e->getMessage()
+                'error' => $errMsg
             ]);
         }
     }
