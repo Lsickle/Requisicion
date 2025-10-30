@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class ProveedoresController extends Controller
 {
@@ -31,34 +32,52 @@ class ProveedoresController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'prov_name'    => 'required|string|max:255',
-            'prov_descrip' => 'required|string',
-            'prov_nit'     => 'required|string|max:255|unique:proveedores,prov_nit',
-            'prov_name_c'  => 'required|string|max:255',
-            'prov_phone'   => 'required|string|max:255',
-            'prov_adress'  => 'required|string|max:255',
-            'prov_city'    => 'required|string|max:255',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'prov_name'    => 'required|string|max:255',
+                'prov_descrip' => 'required|string',
+                'prov_nit'     => 'required|string|max:255|unique:proveedores,prov_nit',
+                'prov_name_c'  => 'required|string|max:255',
+                'prov_phone'   => 'required|string|max:255',
+                'prov_adress'  => 'required|string|max:255',
+                'prov_city'    => 'required|string|max:255',
+                'prov_email'  => 'required|email|max:255',
+                'methods_oc' => 'nullable|string|max:255',
+                'plazo_oc' => 'nullable|string|max:255',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            if ($validator->fails()) {
+                if ($request->expectsJson()) {
+                    return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+                }
+                return redirect()->back()->withErrors($validator)->withInput();
+            }
+
+            $proveedor = Proveedor::create($request->only([
+                'prov_name',
+                'prov_descrip',
+                'prov_nit',
+                'prov_name_c',
+                'prov_phone',
+                'prov_adress',
+                'prov_city',
+                'prov_email',
+                'methods_oc',
+                'plazo_oc'
+            ]));
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => true, 'message' => 'Proveedor creado exitosamente.', 'provider' => $proveedor], 201);
+            }
+
+            return redirect()->back()->with('success', 'Proveedor creado exitosamente.');
+        } catch (\Throwable $e) {
+            Log::error('ProveedoresController@store error: ' . $e->getMessage());
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Error al crear el proveedor: ' . $e->getMessage()], 500);
+            }
+            return redirect()->back()->with('error', 'Error al crear el proveedor: ' . $e->getMessage());
         }
-
-        $proveedor = Proveedor::create($request->all());
-
-        // Obtener todos los proveedores actualizados para actualizar el select
-        $proveedores = Proveedor::orderBy('prov_name')->get();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Proveedor creado exitosamente',
-            'proveedor' => $proveedor,
-            'proveedores' => $proveedores
-        ], 201);
     }
 
     /**
