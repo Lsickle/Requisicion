@@ -798,7 +798,8 @@
 
 <!-- Loading overlay -->
 <div id="loadingOverlay"
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+    style="z-index:100200 !important;">
     <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
         <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
         <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
