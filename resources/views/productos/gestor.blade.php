@@ -93,93 +93,70 @@
                     </thead>
                     <tbody>
                         @foreach($productos as $producto)
-                        @php
-                            // Obtener proveedores asociados y precios desde la tabla productoxproveedor
-                            $provList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
-                                ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
-                                ->where('pxp.producto_id', $producto->id)
-                                ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc','pxp.moneda')
-                                ->orderBy('pxp.id','asc')
-                                ->get();
-                            $firstProv = $provList->first();
-                        @endphp
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
-                            <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
-                            <td class="px-4 py-2" data-col="proveedor">
-                                @if($provList && $provList->count())
-                                    <ul class="text-sm">
-                                        @foreach($provList as $pv)
-                                            <li>{{ $pv->prov_name }} <small class="text-gray-500">(${{ number_format($pv->price_produc,2) }} {{ $pv->moneda ?? '' }})</small></li>
-                                        @endforeach
-                                    </ul>
-                                @else
-                                    N/A
-                                @endif
-                            </td>
-                            <td class="px-4 py-2">{{ number_format($producto->stock_produc, 0) }}</td>
-                            <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
-                            <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
-                            <td class="px-4 py-2" data-col="estado">
-                                @if($producto->trashed())
-                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
-                                @else
-                                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-2 text-center">
-                                <div class="flex justify-center space-x-2">
-                                    @if($producto->trashed())
-                                    <form action="{{ route('productos.restore', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="showLoading(event)">
-                                        @csrf
-                                        @method('POST')
-                                        <button type="submit" class="text-green-600 hover:text-green-800"
-                                            title="Restaurar">
-                                            <i class="fas fa-undo"></i>
-                                        </button>
-                                    </form>
-                                    <form action="{{ route('productos.forceDelete', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="return confirmDelete(event)">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800"
-                                            title="Eliminar Permanentemente">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
+                            @if(!$producto->trashed())
+                            @php
+                                // Obtener proveedores asociados y precios desde la tabla productoxproveedor
+                                $provList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
+                                    ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
+                                    ->where('pxp.producto_id', $producto->id)
+                                    ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc','pxp.moneda')
+                                    ->orderBy('pxp.id','asc')
+                                    ->get();
+                                $firstProv = $provList->first();
+                            @endphp
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
+                                <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
+                                <td class="px-4 py-2" data-col="proveedor">
+                                    @if($provList && $provList->count())
+                                        <ul class="text-sm">
+                                            @foreach($provList as $pv)
+                                                <li>{{ $pv->prov_name }} <small class="text-gray-500">(${!! number_format($pv->price_produc,2) !!} {{ $pv->moneda ?? '' }})</small></li>
+                                            @endforeach
+                                        </ul>
                                     @else
-                                    @php
-                                        // Valores por defecto para el modal: usar el primer proveedor si existe
-                                        $editProvId = $firstProv->prov_id ?? 'null';
-                                        $editPrice = $firstProv->price_produc ?? 0;
-                                    @endphp
-                                    <button
-                                        data-providers='@json($provList)'
-                                        onclick="openEditModal(this, {{ $producto->id }}, '{{ addslashes($producto->name_produc) }}', '{{ addslashes($producto->categoria_produc) }}', {{ $producto->stock_produc }}, {{ $editPrice }}, {{ $producto->iva ?? 0 }}, '{{ addslashes($producto->unit_produc) }}', `{{ addslashes($producto->description_produc) }}`)"
-                                        class="text-blue-600 hover:text-blue-800" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <!-- Botón para gestionar proveedores (abre modal separado) -->
-                                    <button
-                                        data-providers='@json($provList)'
-                                        data-product-name="{{ addslashes($producto->name_produc) }}"
-                                        onclick="openManageProvidersModal(this, {{ $producto->id }})"
-                                        class="text-yellow-600 hover:text-yellow-800" title="Gestionar Proveedores">
-                                        <i class="fas fa-boxes"></i>
-                                    </button>
-                                    <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="return confirmDelete(event)">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
+                                        N/A
                                     @endif
-                                </div>
-                            </td>
-                        </tr>
+                                </td>
+                                <td class="px-4 py-2">{{ number_format($producto->stock_produc, 0) }}</td>
+                                <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
+                                <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
+                                <td class="px-4 py-2" data-col="estado">
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
+                                </td>
+                                <td class="px-4 py-2 text-center">
+                                    <div class="flex justify-center space-x-2">
+                                        @php
+                                            // Valores por defecto para el modal: usar el primer proveedor si existe
+                                            $editProvId = $firstProv->prov_id ?? 'null';
+                                            $editPrice = $firstProv->price_produc ?? 0;
+                                        @endphp
+                                        <button
+                                            data-providers='@json($provList)'
+                                            onclick="openEditModal(this, {{ $producto->id }}, '{{ addslashes($producto->name_produc) }}', '{{ addslashes($producto->categoria_produc) }}', {{ $producto->stock_produc }}, {{ $editPrice }}, {{ $producto->iva ?? 0 }}, '{{ addslashes($producto->unit_produc) }}', `{{ addslashes($producto->description_produc) }}`)"
+                                            class="text-blue-600 hover:text-blue-800" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <!-- Botón para gestionar proveedores (abre modal separado) -->
+                                        <button
+                                            data-providers='@json($provList)'
+                                            data-product-name="{{ addslashes($producto->name_produc) }}"
+                                            onclick="openManageProvidersModal(this, {{ $producto->id }})"
+                                            class="text-yellow-600 hover:text-yellow-800" title="Gestionar Proveedores">
+                                            <i class="fas fa-boxes"></i>
+                                        </button>
+                                        <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
+                                            class="inline" onsubmit="return confirmDelete(event)">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            @endif
                         @endforeach
                     </tbody>
                 </table>

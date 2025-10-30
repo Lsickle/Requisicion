@@ -1201,7 +1201,7 @@ class OrdenCompraController extends Controller
             if ($lineas instanceof \Illuminate\Support\Collection && $lineas->count()) {
                 $withProv = $lineas->first(fn($l) => !empty($l->proveedor_id));
                 if ($withProv) {
-                    $proveedor = $withProv->proveedor ?: Proveedor::find($withProv->proveedor_id);
+                    $proveedor = $withProv->proveedor ?: \App\Models\Proveedor::find($withProv->proveedor_id);
                 }
                 if (!$proveedor) {
                     $firstLinea = $lineas->first();
@@ -1211,13 +1211,18 @@ class OrdenCompraController extends Controller
                             ->where('producto_id', $pid)
                             ->orderBy('id')
                             ->value('proveedor_id');
-                        if ($provId) { $proveedor = Proveedor::find($provId); }
+                        if ($provId) { $proveedor = \App\Models\Proveedor::find($provId); }
                     }
                 }
             }
         } catch (\Throwable $e) { /* noop */ }
+
+        // Si no se resolvió proveedor por relaciones, intentar usar la primera línea (incluso soft-deleted)
         if (!$proveedor) {
-            $proveedor = optional($orden->ordencompraProductos->first())->proveedor;
+            $provId = optional(optional($orden->ordencompraProductos->first()))->proveedor_id;
+            if ($provId) {
+                try { $proveedor = \App\Models\Proveedor::withTrashed()->find($provId); } catch (\Throwable $e) { /* noop */ }
+            }
         }
 
         $items = [];
@@ -1227,10 +1232,16 @@ class OrdenCompraController extends Controller
         $orderCurrency = null;
 
         foreach ($porProducto as $productoId => $lineas) {
+            // Obtener producto; si la relación no existe (soft-deleted), buscar conTrashed
             $producto = optional($lineas->first())->producto;
-            if (!$producto) { continue; }
+            if (!$producto) {
+                try { $producto = \App\Models\Producto::withTrashed()->find($productoId); } catch (\Throwable $e) { $producto = null; }
+            }
+             if (!$producto) { continue; }
+
             $cantidad = (int) $lineas->sum('total');
 
+            // Determinar tasa de IVA aplicada (si alguna línea la define)
             $ivaRate = 0.0;
             foreach ($lineas as $ln) {
                 if ($ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
@@ -1240,8 +1251,7 @@ class OrdenCompraController extends Controller
                 }
             }
 
-            $unitPriceCop = null;
-            // Precio y moneda base (de proveedor)
+            // Precio y moneda base (de proveedor o producto)
             $provId = optional($proveedor)->id;
             $pxp = DB::table('productoxproveedor')
                 ->where('producto_id', $producto->id)
@@ -1254,23 +1264,25 @@ class OrdenCompraController extends Controller
                     ->orderBy('id')
                     ->first();
             }
-            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) { $proveedor = Proveedor::find($pxp->proveedor_id); }
+            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) { $proveedor = \App\Models\Proveedor::find($pxp->proveedor_id); }
+
             $priceRaw = (float)($pxp->price_produc ?? ($producto->price_produc ?? 0));
             $mon = strtoupper($pxp->moneda ?? ($producto->moneda ?? 'COP'));
 
-            // Si hay trm_oc en la línea, interpretarlo como tasa y convertir priceRaw
+            // Determinar precio unitario en COP
+            $unitPriceCop = null;
             $lineWithRate = $lineas->first(function($ln){ return $ln->trm_oc !== null && $ln->trm_oc !== ''; });
             if ($mon === 'COP') {
                 $unitPriceCop = round($priceRaw, 2);
             } else if ($lineWithRate) {
-                $rate = (float) $lineWithRate->trm_oc; // tasa COP por 1 unidad
+                $rate = (float) $lineWithRate->trm_oc;
                 $unitPriceCop = round($priceRaw * $rate, 2);
             } else {
                 $rate = $this->fetchExchangeRateServer($mon, 'COP');
                 $unitPriceCop = round(($rate ? ($priceRaw * $rate) : $priceRaw), 2);
             }
 
-            // Cálculos COP (compatibilidad)
+            // Cálculos COP
             $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
             $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
             $lineSubtotalCop = round($unitPriceCop * $cantidad, 2);
@@ -1293,12 +1305,10 @@ class OrdenCompraController extends Controller
                 'description_produc' => $producto->description_produc ?? '',
                 'unit_produc' => $producto->unit_produc ?? '',
                 'po_amount' => $cantidad,
-                // COP (no usado en PDF ahora, pero se mantiene)
                 'precio_unitario' => $unitPriceCop,
                 'iva' => $ivaRate * 100,
                 'precio_unitario_con_iva' => $unitWithIvaCop,
                 'total_con_iva' => $lineTotalWithIvaCop,
-                // Moneda original (usado en PDF)
                 'currency' => $mon,
                 'unit_price' => $priceRaw,
                 'unit_price_con_iva' => $unitWithIvaOrig,
@@ -1318,6 +1328,14 @@ class OrdenCompraController extends Controller
         }
 
         $totalOrigin = round($subtotalOrigin + $ivaTotalOrigin, 2);
+
+        // Asegurar proveedor aunque esté soft-deleted: si no se resolvió antes, intentar recuperar conTrashed por id de línea
+        if (empty($proveedor) || empty($proveedor->prov_name)) {
+            $firstProvId = optional($orden->ordencompraProductos->first())->proveedor_id;
+            if ($firstProvId) {
+                try { $provTmp = \App\Models\Proveedor::withTrashed()->find($firstProvId); if ($provTmp) $proveedor = $provTmp; } catch (\Throwable $e) { /* noop */ }
+            }
+        }
 
         return [
             'orden' => $orden,
@@ -1472,7 +1490,7 @@ class OrdenCompraController extends Controller
                     $existing->estatus = 1;
                     $existing->comentario = $comentario;
                     $existing->date_update = now();
-                    $existing->updated_at = now();
+
                     $existing->save();
                     return;
                 }
