@@ -31,9 +31,9 @@ class DatabaseSeeder extends Seeder
         //OrdenCompraEstatusSeeder::class,
 
         // Llamadas a seeders existentes
-        //ProveedoresSeeder::class,
-        //ProductosSeeder::class,
-        //ProductoxProveedorSeeder::class,
+        ProveedoresSeeder::class,
+        ProductosSeeder::class,
+        ProductoxProveedorSeeder::class,
     ]);
 }
 }

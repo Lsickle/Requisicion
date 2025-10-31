@@ -21,7 +21,12 @@ class ProductosSeeder extends Seeder
         $data = [];
         for ($i = 0; $i < 20; $i++) {
             $name = ucfirst($faker->words($faker->numberBetween(1,4), true));
+
+            // generar SKU alfanumérico único aproximado de 8 caracteres
+            $sku = strtoupper(substr(preg_replace('/[^A-Z0-9]/', '', $name) . bin2hex(random_bytes(3)), 0, 8));
+
             $data[] = [
+                'sku' => $sku,
                 'categoria_produc' => $faker->randomElement($categories),
                 'name_produc' => $name,
                 'stock_produc' => $faker->numberBetween(0, 500),

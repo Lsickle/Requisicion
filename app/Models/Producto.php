@@ -15,6 +15,7 @@ class Producto extends Model
     protected $table = 'productos';
 
     protected $fillable = [
+        'sku',
         'categoria_produc',
         'name_produc',
         'stock_produc',

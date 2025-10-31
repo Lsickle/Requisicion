@@ -215,9 +215,9 @@
                 @foreach ($productos as $p)
                 <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
                     onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                    data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
+                    data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
                     data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                    {{ $p->name_produc }} ({{ $p->unit_produc }})
+                    ({{ $p->sku ?? $p->id }}) {{ $p->name_produc }} ({{ $p->unit_produc }})
                 </div>
                 @endforeach
             </div>
@@ -394,10 +394,12 @@
         @foreach($productos as $p)
         {
             id: {{ json_encode($p->id) }},
+            sku: {!! json_encode($p->sku ?? '') !!},
             nombre: {!! json_encode($p->name_produc) !!},
             unidad: {!! json_encode($p->unit_produc) !!},
             proveedor: {!! json_encode($p->proveedor_id) !!},
-            categoria: {!! json_encode($p->categoria_produc) !!}
+            categoria: {!! json_encode($p->categoria_produc) !!},
+            display: {!! json_encode('(' . ($p->sku ?? $p->id) . ') ' . $p->name_produc . ' (' . $p->unit_produc . ')') !!}
         },
         @endforeach
     ];
@@ -662,8 +664,19 @@
     });
     
     siguienteBtn.addEventListener('click', () => {
-        const productoTexto = productoSelect.value;
-        const prodSeleccionado = productosData.find(p => `${p.nombre} (${p.unidad})` === productoTexto);
+        const productoTexto = (productoSelect.value || '').trim();
+        // intentar emparejar por SKU, por id numérico, por display exacto o por nombre+unidad
+        const skuMatch = productoTexto.match(/\(([A-Za-z0-9-]+)\)/);
+        const skuOrId = skuMatch ? skuMatch[1] : null;
+        const parsedIdMatch = productoTexto.match(/\d+(?=\))/);
+        const parsedId = parsedIdMatch ? parseInt(parsedIdMatch[0], 10) : NaN;
+        const prodSeleccionado = productosData.find(p => {
+            if (skuOrId && p.sku && p.sku === skuOrId) return true;
+            if (skuOrId && !isNaN(parseInt(skuOrId)) && p.id === parseInt(skuOrId)) return true;
+            if (!isNaN(parsedId) && p.id === parsedId) return true;
+            if (p.display === productoTexto) return true;
+            return (`${p.nombre} (${p.unidad})` === productoTexto);
+        });
         cantidadTotal = parseInt(cantidadTotalInput.value);
         if (!prodSeleccionado) {
             mostrarError('Debes seleccionar un producto.');

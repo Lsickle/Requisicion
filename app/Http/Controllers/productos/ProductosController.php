@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Nuevo_producto;
 use App\Jobs\SendRequestedProductAddedEmail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductosController extends Controller
 {
@@ -94,8 +95,15 @@ class ProductosController extends Controller
                     ->with('error', 'Por favor, corrige los errores en el formulario.');
             }
 
+            // Generar SKU único automático (8 caracteres alfanuméricos)
+            do {
+                $sku = Str::upper(Str::random(8));
+            } while (Producto::where('sku', $sku)->exists());
+            
             // Guardar solo campos permitidos (sin price_produc ni proveedor_id en la tabla productos)
-            $producto = Producto::create($request->only(['categoria_produc','name_produc','stock_produc','description_produc','unit_produc','iva']));
+            $data = $request->only(['categoria_produc','name_produc','stock_produc','description_produc','unit_produc','iva']);
+            $data['sku'] = $sku;
+            $producto = Producto::create($data);
 
             // Si se envía proveedor + precio, crear entrada en productoxproveedor
             $provId = $request->input('proveedor_id');

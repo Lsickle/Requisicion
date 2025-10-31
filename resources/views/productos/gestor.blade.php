@@ -81,6 +81,7 @@
                 <table id="productosTable" class="w-full table-auto">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-4 py-2 text-left">SKU</th>
                             <th class="px-4 py-2 text-left">Producto</th>
                             <th class="px-4 py-2 text-left">Categoría</th>
                             <th class="px-4 py-2 text-left">Proveedor</th>
@@ -105,6 +106,7 @@
                                 $firstProv = $provList->first();
                             @endphp
                             <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2" data-col="sku">{{ $producto->sku ?? $producto->id }}</td>
                                 <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
                                 <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
                                 <td class="px-4 py-2" data-col="proveedor">
@@ -401,6 +403,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                             <textarea id="description_produc" name="description_produc" rows="3"
                                 class="w-full px-3 py-2 border rounded-md"></textarea>
+                            <span id="description_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                     </form>
                 </div>
@@ -1312,7 +1315,7 @@
         const errorElements = document.querySelectorAll('[id$="_error"]');
         errorElements.forEach(element => {
             element.classList.add('hidden');
-            element.textContent = '';
+ element.textContent = '';
         });
     }
 
@@ -1349,6 +1352,10 @@
         if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) { const e = document.getElementById('iva_error'); if (e) { e.textContent = 'El IVA debe ser un número válido mayor o igual a 0'; e.classList.remove('hidden'); } isValid = false; }
 
         if (!unitElem || !unitElem.value.trim()) { const e = document.getElementById('unit_produc_error'); if (e) { e.textContent = 'La unidad de medida es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        // Validar descripción: mostrar mensaje debajo del campo y evitar envío
+        const descEl = document.getElementById('description_produc');
+        if (!descEl || !descEl.value.trim()) { const e = document.getElementById('description_produc_error'); if (e) { e.textContent = 'La descripción es requerida'; e.classList.remove('hidden'); } isValid = false; }
 
         if (isValid) showLoading();
         return isValid;
@@ -1739,7 +1746,7 @@
             const q = (mProvIn.value || '').toLowerCase();
             Array.from(mProvDrop.querySelectorAll('.manage-option-item')).forEach(opt => {
                 const name = (opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
-                opt.style.display = name.includes(q) ? '' : 'none';
+                opt.style.display = name.indexOf(q) > -1 ? '' : 'none';
             });
         };
 
@@ -1844,6 +1851,63 @@
         }
   });
 
+    // Conectar dropdowns simples (categoría y unidad) con sus inputs y campos ocultos
+    document.addEventListener('DOMContentLoaded', function(){
+        function wireDropdown(inputId, dropdownId, hiddenId, optionSelector) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const hidden = hiddenId ? document.getElementById(hiddenId) : null;
+            if (!input || !dropdown) return;
+
+            // Asegurar estado inicial
+            dropdown.classList.add('hidden');
+
+            const getOptions = () => Array.from(dropdown.querySelectorAll(optionSelector || '.option-item-cat, .option-item-cat-solicitud, .option-item'));
+
+            const show = () => { dropdown.classList.remove('hidden'); };
+            const hide = () => { dropdown.classList.add('hidden'); };
+
+            input.addEventListener('focus', (e) => { show(); });
+            input.addEventListener('click', (e) => { e.stopPropagation(); show(); });
+
+            input.addEventListener('input', function(){
+                const q = (this.value || '').toLowerCase();
+                getOptions().forEach(opt => {
+                    const txt = (opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                    opt.style.display = txt.includes(q) ? '' : 'none';
+                });
+                show();
+            });
+
+            dropdown.addEventListener('click', function(e){
+                const opt = e.target.closest(optionSelector || '.option-item-cat, .option-item-cat-solicitud, .option-item');
+                if (!opt) return;
+                const val = opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent.trim();
+                input.value = opt.getAttribute('data-name') || val;
+                if (hidden) hidden.value = val;
+                hide();
+                // trigger input event
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            // Ocultar al clicar fuera
+            document.addEventListener('click', function(e){
+                if (e.target === input || input.contains(e.target) || dropdown.contains(e.target)) return;
+                hide();
+            });
+            window.addEventListener('resize', hide);
+        }
+
+        // Wire main dropdowns
+        wireDropdown('categoria_input', 'categoria_dropdown', 'categoria_produc', '.option-item-cat');
+        wireDropdown('unit_input', 'unit_dropdown', 'unit_produc', '.option-item-cat');
+
+        // Wire dropdowns inside "Añadir desde Solicitud" modal
+        wireDropdown('solicitud_categoria_input', 'solicitud_categoria_dropdown', 'solicitud_categoria_produc', '.option-item-cat-solicitud');
+        wireDropdown('solicitud_unit_input', 'solicitud_unit_dropdown', 'solicitud_unit_produc', '.option-item-cat-solicitud');
+        wireDropdown('solicitud_proveedor_input', 'solicitud_proveedor_dropdown', 'solicitud_proveedor_id', '.option-item-solicitud');
+    });
+
     // Helper: convertir cualquier representación numérica (p. ej. "782,47" o " 782.47 ") a entero
     function sanitizeToInt(val) {
         let s = (val === null || val === undefined) ? '' : String(val);
@@ -1876,52 +1940,30 @@
         });
     })();
 
-    // Conectar dropdowns simples (categoría y unidad) con sus inputs y campos ocultos
+    // Reparar/asegurar apertura de modales: reemparejar botones que usan inline onclick
     document.addEventListener('DOMContentLoaded', function(){
-        function wireDropdownSimple(inputId, dropdownId, hiddenId) {
-            const input = document.getElementById(inputId);
-            const dropdown = document.getElementById(dropdownId);
-            const hidden = hiddenId ? document.getElementById(hiddenId) : null;
-            if (!input || !dropdown) return;
-
-            const optionSelector = '.option-item-cat, .option-item-cat-solicitud, .option-item';
-            const options = Array.from(dropdown.querySelectorAll(optionSelector));
-
-            const show = () => dropdown.classList.remove('hidden');
-            const hide = () => dropdown.classList.add('hidden');
-
-            input.addEventListener('focus', show);
-            input.addEventListener('click', show);
-
-            input.addEventListener('input', function(){
-                const q = (input.value || '').toLowerCase();
-                options.forEach(opt => {
-                    const txt = (opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
-                    opt.style.display = txt.includes(q) ? '' : 'none';
-                });
-                show();
+        try {
+            // Botones que abren el modal de producto
+            document.querySelectorAll("button[onclick*=\"openModal('producto')\"]").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { openModal('producto'); } catch(err){ console.warn(err); if (old) { try { eval(old); } catch(e){} } } });
             });
 
-            input.addEventListener('keydown', function(e){ if (e.key === 'Escape') hide(); });
-
-            dropdown.addEventListener('click', function(e){
-                const opt = e.target.closest(optionSelector);
-                if (!opt) return;
-                const val = opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent.trim();
-                input.value = opt.getAttribute('data-name') || val;
-                if (hidden) hidden.value = val;
-                hide();
-                // trigger input event for any listeners
-                input.dispatchEvent(new Event('input', { bubbles: true }));
+            // Botones que abren el modal de proveedor
+            document.querySelectorAll("button[onclick*=\"openModal('proveedor')\"]").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { openModal('proveedor'); } catch(err){ console.warn(err); if (old) { try { eval(old); } catch(e){} } } });
             });
 
-            document.addEventListener('click', function(e){
-                if (!input.contains(e.target) && !dropdown.contains(e.target)) hide();
+            // Botones que llaman a openAddFromSolicitudModal(id)
+            document.querySelectorAll("button[onclick*='openAddFromSolicitudModal(']").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { if (old) { eval(old); } } catch(err){ console.warn('openAddFromSolicitudModal eval failed', err); } });
             });
-        }
-
-        wireDropdownSimple('categoria_input', 'categoria_dropdown', 'categoria_produc');
-        wireDropdownSimple('unit_input', 'unit_dropdown', 'unit_produc');
+        } catch (e) { console.warn('Rebind modals failed', e); }
     });
 </script>
 
