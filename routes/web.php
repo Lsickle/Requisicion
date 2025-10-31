@@ -345,3 +345,8 @@ Route::post('/ordenes-compra/{id}/basicos', [OrdenCompraController::class, 'upda
 Route::post('/ordenes_compra/actualizar-precios-factura', [OrdenCompraController::class, 'actualizarPreciosFactura'])
     ->name('ordenes_compra.actualizar_precios_factura');
 
+// Aceptar GET en /centros/subcentros (redirige a /centros si el servicio REST tiene solo PUT/DELETE)
+Route::get('/centros/subcentros', function() {
+    return redirect('/centros');
+});
+
