@@ -510,8 +510,11 @@ class RequisicionController extends Controller
     }
 
     /**
-     * Mostrar lista completa de requisiciones (solo administradores / roles).
-     * @return \Illuminate\View\View
+     * Finalizar una requisición: marca estatus 10 (Proceso completado).
+     * Solo roles con permisos de gestión pueden ejecutar esta acción.
+     * @param \Illuminate\Http\Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
      */
     public function todas()
     {
@@ -524,6 +527,49 @@ class RequisicionController extends Controller
             ->get();
 
         return view('requisiciones.todas', compact('requisiciones'));
+    }
+    public function finalizar(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $requisicion = Requisicion::findOrFail($id);
+
+            // Verificar permisos desde sesión: roles o permisos
+            $rolesRaw = session('user_roles') ?? (session('user.roles') ?? session('user.role') ?? []);
+            $rolesArr = [];
+            if (is_string($rolesRaw)) {
+                $rolesArr = preg_split('/\s*,\s*/', $rolesRaw);
+            } elseif (is_array($rolesRaw)) {
+                foreach ($rolesRaw as $r) {
+                    if (is_string($r)) $rolesArr[] = $r;
+                    elseif (is_array($r) && isset($r['name'])) $rolesArr[] = $r['name'];
+                    elseif (is_object($r) && isset($r->name)) $rolesArr[] = $r->name;
+                }
+            }
+            $rolesLower = array_map(fn($v) => strtolower(trim((string)$v)), $rolesArr);
+            $canManage = in_array('area de compras', $rolesLower) || in_array('admin requisicion', $rolesLower);
+            if (!$canManage) {
+                DB::rollBack();
+                return response()->json(['success' => false, 'message' => 'No tienes permisos para finalizar esta requisición'], 403);
+            }
+
+            $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+            if ($ultimoEstatus == 10) {
+                DB::commit();
+                return response()->json(['success' => true, 'message' => 'La requisición ya está finalizada.']);
+            }
+
+            // Registrar estatus 10
+            $this->setRequisicionStatus((int)$requisicion->id, 10, 'Finalizada por ' . (session('user.name') ?? 'Sistema'));
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Requisición finalizada correctamente']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error finalizando requisición ' . $id . ': ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al finalizar la requisición: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

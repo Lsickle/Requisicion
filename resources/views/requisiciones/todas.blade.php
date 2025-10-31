@@ -26,6 +26,18 @@
         .max-w-7xl { margin-left: auto; margin-right: auto; }
         #tablaRequisiciones thead th { text-transform: uppercase; letter-spacing: 0.02em; }
         #tablaRequisiciones td .flex { justify-content: center; }
+
+        /* Comentario del sistema: mostrar hasta N px y permitir 'mostrar más' */
+        .sys-comment .sys-comment-content {
+            max-height: 120px; /* altura inicial visible */
+            overflow: hidden;
+            transition: max-height .22s ease;
+        }
+        .sys-comment.expanded .sys-comment-content {
+            max-height: 2000px; /* expandido */
+        }
+        .sys-comment-toggle { background: transparent; border: none; color: #065f46; font-weight: 600; cursor: pointer; }
+        .sys-comment-toggle.hidden { display: none; }
     </style>
 
     <!-- 🔍 Barra de búsqueda -->
@@ -259,8 +271,28 @@
                                 <span class="font-medium">Estatus actual:</span>
                                 <span class="status-badge ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
                             </div>
+
+                            {{-- El comentario se muestra fuera de la cuadrícula para permitir contenido largo --}}
+                         </div>
+                     </section>
+
+                     {{-- Comentario asociado a estatus (11 = Corregir, 9/13 = Rechazos) - panel ancho completo debajo de Información General --}}
+                    @if(in_array($estatusActualId, [11, 9, 13]) && !empty($ultimoActivo->comentario))
+                        <div class="mt-4 sys-comment">
+                            <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded text-sm text-gray-800">
+                                <div class="flex items-start gap-3">
+                                    <i class="fas fa-comment-alt text-yellow-600 mt-1"></i>
+                                    <div class="w-full">
+                                        <div class="font-semibold mb-1">Comentario del sistema:</div>
+                                        <div class="sys-comment-content whitespace-pre-line break-words">{{ $ultimoActivo->comentario }}</div>
+                                        <div class="mt-2 text-right">
+                                            <button type="button" class="sys-comment-toggle hidden" aria-expanded="false">Mostrar más</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </section>
+                     @endif
 
                     <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -482,9 +514,37 @@
         if (isHidden) {
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            // comprobar si el comentario sobresale y mostrar toggle
+            setTimeout(()=> checkCommentOverflow(id), 50);
         } else {
             modal.classList.add('hidden');
             document.body.style.overflow = '';
+        }
+    }
+
+    function checkCommentOverflow(modalId){
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        const content = modal.querySelector('.sys-comment-content');
+        const toggle = modal.querySelector('.sys-comment-toggle');
+        if (!content || !toggle) return;
+        // Si el contenido real es más alto que el área visible, mostrar botón
+        if (content.scrollHeight > content.clientHeight + 4) {
+            toggle.classList.remove('hidden');
+            toggle.textContent = 'Mostrar más';
+            toggle.setAttribute('aria-expanded','false');
+            // asegurar un solo listener
+            if (!toggle._listenerAttached) {
+                toggle.addEventListener('click', ()=>{
+                    const parent = toggle.closest('.sys-comment');
+                    const expanded = parent.classList.toggle('expanded');
+                    toggle.textContent = expanded ? 'Mostrar menos' : 'Mostrar más';
+                    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                });
+                toggle._listenerAttached = true;
+            }
+        } else {
+            toggle.classList.add('hidden');
         }
     }
 
@@ -574,6 +634,13 @@
             });
         }
         showPage(1);
+
+        // Inicializar toggles para cualquier modal visible (por si hay alguno ya abierto)
+        document.querySelectorAll('[id^="modal-"]').forEach(m => {
+            if (!m.classList.contains('hidden')) {
+                checkCommentOverflow(m.id);
+            }
+        });
 
         document.querySelectorAll('.btn-open-entrega-req').forEach(btn => {
             btn.addEventListener('click', () => {

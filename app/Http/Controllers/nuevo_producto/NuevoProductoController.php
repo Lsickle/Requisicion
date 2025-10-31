@@ -38,7 +38,8 @@ class NuevoProductoController extends Controller
         // Preparar lista de solicitudes del usuario para la vista
         $sessionName = session('user.name') ?? null;
         $sessionEmail = session('user.email') ?? null;
-        $userId = auth()->id();
+        // Evitar llamar auth()->id() directamente (puede no estar disponible en todos los contextos)
+        $userId = session('user.id') ?? (is_array(session('user')) && isset(session('user')['id']) ? session('user')['id'] : null);
 
         $query = DB::table('nuevo_producto');
         if ($sessionName || $sessionEmail) {
@@ -86,7 +87,7 @@ class NuevoProductoController extends Controller
                 'descripcion' => $validated['descripcion'],
                 'name_user'   => $nameUser,
                 'email_user'  => $emailUser,
-                'user_id'     => auth()->id() ?? null,
+                'user_id'     => session('user.id') ?? (is_array(session('user')) && isset(session('user')['id']) ? session('user')['id'] : null),
             ]);
 
             // Despachar el Job para enviar el correo (no debe romper el flujo si falla)
