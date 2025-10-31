@@ -24,44 +24,77 @@
 
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8 mt-20">
-        <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
             <div class="bg-blue-600 px-6 py-4">
                 <h2 class="text-white text-xl font-bold">Solicitar nuevo producto</h2>
             </div>
 
-            <form id="productoForm" action="{{ route('nuevo_producto.store') }}" method="POST" class="px-6 py-4">
-                @csrf
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-4">
+                <div>
+                    <form id="productoForm" action="{{ route('nuevo_producto.store') }}" method="POST">
+                     @csrf
 
-                <div class="mb-4">
-                    <label for="nombre" class="block text-gray-700 text-sm font-bold mb-2">Nombre del producto</label>
-                    <input type="text" id="nombre" name="nombre"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ingresa el nombre del producto" value="{{ old('nombre') }}" required>
-                    @error('nombre')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
+                     <div class="mb-4">
+                         <label for="nombre" class="block text-gray-700 text-sm font-bold mb-2">Nombre del producto</label>
+                         <input type="text" id="nombre" name="nombre"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                             placeholder="Ingresa el nombre del producto" value="{{ old('nombre') }}" required>
+                         @error('nombre')
+                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                         @enderror
+                     </div>
+
+                     <div class="mb-6">
+                         <label for="descripcion" class="block text-gray-700 text-sm font-bold mb-2">Descripción</label>
+                         <textarea id="descripcion" name="descripcion" rows="4"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                             placeholder="Describe el producto que deseas solicitar"
+                             required>{{ old('descripcion') }}</textarea>
+                         @error('descripcion')
+                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                         @enderror
+                     </div>
+
+                     <div class="flex justify-center">
+                         <button type="submit"
+                             class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline transition duration-150 ease-in-out">
+                             Solicitar
+                         </button>
+                     </div>
+                    </form>
                 </div>
 
-                <div class="mb-6">
-                    <label for="descripcion" class="block text-gray-700 text-sm font-bold mb-2">Descripción</label>
-                    <textarea id="descripcion" name="descripcion" rows="4"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Describe el producto que deseas solicitar"
-                        required>{{ old('descripcion') }}</textarea>
-                    @error('descripcion')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
+                <div>
+                    <h3 class="text-gray-800 font-semibold mb-3">Mis solicitudes</h3>
+                    @if($misSolicitudes->isEmpty())
+                        <p class="text-sm text-gray-500">No tienes solicitudes registradas.</p>
+                    @else
+                        <div class="overflow-auto max-h-80 border rounded bg-white">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Fecha</th>
+                                        <th class="px-3 py-2 text-left">Producto</th>
+                                        <th class="px-3 py-2 text-left">Comentario</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($misSolicitudes as $s)
+                                        <tr class="border-t hover:bg-gray-50">
+                                            <td class="px-3 py-2">{{ isset($s->created_at) ? (\Carbon\Carbon::parse($s->created_at)->format('d/m/Y')) : '' }}</td>
+                                            <td class="px-3 py-2">{{ $s->nombre ?? ($s->name ?? '-') }}</td>
+                                            <td class="px-3 py-2">{{ $s->comentario ?? ($s->descripcion ?? '-') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
-
-                <div class="flex justify-center">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline transition duration-150 ease-in-out">
-                        Solicitar
-                    </button>
-                </div>
-            </form>
+            </div>
+         </div>
         </div>
-    </div>
+     </div>
 @endsection
 
 @section('scripts')

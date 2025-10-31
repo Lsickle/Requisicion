@@ -35,7 +35,26 @@ class NuevoProductoController extends Controller
      */
     public function create()
     {
-        return view('productos.nuevoproducto');
+        // Preparar lista de solicitudes del usuario para la vista
+        $sessionName = session('user.name') ?? null;
+        $sessionEmail = session('user.email') ?? null;
+        $userId = auth()->id();
+
+        $query = DB::table('nuevo_producto');
+        if ($sessionName || $sessionEmail) {
+            $query->where(function($q) use ($sessionName, $sessionEmail) {
+                if ($sessionName) $q->where('name_user', $sessionName);
+                if ($sessionEmail) $q->orWhere('email_user', $sessionEmail);
+            });
+        } elseif ($userId) {
+            $query->where('user_id', $userId);
+        } else {
+            $query->whereRaw('1=0');
+        }
+
+        $misSolicitudes = $query->orderBy('created_at', 'desc')->limit(20)->get();
+
+        return view('productos.nuevoproducto', compact('misSolicitudes'));
     }
 
     /**
@@ -67,6 +86,7 @@ class NuevoProductoController extends Controller
                 'descripcion' => $validated['descripcion'],
                 'name_user'   => $nameUser,
                 'email_user'  => $emailUser,
+                'user_id'     => auth()->id() ?? null,
             ]);
 
             // Despachar el Job para enviar el correo (no debe romper el flujo si falla)
