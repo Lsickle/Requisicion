@@ -22,6 +22,7 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
 use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
 use App\Http\Controllers\centros\CentroController;
+use App\Http\Controllers\centros\UserSubcentroController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -312,6 +313,11 @@ Route::middleware([AuthSession::class])->group(function () {
         Route::put('/subcentros/{id}', [CentroController::class, 'updateSubcentro'])->name('subcentros.update');
         Route::delete('/subcentros/{id}', [CentroController::class, 'destroySubcentro'])->name('subcentros.destroy');
     });
+
+    Route::get('/centros/user_subcentros', [UserSubcentroController::class, 'index'])->name('centros.user_subcentros.index');
+    Route::post('/centros/user_subcentros', [UserSubcentroController::class, 'store'])->name('centros.user_subcentros.store');
+    Route::get('/centros/user_subcentros/list/{email}', [UserSubcentroController::class, 'listForUser'])->name('centros.user_subcentros.list');
+    Route::get('/centros/user_subcentros/fetch', [UserSubcentroController::class, 'fetchUsers'])->name('centros.user_subcentros.fetch');
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista
