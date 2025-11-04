@@ -91,41 +91,19 @@
                     <input type="text" id="operacionFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
                     <input type="hidden" name="operacion_user" id="operacionSelect" value="{{ old('operacion_user') }}" required>
                     <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
-                        @php $operacionesLista = [
-                            'Calidad',
-                            'Cedi Frio',
-                            'Cedi Frio - Mantenimiento',
-                            'Cedi Frio Agrofrut',
-                            'Cedi Frio Calypso',
-                            'Cedi Frio Food Box',
-                            'Cedi Frio Ibazan',
-                            'Cedi Frio Kikes',
-                            'Cedi Frio La Fazenda',
-                            'Cedi Frio Todos Comemos',
-                            'Compras',
-                            'Cumbria',
-                            'Financiera',
-                            'HSEQ',
-                            'Huawei',
-                            'Inventarios',
-                            'Kw',
-                            'Macmillan',
-                            'Mary Kay',
-                            'Mattel',
-                            'Mejoramiento Contínuo',
-                            'Naos',
-                            'Oriflame',
-                            'Ortopedicos Futuro',
-                            'Seguridad',
-                            'Sony',
-                            'Talento Humano',
-                            'Tecnología',
-                            'Tranportes Vigia',
-                            'Transportes',
-                        ]; @endphp
-                        @foreach($operacionesLista as $op)
-                        <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
-                        @endforeach
+                        @php
+                            $operacionesLista = collect($centros ?? [])
+                                ->pluck('centro_nombre')
+                                ->filter(fn($v)=> !empty($v))
+                                ->unique()
+                                ->sort()
+                                ->values();
+                        @endphp
+                        @forelse($operacionesLista as $op)
+                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
+                        @empty
+                            <div class="p-2 text-gray-500">No hay centros de costo asignados.</div>
+                        @endforelse
                     </div>
                 </div>
             </div>

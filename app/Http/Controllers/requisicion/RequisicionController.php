@@ -39,7 +39,43 @@ class RequisicionController extends Controller
      */
     public function create()
     {
-        $centros = Centro::all();
+        // Cargar solo los subcentros asignados al usuario en sesión (por email)
+        $sessionEmail = session('user.email');
+        $asignados = collect();
+        if (!empty($sessionEmail)) {
+            try {
+                $ids = DB::table('userxsubcentro')
+                    ->where('email_user', $sessionEmail)
+                    ->whereNull('deleted_at')
+                    ->pluck('subcentro_id');
+
+                if ($ids && $ids->count() > 0) {
+                    $asignados = DB::table('subcentros as s')
+                        ->leftJoin('centro as c', 'c.id', '=', 's.centro_id')
+                        ->whereIn('s.id', $ids)
+                        ->whereNull('s.deleted_at')
+                        ->whereNull('c.deleted_at')
+                        ->select('s.id', 's.name_subcentro', 'c.name_centro as centro_nombre')
+                        ->orderBy('s.name_subcentro')
+                        ->get()
+                        ->map(function ($r) {
+                            return (object) [
+                                'id' => $r->id,
+                                // Mantener compatibilidad con la vista que espera name_centro
+                                'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
+                                // Centro padre (para dropdown de Centro de costo)
+                                'centro_nombre' => (string)($r->centro_nombre ?? ''),
+                            ];
+                        });
+                }
+            } catch (\Throwable $e) {
+                // Si falla, dejar lista vacía para no exponer otros centros
+                Log::warning('create(): no se pudieron cargar subcentros asignados', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // La vista espera variable $centros; enviamos solo los asignados (o vacío si no hay asignación)
+        $centros = $asignados;
         $productos = Producto::all();
 
         return view('requisiciones.create', compact('centros', 'productos'));
@@ -644,7 +680,7 @@ class RequisicionController extends Controller
         if (empty($providedUserId) || empty($providedName)) {
             $msg = 'Datos de usuario destino incompletos. Se requiere user_id y name_user.';
             Log::warning('transferir: datos incompletos', [
-                'user_id' => $providedUserId, 
+                'user_id' => $providedUserId,
                 'name_user' => $providedName,
                 'email' => $providedEmail,
                 'operacion' => $providedOperacion,
@@ -680,7 +716,7 @@ class RequisicionController extends Controller
             ]);
 
             DB::commit();
-            
+
             $successMsg = 'Titularidad transferida correctamente';
             Log::info('Transferencia exitosa', [
                 'requisicion_id' => $id,

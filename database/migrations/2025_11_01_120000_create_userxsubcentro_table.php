@@ -16,6 +16,7 @@ return new class extends Migration
             $table->text('email_user');
             $table->foreignId('subcentro_id')->constrained('subcentros')->onDelete('cascade');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

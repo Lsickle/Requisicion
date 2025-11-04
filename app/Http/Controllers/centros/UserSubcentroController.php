@@ -14,7 +14,11 @@ class UserSubcentroController extends Controller
 {
     public function index()
     {
-        $subcentros = Subcentro::orderBy('name_subcentro')->get();
+        $subcentros = Subcentro::with('centro')
+            ->whereNull('deleted_at')
+            ->whereHas('centro', function($q){ $q->whereNull('deleted_at'); })
+            ->orderBy('name_subcentro')
+            ->get();
         return view('centros.user_subcentros', compact('subcentros'));
     }
 
@@ -45,7 +49,10 @@ class UserSubcentroController extends Controller
     // API endpoint que devuelve subcentros asignados a un email
     public function listForUser($email)
     {
-        $assigned = UserxSubcentro::where('email_user', $email)->pluck('subcentro_id')->toArray();
+        $assigned = UserxSubcentro::where('email_user', $email)
+            ->whereNull('deleted_at')
+            ->pluck('subcentro_id')
+            ->toArray();
         return response()->json(['assigned' => $assigned]);
     }
 

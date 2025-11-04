@@ -196,7 +196,7 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Subcentros</h3>
                     <p class="text-gray-600 mb-4">Gestiona subcentros y asignaciones</p>
                 </div>
-                <a href="/centros/subcentros" class="text-center inline-block bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                <a href="/centros/user_subcentros" class="text-center inline-block bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
                     Ir a Subcentros
                 </a>
             </div>
