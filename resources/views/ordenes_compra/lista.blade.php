@@ -45,6 +45,7 @@
                                 <th class="px-4 py-2 text-left">Detalle</th>
                                 <th class="px-4 py-2 text-left">Prioridad</th>
                                 <th class="px-4 py-2 text-left">Solicitante</th>
+                                <th class="px-4 py-2 text-left">Estatus</th>
                                 <th class="px-4 py-2 text-center">Acciones</th>
                             </tr>
                         </thead>
@@ -73,6 +74,21 @@
                                     if ($got < (int)$need) { $isComplete = false; break; }
                                 }
                                 $estatusActivo = optional(($req->estatusHistorial ?? collect())->sortByDesc('created_at')->first())->estatus_id;
+                                // Cálculo de pendientes para OC (equivalente al selector del create):
+                                $productosIdsReq = ($req->productos ?? collect())->pluck('id')->unique()->values();
+                                $prodConOcp = DB::table('ordencompra_producto as ocp')
+                                    ->whereNull('ocp.deleted_at')
+                                    ->where('ocp.requisicion_id', $req->id)
+                                    ->pluck('ocp.producto_id')
+                                    ->unique()
+                                    ->values();
+                                $sinDistribuirCount = $productosIdsReq->diff($prodConOcp)->count();
+                                $pendientesOcpCount = DB::table('ordencompra_producto as ocp')
+                                    ->whereNull('ocp.deleted_at')
+                                    ->where('ocp.requisicion_id', $req->id)
+                                    ->whereNull('ocp.orden_compras_id')
+                                    ->count();
+                                $totalSelectCount = $sinDistribuirCount + $pendientesOcpCount;
                             @endphp
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
@@ -86,6 +102,13 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
+                                <td class="px-4 py-2">
+                                    @if($totalSelectCount > 0)
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
+                                    @else
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Órdenes de compra creadas</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-2 text-center">
                                     <button onclick="toggleModal('modal-{{ $req->id }}')"
                                         class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
@@ -95,7 +118,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
+                                <td colspan="6" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -196,6 +219,7 @@
                             <th class="px-4 py-2 text-center" style="width:100px">Unidad</th>
                             <th class="px-4 py-2 text-left" style="width:40%">Distribución por Centros</th>
                         </tr>
+
                     </thead>
                     <tbody>
                         @foreach($req->productos as $prod)
