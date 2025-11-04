@@ -297,31 +297,30 @@ class EstatusRequisicionController extends Controller
                                 if ($price !== null && $pxp->price_produc != $price) { $pxp->price_produc = $price; $changed = true; }
                                 if (!empty($currency) && ($pxp->moneda ?? '') !== $currency) { $pxp->moneda = $currency; $changed = true; }
                                 if ($changed) $pxp->save();
-                                // asegurar pivot
-                                $this->ensurePivotPxp($requisicionId, $productoId, $pxp->id);
-                                continue;
+                                // asegurar pivot (solo actualizar, no insertar si no existe)
+                                $this->ensurePivotPxp($requisicionId, $productoId, (int)$pxp->id);
+                            } else {
+                                // No crear pxp en aprobación
+                                Log::warning('updateStatus: pxp_id no encontrado, se omite creación', ['req'=>$requisicionId,'prod'=>$productoId,'pxp'=>$pxpIdProvided]);
                             }
+                            continue;
                         }
 
-                        // Si no vino pxp_id, crear o actualizar productoxproveedor por producto+proveedor
+                        // Si no vino pxp_id, intentar localizar productoxproveedor existente por producto+proveedor
                         if (!$proveedorId) continue;
                         $pxp = Productoxproveedor::where('producto_id', $productoId)->where('proveedor_id', $proveedorId)->first();
                         if (!$pxp) {
-                            $pxp = Productoxproveedor::create([
-                                'producto_id' => $productoId,
-                                'proveedor_id' => $proveedorId,
-                                'price_produc' => $price ?? 0,
-                                'moneda' => $currency ?? 'COP',
-                            ]);
-                        } else {
-                            $updated = false;
-                            if ($price !== null && $pxp->price_produc != $price) { $pxp->price_produc = $price; $updated = true; }
-                            if (!empty($currency) && ($pxp->moneda ?? '') !== $currency) { $pxp->moneda = $currency; $updated = true; }
-                            if ($updated) $pxp->save();
+                            // No crear registros nuevos aquí; solo editar existentes
+                            Log::info('updateStatus: no existe productoxproveedor para producto/proveedor, se omite', ['req'=>$requisicionId,'prod'=>$productoId,'prov'=>$proveedorId]);
+                            continue;
                         }
+                        $updated = false;
+                        if ($price !== null && $pxp->price_produc != $price) { $pxp->price_produc = $price; $updated = true; }
+                        if (!empty($currency) && ($pxp->moneda ?? '') !== $currency) { $pxp->moneda = $currency; $updated = true; }
+                        if ($updated) $pxp->save();
 
-                        // asegurar pivot en producto_requisicion
-                        $this->ensurePivotPxp($requisicionId, $productoId, $pxp->id);
+                        // asegurar pivot en producto_requisicion (solo update)
+                        $this->ensurePivotPxp($requisicionId, $productoId, (int)$pxp->id);
                     } catch (\Throwable $e) {
                         Log::warning('estatus.updateStatus ensureProveedor failed', ['req'=>$requisicionId,'prod'=>$productoId,'err'=>$e->getMessage()]);
                     }
@@ -456,7 +455,7 @@ class EstatusRequisicionController extends Controller
 
     /**
      * Asegura que la tabla producto_requisicion tenga id_productoxproveedor para una pareja requisicion-producto.
-     * Intenta actualizar; si no existe la fila, inserta una nueva con pr_amount inferido.
+     * Solo actualiza filas existentes; no inserta nuevas filas para evitar duplicados.
      */
     private function ensurePivotPxp(int $requisicionId, int $productoId, int $pxpId): bool
     {
@@ -467,28 +466,9 @@ class EstatusRequisicionController extends Controller
                 ->update(['id_productoxproveedor' => $pxpId, 'deleted_at' => null, 'updated_at' => now()]);
             if ($affected > 0) return true;
 
-            // Si no existía, intentar insertar la fila
-            $prAmount = (int) DB::table('centro_producto')
-                ->where('requisicion_id', $requisicionId)
-                ->where('producto_id', $productoId)
-                ->sum('amount');
-            if ($prAmount <= 0) {
-                $prev = DB::table('producto_requisicion')
-                    ->where('id_requisicion', $requisicionId)
-                    ->where('id_producto', $productoId)
-                    ->value('pr_amount');
-                $prAmount = (int) ($prev ?? 0);
-            }
-            DB::table('producto_requisicion')->insert([
-                'id_producto' => $productoId,
-                'id_requisicion' => $requisicionId,
-                'id_productoxproveedor' => $pxpId,
-                'pr_amount' => max(0, $prAmount),
-                'created_at' => now(),
-                'updated_at' => now(),
-                'deleted_at' => null,
-            ]);
-            return true;
+            // No crear nueva fila: evitar duplicados al aprobar
+            Log::info('ensurePivotPxp: no se encontró fila para actualizar; se omite inserción', ['req'=>$requisicionId,'prod'=>$productoId,'pxp'=>$pxpId]);
+            return false;
         } catch (\Throwable $e) {
             Log::error('ensurePivotPxp failed (estatus controller)', ['req'=>$requisicionId,'prod'=>$productoId,'pxp'=>$pxpId,'err'=>$e->getMessage()]);
             return false;
@@ -670,10 +650,6 @@ class EstatusRequisicionController extends Controller
         $txt = strtr($txt,[ 'á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n' ]);
         return $txt;
     }
-
-    // (Opcional) Métodos previos de notificación específicos se mantienen para compatibilidad
-    // private function notificarAreaComprasAprobacion(...) { /* deprecated */ }
-    // private function recipientsForOperation(...) { /* deprecated */ }
 
     /**
      * Convertir un monto a COP usando la tabla 'trm' si está disponible.
