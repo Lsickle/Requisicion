@@ -261,10 +261,16 @@
                         <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un centro" autocomplete="off">
                         <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
                         <div id="centrosDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                            @foreach ($centros as $c)
-                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $c->id }}" data-nombre="{{ $c->name_centro }}" onclick="seleccionarCentro(event, this)">
-                                {{ $c->name_centro }}
-                            </div>
+                            @php
+                                $centrosUnicos = collect($centros ?? [])
+                                    ->filter(function($x){ return !empty($x->centro_id); })
+                                    ->unique('centro_id')
+                                    ->values();
+                            @endphp
+                            @foreach ($centrosUnicos as $c)
+                                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $c->centro_id }}" data-nombre="{{ $c->centro_nombre }}" onclick="seleccionarCentro(event, this)">
+                                    {{ $c->centro_nombre }}
+                                </div>
                             @endforeach
                         </div>
                     </div>

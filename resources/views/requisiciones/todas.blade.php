@@ -147,9 +147,20 @@
                             <button onclick="toggleModal('modal-{{ $req->id }}')" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver requisición" aria-label="Ver requisición">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <a href="{{ route('requisiciones.pdf', $req->id) }}" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
-                                <i class="fas fa-file-pdf"></i>
-                            </a>
+                            @php
+                                $anyMissingProv = DB::table('producto_requisicion')
+                                    ->where('id_requisicion', $req->id)
+                                    ->whereNull('deleted_at')
+                                    ->whereNull('id_productoxproveedor')
+                                    ->exists();
+                                $ue = ($req->estatusHistorial && $req->estatusHistorial->count()) ? $req->estatusHistorial->sortByDesc('created_at')->first() : null;
+                                $isStatus1 = (int)($ue->estatus_id ?? 0) === 1;
+                            @endphp
+                            @if(!$anyMissingProv && !$isStatus1)
+                                <a href="{{ route('requisiciones.pdf', $req->id) }}" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+                            @endif
 
                             @if($canManage)
                                 @if($isAdmin && $ultimoEstatusId == 11)
@@ -173,6 +184,12 @@
                                 @if(in_array($ultimoEstatusId, [4, 5, 7, 8, 12]))
                                 <button type="button" class="bg-teal-600 hover:bg-teal-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow btn-open-entrega-req" data-req-id="{{ $req->id }}" title="Entregar" aria-label="Entregar">
                                     <i class="fas fa-truck"></i>
+                                </button>
+                                @endif
+
+                                @if($ultimoEstatusId != 10)
+                                <button onclick="finalizarRequisicion({{ $req->id }})" class="bg-gray-700 hover:bg-gray-800 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Finalizar requisición" aria-label="Finalizar requisición">
+                                    <i class="fas fa-flag-checkered"></i>
                                 </button>
                                 @endif
                             @endif
@@ -788,6 +805,47 @@
                 else { Swal.fire('Error!', data.message || 'No se pudo reenviar', 'error'); }
             })
             .catch(() => { Swal.fire('Error!', 'Error al reenviar', 'error'); });
+        });
+    }
+    function finalizarRequisicion(id) {
+        Swal.fire({
+            title: '¿Finalizar requisición?',
+            text: 'Esto marcará la requisición como Proceso finalizado.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#16a34a',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, finalizar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            Swal.fire({ title: 'Procesando', text: 'Finalizando requisición...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+            fetch(`/requisiciones/${id}/finalizar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(async (r) => {
+                let data = null;
+                try { data = await r.json(); } catch (_) { data = null; }
+                if (!r.ok) {
+                    const msg = data?.message || 'No se pudo finalizar la requisición';
+                    throw new Error(msg);
+                }
+                if (!data?.success) {
+                    const msg = data?.message || 'No se pudo finalizar la requisición';
+                    throw new Error(msg);
+                }
+                return data;
+            })
+            .then((data) => {
+                Swal.fire('¡Finalizada!', data.message || 'La requisición ha sido finalizada.', 'success').then(() => location.reload());
+            })
+            .catch((e) => { Swal.fire('Error', e.message || 'Error al finalizar la requisición', 'error'); })
+            .finally(() => { /* noop */ });
         });
     }
 </script>

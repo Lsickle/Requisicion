@@ -1185,6 +1185,37 @@ class OrdenCompraController extends Controller
         return Response::download($zipPath, $zipFileName)->deleteFileAfterSend(true);
     }
 
+    /**
+     * Terminar una orden de compra: desactiva estatus activo y crea estatus 'Terminado' (id 3 por defecto).
+     */
+    public function terminar(Request $request, $id)
+    {
+        try {
+            DB::table('orden_compra_estatus')
+                ->where('orden_compra_id', $id)
+                ->where('activo', 1)
+                ->update(['activo' => 0, 'updated_at' => now()]);
+
+            $terminado = DB::table('estatus_orden_compra')->where('id', 3)->first()
+                ?? DB::table('estatus_orden_compra')->first();
+
+            DB::table('orden_compra_estatus')->insert([
+                'estatus_id' => $terminado->id ?? 3,
+                'orden_compra_id' => $id,
+                'recepcion_id' => null,
+                'activo' => 1,
+                'date_update' => now(),
+                'user_id' => session('user.id') ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     // Compatibilidad: algunas rutas llaman a exportPDF; delegar a download()
     public function exportPDF($requisicionId)
     {

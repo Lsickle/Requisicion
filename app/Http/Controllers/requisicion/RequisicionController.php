@@ -55,7 +55,7 @@ class RequisicionController extends Controller
                         ->whereIn('s.id', $ids)
                         ->whereNull('s.deleted_at')
                         ->whereNull('c.deleted_at')
-                        ->select('s.id', 's.name_subcentro', 'c.name_centro as centro_nombre')
+                        ->select('s.id', 's.name_subcentro', 'c.id as centro_id', 'c.name_centro as centro_nombre')
                         ->orderBy('s.name_subcentro')
                         ->get()
                         ->map(function ($r) {
@@ -65,6 +65,8 @@ class RequisicionController extends Controller
                                 'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
                                 // Centro padre (para dropdown de Centro de costo)
                                 'centro_nombre' => (string)($r->centro_nombre ?? ''),
+                                // ID del centro padre (para validación exists:centro,id)
+                                'centro_id' => (int)($r->centro_id ?? 0),
                             ];
                         });
                 }
@@ -589,7 +591,8 @@ class RequisicionController extends Controller
                 return response()->json(['success' => false, 'message' => 'No tienes permisos para finalizar esta requisición'], 403);
             }
 
-            $ultimoEstatus = $requisicion->ultimoEstatus->estatus_id ?? null;
+            // Usar nullsafe por si no hay estatus activo
+            $ultimoEstatus = $requisicion->ultimoEstatus?->estatus_id;
             if ($ultimoEstatus == 10) {
                 DB::commit();
                 return response()->json(['success' => true, 'message' => 'La requisición ya está finalizada.']);

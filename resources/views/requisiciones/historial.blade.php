@@ -145,6 +145,14 @@
                     <!-- Acciones -->
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 items-center">
+                            @php
+                                $anyMissingProv = DB::table('producto_requisicion')
+                                    ->where('id_requisicion', $req->id)
+                                    ->whereNull('deleted_at')
+                                    ->whereNull('id_productoxproveedor')
+                                    ->exists();
+                                $isStatus1 = (int)($ultimoEstatusId ?? 0) === 1;
+                            @endphp
                             <button onclick="toggleModal('modal-{{ $req->id }}')" class="btn-open-ver bg-blue-600 hover:bg-blue-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Ver requisición" aria-label="Ver requisición">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -161,9 +169,11 @@
                                 <i class="fas fa-edit"></i>
                             </a>
                             @endif
-                            <a href="{{ route('requisiciones.pdf', $req->id) }}" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
-                                <i class="fas fa-file-pdf"></i>
-                            </a>
+                            @if(!$anyMissingProv && !$isStatus1)
+                                <a href="{{ route('requisiciones.pdf', $req->id) }}" class="bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+                            @endif
                             @if(in_array(($ultimoEstatusId ?? null), [1,2,3,4]))
                             <button onclick="cancelarRequisicion({{ $req->id }})" class="bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Cancelar requisición" aria-label="Cancelar requisición">
                                 <i class="fas fa-times"></i>

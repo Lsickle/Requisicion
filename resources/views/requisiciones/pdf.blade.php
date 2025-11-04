@@ -243,8 +243,8 @@
             <div class="document-info">
                 <div class="title">
                     REQUISICIÓN #{{ $requisicion->id }}
-                    @if(!empty($operacionUsuario))
-                    {{ $operacionUsuario }}
+                    @if(!empty($operacionSolicitante))
+                    {{ $operacionSolicitante }}
                     @endif
                 </div>
                 <div><strong>Fecha:</strong> {{ $requisicion->created_at->format('d/m/Y') }}</div>
@@ -271,21 +271,20 @@
         @php
         $rowsPerPage = 18;
         $productPages = $requisicion->productos->chunk($rowsPerPage);
-        // Totales generales: original y COP (conversión como en OC)
+        // Totales generales usando exclusivamente el PXP del pivot
         $grandTotalOrig = 0.0; $grandTotalCop = 0.0;
         foreach ($requisicion->productos as $p) {
             $qty = (int)($p->pivot->pr_amount ?? 0);
             $pxp = null;
             try {
                 if (!empty($p->pivot->id_productoxproveedor)) {
-                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('id', $p->pivot->id_productoxproveedor)->first();
-                }
-                if (!$pxp) {
-                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('producto_id', $p->id)->orderBy('id')->first();
+                    $pxp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                        ->where('id', $p->pivot->id_productoxproveedor)
+                        ->first();
                 }
             } catch (\Throwable $e) { $pxp = null; }
-            $unit = $pxp ? (float)($pxp->price_produc ?? 0) : (float)($p->price_produc ?? 0);
-            $mon = strtoupper($pxp->moneda ?? 'COP');
+            $unit = (float)($pxp->price_produc ?? 0);
+            $mon = strtoupper(trim($pxp->moneda ?? 'COP'));
             $grandTotalOrig += ($qty * $unit);
             try {
                 $uCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unit, $mon);
@@ -319,17 +318,16 @@
                         $pxpRow = null;
                         try {
                             if (!empty($producto->pivot->id_productoxproveedor)) {
-                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('id', $producto->pivot->id_productoxproveedor)->first();
-                            }
-                            if (!$pxpRow) {
-                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')->where('producto_id', $producto->id)->orderBy('id')->first();
+                                $pxpRow = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                    ->where('id', $producto->pivot->id_productoxproveedor)
+                                    ->first();
                             }
                         } catch (\Throwable $e) { $pxpRow = null; }
-                        $unitPrice = (float) ($pxpRow->price_produc ?? $producto->price_produc ?? 0);
-                        $mon = strtoupper($pxpRow->moneda ?? 'COP');
+                        $unitPrice = (float) ($pxpRow->price_produc ?? 0);
+                        $mon = strtoupper(trim($pxpRow->moneda ?? 'COP'));
                         $qty = (int)($producto->pivot->pr_amount ?? 0);
                         $lineTotal = $unitPrice * $qty;
-                        // Conversión a COP usando helper del controlador (como OC)
+                        // Conversión a COP usando helper del controlador
                         try { $unitPriceCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPrice, $mon); }
                         catch (\Throwable $e) { $unitPriceCop = null; }
                         $unitPriceCop = ($unitPriceCop === null) ? ($mon === 'COP' ? $unitPrice : 0) : (float)$unitPriceCop;
