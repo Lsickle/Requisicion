@@ -293,23 +293,48 @@
                          </div>
                      </section>
 
-                     {{-- Comentario asociado a estatus (11 = Corregir, 9/13 = Rechazos) - panel ancho completo debajo de Información General --}}
-                    @if(in_array($estatusActualId, [11, 9, 13]) && !empty($ultimoActivo->comentario))
-                        <div class="mt-4 sys-comment">
-                            <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded text-sm text-gray-800">
-                                <div class="flex items-start gap-3">
-                                    <i class="fas fa-comment-alt text-yellow-600 mt-1"></i>
-                                    <div class="w-full">
-                                        <div class="font-semibold mb-1">Comentario del sistema:</div>
-                                        <div class="sys-comment-content whitespace-pre-line break-words">{{ $ultimoActivo->comentario }}</div>
-                                        <div class="mt-2 text-right">
-                                            <button type="button" class="sys-comment-toggle hidden" aria-expanded="false">Mostrar más</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                     @endif
+                     @php
+                        $comentarioMostrar = null;
+                        $comentarioTitulo = null;
+                        $esRechazo = false;
+                        if ($req->estatusHistorial && $req->estatusHistorial->count()) {
+                            // Prioridad: último rechazo (9 o 13)
+                            $rej = $req->estatusHistorial->filter(function($e){
+                                return in_array((int)$e->estatus_id, [9,13]) && !empty($e->comentario);
+                            })->sortByDesc('created_at')->first();
+                            if ($rej) { 
+                                $comentarioMostrar = $rej->comentario; 
+                                $comentarioTitulo = 'Motivo de rechazo:'; 
+                                $esRechazo = true;
+                            } else {
+                                // Si no hay rechazo, tomar el último corrección (11)
+                                $corr = $req->estatusHistorial->filter(function($e){
+                                    return (int)$e->estatus_id === 11 && !empty($e->comentario);
+                                })->sortByDesc('created_at')->first();
+                                if ($corr) { 
+                                    $comentarioMostrar = $corr->comentario; 
+                                    $comentarioTitulo = 'Motivo de corrección o ajustes:'; 
+                                    $esRechazo = false;
+                                }
+                            }
+                        }
+                     @endphp
+                     @if(!empty($comentarioMostrar))
+                         <div class="mt-4 sys-comment">
+                            <div class="p-4 border-l-4 rounded text-sm {{ $esRechazo ? 'bg-red-50 border-red-400 text-red-800' : 'bg-yellow-50 border-yellow-400 text-gray-800' }}">
+                                 <div class="flex items-start gap-3">
+                                    <i class="fas fa-comment-alt {{ $esRechazo ? 'text-red-600' : 'text-yellow-600' }} mt-1"></i>
+                                     <div class="w-full">
+                                         <div class="font-semibold mb-1">{{ $comentarioTitulo ?? 'Comentario' }}</div>
+                                         <div class="sys-comment-content whitespace-pre-line break-words">{{ $comentarioMostrar }}</div>
+                                         <div class="mt-2 text-right">
+                                             <button type="button" class="sys-comment-toggle hidden" aria-expanded="false">Mostrar más</button>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                      @endif
 
                     <section class="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
