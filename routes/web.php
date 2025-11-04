@@ -132,6 +132,8 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para obtener datos de solicitud
     Route::get('/productos/solicitud/{id}', [ProductosController::class, 'getSolicitudData'])
         ->name('productos.solicitud.data');
+    // Lista simple de productos (SKU, nombre, categoría, unidad)
+    Route::get('/productos/lista', [ProductosController::class, 'lista'])->name('productos.lista');
 
     // Rutas para proveedores
     Route::post('/proveedores', [ProductosController::class, 'storeProveedor'])

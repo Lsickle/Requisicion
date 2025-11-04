@@ -72,6 +72,20 @@ class ProductosController extends Controller
     }
 
     /**
+     * Lista simple de productos (SKU, nombre, categoría, unidad).
+     */
+    public function lista()
+    {
+        try {
+            $productos = Producto::whereNull('deleted_at')->orderBy('name_produc')->get();
+            return view('productos.lista', compact('productos'));
+        } catch (\Throwable $e) {
+            Log::warning('Error cargando lista de productos', ['err'=>$e->getMessage()]);
+            return view('productos.lista', ['productos' => collect()])->with('error', 'No se pudieron cargar los productos');
+        }
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)

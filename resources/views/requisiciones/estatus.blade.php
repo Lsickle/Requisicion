@@ -9,6 +9,9 @@
     <h1 class="text-2xl font-bold mb-6 text-gray-800 text-center">
         Historial de Estatus - Requisición #{{ $requisicion->id }}
     </h1>
+    <div class="flex justify-end mb-4">
+        <a href="{{ url()->previous() }}" class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100">Volver</a>
+    </div>
 
     <div class="relative border-l-2 border-blue-400 ml-4">
         @php
