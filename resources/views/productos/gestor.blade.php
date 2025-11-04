@@ -13,6 +13,10 @@
 <body class="bg-gray-100 pt-16">
     <x-sidebar />
     <div class="max-w-7xl mx-auto mt-4 bg-white">
+        @php
+            $categorias = collect($productos ?? [])->pluck('categoria_produc')->filter()->map(fn($c)=> trim((string)$c))->unique()->sort()->values();
+            $unidades = collect($productos ?? [])->pluck('unit_produc')->filter()->map(fn($u)=> trim((string)$u))->unique()->sort()->values();
+        @endphp
         <!-- Header -->
         <div class="bg-gray-100 border border-solid border-gray-300 px-6 py-3 flex justify-between items-center">
             <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
@@ -46,17 +50,9 @@
                     <select id="filterCategoria" onchange="filterTable()"
                         class="px-3 py-2 border rounded-md w-full md:w-48">
                         <option value="">Todas las Categorías</option>
-                        <option value="Tecnología">Tecnología</option>
-                        <option value="Contabilidad">Contabilidad</option>
-                        <option value="Talento Humano">Talento Humano</option>
-                        <option value="Compras">Compras</option>
-                        <option value="Calidad">Calidad</option>
-                        <option value="HSEQ">HSEQ</option>
-                        <option value="Comercial">Comercial</option>
-                        <option value="Operaciones">Operaciones</option>
-                        <option value="Financiera">Financiera</option>
-                        <option value="Mantenimiento">Mantenimiento</option>
-                        <option value="Otros">Otros</option>
+                        @foreach($categorias as $cat)
+                            <option value="{{ $cat }}">{{ $cat }}</option>
+                        @endforeach
                     </select>
 
                     <!-- Filtro de Proveedor -->
@@ -307,50 +303,9 @@
                                     <!-- Dropdown personalizado -->
                                     <div id="categoria_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Tecnología">
-                                            Tecnología
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Contabilidad">
-                                            Contabilidad
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Talento Humano">
-                                            Talento Humano
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Compras">
-                                            Compras
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Calidad">
-                                            Calidad
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="HSEQ">
-                                            HSEQ
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Comercial">
-                                            Comercial
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Operaciones">
-                                            Operaciones
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Financiera">
-                                            Financiera
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Mantenimiento">
-                                            Mantenimiento
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Otros">
-                                            Otros
-                                        </div>
+                                        @foreach($categorias as $cat)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="{{ $cat }}">{{ $cat }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
 
@@ -378,21 +333,9 @@
                                         class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
                                     <div id="unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Unidad">Unidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Pieza">Pieza</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Docena">Docena</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Caja">Caja</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Paquete">Paquete</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Rollo">Rollo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Juego">Juego</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Litro">Litro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Mililitro">Mililitro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Kilogramo">Kilogramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Gramo">Gramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Metro">Metro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Centímetro">Centímetro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Galón">Galón</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Otro">Otro</div>
+                                        @foreach($unidades as $uni)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="{{ $uni }}">{{ $uni }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
                                 <input type="hidden" id="unit_produc" name="unit_produc">
@@ -571,28 +514,9 @@
 
                                     <div id="solicitud_categoria_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Tecnología">Tecnología</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Contabilidad">Contabilidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Talento Humano">Talento Humano</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Compras">Compras</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Calidad">Calidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="HSEQ">HSEQ</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Comercial">Comercial</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Operaciones">Operaciones</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Financiera">Financiera</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Mantenimiento">Mantenimiento</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Otros">Otros</div>
+                                        @foreach($categorias as $cat)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="{{ $cat }}">{{ $cat }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
 
@@ -663,21 +587,9 @@
                                         class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" value="Unidad">
                                     <div id="solicitud_unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Unidad">Unidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Pieza">Pieza</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Docena">Docena</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Caja">Caja</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Paquete">Paquete</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Rollo">Rollo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Juego">Juego</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Litro">Litro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Mililitro">Mililitro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Kilogramo">Kilogramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Gramo">Gramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Metro">Metro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Centímetro">Centímetro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Galón">Galón</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Otro">Otro</div>
+                                        @foreach($unidades as $uni)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="{{ $uni }}">{{ $uni }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
                                 <input type="hidden" id="solicitud_unit_produc" name="unit_produc" value="Unidad">
@@ -1964,6 +1876,53 @@
                 btn.addEventListener('click', function(e){ e.preventDefault(); try { if (old) { eval(old); } } catch(err){ console.warn('openAddFromSolicitudModal eval failed', err); } });
             });
         } catch (e) { console.warn('Rebind modals failed', e); }
+    });
+
+    // Sincronizar y permitir agregar nuevas categorías a los dropdowns si el usuario escribe una no listada
+    document.addEventListener('DOMContentLoaded', function(){
+        function ensureOptionInDropdown(dropdown, value, cls){
+            if (!dropdown || !value) return;
+            const exists = Array.from(dropdown.querySelectorAll('.' + cls)).some(el => (el.getAttribute('data-value')||'').toLowerCase() === value.toLowerCase());
+            if (!exists) {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer ' + cls;
+                div.setAttribute('data-value', value);
+                div.textContent = value;
+                dropdown.appendChild(div);
+            }
+        }
+        // Producto modal
+        const catIn = document.getElementById('categoria_input');
+        const catHidden = document.getElementById('categoria_produc');
+        const catDrop = document.getElementById('categoria_dropdown');
+        if (catIn) {
+            catIn.addEventListener('input', function(){ if (catHidden) catHidden.value = (catIn.value||'').trim(); });
+            catIn.addEventListener('blur', function(){ const v = (catIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(catDrop, v, 'option-item-cat'); if (catHidden) catHidden.value = v; });
+        }
+        // Producto modal: unidad
+        const unitIn = document.getElementById('unit_input');
+        const unitHidden = document.getElementById('unit_produc');
+        const unitDrop = document.getElementById('unit_dropdown');
+        if (unitIn) {
+            unitIn.addEventListener('input', function(){ if (unitHidden) unitHidden.value = (unitIn.value||'').trim(); });
+            unitIn.addEventListener('blur', function(){ const v = (unitIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(unitDrop, v, 'option-item-cat'); if (unitHidden) unitHidden.value = v; });
+        }
+        // Añadir desde solicitud modal
+        const scatIn = document.getElementById('solicitud_categoria_input');
+        const scatHidden = document.getElementById('solicitud_categoria_produc');
+        const scatDrop = document.getElementById('solicitud_categoria_dropdown');
+        if (scatIn) {
+            scatIn.addEventListener('input', function(){ if (scatHidden) scatHidden.value = (scatIn.value||'').trim(); });
+            scatIn.addEventListener('blur', function(){ const v = (scatIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(scatDrop, v, 'option-item-cat-solicitud'); if (scatHidden) scatHidden.value = v; });
+        }
+        // Añadir desde solicitud modal: unidad
+        const suIn = document.getElementById('solicitud_unit_input');
+        const suHidden = document.getElementById('solicitud_unit_produc');
+        const suDrop = document.getElementById('solicitud_unit_dropdown');
+        if (suIn) {
+            suIn.addEventListener('input', function(){ if (suHidden) suHidden.value = (suIn.value||'').trim(); });
+            suIn.addEventListener('blur', function(){ const v = (suIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(suDrop, v, 'option-item-cat-solicitud'); if (suHidden) suHidden.value = v; });
+        }
     });
 </script>
 
