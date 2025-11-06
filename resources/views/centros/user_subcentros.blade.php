@@ -59,22 +59,47 @@
                 <form id="assignForm" method="POST" action="{{ route('centros.user_subcentros.store') }}">
                     @csrf
                     <input type="hidden" name="email_user" id="assign_email_user">
+                    <!-- JSON con subcentros asignados (se llenará antes del submit) -->
+                    <input type="hidden" name="subcentros_json" id="subcentros_json" value="">
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Select de subcentros y botón Agregar -->
                         <div class="border rounded p-3 max-h-64 overflow-auto">
                             <h4 class="text-sm font-medium mb-2">Subcentros disponibles</h4>
                             <div class="flex gap-2 mb-3">
-                                <select id="subcentroSelect" class="flex-1 px-2 py-2 border rounded">
-                                    <option value="">-- Selecciona un subcentro --</option>
-                                    @foreach($subcentros as $s)
-                                    <option value="{{ $s->id }}">{{ $s->name_subcentro }} @if($s->centro) ({{ $s->centro->name_centro }})@endif</option>
+                                <!-- Selector de Centros -->
+                                @php
+                                    // Construir lista de centros únicos (compatible con PHP 7.x)
+                                    $centrosUnicos = collect();
+                                    if (!empty($subcentros)) {
+                                        foreach ($subcentros as $s) {
+                                            if (isset($s->centro) && $s->centro) {
+                                                $centrosUnicos->push($s->centro);
+                                            }
+                                        }
+                                    }
+                                    $centrosUnicos = $centrosUnicos->unique('id')->values();
+                                @endphp
+                                <select id="centroSelect" class="flex-1 px-2 py-2 border rounded">
+                                    <option value="">-- Selecciona un centro --</option>
+                                    @foreach($centrosUnicos as $c)
+                                        <option value="{{ $c->id }}">{{ $c->name_centro }}</option>
                                     @endforeach
                                 </select>
-                                <button type="button" id="addSubcentroBtn" class="px-3 py-2 bg-green-600 text-white rounded">Agregar</button>
+                                <button type="button" id="loadSubcentrosBtn" class="px-3 py-2 bg-indigo-600 text-white rounded">Cargar</button>
+
                             </div>
-                            <div class="text-xs text-gray-500">Selecciona y pulsa Agregar para añadir a la lista de asignados.</div>
-                        </div>
+                            <div class="flex gap-2 mb-3">
+                                 <select id="subcentroSelect" class="flex-1 px-2 py-2 border rounded">
+                                     <option value="">-- Selecciona un subcentro --</option>
+                                    @foreach($subcentros as $s)
+                                    <option value="{{ $s->id }}" data-centro-id="{{ isset($s->centro) ? $s->centro->id : '' }}">{{ $s->name_subcentro }} @if(isset($s->centro) && $s->centro) ({{ $s->centro->name_centro }})@endif</option>
+                                    @endforeach
+                                 </select>
+                                 <button type="button" id="addSubcentroBtn" class="px-3 py-2 bg-green-600 text-white rounded">Agregar</button>
+                             </div>
+                             <div class="text-xs text-gray-500">Selecciona y pulsa Agregar para añadir a la lista de asignados.</div>
+                         </div>
 
                         <!-- Tabla dinámica de asignados -->
                         <div class="border rounded p-3 max-h-64 overflow-auto">
@@ -105,7 +130,31 @@
     </div>
 </div>
 
-<script id="all-subcentros-json" type="application/json">@json($subcentros->map(function($s){ return ['id'=>$s->id,'name'=>$s->name_subcentro,'centro'=> $s->centro?->name_centro ?? '']; }))</script>
+@php
+    // Preparar arrays simples para JSON (compatible con PHP 7.x)
+    $allSubcentros = [];
+    if (!empty($subcentros)) {
+        foreach ($subcentros as $s) {
+            $centroName = '';
+            $centroId = null;
+            if (isset($s->centro) && $s->centro) {
+                $centroName = isset($s->centro->name_centro) ? $s->centro->name_centro : '';
+                $centroId = isset($s->centro->id) ? $s->centro->id : null;
+            }
+            $allSubcentros[] = ['id' => $s->id, 'name' => $s->name_subcentro, 'centro' => $centroName, 'centro_id' => $centroId];
+        }
+    }
+
+    $allCentros = [];
+    if (!empty($centrosUnicos)) {
+        foreach ($centrosUnicos as $c) {
+            $allCentros[] = ['id' => $c->id, 'name' => isset($c->name_centro) ? $c->name_centro : ''];
+        }
+    }
+@endphp
+
+<script id="all-subcentros-json" type="application/json">@json($allSubcentros)</script>
+<script id="all-centros-json" type="application/json">@json($allCentros)</script>
 <script>
     window.USER_SUBCENTROS_CFG = {
         apiBase: '{{ rtrim(env('VPL_CORE'), '/') }}',
@@ -114,5 +163,18 @@
     // El JS externo expone openAssignModal y unassignSub
 </script>
 <script src="{{ asset('js/user_subcentros.js') }}"></script>
+
+<!-- Función mínima para cerrar modal y limpiar datos creados por el JS externo -->
+<script>
+    function closeAssignModal(){
+        try {
+            const modal = document.getElementById('assignModal'); if (modal) modal.classList.add('hidden');
+            const tbody = document.getElementById('assignedTbody'); if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="text-sm text-gray-500">Sin asignaciones</td></tr>';
+            // eliminar inputs ocultos creados por user_subcentros.js (name="subcentro_ids[]")
+            document.querySelectorAll('input[name="subcentro_ids[]"]').forEach(n => n.remove());
+            const emailInput = document.getElementById('assign_email_user'); if (emailInput) emailInput.value = '';
+        } catch (e) { console.warn('closeAssignModal', e); }
+    }
+</script>
 
 @endsection

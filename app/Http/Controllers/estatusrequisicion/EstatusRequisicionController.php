@@ -16,6 +16,7 @@ use App\Models\OrdenCompra;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\EstatusRequisicionActualizado as EstatusRequisicionMail;
 use App\Jobs\NotificarAprobacionEtapaJob; 
+use App\Jobs\RequisicionAprobadaFinalJob;
 use App\Models\Productoxproveedor;
 use \App\Http\Controllers\requisicion\RequisicionController;
 
@@ -40,43 +41,11 @@ class EstatusRequisicionController extends Controller
 
         // Mapa operación => rol requerido
         $operacionRoleMap = [
-            // Originales
-            'Cedi Frio' => 'Gerente operaciones',
-            'Cedi Frio - Mantenimiento' => 'Gerente operaciones',
-            'Mary Kay' => 'Gerente operaciones',
-            'Oriflame' => 'Gerente operaciones',
-            'Sony' => 'Gerente operaciones',
-            'Macmillan' => 'Gerente operaciones',
-            'Kw' => 'Gerente operaciones',
-            'Tranpsrtes Vigia' => 'Gerente operaciones',
-            'Cumbria' => 'Gerente operaciones',
-            'Ortopedicos Futuro' => 'Gerente operaciones',
-            'Naos' => 'Gerente operaciones',
-            'Mattel' => 'Gerente operaciones',
-            'Huawei' => 'Gerente operaciones',
-            'Cedi Frio Agrofrut' => 'Gerente operaciones',
-            'Cedi Frio Kikes' => 'Gerente operaciones',
-            'Cedi Frio La Fazenda' => 'Gerente operaciones',
-            'Cedi Frio Calypso' => 'Gerente operaciones',
-            'Cedi Frio Ibazan' => 'Gerente operaciones',
-            'Cedi Frio Todos Comemos' => 'Gerente operaciones',
-            'Cedi Frio Food Box' => 'Gerente operaciones',
-            'Inventarios' => 'Gerente operaciones',
-            'Transportes' => 'Gerente operaciones',
-            'Mejoramiento Contínuo' => 'Gerente operaciones',
-            // Aliases / variantes sin acentos o con diferencias de mayúsculas/typos
-            'Cedi frio' => 'Gerente operaciones',
-            'Cei frtio - Mantenimiento' => 'Gerente operaciones', // typo reportado
-            'Mejoramiento Continuo' => 'Gerente operaciones',
-
-            // Otros roles
+            'Operaciones' => 'Gerente operaciones',
             'Seguridad' => 'Director de proyectos',
             'HSEQ' => 'Director de proyectos',
             'Calidad' => 'Director de proyectos',
-            'Compras' => 'Director de proyectos',
-
-            'Talento Humano' => 'Gerente talento humano',
-            'Financiera' => 'Director contable',
+            'Financiero' => 'Gerente financiero',
         ];
 
         // Roles por etapas (estatus 2 y 3) y bandera para área de compras
@@ -85,6 +54,7 @@ class EstatusRequisicionController extends Controller
         $hasAdmin = in_array('admin requisicion', $userRolesNorm, true);
         $hasAreaCompras = in_array('area de compras', $userRolesNorm, true);
         $hasGerenteFinanciero = in_array('gerente financiero', $userRolesNorm, true);
+        // Roles con acceso general a etapa 2 y 3 (normalizados en minúscula)
         $rolesEstatus2 = ['gerente operaciones','gerente talento humano','director contable','director de proyectos','gerente financiero','admin requisicion'];
         $rolesEstatus3 = ['director contable','gerente financiero','admin requisicion'];
         $watchStatuses = [];
@@ -106,14 +76,29 @@ class EstatusRequisicionController extends Controller
             ->whereHas('ultimoEstatus', fn($q)=> $q->whereIn('estatus_id',$watchStatuses))
             ->orderBy('created_at','desc')->get();
 
-        // Filtrar por operaciones que corresponden al rol del usuario
+        // Filtrar por operaciones que corresponden al rol del usuario (con excepciones por nombre en Financiero)
         $requisicionesFiltradas = $requisiciones->filter(function($req) use ($hasAreaCompras,$userRolesNorm,$operacionRoleMap,$hasGerenteFinanciero,$hasAdmin){
             if ($hasAdmin) return true; // Admin ve todas
             $estatusActual = optional($req->ultimoEstatus)->estatus_id;
             if ($estatusActual==1) return $hasAreaCompras; // sólo Área de compras
             if ($estatusActual==2) {
-                $op = $req->operacion_user; if(!$op || !isset($operacionRoleMap[$op])) return false; $rolReq = mb_strtolower($operacionRoleMap[$op],'UTF-8');
-                return in_array($rolReq,$userRolesNorm,true);
+                $op = $req->operacion_user; if(!$op) return false;
+                // Determinar roles permitidos para etapa 2 (excepciones en Financiero)
+                $opNorm = mb_strtolower(trim($op), 'UTF-8');
+                $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+                $nameNorm = mb_strtolower(trim($req->name_user ?? ''), 'UTF-8');
+                $nameNorm = strtr($nameNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+                $allowedStage2 = [];
+                if (in_array($opNorm, ['financiero','financiera'], true)) {
+                    if ($nameNorm === 'linda lozano') { $allowedStage2 = ['gerente talento humano']; }
+                    elseif ($nameNorm === 'zelena mendoza') { $allowedStage2 = ['director contable']; }
+                    else { $allowedStage2 = ['gerente financiero']; }
+                } else {
+                    if (!isset($operacionRoleMap[$op])) return false;
+                    $allowedStage2 = [ mb_strtolower($operacionRoleMap[$op],'UTF-8') ];
+                }
+                // Mostrar si el usuario posee cualquiera de los roles permitidos
+                return count(array_intersect($userRolesNorm, $allowedStage2)) > 0;
             }
             if ($estatusActual==3) {
                 if ($hasGerenteFinanciero) return true;
@@ -223,7 +208,12 @@ class EstatusRequisicionController extends Controller
             $targetStatus = (int)$request->estatus_id;
             $opNombre = mb_strtolower(trim($requisicion->operacion_user ?? ''), 'UTF-8');
             $opNombre = strtr($opNombre, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
-            $operacionEspecial = in_array($opNombre, ['tecnologia','compras'], true);
+            $nameNorm = mb_strtolower(trim($requisicion->name_user ?? ''), 'UTF-8');
+            $nameNorm = strtr($nameNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            // Flujo especial 1->3 sólo para Financiero/Financiera excepto casos específicos (Linda/Zelena)
+            $isFin = in_array($opNombre, ['financiero','financiera'], true);
+            $isException = in_array($nameNorm, ['linda lozano','zelena mendoza'], true);
+            $operacionEspecial = $isFin && !$isException;
 
             // Si no cambia
             if ($currentStatus === $targetStatus) {
@@ -422,22 +412,18 @@ class EstatusRequisicionController extends Controller
                 $this->notificarPorEtapa($requisicion, $nuevoEstatus, ($currentStatus == 1 && $operacionEspecial && $targetStatus == 3) ? 3 : $targetStatus);
             }
 
-            // Notificación correo (igual anterior)
+            // Notificación correo (unificada vía Job para evitar duplicados)
             try {
                 $userEmail = $requisicion->email_user ?? null;
                 if (!$userEmail) {
                     $info = $this->obtenerInformacionUsuario($requisicion->user_id);
                     $userEmail = $info['email'] ?? null;
                 }
-                if ($userEmail) {
-                    if (empty($nuevoEstatus->user_id) && session('user.id')) $nuevoEstatus->user_id = session('user.id');
-                    Mail::to($userEmail)->send(new EstatusRequisicionMail($requisicion, $nuevoEstatus));
-                } else {
-                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, null);
-                }
+                if (empty($nuevoEstatus->user_id) && session('user.id')) { $nuevoEstatus->user_id = session('user.id'); }
+                // Siempre despachar el Job; el Job decide si envía correo genérico o salta según estatus
+                EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
             } catch (\Exception $e) {
-                Log::error('Error correo updateStatus: '.$e->getMessage());
-                try { EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $requisicion->email_user ?? null); } catch(\Exception $e2) {}
+                Log::error('Error notificando updateStatus (job): '.$e->getMessage());
             }
 
             DB::commit();
@@ -523,30 +509,34 @@ class EstatusRequisicionController extends Controller
             elseif ($targetStatus === 4) { $stageKey = 'final'; }
             if (!$stageKey) { return; }
 
-            // Determinar rol objetivo para stage2 según operación (normalizado)
+            // Para estado final usar correo específico de “esperar OC”
+            if ($stageKey === 'final') {
+                try { RequisicionAprobadaFinalJob::dispatch($requisicion); } catch (\Throwable $e) {}
+                return;
+            }
+
             $roleTarget = null;
             if ($stageKey === 'stage2') {
-                $roleTarget = $this->getRoleTargetForOperation($requisicion->operacion_user);
+                $roleTarget = $this->getRoleTargetForReq($requisicion);
             }
 
             $destinatarios = $this->recipientsByOperation($requisicion->operacion_user, $stageKey, $roleTarget);
-            if (empty($destinatarios)) { return; }
-
             $id = $requisicion->id;
             $op = $requisicion->operacion_user ?? 'N/A';
-            $solicitante = $requisicion->name_user ?? 'N/A';
             $prioridad = ucfirst($requisicion->prioridad_requisicion ?? '');
+            $cant = (int)($requisicion->amount_requisicion ?? 0);
             $detalleUrl = route('requisiciones.show', $id);
             $panelUrl = url('/requisiciones/aprobacion');
 
             if ($stageKey === 'stage2') {
-                $subject = "Nueva requisición #{$id} pendiente de aprobación ({$op})";
-                $mensajePrincipal = "Se ha creado la requisición #{$id}. Ingresa a VPL-Compras para su aprobación.";
-            } else {
-                $etiqueta = [ 'stage2' => 'Etapa 2', 'stage3' => 'Etapa 3', 'final' => 'Aprobación Final' ][$stageKey] ?? 'Aprobación';
-                $subject = "Requisición #{$id} aprobada - {$etiqueta} ({$op})";
-                $mensajePrincipal = "La requisición #{$id} ha avanzado a {$etiqueta}.";
+                $subject = "Requisición #{$id} pendiente por aprobación ({$op})";
+                $mensajePrincipal = "Se ha creado la requisición #{$id} con prioridad {$prioridad} y {$cant} producto(s). Ingresa para realizar su aprobación.";
+            } else { // stage3
+                $subject = "Requisición #{$id} pendiente por aprobación ({$op})";
+                $mensajePrincipal = "La requisición #{$id} avanzó de etapa y requiere su aprobación. Ingresa para continuar el proceso.";
             }
+
+            // No usar email del solicitante como destinatario; confiar en la configuración (config/env)
 
             NotificarAprobacionEtapaJob::dispatch(
                 $requisicion,
@@ -576,47 +566,27 @@ class EstatusRequisicionController extends Controller
         return $normalized[$opKey] ?? null;
     }
 
+    // NUEVO: rol objetivo para etapa 2 considerando excepciones por nombre en operación Financiero
+    private function getRoleTargetForReq(Requisicion $req): ?string
+    {
+        $opNorm = $this->normalizeOperacionKey($req->operacion_user);
+        $nameNorm = $this->normalizeOperacionKey($req->name_user);
+        if (in_array($opNorm, ['financiero','financiera'], true)) {
+            if ($nameNorm === 'linda lozano') return 'Gerente talento humano';
+            if ($nameNorm === 'zelena mendoza') return 'Director contable';
+        }
+        return $this->getRoleTargetForOperation($req->operacion_user);
+    }
+
     // NUEVO: mapa operación => rol objetivo para etapa 2
     private function getOperacionRoleMap(): array
     {
         return [
-            // Originales
-            'Cedi Frio' => 'Gerente operaciones',
-            'Cedi Frio - Mantenimiento' => 'Gerente operaciones',
-            'Mary Kay' => 'Gerente operaciones',
-            'Oriflame' => 'Gerente operaciones',
-            'Sony' => 'Gerente operaciones',
-            'Macmillan' => 'Gerente operaciones',
-            'Kw' => 'Gerente operaciones',
-            'Tranpsrtes Vigia' => 'Gerente operaciones',
-            'Cumbria' => 'Gerente operaciones',
-            'Ortopedicos Futuro' => 'Gerente operaciones',
-            'Naos' => 'Gerente operaciones',
-            'Mattel' => 'Gerente operaciones',
-            'Huawei' => 'Gerente operaciones',
-            'Cedi Frio Agrofrut' => 'Gerente operaciones',
-            'Cedi Frio Kikes' => 'Gerente operaciones',
-            'Cedi Frio La Fazenda' => 'Gerente operaciones',
-            'Cedi Frio Calypso' => 'Gerente operaciones',
-            'Cedi Frio Ibazan' => 'Gerente operaciones',
-            'Cedi Frio Todos Comemos' => 'Gerente operaciones',
-            'Cedi Frio Food Box' => 'Gerente operaciones',
-            'Inventarios' => 'Gerente operaciones',
-            'Transportes' => 'Gerente operaciones',
-            'Mejoramiento Contínuo' => 'Gerente operaciones',
-            // Aliases / variantes
-            'Cedi frio' => 'Gerente operaciones',
-            'Cei frtio - Mantenimiento' => 'Gerente operaciones',
-            'Mejoramiento Continuo' => 'Gerente operaciones',
-
-            // Otros
+            'Operaciones' => 'Gerente operaciones',
             'Seguridad' => 'Director de proyectos',
             'HSEQ' => 'Director de proyectos',
             'Calidad' => 'Director de proyectos',
-            'Compras' => 'Director de proyectos',
-
-            'Talento Humano' => 'Gerente talento humano',
-            'Financiera' => 'Director contable',
+            'Financiero' => 'Gerente financiero',
         ];
     }
 
@@ -625,6 +595,7 @@ class EstatusRequisicionController extends Controller
     {
         $map = config('requisiciones.destinatarios_por_operacion', []);
         $opKey = $this->normalizeOperacionKey($operacion);
+        // intentar coincidencia exacta o fallback default
         $cfg = $map[$opKey] ?? $map['default'] ?? [];
 
         // Si es stage2 y existe configuración por rol, úsala
@@ -632,16 +603,33 @@ class EstatusRequisicionController extends Controller
             $byRole = $cfg['stage2_by_role'] ?? ($map['default']['stage2_by_role'] ?? []);
             $recips = $byRole[$roleKey] ?? [];
             if (!empty($recips)) {
-                return is_array($recips) ? array_values(array_filter($recips)) : [];
+                return $this->normalizeRecipients($recips);
             }
         }
 
         // Fallback a listas por etapa (stage2/stage3/final)
         $recips = $cfg[$stageKey] ?? ($map['default'][$stageKey] ?? []);
+        return $this->normalizeRecipients($recips);
+    }
+
+    // normaliza una configuración de destinatarios que puede ser string con comas/; o array y devuelve array de emails válidos
+    private function normalizeRecipients($recips): array
+    {
+        $out = [];
         if (is_string($recips)) {
-            $recips = array_filter(array_map('trim', explode(',', $recips)));
+            $parts = preg_split('/[;,\s]+/', $recips) ?: [];
+            foreach ($parts as $p) { $p = trim($p); if ($p) $out[] = $p; }
+        } elseif (is_array($recips)) {
+            foreach ($recips as $p) { if (is_string($p)) { $p = trim($p); if ($p) $out[] = $p; } }
         }
-        return is_array($recips) ? array_values(array_filter($recips)) : [];
+        // extraer emails válidos (si hay entries con formato "Name <email>")
+        $emails = [];
+        foreach ($out as $item) {
+            if (preg_match('/<([^>]+)>/', $item, $m)) { $item = $m[1]; }
+            $item = trim($item);
+            if (filter_var($item, FILTER_VALIDATE_EMAIL)) $emails[] = $item;
+        }
+        return array_values(array_unique($emails));
     }
 
     private function normalizeOperacionKey(?string $txt): string

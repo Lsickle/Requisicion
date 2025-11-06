@@ -30,12 +30,10 @@
                     <p style="margin:16px 0 0 0;">Puedes consultar los detalles en el sistema o descargar el PDF.</p>
                     <p style="margin:8px 0 0 0;">
                         <a href="{{ route('pdf.generar', ['tipo' => 'requisicion', 'id' => $requisicion->id]) }}" 
-                           style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
+                            style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
                             Descargar PDF
                         </a>
                     </p>
-
-                    <p style="margin:16px 0 0 0;">Saludos,<br/>Equipo</p>
                 </div>
             </td>
         </tr>

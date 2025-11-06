@@ -208,7 +208,14 @@
                 <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
                 <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
                     @php
-                    $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
+                    // Normalizar (trim + lowercase) y eliminar duplicados preservando la primera presentación encontrada
+                    $categoriasUnicas = collect($productos ?? [])->pluck('categoria_produc')
+                        ->map(fn($c) => trim((string)$c))
+                        ->filter()
+                        ->mapWithKeys(fn($c) => [mb_strtolower($c, 'UTF-8') => $c])
+                        ->values()
+                        ->sort()
+                        ->values();
                     @endphp
                     @foreach ($categoriasUnicas as $categoria)
                     <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">

@@ -203,6 +203,23 @@
     if (clearBtn && input) clearBtn.addEventListener('click', function(){ input.value = ''; userSearch = ''; loadUsers(1); });
   }
 
+  function bindLoadCentro(){
+    const loadBtn = document.getElementById('loadSubcentrosBtn');
+    const centroSelect = document.getElementById('centroSelect');
+    if (!loadBtn || !centroSelect) return;
+    loadBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      const cid = centroSelect.value;
+      if (!cid) { if (typeof Swal !== 'undefined') Swal.fire({icon:'info', title:'Seleccione centro', text:'Seleccione un centro para cargar sus subcentros.'}); return; }
+      const list = (ALL_SUBCENTROS||[]).filter(s => String(s.centro_id) === String(cid));
+      if (!list.length) { if (typeof Swal !== 'undefined') Swal.fire({icon:'info', title:'Sin subcentros', text:'El centro seleccionado no tiene subcentros.'}); return; }
+      list.forEach(s => assignedSet.add(Number(s.id)));
+      renderAssignedTable();
+      // reset subcentro select (optional)
+      const sel = document.getElementById('subcentroSelect'); if (sel) sel.value = '';
+    });
+  }
+
   function bindFormConfirm(){
     const form = $('#assignForm');
     if (!form) return;
@@ -229,6 +246,7 @@
 
   document.addEventListener('DOMContentLoaded', function(){
     bindSearch();
+    bindLoadCentro();
     bindFormConfirm();
     loadUsers();
   });

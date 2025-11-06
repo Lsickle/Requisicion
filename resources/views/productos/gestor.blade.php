@@ -1472,14 +1472,17 @@
 
         rows.forEach(row => {
             const nombre = (row.querySelector('td[data-col="nombre"]')?.textContent || '').toLowerCase();
-            const categoria = (row.querySelector('td[data-col="categoria"]')?.textContent || '').trim();
-            const proveedor = (row.querySelector('td[data-col="proveedor"]')?.textContent || '').trim();
+            const sku = (row.querySelector('td[data-col="sku"]')?.textContent || '').toLowerCase();
+            const categoria = (row.querySelector('td[data-col="categoria"]')?.textContent || '').toLowerCase();
+            const proveedor = (row.querySelector('td[data-col="proveedor"]')?.textContent || '').toLowerCase();
             const estadoEl = row.querySelector('td[data-col="estado"] span');
             const estado = estadoEl ? estadoEl.textContent.trim() : '';
 
-            const matchesSearch = !searchInput || nombre.includes(searchInput);
-            const matchesCategoria = !filterCategoria || categoria === filterCategoria;
-            const matchesProveedor = !filterProveedor || proveedor === filterProveedor;
+            // Buscar en nombre, sku, categoría y proveedor
+            const matchesSearch = !searchInput || nombre.includes(searchInput) || sku.includes(searchInput) || categoria.includes(searchInput) || proveedor.includes(searchInput);
+
+            const matchesCategoria = !filterCategoria || categoria === filterCategoria.toLowerCase();
+            const matchesProveedor = !filterProveedor || proveedor.includes(filterProveedor.toLowerCase());
             const matchesEstado = !filterEstado || estado === filterEstado;
 
             row.dataset.match = (matchesSearch && matchesCategoria && matchesProveedor && matchesEstado) ? '1' : '0';

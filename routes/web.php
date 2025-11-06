@@ -23,6 +23,7 @@ use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
 use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
 use App\Http\Controllers\centros\CentroController;
 use App\Http\Controllers\centros\UserSubcentroController;
+use App\Http\Controllers\requisicion\AprobadoresController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -295,6 +296,16 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/centros/user_subcentros', [UserSubcentroController::class, 'store'])->name('centros.user_subcentros.store');
     Route::get('/centros/user_subcentros/list/{email}', [UserSubcentroController::class, 'listForUser'])->name('centros.user_subcentros.list');
     Route::get('/centros/user_subcentros/fetch', [UserSubcentroController::class, 'fetchUsers'])->name('centros.user_subcentros.fetch');
+
+    // Rutas para gestión de aprobadores por centro (vista y store) — delegadas a controller
+    Route::get('/requisiciones/gestor-aprobadores', [AprobadoresController::class, 'index'])
+        ->name('requisiciones.aprobadores.gestor')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
+    Route::post('/requisiciones/aprobadores', [AprobadoresController::class, 'store'])
+        ->name('requisiciones.aprobadores.store')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista

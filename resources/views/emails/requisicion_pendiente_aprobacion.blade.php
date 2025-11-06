@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <title>Requisición - Notificación</title>
+    <title>Requisición pendiente por aprobación</title>
 </head>
 <body style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fb; padding:24px;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden;">
@@ -15,35 +15,35 @@
         <tr>
             <td style="padding:24px; color:#111827;">
                 <div style="font-family: Arial, sans-serif; color:#111;">
-                    @php
-                        $isStage2 = ($stageKey === 'stage2');
-                        $isStage3 = ($stageKey === 'stage3');
-                        $etiqueta = $isStage2 ? 'Pendiente por aprobación' : ($isStage3 ? 'Aprobación' : 'Aprobación');
-                    @endphp
-                    <h2 style="margin:0 0 12px 0;">Requisición #{{ $requisicion->id }} - {{ $etiqueta }}</h2>
-                    <p style="margin:0 0 12px 0;">{{ $mensajePrincipal }}</p>
+                    <h2 style="margin:0 0 12px 0;">Requisición #{{ $requisicion->id ?? '—' }} pendiente por aprobación</h2>
 
-                    <p style="margin:0 0 6px 0;"><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
-                    <p style="margin:0 0 6px 0;"><strong>Solicitante:</strong> {{ $requisicion->name_user }}</p>
-                    <p style="margin:0 0 6px 0;"><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion) }}</p>
+                    <p style="margin:0 0 12px 0;">
+                        {{ $mensajePrincipal ?? ('Se ha creado la requisición #'.($requisicion->id ?? '—').'. Ingresa al sistema para realizar su aprobación.') }}
+                    </p>
+
+                    <p style="margin:0 0 6px 0;"><strong>Operación:</strong> {{ $requisicion->operacion_user ?? 'N/A' }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Solicitante:</strong> {{ $requisicion->name_user ?? 'N/A' }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Prioridad:</strong> {{ isset($requisicion->prioridad_requisicion) ? ucfirst($requisicion->prioridad_requisicion) : 'N/A' }}</p>
                     @if(!empty($requisicion->justify_requisicion))
                         <p style="margin:0 0 6px 0;"><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
                     @endif
                     <p style="margin:0 0 16px 0;"><strong>Productos:</strong> {{ (int)($requisicion->amount_requisicion ?? 0) }}</p>
 
-                    <p style="margin:16px 0 0 0;">Ingresa al sistema para realizar la aprobación.</p>
+                    <p style="margin:16px 0 0 0;">Accede con los siguientes enlaces:</p>
                     <p style="margin:8px 0 0 0;">
-                        <a href="{{ $panelUrl }}" 
+                        <a href="{{ $panelUrl ?? url('/requisiciones/aprobacion') }}" 
                            style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
                             Ir al panel
                         </a>
-                        <a href="{{ $detalleUrl }}" 
+                        @if(isset($requisicion->id))
+                        <a href="{{ $detalleUrl ?? route('requisiciones.show', $requisicion->id) }}" 
                            style="display:inline-block; margin-left:8px; background:#0f766e; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
                             Ver detalles
                         </a>
+                        @endif
                     </p>
 
-                    <p style="margin:16px 0 0 0;">Saludos</p>
+                    <p style="margin:16px 0 0 0;">Saludos,<br/>Equipo</p>
                 </div>
             </td>
         </tr>

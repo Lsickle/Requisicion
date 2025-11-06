@@ -301,15 +301,18 @@
             @php
             $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
             $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
-            $especial = in_array($opNorm, ['tecnologia','compras']);
-            $estatusAprobar = null;
-            if ($estatusActual === 1) {
-                $estatusAprobar = $especial ? 3 : 2;
-            } elseif ($estatusActual === 2) {
-                $estatusAprobar = 3;
-            } elseif ($estatusActual === 3) {
-                $estatusAprobar = 4;
-            }
+            // Salto directo a etapa 3 sólo para operación Financiero/Financiera excepto casos específicos
+            $nameNorm = mb_strtolower(trim($req->name_user ?? ''), 'UTF-8');
+            $nameNorm = strtr($nameNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            $especial = in_array($opNorm, ['Financiero','financiera']) && !in_array($nameNorm, ['linda lozano','zelena mendoza']);
+             $estatusAprobar = null;
+             if ($estatusActual === 1) {
+                 $estatusAprobar = $especial ? 3 : 2;
+             } elseif ($estatusActual === 2) {
+                 $estatusAprobar = 3;
+             } elseif ($estatusActual === 3) {
+                 $estatusAprobar = 4;
+             }
             $estatusRechazar = 9;
             @endphp
             <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">

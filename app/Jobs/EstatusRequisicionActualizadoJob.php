@@ -13,8 +13,6 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Jobs\RequisicionRechazadaJob;
-use App\Jobs\RequisicionAprobadaFinalJob;
 
 class EstatusRequisicionActualizadoJob implements ShouldQueue
 {
@@ -46,7 +44,7 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
             $estatusId = (int) ($this->estatus->estatus_id ?? 0);
             $nombreEstatus = optional($this->estatus->estatusRelation)->status_name;
 
-            // Resolver estatus activo real desde BD (en caso de que el modelo recibido no sea el actual)
+            // Resolver estatus activo real desde BD
             try {
                 $activeId = DB::table('estatus_requisicion')
                     ->where('requisicion_id', $this->requisicion->id)
@@ -56,7 +54,7 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
                 if (!is_null($activeId)) { $estatusId = (int)$activeId; }
             } catch (\Throwable $e) { /* noop */ }
 
-            // Normalizar nombre para comparaciones robustas
+            // Normalizar nombre para comparaciones
             $norm = function($s){
                 $s = mb_strtolower((string)$s, 'UTF-8');
                 $from = ['á','é','í','ó','ú','ñ']; $to = ['a','e','i','o','u','n'];
@@ -64,8 +62,8 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
             };
             $nameNorm = $norm($nombreEstatus);
 
-            // Omitir envío para estatus no notificables (por ID o por nombre) y despachar jobs específicos
-            $skipIds = [11, 12, 9, 13, 4];
+            // Añadir 2 y 3 para omitir genérico y usar correos de aprobación por etapa
+            $skipIds = [2, 3, 4, 9, 11, 12, 13];
             $skipByName = (
                 strpos($nameNorm, 'corregir') !== false ||
                 strpos($nameNorm, 'rechaz') !== false ||
@@ -74,22 +72,12 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
                 strpos($nameNorm, 'solo se ha entregado') !== false
             );
             if (in_array($estatusId, $skipIds, true) || $skipByName) {
-                Log::info('estatusActualizado: skip por estatus no notificable', [
+                Log::info('estatusActualizado: omitido genérico por estatus especial', [
                     'req' => $this->requisicion->id,
                     'estatus_id' => $estatusId,
                     'estatus_name' => $nombreEstatus,
                 ]);
-                // Rechazos: 11 (corregir), 9 (rechazo financiera), 13 (rechazo gerencia)
-                if (in_array($estatusId, [11, 9, 13], true)) {
-                    try { RequisicionRechazadaJob::dispatch($this->requisicion, $estatusId, $this->estatus->comentario ?? null); }
-                    catch (\Throwable $e) { Log::warning('No se pudo despachar RequisicionRechazadaJob desde EstatusActualizado', ['req'=>$this->requisicion->id, 'err'=>$e->getMessage()]); }
-                }
-                // Aprobado final por financiera: 4
-                if ($estatusId === 4) {
-                    try { RequisicionAprobadaFinalJob::dispatch($this->requisicion); }
-                    catch (\Throwable $e) { Log::warning('No se pudo despachar RequisicionAprobadaFinalJob desde EstatusActualizado', ['req'=>$this->requisicion->id, 'err'=>$e->getMessage()]); }
-                }
-                return;
+                return; // NO enviar correo genérico ni despachar otros jobs aquí (se hacen en el controlador)
             }
 
             // Omitir 'Requisición creada'
@@ -98,7 +86,6 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
                 return;
             }
 
-            // Preferir el email proporcionado, si no, usar el email guardado en la requisición o el usuario relacionado
             $to = $this->userEmail
                 ?? ($this->requisicion->email_user ?? null)
                 ?? optional($this->requisicion->user)->email

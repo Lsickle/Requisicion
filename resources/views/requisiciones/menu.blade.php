@@ -170,6 +170,20 @@
             </div>
             @endif
 
+            <!-- Lista de Productos (añadida) -->
+            <div class="w-full max-w-sm min-h-[315px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-400 flex flex-col justify-between">
+                <div class="flex flex-col items-center text-center w-full">
+                    <div class="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-list text-teal-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Lista de Productos</h3>
+                    <p class="text-gray-600 mb-4">Visualiza la lista completa de productos disponibles en el sistema</p>
+                </div>
+                <a href="{{ route('productos.lista') }}" class="text-center inline-block bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Ver Lista
+                </a>
+            </div>
+
             @if($hasPermission('Centros'))
             <!-- Centros -->
             <div class="w-full max-w-sm min-h-[315px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 flex flex-col justify-between">

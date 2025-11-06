@@ -64,11 +64,32 @@ class CentroController extends Controller
     public function storeSubcentro(Request $request, $centroId)
     {
         $data = $request->validate([
-            'name_subcentro' => 'required|string|max:255',
+            'name_subcentro' => 'nullable|string|max:255',
+            'existing_id' => 'nullable|integer',
         ]);
+
         try {
             $centro = Centro::findOrFail($centroId);
-            $sub = Subcentro::create([ 'name_subcentro' => $data['name_subcentro'], 'centro_id' => $centro->id ]);
+
+            // determinar nombre: si viene existing_id, copiar nombre desde ese registro (incluso soft-deleted)
+            $name = null;
+            if (!empty($data['existing_id'])) {
+                $existing = Subcentro::withTrashed()->find($data['existing_id']);
+                if (!$existing) return redirect()->back()->with('error', 'Subcentro seleccionado no encontrado.');
+                $name = $existing->name_subcentro;
+            } elseif (!empty($data['name_subcentro'])) {
+                $name = $data['name_subcentro'];
+            }
+
+            if (empty($name)) return redirect()->back()->with('error', 'Nombre de subcentro requerido.');
+
+            // prevenir duplicados exactos en el mismo centro
+            $exists = Subcentro::where('name_subcentro', $name)->where('centro_id', $centro->id)->exists();
+            if ($exists) {
+                return redirect()->route('centros.index')->with('info', 'El subcentro ya existe en este centro.');
+            }
+
+            $sub = Subcentro::create([ 'name_subcentro' => $name, 'centro_id' => $centro->id ]);
             return redirect()->route('centros.index')->with('success', 'Subcentro creado.');
         } catch (\Throwable $e) {
             Log::error('Error creando subcentro: '.$e->getMessage());
