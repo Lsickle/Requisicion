@@ -635,7 +635,7 @@ class RequisicionController extends Controller
             }
 
             // Registrar estatus 10
-            $this->setRequisicionStatus((int)$requisicion->id, 10, 'Finalizada por ' . (session('user.name') ?? 'Sistema'));
+            $this->setRequisicionStatus((int)$requisicion->id, 10);
 
             DB::commit();
 

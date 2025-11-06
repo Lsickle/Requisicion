@@ -304,7 +304,7 @@
             // Salto directo a etapa 3 sólo para operación Financiero/Financiera excepto casos específicos
             $nameNorm = mb_strtolower(trim($req->name_user ?? ''), 'UTF-8');
             $nameNorm = strtr($nameNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
-            $especial = in_array($opNorm, ['Financiero','financiera']) && !in_array($nameNorm, ['linda lozano','zelena mendoza']);
+            $especial = in_array($opNorm, ['financiero','financiera']) && !in_array($nameNorm, ['linda lozano','zelena mendoza']);
              $estatusAprobar = null;
              if ($estatusActual === 1) {
                  $estatusAprobar = $especial ? 3 : 2;

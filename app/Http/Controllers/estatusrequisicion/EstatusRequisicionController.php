@@ -373,8 +373,9 @@ class EstatusRequisicionController extends Controller
                     $mensajeAccion = 'rechazada';
                 }
             } else {
-                // Aprobación con paso intermedio para operaciones especiales cuando se aprueba a 3 desde 1
-                if ($currentStatus == 1 && $operacionEspecial && $targetStatus == 3) {
+                // Aprobación con paso intermedio para operación Financiero (no excepciones) al aprobar desde 1
+                // Si el frontend envía 2 o 3, se inserta 2 como histórico y queda activo en 3
+                if ($currentStatus == 1 && $operacionEspecial && in_array($targetStatus, [2,3], true)) {
                     // Insertar estatus 2 como histórico para trazabilidad
                     Estatus_Requisicion::create([
                         'requisicion_id' => $requisicionId,
@@ -409,7 +410,7 @@ class EstatusRequisicionController extends Controller
                 }
 
                 // Notificar por la etapa final aplicada (si hubo intermedio, es 3)
-                $this->notificarPorEtapa($requisicion, $nuevoEstatus, ($currentStatus == 1 && $operacionEspecial && $targetStatus == 3) ? 3 : $targetStatus);
+                $this->notificarPorEtapa($requisicion, $nuevoEstatus, ($currentStatus == 1 && $operacionEspecial && in_array($targetStatus, [2,3], true)) ? 3 : $targetStatus);
             }
 
             // Notificación correo (unificada vía Job para evitar duplicados)
