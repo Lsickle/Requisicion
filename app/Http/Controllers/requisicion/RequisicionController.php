@@ -151,7 +151,8 @@ class RequisicionController extends Controller
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.requisicion_amount' => 'required|integer|min:1',
             'productos.*.centros' => 'required|array|min:1',
-            'productos.*.centros.*.id' => 'required|exists:centro,id',
+            // permitir que el id sea de centro o subcentro; se resolverá al centro padre
+            'productos.*.centros.*.id' => 'required|integer|min:1',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
             'productos.required' => 'Agrega al menos un producto.',
@@ -189,9 +190,16 @@ class RequisicionController extends Controller
                 ]);
 
                 foreach ($prod['centros'] as $centro) {
+                    $cidInput = (int)($centro['id'] ?? 0);
+                    $cidResolved = $this->resolveCentroIdLegacy($cidInput);
+                    if (!$cidResolved) {
+                        throw ValidationException::withMessages([
+                            'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución."
+                        ]);
+                    }
                     DB::table('centro_producto')->insert([
                         'producto_id' => $prod['id'],
-                        'centro_id'   => $centro['id'],
+                        'centro_id'   => $cidResolved,
                         'requisicion_id' => $requisicion->id,
                         'amount'      => $centro['cantidad'],
                         'created_at'  => now(),
@@ -242,7 +250,8 @@ class RequisicionController extends Controller
             'productos.*.requisicion_amount' => 'required|integer|min:1',
 
             'productos.*.centros' => 'required|array|min:1',
-            'productos.*.centros.*.id' => 'required|exists:centro,id',
+            // permitir id de centro o subcentro; se resolverá al centro
+            'productos.*.centros.*.id' => 'required|integer|min:1',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
             'operacion_user.required' => 'Debe seleccionar una operación.',
@@ -299,9 +308,16 @@ class RequisicionController extends Controller
                 ]);
 
                 foreach ($prod['centros'] as $centro) {
+                    $cidInput = (int)($centro['id'] ?? 0);
+                    $cidResolved = $this->resolveCentroIdLegacy($cidInput);
+                    if (!$cidResolved) {
+                        throw ValidationException::withMessages([
+                            'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución."
+                        ]);
+                    }
                     DB::table('centro_producto')->insert([
                         'producto_id' => $prod['id'],
-                        'centro_id'   => $centro['id'],
+                        'centro_id'   => $cidResolved,
                         'requisicion_id' => $requisicion->id,
                         'amount'      => $centro['cantidad'],
                         'created_at'  => now(),
@@ -319,6 +335,26 @@ class RequisicionController extends Controller
             DB::rollBack();
             return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Resolver un id de entrada a un centro válido.
+     * Si el id corresponde a un centro, lo retorna tal cual; si corresponde a un subcentro, devuelve su centro padre.
+     * Devuelve null si no lo puede resolver.
+     */
+    private function resolveCentroIdLegacy(int $inputId): ?int
+    {
+        try {
+            // ¿Existe como centro?
+            $existsCentro = DB::table('centro')->where('id', $inputId)->exists();
+            if ($existsCentro) return $inputId;
+            // ¿Existe como subcentro? devolver centro_id
+            $centroId = DB::table('subcentros')->where('id', $inputId)->value('centro_id');
+            if ($centroId) return (int)$centroId;
+        } catch (\Throwable $e) {
+            // noop
+        }
+        return null;
     }
 
     /**

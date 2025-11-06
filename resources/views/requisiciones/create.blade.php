@@ -264,58 +264,72 @@
             <div class="grid grid-cols-3 gap-4 items-end">
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Subcentros</label>
-                    <div class="relative">
-                        <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un centro" autocomplete="off">
+                     <div class="relative">
+                        <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un subcentro" autocomplete="off">
                         <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
                         <div id="centrosDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
                             @php
-                                $centrosUnicos = collect($centros ?? [])
-                                    ->filter(function($x){ return !empty($x->centro_id); })
-                                    ->unique('centro_id')
-                                    ->values();
+                                // Subcentros asignados al usuario (por email de sesión)
+                                $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
+                                $subcentrosUsuario = collect();
+                                try {
+                                    if ($userEmail) {
+                                        $subcentrosUsuario = DB::table('userxsubcentro as ux')
+                                            ->join('subcentros as s','s.id','=','ux.subcentro_id')
+                                            ->leftJoin('centro as c','c.id','=','s.centro_id')
+                                            ->whereNull('ux.deleted_at')
+                                            ->where('ux.email_user', $userEmail)
+                                            ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
+                                            ->orderBy('c.name_centro')
+                                            ->orderBy('s.name_subcentro')
+                                            ->get();
+                                    }
+                                } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
                             @endphp
-                            @foreach ($centrosUnicos as $c)
-                                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $c->centro_id }}" data-nombre="{{ $c->centro_nombre }}" onclick="seleccionarCentro(event, this)">
-                                    {{ $c->centro_nombre }}
+                            @forelse ($subcentrosUsuario as $sc)
+                                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $sc->subcentro_id }}" data-nombre="{{ $sc->name_subcentro }}" onclick="seleccionarCentro(event, this)">
+                                    {{ $sc->name_subcentro }} @if(!empty($sc->name_centro)) ({{ $sc->name_centro }}) @endif
                                 </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
-                    <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1"
-                        placeholder="Ej: 50">
-                </div>
-                <div>
-                    <button type="button" id="agregarCentroBtn"
-                        class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                        Agregar
-                    </button>
-                </div>
-            </div>
+                            @empty
+                                <div class="p-2 text-gray-500">No tienes subcentros asignados.</div>
+                            @endforelse
+                         </div>
+                     </div>
+                 </div>
+                 <div>
+                     <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
+                     <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1"
+                         placeholder="Ej: 50">
+                 </div>
+                 <div>
+                     <button type="button" id="agregarCentroBtn"
+                         class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                         Agregar
+                     </button>
+                 </div>
+             </div>
 
-            <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span
-                    id="unidadDisponible"></span>
-            </div>
+             <div class="mt-4 text-sm font-semibold text-gray-600">
+                 Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span
+                     id="unidadDisponible"></span>
+             </div>
 
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto">
-            </ul>
+             <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto">
+             </ul>
 
-            <div class="flex justify-between mt-6">
-                <button type="button" id="volverModalBtn"
-                    class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
-                    <i class="fas fa-arrow-left mr-1"></i> Volver
-                </button>
-                <button type="button" id="guardarProductoBtn"
-                    class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
-                    Guardar Producto
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+             <div class="flex justify-between mt-6">
+                 <button type="button" id="volverModalBtn"
+                     class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+                     <i class="fas fa-arrow-left mr-1"></i> Volver
+                 </button>
+                 <button type="button" id="guardarProductoBtn"
+                     class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                     Guardar Producto
+                 </button>
+             </div>
+         </div>
+     </div>
+ </div>
 
 <!-- Alertas de carga -->
 <div id="cargandoAlert" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">

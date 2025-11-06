@@ -92,9 +92,7 @@
                             <div class="flex gap-2 mb-3">
                                  <select id="subcentroSelect" class="flex-1 px-2 py-2 border rounded">
                                      <option value="">-- Selecciona un subcentro --</option>
-                                    @foreach($subcentros as $s)
-                                    <option value="{{ $s->id }}" data-centro-id="{{ isset($s->centro) ? $s->centro->id : '' }}">{{ $s->name_subcentro }} @if(isset($s->centro) && $s->centro) ({{ $s->centro->name_centro }})@endif</option>
-                                    @endforeach
+                                     <!-- Se llenará dinámicamente con el centro seleccionado -->
                                  </select>
                                  <button type="button" id="addSubcentroBtn" class="px-3 py-2 bg-green-600 text-white rounded">Agregar</button>
                              </div>
@@ -141,7 +139,10 @@
                 $centroName = isset($s->centro->name_centro) ? $s->centro->name_centro : '';
                 $centroId = isset($s->centro->id) ? $s->centro->id : null;
             }
-            $allSubcentros[] = ['id' => $s->id, 'name' => $s->name_subcentro, 'centro' => $centroName, 'centro_id' => $centroId];
+            // Asegurar que solo entren verdaderos subcentros con nombre
+            if (!empty($s->name_subcentro)) {
+                $allSubcentros[] = ['id' => $s->id, 'name' => $s->name_subcentro, 'centro' => $centroName, 'centro_id' => $centroId];
+            }
         }
     }
 
@@ -175,6 +176,50 @@
             const emailInput = document.getElementById('assign_email_user'); if (emailInput) emailInput.value = '';
         } catch (e) { console.warn('closeAssignModal', e); }
     }
+
+    // Poblar subcentros filtrados por centro seleccionado
+    document.addEventListener('DOMContentLoaded', function(){
+        const subcentrosDataEl = document.getElementById('all-subcentros-json');
+        let subcentros = [];
+        try { subcentros = JSON.parse(subcentrosDataEl.textContent || '[]'); } catch(e) { subcentros = []; }
+        const centroSelect = document.getElementById('centroSelect');
+        const subcentroSelect = document.getElementById('subcentroSelect');
+        const loadBtn = document.getElementById('loadSubcentrosBtn');
+
+        function renderSubcentros(centroId){
+            const cid = String(centroId || '');
+            const list = subcentros.filter(sc => String(sc.centro_id || '') === cid);
+            subcentroSelect.innerHTML = '<option value="">-- Selecciona un subcentro --</option>';
+            if (list.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No hay subcentros para este centro';
+                opt.disabled = true; opt.selected = true;
+                subcentroSelect.appendChild(opt);
+                return;
+            }
+            list.forEach(sc => {
+                const opt = document.createElement('option');
+                opt.value = sc.id;
+                opt.textContent = sc.name + (sc.centro ? ' ('+sc.centro+')' : '');
+                opt.setAttribute('data-centro-id', sc.centro_id || '');
+                subcentroSelect.appendChild(opt);
+            });
+        }
+
+        if (loadBtn) {
+            loadBtn.addEventListener('click', function(){
+                const val = centroSelect ? centroSelect.value : '';
+                renderSubcentros(val);
+            });
+        }
+        if (centroSelect) {
+            centroSelect.addEventListener('change', function(){
+                // Opcional: cargar automáticamente al cambiar el centro
+                renderSubcentros(this.value);
+            });
+        }
+    });
 </script>
 
 @endsection
