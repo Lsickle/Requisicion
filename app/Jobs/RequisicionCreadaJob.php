@@ -58,7 +58,6 @@ class RequisicionCreadaJob implements ShouldQueue
                 return;
             }
 
-            // Throttle simple para evitar límites del proveedor
             $gap = (float) env('MAIL_MIN_GAP_SECONDS', 0);
             if ($gap > 0) { usleep((int) round($gap * 1_000_000)); }
 
@@ -88,7 +87,7 @@ class RequisicionCreadaJob implements ShouldQueue
             $cc = array_values(array_unique(array_filter(array_map(function($s){ return trim((string)$s); }, $cc))));
             $cc = array_values(array_filter($cc, function($addr) use ($primary){ return $addr && strcasecmp($addr, $primary) !== 0; }));
 
-            // Construir lista de auditoría (BCC) incluyendo por defecto areacompras@gmail.com
+            // Auditoría BCC (sin incluir areacompras si estará en TO)
             $bcc = [];
             try {
                 $confAudit = config('requisiciones.mail_audit');
@@ -96,23 +95,28 @@ class RequisicionCreadaJob implements ShouldQueue
             } catch (\Throwable $e) { /* noop */ }
             $envAudit = env('REQUISICIONES_MAIL_AUDIT');
             if (!empty($envAudit)) { $bcc = array_merge($bcc, preg_split('/[;,]+/', (string)$envAudit) ?: []); }
-            $bcc[] = 'areacompras@gmail.com';
-            // Normalizar, validar, deduplicar y evitar incluir primary
+            // Quitar areacompras aquí; irá como TO secundario
             $bcc = array_values(array_unique(array_filter(array_map(function($s){
                 $s = trim((string)$s);
                 return (filter_var($s, FILTER_VALIDATE_EMAIL)) ? $s : null;
             }, $bcc))));
-            $bcc = array_values(array_filter($bcc, function($addr) use ($primary){ return $addr && strcasecmp($addr, $primary) !== 0; }));
+            $bcc = array_values(array_filter($bcc, function($addr) use ($primary){ return $addr && strcasecmp($addr, $primary) !== 0 && strcasecmp($addr, 'areacompras@gmail.com') !== 0; }));
 
-            Log::info('RequisicionCreadaJob enviando correo', ['req' => $this->requisicion->id, 'to' => $primary, 'cc' => $cc, 'bcc' => $bcc]);
+            // Destinatarios principales: usuario + compras
+            $compras = env('COMPRAS_MAIL_TO', 'areacompras@gmail.com');
+            $toList = [$primary];
+            if ($compras && filter_var($compras, FILTER_VALIDATE_EMAIL) && strcasecmp($compras, $primary) !== 0) {
+                $toList[] = $compras;
+            }
+
+            Log::info('RequisicionCreadaJob enviando correo', ['req' => $this->requisicion->id, 'to' => $toList, 'cc' => $cc, 'bcc' => $bcc]);
             $mailable = new RequisicionCreadaMailable($this->requisicion);
-            $mailer = Mail::to($primary);
+            $mailer = Mail::to($toList);
             if (!empty($cc)) { $mailer->cc($cc); }
             if (!empty($bcc)) { $mailer->bcc($bcc); }
             $mailer->send($mailable);
         } catch (\Throwable $e) {
             Log::error('RequisicionCreadaJob error al enviar', ['req' => $this->requisicion->id, 'msg' => $e->getMessage()]);
-            //throw $e; // permitir reintentos si hay queue asincrónica
         }
     }
 }

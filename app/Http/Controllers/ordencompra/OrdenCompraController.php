@@ -1197,11 +1197,12 @@ class OrdenCompraController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Enviar correo de OC terminada
+            // Enviar correo de OC terminada (usuario en sesión + compras)
             try {
                 $orden = OrdenCompra::with('requisicion')->find($id);
+                $sessionEmail = session('user.email') ?? (is_array(session('user')) ? (session('user')['email'] ?? null) : null);
                 if ($orden) {
-                    OrdenCompraTerminadaJob::dispatch($orden);
+                    OrdenCompraTerminadaJob::dispatch($orden, $sessionEmail);
                 }
             } catch (\Throwable $e) {
                 Log::warning('OrdenCompraController@terminar: fallo email OC terminada: '.$e->getMessage());
@@ -1487,6 +1488,7 @@ class OrdenCompraController extends Controller
             // Si ya tiene el mismo estatus activo, solo actualizar comentario/fecha si se pidió
             if (!is_null($currentActive) && (int)$currentActive === (int)$estatusId) {
                 if (!is_null($comentario)) {
+                   
                     DB::table('estatus_requisicion')
                         ->where('requisicion_id', $requisicionId)
                         ->where('estatus', 1)
