@@ -36,17 +36,17 @@ class NotificarAprobacionEtapaJob implements ShouldQueue
         $this->mensajePrincipal = $mensajePrincipal;
         $this->panelUrl = $panelUrl;
         $this->detalleUrl = $detalleUrl;
+        // asegurar envío después del commit sin declarar propiedad propia (usa la del trait Queueable)
+        $this->afterCommit = true;
     }
 
     public function handle(): void
     {
-        // Resolver destinatarios: aceptar array o string, validar emails
         $toCandidates = $this->destinatarios;
         $emails = [];
 
         if (is_string($toCandidates) && strlen(trim($toCandidates)) > 0) {
-            $parts = preg_split('/[;,
-\s]+/', $toCandidates) ?: [];
+            $parts = preg_split('/[;\,\s]+/', $toCandidates) ?: [];
             $toCandidates = $parts;
         }
 
@@ -54,36 +54,14 @@ class NotificarAprobacionEtapaJob implements ShouldQueue
             foreach ($toCandidates as $item) {
                 $s = trim((string)$item);
                 if (!$s) continue;
-                // Si trae un nombre con correo entre <>, extraer
                 if (preg_match('/<([^>]+)>/', $s, $m)) { $s = $m[1]; }
                 if (filter_var($s, FILTER_VALIDATE_EMAIL)) { $emails[] = $s; }
             }
         }
 
-        // Si no hay emails válidos, intentar fallback por stage/env
-        if (empty($emails)) {
-            $raw = '';
-            if ($this->stageKey === 'stage2') {
-                $raw = env('APROB_STAGE2_TO') ?: env('REQUISICIONES_MAIL_TO') ?: 'Operaciones@gmail.com';
-            } elseif ($this->stageKey === 'stage3') {
-                $raw = env('APROB_STAGE3_TO') ?: env('REQUISICIONES_MAIL_TO') ?: 'Financiera@gmail.com';
-            } else { // final
-                $raw = env('COMPRAS_MAIL_TO') ?: env('REQUISICIONES_MAIL_TO') ?: 'areacompras@gmail.com';
-            }
-            
-            $parts = preg_split('/[;,\s]+/', (string)$raw) ?: [];
-            foreach ($parts as $p) {
-                $p = trim((string)$p);
-                if ($p && filter_var($p, FILTER_VALIDATE_EMAIL)) $emails[] = $p;
-            }
-        }
-
-        // No se añade el email del solicitante como destinatario por diseño; solo se usan destinatarios explícitos o variables de entorno.
-
         $to = array_values(array_unique($emails));
-
         if (empty($to)) {
-            Log::warning('NotificarAprobacionEtapaJob: sin destinatarios válidos', ['req'=> $this->requisicion->id ?? null, 'stage'=>$this->stageKey, 'raw_destinatarios'=>$this->destinatarios]);
+            Log::warning('NotificarAprobacionEtapaJob: sin destinatarios válidos', ['req'=>$this->requisicion->id ?? null,'stage'=>$this->stageKey]);
             return;
         }
 

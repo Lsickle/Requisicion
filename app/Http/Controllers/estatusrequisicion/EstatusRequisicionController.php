@@ -421,8 +421,12 @@ class EstatusRequisicionController extends Controller
                     $userEmail = $info['email'] ?? null;
                 }
                 if (empty($nuevoEstatus->user_id) && session('user.id')) { $nuevoEstatus->user_id = session('user.id'); }
-                // Siempre despachar el Job; el Job decide si envía correo genérico o salta según estatus
-                EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
+
+                // Enviar correo genérico solo cuando NO sea etapa 2, 3 o 4 (esas tienen correo específico)
+                $estatusId = (int)($nuevoEstatus->estatus_id ?? 0);
+                if (!in_array($estatusId, [2,3,4], true)) {
+                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
+                }
             } catch (\Exception $e) {
                 Log::error('Error notificando updateStatus (job): '.$e->getMessage());
             }
@@ -510,18 +514,18 @@ class EstatusRequisicionController extends Controller
             elseif ($targetStatus === 4) { $stageKey = 'final'; }
             if (!$stageKey) { return; }
 
-            // Para estado final usar correo específico de “esperar OC”
-            if ($stageKey === 'final') {
+            if ($stageKey === 'final') { // etapa final mantiene lógica previa
                 try { RequisicionAprobadaFinalJob::dispatch($requisicion); } catch (\Throwable $e) {}
                 return;
             }
 
-            $roleTarget = null;
-            if ($stageKey === 'stage2') {
-                $roleTarget = $this->getRoleTargetForReq($requisicion);
+            // Determinar destinatarios según el rol que sigue (según centro/operación)
+            $destinatarios = $this->recipientsByNextRole($requisicion, $stageKey);
+            if (empty($destinatarios)) {
+                Log::info('notificarPorEtapa: sin destinatarios por siguiente rol', ['req'=>$requisicion->id,'stage'=>$stageKey]);
+                return;
             }
 
-            $destinatarios = $this->recipientsByOperation($requisicion->operacion_user, $stageKey, $roleTarget);
             $id = $requisicion->id;
             $op = $requisicion->operacion_user ?? 'N/A';
             $prioridad = ucfirst($requisicion->prioridad_requisicion ?? '');
@@ -536,8 +540,6 @@ class EstatusRequisicionController extends Controller
                 $subject = "Requisición #{$id} pendiente por aprobación ({$op})";
                 $mensajePrincipal = "La requisición #{$id} avanzó de etapa y requiere su aprobación. Ingresa para continuar el proceso.";
             }
-
-            // No usar email del solicitante como destinatario; confiar en la configuración (config/env)
 
             NotificarAprobacionEtapaJob::dispatch(
                 $requisicion,
@@ -554,7 +556,40 @@ class EstatusRequisicionController extends Controller
         }
     }
 
-    // NUEVO: Devolver el rol objetivo (normalizado) para una operación (normalizada), usando el mapa existente
+    // NUEVO: destinatarios por el siguiente rol aprobador (stage2 o stage3)
+    private function recipientsByNextRole(Requisicion $req, string $stageKey): array
+    {
+        $roleKey = null;
+        if ($stageKey === 'stage2') {
+            $roleKey = $this->getRoleTargetForReq($req); // depende de operación y excepciones por nombre
+        } elseif ($stageKey === 'stage3') {
+            // Último aprobador siempre es Gerente financiero
+            $roleKey = 'Gerente financiero';
+        }
+        if (!$roleKey) return [];
+
+        $map = $this->roleEmailMap();
+        $norm = $this->normalizeOperacionKey($roleKey);
+        foreach ($map as $roleName => $email) {
+            if ($this->normalizeOperacionKey($roleName) === $norm && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return [$email];
+            }
+        }
+        return [];
+    }
+
+    // NUEVO: mapa fijo rol -> correo para aprobaciones
+    private function roleEmailMap(): array
+    {
+        return [
+            'Director contable' => 'alejandro.arango@vigiaplus.com',
+            'Gerente financiero' => 'alejandro.ramirez@cumbriaholdings.com',
+            'Gerente talento humano' => 'kelly.montenegro@cumbriaholdings.com',
+            'Gerente operaciones' => 'raul.castellanos@vigiaplus.com',
+            'Director de proyectos' => 'wilson.rivera@vigiaplus.com',
+        ];
+    }
+    
     private function getRoleTargetForOperation(?string $operacion): ?string
     {
         $map = $this->getOperacionRoleMap();
