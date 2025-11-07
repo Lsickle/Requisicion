@@ -1295,13 +1295,14 @@ class RequisicionController extends Controller
 
             $insertados = 0;
             $resumenItems = [];
+            $entregaIds = [];
             foreach ($items as $it) {
                 $pid = (int)($it['producto_id'] ?? 0);
                 $cant = (int)($it['cantidad'] ?? 0);
                 if ($pid <= 0 || $cant <= 0) { continue; }
                 if (!in_array($pid, $validProductoIds, true)) { continue; }
 
-                DB::table('entrega')->insert([
+                $eid = DB::table('entrega')->insertGetId([
                     'requisicion_id' => $reqId,
                     'producto_id' => $pid,
                     'cantidad' => $cant,
@@ -1312,6 +1313,7 @@ class RequisicionController extends Controller
                     'updated_at' => $now,
                 ]);
                 $insertados++;
+                $entregaIds[] = (int)$eid;
 
                 // armar resumen
                 try {
@@ -1325,21 +1327,26 @@ class RequisicionController extends Controller
                 return response()->json(['message' => 'No se pudo registrar ninguna entrega válida.'], 422);
             }
 
-            // Set estatus 12 (movimiento parcial registrado)
+            // Set estatus 12 (movimiento parcial registrado) y enlazar cada entrega
             try {
                 DB::table('estatus_requisicion')
                     ->where('requisicion_id', $reqId)
                     ->where('estatus', 1)
                     ->update(['estatus' => 0, 'updated_at' => $now]);
 
-                DB::table('estatus_requisicion')->insert([
-                    'requisicion_id' => $reqId,
-                    'estatus_id' => 12,
-                    'estatus' => 1,
-                    'comentario' => 'Entrega registrada',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                $lastIndex = count($entregaIds) - 1;
+                foreach ($entregaIds as $idx => $eid) {
+                    DB::table('estatus_requisicion')->insert([
+                        'requisicion_id' => $reqId,
+                        'estatus_id' => 12,
+                        'estatus' => ($idx === $lastIndex) ? 1 : 0,
+                        'comentario' => 'Entrega registrada',
+                        'entrega_id' => $eid,
+                        'date_update' => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                }
             } catch (\Throwable $e) {
                 Log::warning('No se pudo actualizar estatus a 12 para requisicion '.$reqId.': '.$e->getMessage());
             }

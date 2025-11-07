@@ -247,12 +247,12 @@
         <!-- Modal recibir productos -->
         <div id="modal-recibir-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}">
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
-            <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+            <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col rc-modal">
                 <div class="flex justify-between items-center px-6 py-4 border-b">
                     <h3 class="text-lg font-semibold">Recibir productos de la OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                     <button type="button" class="text-gray-600 hover:text-gray-800 rc-close" data-oc-id="{{ $oc->id }}">✕</button>
                 </div>
-                <div class="p-6">
+                <div class="p-6 overflow-y-auto max-h-[70vh]">
                     @php
                         // Subconsulta para sumar las cantidades recibidas por producto en esta OC
                         $recSum = DB::table('recepcion')
@@ -278,8 +278,8 @@
                                 'p.unit_produc as unit_produc',
                                 'ocp.total as cantidad_total',
                                 'r.recepcion_id as recepcion_id',
-                                DB::raw('COALESCE(r.recibido,0) as recibido')
-                            )
+                                DB::raw('COALESCE(r.recibido,0) as recibido'
+                            ))
                             ->where('ocp.orden_compras_id', $oc->id)
                             ->whereNull('ocp.deleted_at')
                             ->orderBy('p.name_produc','asc')
@@ -287,50 +287,51 @@
                     @endphp
                     @if(($recRows ?? collect())->count())
                     @php $grandRecTotal = 0; @endphp
-                    <table class="w-full text-sm border rounded overflow-hidden bg-white">
-                        <thead class="bg-gray-100">
-                            <tr>
-                                <th class="p-2 text-left">Producto</th>
-                                <th class="p-2 text-center">Cant. OC</th>
-                                <th class="p-2 text-center">Unidad</th>
-                                <th class="p-2 text-center">Precio U.</th>
-                                <th class="p-2 text-center">Total</th>
-                                <th class="p-2 text-center">Recibido</th>
-                                <th class="p-2 text-center">Pendiente</th>
-                                <th class="p-2 text-center">A recibir</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($recRows as $r)
-                            @php
-                                $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
-                                // price_produc puede venir de pxp.price_produc; si no, 0
-                                $price = (float)($r->price_produc ?? 0);
-                                $lineTotal = $price * (int)$r->cantidad_total;
-                                $grandRecTotal += $lineTotal;
-                            @endphp
-                            <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
-                                <td class="p-2">{{ $r->name_produc }}</td>
-                                <td class="p-2 text-center">{{ (int)$r->cantidad_total }}</td>
-                                <td class="p-2 text-center">{{ $r->unit_produc ?? '—' }}</td>
-                                <td class="p-2 text-center">{{ number_format($price, 2) }}</td>
-                                <td class="p-2 text-center">{{ number_format($lineTotal, 2) }}</td>
-                                <td class="p-2 text-center">{{ (int)$r->recibido }}</td>
-                                <td class="p-2 text-center">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
-                                <td class="p-2 text-center">
-                                    <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                        <tfoot>
-                            <tr class="bg-gray-50 font-semibold border-t">
-                                <td colspan="4" class="p-2 text-right">Total general</td>
-                                <td class="p-2 text-center">{{ number_format($grandRecTotal, 2) }}</td>
-                                <td colspan="3"></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                    <div class="overflow-x-auto rc-table-wrapper">
+                        <table class="w-full min-w-[980px] text-sm border rounded overflow-hidden bg-white rc-table">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="p-2 text-left whitespace-nowrap">Producto</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Cant. OC</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Unidad</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Precio U.</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Total</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Recibido</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Pendiente</th>
+                                    <th class="p-2 text-center whitespace-nowrap">A recibir</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($recRows as $r)
+                                @php
+                                    $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
+                                    $price = (float)($r->price_produc ?? 0);
+                                    $lineTotal = $price * (int)$r->cantidad_total;
+                                    $grandRecTotal += $lineTotal;
+                                @endphp
+                                <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
+                                    <td class="p-2 align-top max-w-[240px] truncate" title="{{ $r->name_produc }}">{{ $r->name_produc }}</td>
+                                    <td class="p-2 text-center align-top">{{ (int)$r->cantidad_total }}</td>
+                                    <td class="p-2 text-center align-top">{{ $r->unit_produc ?? '—' }}</td>
+                                    <td class="p-2 text-center align-top">{{ number_format($price, 2) }}</td>
+                                    <td class="p-2 text-center align-top">{{ number_format($lineTotal, 2) }}</td>
+                                    <td class="p-2 text-center align-top">{{ (int)$r->recibido }}</td>
+                                    <td class="p-2 text-center align-top">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
+                                    <td class="p-2 text-center align-top">
+                                        <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-gray-50 font-semibold border-t">
+                                    <td colspan="4" class="p-2 text-right">Total general</td>
+                                    <td class="p-2 text-center">{{ number_format($grandRecTotal, 2) }}</td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
                         <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar recepción</button>
@@ -1134,6 +1135,11 @@
         /* Ajustar divisores del sidebar para que no se vean azules brillantes */
         #sidebar hr { border-color: rgba(30,58,138,0.3) !important; }
         #sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(30,58,138,0.3) !important; }
+
+        .rc-table-wrapper{overflow-x:auto;}
+        .rc-table{table-layout:auto;}
+        .rc-modal{max-height:90vh;}
+        .rc-modal input.rcx-input{min-width:70px;}
 </style>
 <script>
 // Inyectar span de info de paginación de OC si falta

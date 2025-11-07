@@ -23,46 +23,54 @@ class OrdenCompraCreada extends Mailable
     public function build()
     {
         // Asegurar relaciones mínimas
-        try { $this->orden->loadMissing(['ordencompraProductos.proveedor', 'requisicion']); } catch (\Throwable $e) { /* noop */ }
+        try { $this->orden->loadMissing(['ordencompraProductos.proveedor', 'requisicion', 'proveedor']); } catch (\Throwable $e) { /* noop */ }
         $orden = $this->orden->fresh();
 
-        // Resolver proveedor igual que en PDF
+        // Resolver proveedor correctamente
         $provModel = null;
         try {
-            $lineas = $orden->ordencompraProductos ?? collect();
-            if ($lineas->count()) {
-                $withProv = $lineas->first(function($l){ return !empty($l->proveedor_id); });
-                if ($withProv) { $provModel = $withProv->proveedor ?: \App\Models\Proveedor::find($withProv->proveedor_id); }
-                if (!$provModel) {
-                    $firstProvId = $lineas->pluck('proveedor_id')->filter()->first();
-                    if ($firstProvId) { $provModel = \App\Models\Proveedor::find($firstProvId); }
+            // 1) Relación directa en la orden (si existe)
+            if (method_exists($orden, 'getAttribute') && $orden->getAttribute('proveedor')) {
+                $provModel = $orden->proveedor;
+            }
+            if (!$provModel && isset($orden->proveedor_id) && !empty($orden->proveedor_id)) {
+                $provModel = \App\Models\Proveedor::withTrashed()->find($orden->proveedor_id);
+            }
+
+            // 2) Dominante en líneas (si hubiera múltiples, escoger el más frecuente)
+            if (!$provModel) {
+                $lineas = $orden->ordencompraProductos ?? collect();
+                if ($lineas->count()) {
+                    $provId = $lineas->pluck('proveedor_id')->filter()->countBy()->sortDesc()->keys()->first();
+                    if ($provId) { $provModel = \App\Models\Proveedor::withTrashed()->find($provId); }
                 }
             }
+
+            // 3) Join directo como último recurso
             if (!$provModel) {
                 $provRow = DB::table('ordencompra_producto as ocp')
                     ->join('proveedores as prov', 'prov.id', '=', 'ocp.proveedor_id')
                     ->where('ocp.orden_compras_id', $orden->id)
                     ->whereNull('ocp.deleted_at')
                     ->select('prov.*')
+                    ->orderBy('ocp.id')
                     ->first();
                 if ($provRow) { $provModel = (object) $provRow; }
             }
-            if (!$provModel) {
-                $firstProdId = $lineas->pluck('producto_id')->filter()->first();
-                if (!$firstProdId) {
-                    $firstProdId = DB::table('ordencompra_producto')
-                        ->where('orden_compras_id', $orden->id)
-                        ->whereNull('deleted_at')
-                        ->orderBy('id')
-                        ->value('producto_id');
-                }
-                if ($firstProdId) {
-                    $provIdPxP = DB::table('productoxproveedor')
-                        ->where('producto_id', $firstProdId)
-                        ->orderBy('id')
-                        ->value('proveedor_id');
-                    if ($provIdPxP) { $provModel = \App\Models\Proveedor::find($provIdPxP); }
-                }
+
+            // 4) Fallback por requisición: producto_requisicion -> productoxproveedor
+            if (!$provModel && !empty($orden->requisicion_id)) {
+                $provId = DB::table('producto_requisicion as pr')
+                    ->join('productoxproveedor as pxp', 'pxp.id', '=', 'pr.id_productoxproveedor')
+                    ->where('pr.id_requisicion', $orden->requisicion_id)
+                    ->whereNull('pxp.deleted_at')
+                    ->pluck('pxp.proveedor_id')
+                    ->filter()
+                    ->countBy()
+                    ->sortDesc()
+                    ->keys()
+                    ->first();
+                if ($provId) { $provModel = \App\Models\Proveedor::withTrashed()->find($provId); }
             }
         } catch (\Throwable $e) { /* noop */ }
 
@@ -73,6 +81,14 @@ class OrdenCompraCreada extends Mailable
         // Fecha con hora (preferir date_oc si existe)
         $dateBase = $orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc) : ($orden->created_at ?? now());
         $createdAtStr = $dateBase->format('d/m/Y') . ' ' . (($orden->created_at ?? now())->format('H:i'));
+
+        // Created by: usar datos de requisición si faltan
+        $createdBy = $orden->oc_user
+            ?? $orden->user_name
+            ?? ($orden->requisicion->name_user ?? null)
+            ?? ($orden->requisicion->email_user ?? null)
+            ?? $orden->email_user
+            ?? 'Sistema';
 
         $proveedor = $provModel ? [
             'prov_name'   => $provModel?->prov_name   ?? '',
@@ -91,6 +107,7 @@ class OrdenCompraCreada extends Mailable
                 'orden' => $orden,
                 'proveedor' => $proveedor,
                 'createdAtStr' => $createdAtStr,
+                'createdByOverride' => $createdBy,
             ]);
     }
 }

@@ -94,13 +94,17 @@
                 $isCanceled = ((int)($item->estatus_id ?? 0) === 6);
                 $isCorregir = ((int)($item->estatus_id ?? 0) === 11);
 
-                // Preparar entregas relacionadas (solo para estatus 12)
+                // Preparar entregas relacionadas (solo para estatus 12) vinculadas por entrega_id si existe, si no por fecha
                 $entregasRelacionadas = collect();
-                if ((int)($item->estatus_id ?? 0) === 12 && isset($item->created_at)) {
-                    $statusDate = \Carbon\Carbon::parse($item->created_at)->toDateString();
-                    $entregasRelacionadas = $entregasAll->filter(function($e) use ($statusDate){
-                        return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
-                    })->values();
+                if ((int)($item->estatus_id ?? 0) === 12) {
+                    if (!empty($item->entrega_id)) {
+                        $entregasRelacionadas = collect($entregasAll)->where('id', (int)$item->entrega_id)->values();
+                    } elseif (isset($item->created_at)) {
+                        $statusDate = \Carbon\Carbon::parse($item->created_at)->toDateString();
+                        $entregasRelacionadas = $entregasAll->filter(function($e) use ($statusDate){
+                            return \Carbon\Carbon::parse($e->created_at)->toDateString() === $statusDate;
+                        })->values();
+                    }
                 }
             @endphp
 
@@ -169,30 +173,44 @@
                                             <thead class="bg-gray-100">
                                                 <tr>
                                                     <th class="p-2 text-left">Producto</th>
-                                                    <th class="p-2 text-center">Cantidad total</th>
-                                                    <th class="p-2 text-center">Cantidad recibida</th>
-                                                    <th class="p-2 text-center">Cantidad faltante</th>
+                                                    <th class="p-2 text-center">Total</th>
+                                                    <th class="p-2 text-center">Recibido</th>
+                                                    <th class="p-2 text-center">Faltante</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                @php
+                                                    $cutoffTs = null;
+                                                    try { $cutoffTs = \Carbon\Carbon::parse(optional($entregasRelacionadas->last())->created_at)->format('Y-m-d H:i:s'); } catch (\Throwable $e) { $cutoffTs = null; }
+                                                    $qtyColRec = \Illuminate\Support\Facades\Schema::hasColumn('entrega','cantidad_recibida') ? 'cantidad_recibida' : (\Illuminate\Support\Facades\Schema::hasColumn('entrega','cantidad_recibido') ? 'cantidad_recibido' : 'cantidad');
+                                                @endphp
                                                 @foreach($entregasRelacionadas->groupBy('producto_id') as $productoId => $coleccion)
                                                     @php
                                                         $productoNombre = optional($coleccion->first())->name_produc ?? '—';
-                                                        $cantidadTotal = (int) (DB::table('producto_requisicion')
-                                                            ->where('id_requisicion', $requisicion->id)
-                                                            ->where('id_producto', $productoId)
-                                                            ->value('pr_amount') ?? 0);
-                                                        $cantidadRecibida = (int) DB::table('entrega')
+                                                        // Total solicitado (centros -> fallback producto_requisicion)
+                                                        $totalSolicitado = (int) DB::table('centro_producto')
                                                             ->where('requisicion_id', $requisicion->id)
                                                             ->where('producto_id', $productoId)
-                                                            ->whereNotNull('cantidad_recibido')
-                                                            ->sum('cantidad_recibido');
-                                                        $faltante = max(0, $cantidadTotal - $cantidadRecibida);
+                                                            ->sum('amount');
+                                                        if ($totalSolicitado <= 0) {
+                                                            $totalSolicitado = (int) DB::table('producto_requisicion')
+                                                                ->where('id_requisicion', $requisicion->id)
+                                                                ->where('id_producto', $productoId)
+                                                                ->sum('pr_amount');
+                                                        }
+                                                        // Recibido acumulado hasta el momento de esta entrega
+                                                        $recibidoAcumulado = (int) DB::table('entrega')
+                                                            ->where('requisicion_id', $requisicion->id)
+                                                            ->where('producto_id', $productoId)
+                                                            ->whereNull('deleted_at')
+                                                            ->when($cutoffTs, function($q) use ($cutoffTs){ $q->where('created_at','<=',$cutoffTs); })
+                                                            ->sum(DB::raw('COALESCE('.$qtyColRec.',0)'));
+                                                        $faltante = max(0, $totalSolicitado - $recibidoAcumulado);
                                                     @endphp
                                                     <tr class="border-t">
                                                         <td class="p-2">{{ $productoNombre }}</td>
-                                                        <td class="p-2 text-center">{{ $cantidadTotal }}</td>
-                                                        <td class="p-2 text-center">{{ $cantidadRecibida }}</td>
+                                                        <td class="p-2 text-center">{{ $totalSolicitado }}</td>
+                                                        <td class="p-2 text-center">{{ $recibidoAcumulado }}</td>
                                                         <td class="p-2 text-center">{{ $faltante }}</td>
                                                     </tr>
                                                 @endforeach

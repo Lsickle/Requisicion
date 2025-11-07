@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
 use App\Jobs\RequisicionEntregaRegistradaJob; // NUEVO
+use App\Jobs\OrdenCompraTerminadaJob;
 
 class OrdenCompraController extends Controller
 {
@@ -593,8 +594,6 @@ class OrdenCompraController extends Controller
                     }
 
                     $toFiltered = array_values(array_filter($toConfig, function($addr) use ($requisicionObj) {
-                        if (empty($addr)) return false;
-                        if (!empty($requisicionObj?->email_user) && $addr === $requisicionObj->email_user) return false;
                         return true;
                     }));
 
@@ -1209,6 +1208,16 @@ class OrdenCompraController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // Enviar correo de OC terminada
+            try {
+                $orden = OrdenCompra::with('requisicion')->find($id);
+                if ($orden) {
+                    OrdenCompraTerminadaJob::dispatch($orden);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('OrdenCompraController@terminar: fallo email OC terminada: '.$e->getMessage());
+            }
 
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
@@ -1827,7 +1836,7 @@ class OrdenCompraController extends Controller
             DB::table('entrega')->insert([
                 'requisicion_id' => (int)$data['requisicion_id'],
                 'producto_id' => (int)$data['producto_id'],
-                'cantidad' => $cantidad,
+                'cantidad' => $baseCantidad ?? ($cantidad ?? 0),
                 'cantidad_recibido' => null,
                 'fecha' => now()->toDateString(),
                 'user_name' => session('user.name') ?? $this->resolveCurrentUserName($request),
