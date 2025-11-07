@@ -28,7 +28,8 @@ class RecepcionProductoOC extends Mailable
     public function build()
     {
         $num = $this->orden->order_oc ?? ('OC-'.$this->orden->id);
-        return $this->subject('Recepción registrada - '.$num)
+        return $this->from(config('mail.from.address'), config('mail.from.name'))
+            ->subject('Recepción registrada - '.$num)
             ->view('emails.recepcion_producto_oc')
             ->with([
                 'orden' => $this->orden,

@@ -100,8 +100,9 @@ class OrdenCompraCreada extends Mailable
             'methods_oc'  => $methodsOc,
             'plazo_oc'    => $plazoOc,
         ] : null;
-
-        return $this->subject('Nueva Orden de Compra Creada - #' . ($orden->order_oc ?? $orden->id))
+        
+        $mailable = $this->from(config('mail.from.address'), config('mail.from.name'))
+            ->subject('Nueva Orden de Compra Creada - #' . ($orden->order_oc ?? $orden->id))
             ->view('emails.orden_compra_creada')
             ->with([
                 'orden' => $orden,
@@ -109,5 +110,25 @@ class OrdenCompraCreada extends Mailable
                 'createdAtStr' => $createdAtStr,
                 'createdByOverride' => $createdBy,
             ]);
+
+        // Adjuntar PDF si existe en la orden
+        try {
+            $orderCode = $orden->order_oc ?? ('OC-' . $orden->id);
+            $fileName = 'orden_' . $orderCode . '.pdf';
+            if (!empty($orden->pdf_file)) {
+                $attachment = null;
+                $decoded = @base64_decode($orden->pdf_file, true);
+                if ($decoded !== false && strncmp($decoded, '%PDF', 4) === 0) {
+                    $attachment = $decoded;
+                } elseif (strncmp($orden->pdf_file, '%PDF', 4) === 0) {
+                    $attachment = $orden->pdf_file; // binario
+                }
+                if ($attachment) {
+                    $mailable->attachData($attachment, $fileName, ['mime' => 'application/pdf']);
+                }
+            }
+        } catch (\Throwable $e) { /* noop */ }
+
+        return $mailable;
     }
 }

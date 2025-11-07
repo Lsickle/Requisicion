@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Mail;
 use App\Jobs\RequisicionEntregaRegistradaJob; // NUEVO
 use App\Jobs\OrdenCompraTerminadaJob;
+use App\Jobs\OrdenCompraCreadaJob;
+use App\Jobs\EstatusRequisicionActualizadoJob;
+use App\Jobs\RecepcionProductoOCJob; // agregar Job para correo de recepción
 
 class OrdenCompraController extends Controller
 {
@@ -262,18 +265,19 @@ class OrdenCompraController extends Controller
             $ordenesCreadas = [];
 
             foreach ($grupos as $provId => $items) {
-                // Crear encabezado por proveedor
+                // Crear encabezado por proveedor evitando eventos/observadores
                 $ultimaOrden = OrdenCompra::withTrashed()->orderBy('id', 'desc')->first();
                 $numeroOrden = 'OC-' . (($ultimaOrden ? $ultimaOrden->id : 0) + 1) . '-' . now()->format('Ymd');
 
-                $orden = OrdenCompra::create([
+                $orden = new OrdenCompra([
                     'requisicion_id' => $request->requisicion_id,
                     'observaciones'  => $request->observaciones,
                     'date_oc'        => $request->input('date_oc') ?: null,
                     'order_oc'       => $numeroOrden,
                 ]);
+                $orden->saveQuietly();
 
-                // Guardar info de usuario si existen columnas
+                // Guardar info de usuario si existen columnas, en silencio
                 try {
                     $sessionUserId = session('user.id');
                     $sessionUserName = session('user.name') ?? $this->resolveCurrentUserName($request) ?? null;
@@ -288,7 +292,7 @@ class OrdenCompraController extends Controller
                     if (Schema::hasColumn('orden_compras', 'email_user') && $sessionUserEmail) { $orden->email_user = $sessionUserEmail; $dirty = true; }
                     if (Schema::hasColumn('orden_compras', 'user_email') && $sessionUserEmail) { $orden->user_email = $sessionUserEmail; $dirty = true; }
                     if (Schema::hasColumn('orden_compras', 'operacion_user') && $sessionUserOperacion) { $orden->operacion_user = $sessionUserOperacion; $dirty = true; }
-                    if ($dirty) { $orden->save(); }
+                    if ($dirty) { $orden->saveQuietly(); }
                 } catch (\Throwable $e) {
                     Log::warning('No se pudo persistir info de usuario en orden ' . ($orden->id ?? 'n/a') . ': ' . $e->getMessage());
                 }
@@ -574,41 +578,25 @@ class OrdenCompraController extends Controller
                     $pdfData = $this->buildPdfData($orden);
                     $pdf = Pdf::loadView('ordenes_compra.pdf', $pdfData);
                     $content = $pdf->output();
-                    $orden->storePdfBlob($content);
-                    $fileHash = hash('sha256', $content);
-                    if (empty($orden->validation_hash)) {
-                        $orden->validation_hash = $fileHash;
-                        $orden->save();
-                    }
+
+                    // Guardar PDF y hash sin disparar eventos/observadores
+                    \App\Models\OrdenCompra::withoutEvents(function () use ($orden, $content) {
+                        try { $orden->storePdfBlob($content); } catch (\Throwable $e) { /* noop */ }
+                        $fileHash = hash('sha256', $content);
+                        if (empty($orden->validation_hash)) {
+                            $orden->validation_hash = $fileHash;
+                        }
+                        // Guardar cambios silenciosamente
+                        try { $orden->saveQuietly(); } catch (\Throwable $e) { /* noop */ }
+                    });
                 } catch (\Throwable $e) { /* noop */ }
 
+                // Enviar correo de OC creada mediante Job (solo al email de sesión)
                 try {
-                    $requisicionObj = Requisicion::find($orden->requisicion_id);
-                    $conf = (array) config('requisiciones.destinatarios_oc', []);
-                    $toConfig = array_values(array_unique((array)($conf['to'] ?? [])));
-                    $ccConfig = array_values(array_unique((array)($conf['cc'] ?? [])));
-
-                    if (!empty($requisicionObj?->email_user)) {
-                        try { Mail::to($requisicionObj->email_user)->send(new \App\Mail\OrdenCompraCreada($orden)); }
-                        catch (\Throwable $e) { Log::warning('No se pudo enviar correo al solicitante ' . $requisicionObj->email_user . ': ' . $e->getMessage()); }
-                    }
-
-                    $toFiltered = array_values(array_filter($toConfig, function($addr) use ($requisicionObj) {
-                        return true;
-                    }));
-
-                    if (!empty($toFiltered)) {
-                        try {
-                            $m = new \App\Mail\OrdenCompraCreada($orden);
-                            if (!empty($ccConfig)) Mail::to($toFiltered)->cc($ccConfig)->send($m);
-                            else Mail::to($toFiltered)->send($m);
-                        } catch (\Throwable $e) {
-                            Log::warning('No se pudo enviar correo OC creada a destinatarios configurados: ' . $e->getMessage());
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('Error durante envío de correos OC creada: ' . $e->getMessage());
-                }
+                    $sessionEmail = session('user.email') ?? (is_array(session('user')) ? (session('user')['email'] ?? null) : null);
+                    if (empty($sessionEmail)) { $sessionEmail = config('mail.from.address'); }
+                    \App\Jobs\OrdenCompraCreadaJob::dispatchSync($orden, $sessionEmail);
+                } catch (\Throwable $e) { Log::warning('No se pudo despachar OrdenCompraCreadaJob: '.$e->getMessage()); }
             }
 
             DB::commit();
@@ -1504,6 +1492,7 @@ class OrdenCompraController extends Controller
                         ->where('estatus', 1)
                         ->update(['comentario' => $comentario, 'date_update' => now(), 'updated_at' => now()]);
                 }
+ // Despachar correo de actualización (estatus sin cambio pero comentario actualizado no requiere), omitir
                 return;
             }
 
@@ -1532,6 +1521,12 @@ class OrdenCompraController extends Controller
                     $existing->date_update = now();
 
                     $existing->save();
+                    // Despachar correo de actualización de estatus
+                    try {
+                        $req = Requisicion::find($requisicionId);
+                        $sessionEmail = session('user.email') ?? (is_array(session('user')) ? (session('user')['email'] ?? null) : null);
+                        if ($req) { EstatusRequisicionActualizadoJob::dispatch($req, $existing, $sessionEmail); }
+                    } catch (\Throwable $e) { Log::warning('setRequisicionStatus: no se pudo despachar job estatus: '.$e->getMessage()); }
                     return;
                 }
             } catch (\Throwable $e) {
@@ -1549,14 +1544,18 @@ class OrdenCompraController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            // Obtener registro activo e informar por correo
+            try {
+                $nuevo = Estatus_Requisicion::where('requisicion_id', $requisicionId)->where('estatus',1)->orderByDesc('id')->first();
+                $req = Requisicion::find($requisicionId);
+                $sessionEmail = session('user.email') ?? (is_array(session('user')) ? (session('user')['email'] ?? null) : null);
+                if ($nuevo && $req) { EstatusRequisicionActualizadoJob::dispatch($req, $nuevo, $sessionEmail); }
+            } catch (\Throwable $e) { Log::warning('setRequisicionStatus: no se pudo despachar job estatus (insert): '.$e->getMessage()); }
         } catch (\Throwable $e) {
             Log::warning('setRequisicionStatus falló: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Confirmar recepción de productos
-     */
     public function confirmarRecepcion(Request $request)
     {
         $payload = $request->all();
@@ -1665,6 +1664,18 @@ class OrdenCompraController extends Controller
                     $producto->save();
                 }
 
+                // Enviar correo SOLO mediante Job (a usuario en sesión y a compras)
+                try {
+                    $ordenModel = OrdenCompra::find($ocIdForCalc);
+                    $productoModel = Producto::find($productoId);
+                    $sessionEmail = session('user.email') ?? (is_array(session('user')) ? (session('user')['email'] ?? null) : null);
+                    if ($ordenModel && $productoModel) {
+                        RecepcionProductoOCJob::dispatch($ordenModel, $productoModel, (int)$delta, (string)($receptionUser ?? ''), $sessionEmail);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('confirmarRecepcion: fallo despacho job RecepcionProductoOC', ['oc'=>$ocIdForCalc,'prod'=>$productoId,'err'=>$e->getMessage()]);
+                }
+
                 $ocRow = DB::table('orden_compras')->where('id', $ocIdForCalc)->first();
                 if ($ocRow) $affectedRequisiciones[] = (int)$ocRow->requisicion_id;
             }
@@ -1673,67 +1684,40 @@ class OrdenCompraController extends Controller
             // Si hay cualquier recepción, mover a estatus 7 (Material recibido)
             $affectedRequisiciones = array_values(array_unique($affectedRequisiciones));
             foreach ($affectedRequisiciones as $reqId) {
-                    // Para cada requisición, comprobar si todas las órdenes de compra asociadas están completamente recibidas
-                    $ocs = DB::table('orden_compras')->where('requisicion_id', $reqId)->pluck('id');
-                    $allComplete = true;
-                    foreach ($ocs as $ocId) {
-                        $totOrdered = (int) DB::table('ordencompra_producto')
-                            ->where('orden_compras_id', $ocId)
-                            ->whereNull('deleted_at')
-                            ->sum('total');
+                // Para cada requisición, comprobar si todas las órdenes de compra asociadas están completamente recibidas
+                $ocs = DB::table('orden_compras')->where('requisicion_id', $reqId)->pluck('id');
+                $allComplete = true;
+                foreach ($ocs as $ocId) {
+                    $totOrdered = (int) DB::table('ordencompra_producto')
+                        ->where('orden_compras_id', $ocId)
+                        ->whereNull('deleted_at')
+                        ->sum('total');
 
-                        $totReceived = (int) DB::table('recepcion')
-                            ->where('orden_compra_id', $ocId)
-                            ->whereNull('deleted_at')
-                            ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                    $totReceived = (int) DB::table('recepcion')
+                        ->where('orden_compra_id', $ocId)
+                        ->whereNull('deleted_at')
+                        ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
 
-                        if ($totOrdered > 0 && $totReceived < $totOrdered) {
-                            $allComplete = false;
-                            break;
-                        }
+                    if ($totOrdered > 0 && $totReceived < $totOrdered) {
+                        $allComplete = false;
+                        break;
                     }
+                }
 
-                    // Forzar estatus 7 independientemente de si está completa o parcial
-                    $desiredStatus = 7;
-                    $desiredMessage = 'Recepción registrada';
+                // Forzar estatus 7 independientemente de si está completa o parcial
+                $desiredStatus = 7;
+                $desiredMessage = 'Recepción registrada';
 
-                    // Comprobar estatus activo currente y solo cambiar si difiere
-                    $currentActive = DB::table('estatus_requisicion')
-                        ->where('requisicion_id', $reqId)
-                        ->where('estatus', 1)
-                        ->value('estatus_id');
+                $currentActive = DB::table('estatus_requisicion')
+                    ->where('requisicion_id', $reqId)
+                    ->where('estatus', 1)
+                    ->value('estatus_id');
 
-                    if ((int)$currentActive !== (int)$desiredStatus) {
-                        $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
-
-                        // Enviar email cuando queda en estatus 7 (Material recibido en bodega)
-                        try {
-                            $requisicion = Requisicion::find($reqId);
-                            if ($requisicion && !empty($requisicion->email_user)) {
-                                $productNames = DB::table('producto_requisicion as pr')
-                                    ->join('productos as p', 'pr.id_producto', '=', 'p.id')
-                                    ->where('pr.id_requisicion', $reqId)
-                                    ->pluck('p.name_produc')
-                                    ->toArray();
-
-                                $lista = !empty($productNames) ? implode(', ', $productNames) : 'Productos disponibles';
-                                $subject = "Material recibido en bodega - Requisición #{$reqId}";
-                                $viewData = [
-                                    'requisicion' => $requisicion,
-                                    'productos' => $productNames,
-                                    'lista' => $lista,
-                                ];
-
-                                Mail::send('emails.requisicion_material_recibido', $viewData, function ($message) use ($requisicion, $subject) {
-                                    $message->to($requisicion->email_user)->subject($subject);
-                                });
-                            }
-                        } catch (\Throwable $e) {
-                            Log::warning('Error enviando notificación por estatus 7 para requisicion ' . $reqId . ': ' . $e->getMessage());
-                        }
-                    }
-                 
-             }
+                if ((int)$currentActive !== (int)$desiredStatus) {
+                    $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
+                }
+                // Eliminar envío directo de correo aquí: el Job ya lo envía
+            }
             DB::commit();
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
@@ -1903,26 +1887,22 @@ class OrdenCompraController extends Controller
         if ($value === null || $value === '') return null;
         if (is_numeric($value)) return (float)$value;
         $s = (string)$value;
-        // keep digits, dot, comma, minus
         $s = trim(preg_replace('/[^0-9,\.\-]/u', '', $s));
-        if ($s === '' || $s === '-' || $s === '. ' ) return null;
-        // If contains both dot and comma, assume dot thousands and comma decimal
+        if ($s === '' || $s === '-' ) return null;
         if (strpos($s, '.') !== false && strpos($s, ',') !== false) {
+            // Assume dot thousands, comma decimals
             $s = str_replace('.', '', $s);
             $s = str_replace(',', '.', $s);
         } elseif (strpos($s, ',') !== false && strpos($s, '.') === false) {
-            // single comma as decimal separator
             $s = str_replace(',', '.', $s);
         } else {
-            // multiple dots posiblemente separadores de miles -> eliminar si hay más de uno
             if (substr_count($s, '.') > 1) {
                 $s = str_replace('.', '', $s);
             }
         }
-        // limpieza final
-        if ($s === '' || $s === '-' ) return null;
-        $num = floatval($s);
-        return is_nan($num) ? null : $num;
+        if ($s === '' || $s === '-') return null;
+        if (!preg_match('/^-?\d*(?:\.\d+)?$/', $s)) return null;
+        return (float)$s;
     }
 
     public function updateBasicos(Request $request, $id)

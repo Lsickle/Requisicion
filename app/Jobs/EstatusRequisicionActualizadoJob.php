@@ -13,6 +13,9 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use App\Jobs\OrdenCompraCreadaJob;
+use App\Models\OrdenCompra;
 
 class EstatusRequisicionActualizadoJob implements ShouldQueue
 {
@@ -41,6 +44,16 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
     public function handle()
     {
         try {
+            // Idempotencia: evitar envío duplicado para el mismo estatus de la misma requisición
+            $estatusRowId = (int)($this->estatus->id ?? 0);
+            $reqId = (int)($this->requisicion->id ?? 0);
+            $cacheKey = 'estatus_mail_sent:'.$reqId.':'.$estatusRowId;
+            // Cache::add devuelve false si ya existe la clave
+            if (!Cache::add($cacheKey, 1, now()->addMinutes(15))) {
+                Log::info('estatusActualizado: correo ya enviado, se omite duplicado', ['key'=>$cacheKey]);
+                return;
+            }
+
             $estatusId = (int) ($this->estatus->estatus_id ?? 0);
             $nombreEstatus = optional($this->estatus->estatusRelation)->status_name;
 
@@ -62,17 +75,15 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
             };
             $nameNorm = $norm($nombreEstatus);
 
-            // Añadir 2 y 3 para omitir genérico y usar correos de aprobación por etapa
-            $skipIds = [2, 3, 4, 9, 11, 12, 13];
+            // Ajuste: permitir también correos genéricos para aprobaciones (2,3,4) y movimiento parcial (12) si se desea doble notificación.
+            // Solo saltar corrección (11) y rechazos (9,13) para evitar ruido al usuario solicitante.
+            $skipIds = [9,11,13];
             $skipByName = (
                 strpos($nameNorm, 'corregir') !== false ||
-                strpos($nameNorm, 'rechaz') !== false ||
-                strpos($nameNorm, 'aprobado por financiera') !== false ||
-                strpos($nameNorm, 'movimiento parcial') !== false ||
-                strpos($nameNorm, 'solo se ha entregado') !== false
+                strpos($nameNorm, 'rechaz') !== false
             );
             if (in_array($estatusId, $skipIds, true) || $skipByName) {
-                Log::info('estatusActualizado: omitido genérico por estatus especial', [
+                Log::info('estatusActualizado: omitido genérico (corrección/rechazo)', [
                     'req' => $this->requisicion->id,
                     'estatus_id' => $estatusId,
                     'estatus_name' => $nombreEstatus,
@@ -80,10 +91,26 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
                 return; // NO enviar correo genérico ni despachar otros jobs aquí (se hacen en el controlador)
             }
 
-            // Omitir 'Requisición creada'
+            // Omitir únicamente estatus de creación inicial
             if ($nombreEstatus && trim(mb_strtolower($nombreEstatus)) === trim(mb_strtolower('Requisición creada'))) {
-                Log::info('estatusActualizado: skip por estatus Requisición creada', ['req' => $this->requisicion->id]);
+                Log::info('estatusActualizado: skip por estatus creación', ['req' => $this->requisicion->id]);
                 return;
+            }
+
+            // Si el estatus es 5 (OC generada), enviar correo(s) de OC creada para todas las OCs de la requisición al creador (user_email/email_user)
+            if ((int)$estatusId === 5) {
+                try {
+                    $creatorEmail = $this->requisicion->user_email
+                        ?? $this->requisicion->email_user
+                        ?? optional($this->requisicion->user)->email
+                        ?? config('mail.from.address');
+                    $ordenes = OrdenCompra::where('requisicion_id', $this->requisicion->id)->get();
+                    foreach ($ordenes as $oc) {
+                        if ($oc) { OrdenCompraCreadaJob::dispatch($oc, $creatorEmail); }
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('EstatusRequisicionActualizadoJob: fallo al despachar OC creada', ['req'=>$this->requisicion->id, 'err'=>$e->getMessage()]);
+                }
             }
 
             $to = $this->userEmail
