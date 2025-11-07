@@ -23,7 +23,7 @@
                     <h2 style="margin:0 0 12px 0;">Requisición #{{ $requisicion->id }} - {{ $etiqueta }}</h2>
                     <p style="margin:0 0 12px 0;">{{ $mensajePrincipal }}</p>
 
-                    <p style="margin:0 0 6px 0;"><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Centro de costo:</strong> {{ $requisicion->operacion_user }}</p>
                     <p style="margin:0 0 6px 0;"><strong>Solicitante:</strong> {{ $requisicion->name_user }}</p>
                     <p style="margin:0 0 6px 0;"><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion) }}</p>
                     @if(!empty($requisicion->justify_requisicion))
@@ -36,10 +36,6 @@
                         <a href="{{ $panelUrl }}" 
                            style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
                             Ir al panel
-                        </a>
-                        <a href="{{ $detalleUrl }}" 
-                           style="display:inline-block; margin-left:8px; background:#0f766e; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
-                            Ver detalles
                         </a>
                     </p>
 

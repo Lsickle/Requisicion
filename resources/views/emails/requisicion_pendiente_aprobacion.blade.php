@@ -21,7 +21,7 @@
                         {{ $mensajePrincipal ?? ('Se ha creado la requisición #'.($requisicion->id ?? '—').'. Ingresa al sistema para realizar su aprobación.') }}
                     </p>
 
-                    <p style="margin:0 0 6px 0;"><strong>Operación:</strong> {{ $requisicion->operacion_user ?? 'N/A' }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Centro de consto:</strong> {{ $requisicion->operacion_user ?? 'N/A' }}</p>
                     <p style="margin:0 0 6px 0;"><strong>Solicitante:</strong> {{ $requisicion->name_user ?? 'N/A' }}</p>
                     <p style="margin:0 0 6px 0;"><strong>Prioridad:</strong> {{ isset($requisicion->prioridad_requisicion) ? ucfirst($requisicion->prioridad_requisicion) : 'N/A' }}</p>
                     @if(!empty($requisicion->justify_requisicion))

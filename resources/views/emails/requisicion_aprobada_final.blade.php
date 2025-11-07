@@ -18,7 +18,7 @@
                     <h2 style="margin:0 0 10px;">Requisición aprobada</h2>
                     <p style="margin:0 0 6px;">Se informa que la requisición #{{ $requisicion->id }}</p>
                     <p style="margin:0 0 6px;"><strong>Solicitante:</strong> {{ $requisicion->name_user ?? '-' }}</p>
-                    <p style="margin:0 0 6px;"><strong>Operación:</strong> {{ $requisicion->operacion_user ?? '-' }}</p>
+                    <p style="margin:0 0 6px;"><strong>Centro de costo:</strong> {{ $requisicion->operacion_user ?? '-' }}</p>
                     <p style="margin:0 0 6px;"><strong>Prioridad:</strong> {{ ucfirst($requisicion->prioridad_requisicion ?? '-') }}</p>
                     <p style="margin:0 0 12px;">En espera de la generación de la Orden de Compra.</p>
                     <p style="margin:16px 0 0 0;">Saludos,<br/>Equipo</p>
