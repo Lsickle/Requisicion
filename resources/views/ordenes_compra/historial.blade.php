@@ -288,10 +288,10 @@
                     @if(($recRows ?? collect())->count())
                     @php $grandRecTotal = 0; @endphp
                     <div class="overflow-x-auto rc-table-wrapper">
-                        <table class="w-full min-w-[980px] text-sm border rounded overflow-hidden bg-white rc-table">
+                        <table class="w-full text-sm border rounded overflow-hidden bg-white rc-table">
                             <thead class="bg-gray-100">
                                 <tr>
-                                    <th class="p-2 text-left whitespace-nowrap">Producto</th>
+                                    <th class="p-2 text-left whitespace-nowrap col-prod">Producto</th>
                                     <th class="p-2 text-center whitespace-nowrap">Cant. OC</th>
                                     <th class="p-2 text-center whitespace-nowrap">Unidad</th>
                                     <th class="p-2 text-center whitespace-nowrap">Precio U.</th>
@@ -310,7 +310,7 @@
                                     $grandRecTotal += $lineTotal;
                                 @endphp
                                 <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
-                                    <td class="p-2 align-top max-w-[240px] truncate" title="{{ $r->name_produc }}">{{ $r->name_produc }}</td>
+                                    <td class="p-2 align-top col-prod" title="{{ $r->name_produc }}"><span class="truncate block">{{ $r->name_produc }}</span></td>
                                     <td class="p-2 text-center align-top">{{ (int)$r->cantidad_total }}</td>
                                     <td class="p-2 text-center align-top">{{ $r->unit_produc ?? '—' }}</td>
                                     <td class="p-2 text-center align-top">{{ number_format($price, 2) }}</td>
@@ -1122,24 +1122,22 @@
         /* Flecha rotatoria para summaries */
         .details-summary-arrow{ transition: transform .18s ease; }
         details[open] .details-summary-arrow{ transform: rotate(180deg); }
-        
-        /* Scope local: evitar que el sidebar/nav herede color azul en esta vista */
+        /* Scope local */
         .oc-scope { color: #111827; }
         .oc-scope hr { color: #e5e7eb; border-color: #e5e7eb; }
         .oc-scope a { color: inherit; }
-
-        /* Forzar colores correctos del sidebar solo en esta vista */
         #sidebar { color: #ffffff !important; }
         #sidebar a { color: #ffffff !important; }
-        #sidebar a:hover { color: #fdba74 !important; } /* orange-300 aprox */
-        /* Ajustar divisores del sidebar para que no se vean azules brillantes */
+        #sidebar a:hover { color: #fdba74 !important; }
         #sidebar hr { border-color: rgba(30,58,138,0.3) !important; }
         #sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(30,58,138,0.3) !important; }
-
         .rc-table-wrapper{overflow-x:auto;}
-        .rc-table{table-layout:auto;}
+        .rc-table{table-layout:fixed;}
         .rc-modal{max-height:90vh;}
         .rc-modal input.rcx-input{min-width:70px;}
+        /* Columna producto más estrecha con elipsis */
+        .rc-table .col-prod{max-width:160px;width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        @media (max-width: 640px){ .rc-table .col-prod{max-width:120px;width:120px;} }
 </style>
 <script>
 // Inyectar span de info de paginación de OC si falta
