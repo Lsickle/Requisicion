@@ -185,23 +185,7 @@
             <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
-        <!-- Selección de producto (mayor ancho) -->
-        <div class="mb-4 relative">
-            <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-            <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
-            <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                @foreach ($productos as $p)
-                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
-                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                    data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
-                    data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                    ({{ $p->sku ?? $p->id }}) {{ $p->name_produc }} ({{ $p->unit_produc }})
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        <!-- Filtro de categoría y Cantidad -->
+        <!-- Filtro de categoría y Cantidad (movido arriba) -->
         <div class="grid grid-cols-3 gap-4 items-end mb-4">
             <div class="relative">
                 <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
@@ -230,6 +214,22 @@
             </div>
             <div class="flex items-center">
                 <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
+            </div>
+        </div>
+
+        <!-- Selección de producto (movido abajo, sin cambios de IDs) -->
+        <div class="mb-4 relative">
+            <label class="block text-gray-600 font-semibold mb-1">Producto</label>
+            <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
+            <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
+                @foreach ($productos as $p)
+                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
+                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
+                    data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
+                    data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
+                    ({{ $p->sku ?? $p->id }}) {{ $p->name_produc }} ({{ $p->unit_produc }})
+                </div>
+                @endforeach
             </div>
         </div>
 

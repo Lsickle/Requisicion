@@ -77,7 +77,7 @@ class NotificarAprobacionEtapaJob implements ShouldQueue
 
         try {
             Mail::to($to)->send($mailable);
-            Log::info('NotificarAprobacionEtapaJob enviado', ['req'=>$this->requisicion->id ?? null, 'stage'=>$this->stageKey, 'to'=>$to]);
+            Log::info('NotificarAprobacionEtapaJob enviado', [ 'req'=>$this->requisicion->id ?? null, 'stage'=>$this->stageKey, 'to'=>$to, 'tipo'=>'inicial' ]);
         } catch (\Throwable $e) {
             Log::error('NotificarAprobacionEtapaJob: error enviando correo', ['err'=>$e->getMessage(), 'req'=>$this->requisicion->id ?? null, 'to'=>$to]);
         }

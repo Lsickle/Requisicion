@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Mail\EstatusRequisicionActualizado;
+use App\Mail\RequisicionCompletada; // nuevo
 use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Bus\Queueable;
@@ -40,12 +41,15 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
      */
     public function handle()
     {
-        $estatusId = (int)($this->estatus->estatus_id ?? 0);
-        if (in_array($estatusId, [2,3,4], true)) { return; } // evitar duplicados con correos de aprobación
+        // Enviar correo siempre que el email sea válido
         if (empty($this->userEmail) || !filter_var($this->userEmail, FILTER_VALIDATE_EMAIL)) { return; }
-
+        $estatusId = (int)($this->estatus->estatus_id ?? 0);
         try {
+            if ($estatusId === 10) {
+                Mail::to($this->userEmail)->send(new RequisicionCompletada($this->requisicion, $this->estatus));
+                return;
+            }
             Mail::to($this->userEmail)->send(new EstatusRequisicionActualizadoMail($this->requisicion, $this->estatus));
-        } catch (\Throwable $e) { /* silencio para evitar 500 */ }
+        } catch (\Throwable $e) { /* silencio */ }
     }
 }

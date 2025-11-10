@@ -422,11 +422,8 @@ class EstatusRequisicionController extends Controller
                 }
                 if (empty($nuevoEstatus->user_id) && session('user.id')) { $nuevoEstatus->user_id = session('user.id'); }
 
-                // Enviar correo genérico solo cuando NO sea etapa 2, 3 o 4 (esas tienen correo específico)
-                $estatusId = (int)($nuevoEstatus->estatus_id ?? 0);
-                if (!in_array($estatusId, [2,3,4], true)) {
-                    EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
-                }
+                // Enviar siempre correo genérico de actualización (incluye estatus 2, 3 y 4)
+                EstatusRequisicionActualizadoJob::dispatch($requisicion, $nuevoEstatus, $userEmail);
             } catch (\Exception $e) {
                 Log::error('Error notificando updateStatus (job): '.$e->getMessage());
             }

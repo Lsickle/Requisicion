@@ -15,6 +15,7 @@ use App\Models\Entrega;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use App\Jobs\RequisicionEntregaRegistradaJob;
+use App\Jobs\EstatusRequisicionActualizadoJob; // asegurar uso
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -847,13 +848,19 @@ class RequisicionController extends Controller
         $yaCompleto = Estatus_Requisicion::where('requisicion_id',$requisicionId)->where('estatus',1)->where('estatus_id',10)->exists();
         if ($yaCompleto) return true;
         Estatus_Requisicion::where('requisicion_id', $requisicionId)->update(['estatus'=>0]);
-        Estatus_Requisicion::create([
+        $nuevo = Estatus_Requisicion::create([
             'requisicion_id'=>$requisicionId,
             'estatus_id'=>10,
             'estatus'=>1,
             'date_update'=>now(),
             'comentario'=>'Completado automáticamente al recibir todos los productos'
         ]);
+        // Despachar correo de completada
+        try {
+            $req = Requisicion::find($requisicionId);
+            $email = $req->email_user ?? null;
+            if ($req && $email) { EstatusRequisicionActualizadoJob::dispatch($req, $nuevo, $email); }
+        } catch (\Throwable $e) { /* noop */ }
         return true;
     }
 
