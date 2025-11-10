@@ -383,7 +383,7 @@ class RequisicionController extends Controller
     public function pdf($id)
     {
         $requisicion = Requisicion::with([
-            'productos',
+            'productos' => function($q){ $q->withTrashed(); },
             'productos.centros',
             'estatusHistorial.estatusRelation'
         ])->findOrFail($id);

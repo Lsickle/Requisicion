@@ -1223,35 +1223,26 @@ class OrdenCompraController extends Controller
     // Añadir helper para construir los datos del PDF (usado por download/export)
     private function buildPdfData(\App\Models\OrdenCompra $orden): array
     {
-        // Resolver proveedor de forma robusta: usar proveedor_id de líneas o, si falta, inferir desde productoxproveedor
+        // Resolver proveedor como antes
         $proveedor = null;
         try {
             $lineas = $orden->ordencompraProductos ?? collect();
             if ($lineas instanceof \Illuminate\Support\Collection && $lineas->count()) {
                 $withProv = $lineas->first(fn($l) => !empty($l->proveedor_id));
-                if ($withProv) {
-                    $proveedor = $withProv->proveedor ?: \App\Models\Proveedor::find($withProv->proveedor_id);
-                }
+                if ($withProv) { $proveedor = $withProv->proveedor ?: \App\Models\Proveedor::find($withProv->proveedor_id); }
                 if (!$proveedor) {
                     $firstLinea = $lineas->first();
                     $pid = $firstLinea?->producto_id;
                     if ($pid) {
-                        $provId = DB::table('productoxproveedor')
-                            ->where('producto_id', $pid)
-                            ->orderBy('id')
-                            ->value('proveedor_id');
+                        $provId = DB::table('productoxproveedor')->where('producto_id', $pid)->orderBy('id')->value('proveedor_id');
                         if ($provId) { $proveedor = \App\Models\Proveedor::find($provId); }
                     }
                 }
             }
         } catch (\Throwable $e) { /* noop */ }
-
-        // Si no se resolvió proveedor por relaciones, intentar usar la primera línea (incluso soft-deleted)
         if (!$proveedor) {
             $provId = optional(optional($orden->ordencompraProductos->first()))->proveedor_id;
-            if ($provId) {
-                try { $proveedor = \App\Models\Proveedor::withTrashed()->find($provId); } catch (\Throwable $e) { /* noop */ }
-            }
+            if ($provId) { try { $proveedor = \App\Models\Proveedor::withTrashed()->find($provId); } catch (\Throwable $e) {} }
         }
 
         $items = [];
@@ -1261,57 +1252,60 @@ class OrdenCompraController extends Controller
         $orderCurrency = null;
 
         foreach ($porProducto as $productoId => $lineas) {
-            // Obtener producto; si la relación no existe (soft-deleted), buscar conTrashed
             $producto = optional($lineas->first())->producto;
-            if (!$producto) {
-                try { $producto = \App\Models\Producto::withTrashed()->find($productoId); } catch (\Throwable $e) { $producto = null; }
-            }
-             if (!$producto) { continue; }
+            if (!$producto) { try { $producto = \App\Models\Producto::withTrashed()->find($productoId); } catch (\Throwable $e) { $producto = null; } }
+            if (!$producto) { continue; }
 
             $cantidad = (int) $lineas->sum('total');
-
-            // Determinar tasa de IVA aplicada (si alguna línea la define)
+            // IVA fracción desde la primera línea con apply_iva
             $ivaRate = 0.0;
             foreach ($lineas as $ln) {
-                if ($ln->apply_iva !== null && is_numeric($ln->apply_iva)) {
-                    $val = (float)$ln->apply_iva;
-                    $ivaRate = ($val > 1) ? ($val / 100.0) : $val;
-                    break;
-                }
+                if ($ln->apply_iva !== null && is_numeric($ln->apply_iva)) { $val = (float)$ln->apply_iva; $ivaRate = ($val > 1) ? ($val/100.0) : $val; break; }
             }
 
-            // Precio y moneda base (de proveedor o producto)
-            $provId = optional($proveedor)->id;
-            $pxp = DB::table('productoxproveedor')
-                ->where('producto_id', $producto->id)
-                ->when($provId, function($q) use ($provId){ $q->where('proveedor_id', $provId); })
-                ->orderBy('id')
-                ->first();
-            if (!$pxp) {
-                $pxp = DB::table('productoxproveedor')
-                    ->where('producto_id', $producto->id)
-                    ->orderBy('id')
-                    ->first();
-            }
-            if (!$proveedor && $pxp && isset($pxp->proveedor_id)) { $proveedor = \App\Models\Proveedor::find($pxp->proveedor_id); }
-
-            $priceRaw = (float)($pxp->price_produc ?? ($producto->price_produc ?? 0));
-            $mon = strtoupper($pxp->moneda ?? ($producto->moneda ?? 'COP'));
-
-            // Determinar precio unitario en COP
-            $unitPriceCop = null;
-            $lineWithRate = $lineas->first(function($ln){ return $ln->trm_oc !== null && $ln->trm_oc !== ''; });
-            if ($mon === 'COP') {
-                $unitPriceCop = round($priceRaw, 2);
-            } else if ($lineWithRate) {
-                $rate = (float) $lineWithRate->trm_oc;
-                $unitPriceCop = round($priceRaw * $rate, 2);
-            } else {
-                $rate = $this->fetchExchangeRateServer($mon, 'COP');
-                $unitPriceCop = round(($rate ? ($priceRaw * $rate) : $priceRaw), 2);
+            // Precio base: precio_factura (COP) > precio_original (COP) > PXP convertido a COP
+            $precioFacturaCOP = null;
+            $baseFacturaLine = $lineas->first(fn($ln)=> $ln->precio_factura !== null);
+            $baseOriginalLine = $lineas->first(fn($ln)=> $ln->precio_factura === null && $ln->precio_original !== null);
+            if ($baseFacturaLine) {
+                $precioFacturaCOP = (float)$baseFacturaLine->precio_factura;
+            } elseif ($baseOriginalLine) {
+                $precioFacturaCOP = (float)$baseOriginalLine->precio_original;
             }
 
-            // Cálculos COP
+            $pxpPrice = 0.0; $pxpMon = 'COP';
+            if ($precioFacturaCOP === null) {
+                $provId = optional(optional($lineas->first())->proveedor)->id ?? optional($lineas->first())->proveedor_id;
+                try {
+                    $pxp = DB::table('productoxproveedor')
+                        ->where('producto_id', $producto->id)
+                        ->when($provId, function($q) use ($provId){ $q->where('proveedor_id', $provId); })
+                        ->orderBy('id')
+                        ->first();
+                    if (!$pxp) { $pxp = DB::table('productoxproveedor')->where('producto_id', $producto->id)->orderBy('id')->first(); }
+                    if ($pxp) { $pxpPrice = (float)($pxp->price_produc ?? 0); $pxpMon = strtoupper($pxp->moneda ?? 'COP'); }
+                } catch (\Throwable $e) { /* noop */ }
+                if ($pxpPrice > 0) {
+                    if ($pxpMon === 'COP') { $precioFacturaCOP = round($pxpPrice, 2); }
+                    else { $rate = $this->fetchExchangeRateServer($pxpMon, 'COP'); $precioFacturaCOP = round(($rate ? ($pxpPrice * $rate) : $pxpPrice), 2); }
+                } else { $precioFacturaCOP = 0.0; }
+            }
+
+            // Moneda de presentación original (si no hay pxpMon, usar COP)
+            $mon = $pxpMon ?: 'COP';
+            $orderCurrency = $orderCurrency ?: $mon;
+            // Si no podemos reconstruir original, mostramos COP como original
+            $unitPriceOrig = ($mon === 'COP') ? $precioFacturaCOP : $pxpPrice;
+
+            // IVA y totales en origen y COP basados en precio_factura
+            $unitIvaOrig = round($unitPriceOrig * $ivaRate, 2);
+            $unitWithIvaOrig = round($unitPriceOrig + $unitIvaOrig, 2);
+            $lineSubtotalOrig = round($unitPriceOrig * $cantidad, 2);
+            $lineTotalWithIvaOrig = round($unitWithIvaOrig * $cantidad, 2);
+            $lineIvaOrig = round($lineTotalWithIvaOrig - $lineSubtotalOrig, 2);
+            $subtotalOrigin += $lineSubtotalOrig; $ivaTotalOrigin += $lineIvaOrig;
+
+            $unitPriceCop = $precioFacturaCOP;
             $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
             $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
             $lineSubtotalCop = round($unitPriceCop * $cantidad, 2);
@@ -1319,29 +1313,20 @@ class OrdenCompraController extends Controller
             $lineIvaCop = round($lineTotalWithIvaCop - $lineSubtotalCop, 2);
             $subtotalCop += $lineSubtotalCop; $ivaTotalCop += $lineIvaCop;
 
-            // Cálculos en moneda original
-            $orderCurrency = $orderCurrency ?: $mon;
-            $unitIvaOrig = round($priceRaw * $ivaRate, 2);
-            $unitWithIvaOrig = round($priceRaw + $unitIvaOrig, 2);
-            $lineSubtotalOrig = round($priceRaw * $cantidad, 2);
-            $lineTotalWithIvaOrig = round($unitWithIvaOrig * $cantidad, 2);
-            $lineIvaOrig = round($lineTotalWithIvaOrig - $lineSubtotalOrig, 2);
-            $subtotalOrigin += $lineSubtotalOrig; $ivaTotalOrigin += $lineIvaOrig;
-
             $items[] = [
                 'producto_id' => $producto->id,
                 'name_produc' => $producto->name_produc,
                 'description_produc' => $producto->description_produc ?? '',
                 'unit_produc' => $producto->unit_produc ?? '',
                 'po_amount' => $cantidad,
-                'precio_unitario' => $unitPriceCop,
+                'precio_factura' => $unitPriceOrig,
                 'iva' => $ivaRate * 100,
-                'precio_unitario_con_iva' => $unitWithIvaCop,
-                'total_con_iva' => $lineTotalWithIvaCop,
+                'precio_factura_con_iva' => $unitWithIvaOrig,
+                'total_con_iva_origen' => $lineTotalWithIvaOrig,
                 'currency' => $mon,
-                'unit_price' => $priceRaw,
-                'unit_price_con_iva' => $unitWithIvaOrig,
-                'line_total_with_iva' => $lineTotalWithIvaOrig,
+                'precio_factura_cop' => $unitPriceCop,
+                'precio_factura_cop_con_iva' => $unitWithIvaCop,
+                'total_con_iva_cop' => $lineTotalWithIvaCop,
             ];
         }
 
@@ -1352,18 +1337,14 @@ class OrdenCompraController extends Controller
             ->where('ocp.orden_compra_id', $orden->id)
             ->get();
         $distribucion = [];
-        foreach ($distRows as $r) {
-            $distribucion[$r->producto_id][] = [ 'name_centro' => $r->name_centro, 'amount' => (int)$r->amount ];
-        }
+        foreach ($distRows as $r) { $distribucion[$r->producto_id][] = ['name_centro'=>$r->name_centro,'amount'=>(int)$r->amount]; }
 
         $totalOrigin = round($subtotalOrigin + $ivaTotalOrigin, 2);
 
-        // Asegurar proveedor aunque esté soft-deleted: si no se resolvió antes, intentar recuperar conTrashed por id de línea
+        // Fallback proveedor si sigue vacío
         if (empty($proveedor) || empty($proveedor->prov_name)) {
             $firstProvId = optional($orden->ordencompraProductos->first())->proveedor_id;
-            if ($firstProvId) {
-                try { $provTmp = \App\Models\Proveedor::withTrashed()->find($firstProvId); if ($provTmp) $proveedor = $provTmp; } catch (\Throwable $e) { /* noop */ }
-            }
+            if ($firstProvId) { try { $provTmp = \App\Models\Proveedor::withTrashed()->find($firstProvId); if ($provTmp) $proveedor = $provTmp; } catch (\Throwable $e) { } }
         }
 
         return [
@@ -1371,10 +1352,8 @@ class OrdenCompraController extends Controller
             'proveedor' => $proveedor,
             'items' => $items,
             'distribucion' => $distribucion,
-            // Totales COP (compat)
             'subtotal_cop' => $subtotalCop,
             'iva_total_cop' => $ivaTotalCop,
-            // Totales originales (mostrar en PDF)
             'subtotal' => $subtotalOrigin,
             'iva_total' => $ivaTotalOrigin,
             'total' => $totalOrigin,
@@ -1383,7 +1362,6 @@ class OrdenCompraController extends Controller
             'fecha_actual' => now()->format('d/m/Y H:i'),
             'logo' => $this->resolveLogoDataUri(),
             'date_oc' => ($orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('d/m/Y') : ($orden->created_at ? $orden->created_at->format('d/m/Y') : now()->format('d/m/Y'))),
-            // Traer método y plazo de pago desde el proveedor
             'methods_oc' => $proveedor->methods_oc ?? '',
             'plazo_oc' => $proveedor->plazo_oc ?? '',
         ];

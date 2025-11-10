@@ -280,255 +280,229 @@
     @php $watermarkSrc = !empty($logo) ? $logo : asset('images/VigiaLogoC.png'); @endphp
     <div class="watermark"><img src="{{ $watermarkSrc }}" alt="marca de agua"></div>
 
-     <div class="content">
-     <!-- Página 1: Productos para el proveedor -->
-    <div class="header">
-    <div class="header">
-         <div class="company-info">
-            @if(!empty($logo))
-                <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
-            @else
-                <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="logo">
-            @endif
-         </div>
-         <div class="document-info">
-             <div class="title">ORDEN DE COMPRA #{{ $orden->order_oc ?? $orden->id }}</div>
-             <div><strong>Fecha:</strong> {{ $date_oc }}</div>
-         </div>
-         <div class="clear"></div>
-     </div>
-
-            <div class="info-section">
-                <div class="info-box">
-                    <h4>Proveedor</h4>
-                    <div class="info-item"><strong>Nombre:</strong> {{ $proveedor->prov_name ?? 'Proveedor' }}</div>
-                    <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit ?? '' }}</div>
-                    <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c ?? '' }}</div>
-                    <div class="info-item"><strong>Teléfono:</strong> {{ $proveedor->prov_phone ?? '' }}</div>
-                    <div class="info-item"><strong>Dirección:</strong> {{ ($proveedor->prov_adress ?? '') .
-                        (($proveedor->prov_city ?? '') ? ', '.$proveedor->prov_city : '') }}</div>
-                </div>
-                <div class="info-box right">
-                    <h4>Detalles de la Orden</h4>
-                    <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
-                    <div class="info-item"><strong>Plazo de pago:</strong> {{ $plazo_oc }}</div>
-                </div>
-                <div class="clear"></div>
-            </div>
-
-            <!-- Nuevo: Centro de Costo / Operación de la requisición -->
-            <div class="info-section">
-                <div class="info-box">
-                    <h4>Centro de Costo</h4>
-                    <div class="info-item">
-                        <strong>Operación:</strong>
-                        {{ optional(optional($orden)->requisicion)->operacion_user ??
-                        optional(optional($orden)->requisicion)->operacion->nombre ?? ($orden->operacion ?? 'N/A') }}
-                    </div>
-                </div>
-                <div class="clear"></div>
-            </div>
-
-            @php
-            // Paginación de productos para el PDF
-            $rowsPerPage = 18; // ajustar si es necesario
-            $productPages = array_chunk($items, $rowsPerPage);
-            @endphp
-
-            <style>
-                /* Forzar repetición del thead en cada página y evitar cortes de fila */
-                thead {
-                    display: table-header-group;
-                }
-
-                tfoot {
-                    display: table-footer-group;
-                }
-
-                tr {
-                    page-break-inside: avoid;
-                }
-            </style>
-
-            @foreach($productPages as $pageIndex => $pageItems)
-            <table class="product-table">
-                <thead>
-                    <tr>
-                        <th width="5%">#</th>
-                        <th width="28%">Producto</th>
-                        <th width="8%">Unidad</th>
-                        <th width="6%">Cantidad</th>
-                        <th width="6%">IVA</th>
-                        <th width="12%">Valor Unitario (original)</th>
-                        <th width="12%">Total (original)</th>
-                        <th width="12%">Valor Unitario (COP)</th>
-                        <th width="11%">Total (COP)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php $pageGrandCop = 0; @endphp
-                    @foreach($pageItems as $i => $item)
-                    <tr>
-                        @php
-                        $idx = $pageIndex * $rowsPerPage + $i + 1;
-                        $unitPrice = (float)($item['unit_price'] ?? ($item['precio_unitario'] ?? 0));
-                        $origCurrency = $item['currency'] ?? ($currency ?? 'COP');
-                        // convertir a COP usando helper del controlador
-                        $unitPriceCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPrice, $origCurrency);
-
-                        $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0;
-                        $ivaRate = $ivaPercent / 100;
-
-                        $unitIvaOrig = round($unitPrice * $ivaRate, 2);
-                        $unitWithIvaOrig = round($unitPrice + $unitIvaOrig, 2);
-
-                        $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
-                        $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
-
-                        $qty = (int)$item['po_amount'];
-                        $lineTotalCop = round($unitWithIvaCop * $qty, 2);
-                        $lineTotalOrig = round($unitWithIvaOrig * $qty, 2);
-                        $pageGrandCop += $lineTotalCop;
-                        @endphp
-
-                        <td>{{ $idx }}</td>
-                        <td>{{ $item['name_produc'] }}</td>
-                        <td>{{ $item['unit_produc'] }}</td>
-                        <td>{{ number_format($qty, 0) }}</td>
-                        <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%' : '0%' }}</td>
-                        <td class="text-right">{{ $origCurrency }} ${{ number_format($unitWithIvaOrig, 2) }}<br><small>(+ IVA {{ number_format($unitIvaOrig,2) }})</small></td>
-                        <td class="text-right">{{ $origCurrency }} ${{ number_format($lineTotalOrig, 2) }}</td>
-                        <td class="text-right">COP ${{ number_format($unitWithIvaCop, 2) }}<br><small>(equiv. unidad)</small></td>
-                        <td class="text-right">COP ${{ number_format($lineTotalCop, 2) }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-
-            @if($pageIndex !== count($productPages) - 1)
-            <div class="page-break"></div>
-            @endif
-            @endforeach
-
-            {{-- reemplazo del bloque de totales flotante por cuadro con borde --}} 
-            @php /* Antes: tarjeta .totals-card */ @endphp
-
-            <div style="clear:both;"></div>
-            @php
-                // Calcular total general en COP sumando todas las páginas
-                $grandTotalCop = 0;
-                foreach($productPages as $pageItemsTmp) {
-                    foreach($pageItemsTmp as $it) {
-                        $u = (float)($it['unit_price'] ?? ($it['precio_unitario'] ?? 0));
-                        $c = $it['currency'] ?? ($currency ?? 'COP');
-                        $uCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($u, $c);
-                        $iva = isset($it['iva']) ? ((float)$it['iva'] / 100) : 0;
-                        $unitWithIvaCopTmp = round($uCop + ($uCop * $iva), 2);
-                        $qtyTmp = (int)($it['po_amount'] ?? 0);
-                        $grandTotalCop += round($unitWithIvaCopTmp * $qtyTmp, 2);
-                    }
-                }
-            @endphp
-            <div class="totals-box" role="region" aria-label="Total General">
-                <div class="row total">
-                    <div class="label">TOTAL GENERAL (COP)</div>
-                    <div class="value">COP ${{ number_format($grandTotalCop, 2) }}</div>
-                </div>
-            </div>
-            <div style="clear:both;"></div>
-
-    @if(!empty($observaciones))
-    <div style="margin-top: 20px; padding: 10px; border-left: 4px solid #2c3e50; background: transparent;">
-        <h4 style="margin-top: 0;">Observaciones:</h4>
-        <p>{{ $observaciones }}</p>
-    </div>
-    @endif
-
-            <div class="signatures">
-                <div class="signature-box">
-                    <p class="font-semibold mb-2">{{ $orden->oc_user ?? session('user.name') ?? 'N/A' }}</p>
-                    <div class="signature-line"></div>
-                    <p>Elaborado por</p>
-                </div>
-                <div class="signature-box" style="float:right;">
-                    <p class="font-semibold mb-2">Alejandro Ramirez</p>
-                    <div class="signature-line"></div>
-                    <p>Aprobado por</p>
-                </div>
-                <div class="clear"></div>
-            </div>
-
-            <!-- Página 2: Distribución por centros -->
-            <div class="page-break"></div>
-
-            <div class="header">
-                <div class="company-info">
-                    @if(!empty($logo))
+    <div class="content">
+        <!-- Encabezado limpio -->
+        <div class="header">
+            <div class="company-info">
+                @if(!empty($logo))
                     <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
-                    @else
-                    <img src="{{ asset('images/logo.png') }}" class="logo" alt="Vigía Plus Logistics">
-                    @endif
-                </div>
-                <div class="document-info">
-                    <div class="title">Distribución por Centros/subcentros - Orden #{{ $orden->order_oc ?? $orden->id }}
-                    </div>
-                    <div><strong>Fecha:</strong> {{ $date_oc }}</div>
-                </div>
-                <div class="clear"></div>
+                @else
+                    <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="logo">
+                @endif
             </div>
-
-            <div class="info-section">
-                <div class="info-box">
-                    <h4>Proveedor</h4>
-                    <div class="info-item"><strong>Nombre:</strong> {{ $proveedor->prov_name ?? 'Proveedor' }}</div>
-                    <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit ?? '' }}</div>
-                    <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c ?? '' }}</div>
-                </div>
-                <div class="info-box right">
-                    <h4>Orden</h4>
-                    <div class="info-item"><strong>Número:</strong> {{ $orden->order_oc ?? $orden->id }}</div>
-                    <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
-                    <div class="info-item"><strong>Plazo:</strong> {{ $plazo_oc }}</div>
-                </div>
-                <div class="clear"></div>
+            <div class="document-info">
+                <div class="title">ORDEN DE COMPRA #{{ $orden->order_oc ?? $orden->id }}</div>
+                <div><strong>Fecha:</strong> {{ $date_oc }}</div>
             </div>
+            <div class="clear"></div>
+        </div>
 
-            <table class="product-table">
-                <thead>
-                    <tr>
-                        <th width="25%">Producto</th>
-                        <th width="55%">Distribución por Centro/subcentros</th>
-                        <th width="20%" class="text-right">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($items as $item)
-                    <tr>
-                        <td><strong>{{ $item['name_produc'] }}</strong><br><small>{{ $item['unit_produc'] }}</small>
-                        </td>
-                        <td>
-                            @php $dist = $distribucion[$item['producto_id']] ?? []; @endphp
-                            @if(count($dist))
-                            <ul style="margin:0;padding-left:16px;">
-                                @foreach($dist as $row)
-                                <li>{{ $row['name_centro'] }}: <strong>{{ $row['amount'] }}</strong></li>
-                                @endforeach
-                            </ul>
-                            @else
-                            <span>Sin distribución registrada</span>
-                            @endif
-                        </td>
-                        <td class="text-right">{{ number_format($item['po_amount'], 0) }} {{ $item['unit_produc'] }}
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-
-            <div class="footer">
-                Documento generado el {{ $fecha_actual }} | Software de Requisición de Compras
+        <!-- Info proveedor y orden -->
+        <div class="info-section">
+            <div class="info-box">
+                <h4>Proveedor</h4>
+                <div class="info-item"><strong>Nombre:</strong> {{ $proveedor->prov_name ?? 'Proveedor' }}</div>
+                <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit ?? '' }}</div>
+                <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c ?? '' }}</div>
+                <div class="info-item"><strong>Teléfono:</strong> {{ $proveedor->prov_phone ?? '' }}</div>
+                <div class="info-item"><strong>Dirección:</strong> {{ ($proveedor->prov_adress ?? '') . (($proveedor->prov_city ?? '') ? ', '.$proveedor->prov_city : '') }}</div>
             </div>
-        </div> 
+            <div class="info-box right">
+                <h4>Detalles de la Orden</h4>
+                <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
+                <div class="info-item"><strong>Plazo de pago:</strong> {{ $plazo_oc }}</div>
+            </div>
+            <div class="clear"></div>
+        </div>
+
+        <!-- Centro de Costo / Operación -->
+        <div class="info-section">
+            <div class="info-box">
+                <h4>Centro de Costo</h4>
+                <div class="info-item"><strong>Operación:</strong>
+                    {{ optional(optional($orden)->requisicion)->operacion_user ?? optional(optional($orden)->requisicion)->operacion->nombre ?? ($orden->operacion ?? 'N/A') }}
+                </div>
+            </div>
+            <div class="clear"></div>
+        </div>
+
+        @php $rowsPerPage = 18; $productPages = array_chunk($items, $rowsPerPage); @endphp
+        @foreach($productPages as $pageIndex => $pageItems)
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th width="5%">#</th>
+                    <th width="28%">Producto</th>
+                    <th width="8%">Unidad</th>
+                    <th width="6%">Cantidad</th>
+                    <th width="6%">IVA</th>
+                    <th width="12%">Valor Unitario (original)</th>
+                    <th width="12%">Total (original)</th>
+                    <th width="12%">Valor Unitario (COP)</th>
+                    <th width="11%">Total (COP)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @php $pageGrandCop = 0; @endphp
+                @foreach($pageItems as $i => $item)
+                <tr>
+                    @php
+                    $idx = $pageIndex * $rowsPerPage + $i + 1;
+                    // Base: precio_factura > precio_unitario > unit_price (sin precio_original)
+                    $unitPrice = (float)($item['precio_factura'] ?? ($item['precio_unitario'] ?? ($item['unit_price'] ?? 0)));
+                    $origCurrency = $item['currency'] ?? ($currency ?? 'COP');
+                    $unitPriceCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPrice, $origCurrency);
+                    if ($unitPriceCop === null) { $unitPriceCop = strtoupper(trim($origCurrency)) === 'COP' ? $unitPrice : 0; }
+                    $ivaPercent = isset($item['iva']) ? (float)$item['iva'] : 0; $ivaRate = $ivaPercent / 100;
+                    $unitIvaOrig = round($unitPrice * $ivaRate, 2);
+                    $unitWithIvaOrig = round($unitPrice + $unitIvaOrig, 2);
+                    $unitIvaCop = round($unitPriceCop * $ivaRate, 2);
+                    $unitWithIvaCop = round($unitPriceCop + $unitIvaCop, 2);
+                    $qty = (int)$item['po_amount'];
+                    $lineTotalOrig = round($unitWithIvaOrig * $qty, 2);
+                    $lineTotalCop = round($unitWithIvaCop * $qty, 2);
+                    $pageGrandCop += $lineTotalCop;
+                    @endphp
+
+                    <td>{{ $idx }}</td>
+                    <td>{{ $item['name_produc'] }}</td>
+                    <td>{{ $item['unit_produc'] }}</td>
+                    <td>{{ number_format($qty, 0) }}</td>
+                    <td>{{ $ivaPercent > 0 ? number_format($ivaPercent, 2).'%' : '0%' }}</td>
+                    <td class="text-right">{{ $origCurrency }} ${{ number_format($unitPrice, 2) }}<br><small>IVA: {{ $origCurrency }} ${{ number_format($unitIvaOrig, 2) }}</small></td>
+                    <td class="text-right">{{ $origCurrency }} ${{ number_format($lineTotalOrig, 2) }}</td>
+                    <td class="text-right">COP ${{ number_format($unitPriceCop, 2) }}<br><small>IVA: COP ${{ number_format($unitIvaCop, 2) }}</small></td>
+                    <td class="text-right">COP ${{ number_format($lineTotalCop, 2) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        @if($pageIndex !== count($productPages) - 1)
+            <div class="page-break"></div>
+        @endif
+        @endforeach
+
+        {{-- reemplazo del bloque de totales flotante por cuadro con borde --}} 
+        @php /* Antes: tarjeta .totals-card */ @endphp
+
+        <div style="clear:both;"></div>
+        @php
+            // Total general COP basado en precio_factura con fallbacks (sin precio_original)
+            $grandTotalCop = 0;
+            foreach($productPages as $pageItemsTmp) {
+                foreach($pageItemsTmp as $it) {
+                    $u = (float)($it['precio_factura'] ?? ($it['precio_unitario'] ?? ($it['unit_price'] ?? 0)));
+                    $c = $it['currency'] ?? ($currency ?? 'COP');
+                    $uCop = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($u, $c);
+                    if ($uCop === null) { $uCop = strtoupper(trim($c)) === 'COP' ? $u : 0; }
+                    $iva = isset($it['iva']) ? ((float)$it['iva'] / 100) : 0;
+                    $unitWithIvaCopTmp = round($uCop + ($uCop * $iva), 2);
+                    $qtyTmp = (int)($it['po_amount'] ?? 0);
+                    $grandTotalCop += round($unitWithIvaCopTmp * $qtyTmp, 2);
+                }
+            }
+        @endphp
+        <div class="totals-box" role="region" aria-label="Total General">
+            <div class="row total">
+                <div class="label">TOTAL GENERAL (COP)</div>
+                <div class="value">COP ${{ number_format($grandTotalCop, 2) }}</div>
+            </div>
+        </div>
+        <div style="clear:both;"></div>
+
+        @if(!empty($observaciones))
+        <div style="margin-top: 20px; padding: 10px; border-left: 4px solid #2c3e50; background: transparent;">
+            <h4 style="margin-top: 0;">Observaciones:</h4>
+            <p>{{ $observaciones }}</p>
+        </div>
+        @endif
+
+        <div class="signatures">
+            <div class="signature-box">
+                <p class="font-semibold mb-2">{{ $orden->oc_user ?? session('user.name') ?? 'N/A' }}</p>
+                <div class="signature-line"></div>
+                <p>Elaborado por</p>
+            </div>
+            <div class="signature-box" style="float:right;">
+                <p class="font-semibold mb-2">Alejandro Ramirez</p>
+                <div class="signature-line"></div>
+                <p>Aprobado por</p>
+            </div>
+            <div class="clear"></div>
+        </div>
+
+        <!-- Página 2: Distribución por centros -->
+        <div class="page-break"></div>
+
+        <div class="header">
+            <div class="company-info">
+                @if(!empty($logo))
+                <img src="{{ $logo }}" class="logo" alt="Logo de la empresa">
+                @else
+                <img src="{{ asset('images/logo.png') }}" class="logo" alt="Vigía Plus Logistics">
+                @endif
+            </div>
+            <div class="document-info">
+                <div class="title">Distribución por Centros/subcentros - Orden #{{ $orden->order_oc ?? $orden->id }}
+                </div>
+                <div><strong>Fecha:</strong> {{ $date_oc }}</div>
+            </div>
+            <div class="clear"></div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-box">
+                <h4>Proveedor</h4>
+                <div class="info-item"><strong>Nombre:</strong> {{ $proveedor->prov_name ?? 'Proveedor' }}</div>
+                <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit ?? '' }}</div>
+                <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c ?? '' }}</div>
+            </div>
+            <div class="info-box right">
+                <h4>Orden</h4>
+                <div class="info-item"><strong>Número:</strong> {{ $orden->order_oc ?? $orden->id }}</div>
+                <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
+                <div class="info-item"><strong>Plazo:</strong> {{ $plazo_oc }}</div>
+            </div>
+            <div class="clear"></div>
+        </div>
+
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th width="25%">Producto</th>
+                    <th width="55%">Distribución por Centro/subcentros</th>
+                    <th width="20%" class="text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($items as $item)
+                <tr>
+                    <td><strong>{{ $item['name_produc'] }}</strong><br><small>{{ $item['unit_produc'] }}</small>
+                    </td>
+                    <td>
+                        @php $dist = $distribucion[$item['producto_id']] ?? []; @endphp
+                        @if(count($dist))
+                        <ul style="margin:0;padding-left:16px;">
+                            @foreach($dist as $row)
+                            <li>{{ $row['name_centro'] }}: <strong>{{ $row['amount'] }}</strong></li>
+                            @endforeach
+                        </ul>
+                        @else
+                        <span>Sin distribución registrada</span>
+                        @endif
+                    </td>
+                    <td class="text-right">{{ number_format($item['po_amount'], 0) }} {{ $item['unit_produc'] }}
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <div class="footer">
+            Documento generado el {{ $fecha_actual }} | Software de Requisición de Compras
+        </div>
+    </div> 
 </body>
 
 </html>
