@@ -22,7 +22,20 @@ class RequisicionSeeder extends Seeder
         }
 
         // Crear exactamente 20 requisiciones
-        $requisiciones = Requisicion::factory()->count(43)->create();
+        $requisiciones = Requisicion::factory()->count(43)->create()->each(function($req){
+            $type = rand(0,1) ? 'Normal' : 'Especial';
+            if (!in_array($req->type, ['Normal','Especial'], true)) {
+                $req->type = $type;
+                $req->save();
+            } else {
+                // Normalizar capitalización por si el factory puso otra variante
+                $req->type = ucfirst(strtolower($req->type));
+                if (!in_array($req->type, ['Normal','Especial'], true)) {
+                    $req->type = $type;
+                }
+                $req->save();
+            }
+        });
 
         foreach ($requisiciones as $requisicion) {
             // Fecha base aleatoria (últimos 120 días)
@@ -56,9 +69,11 @@ class RequisicionSeeder extends Seeder
             // Guardar el total de cantidades de la requisición (campo es texto)
             DB::table('requisicion')->where('id', $requisicion->id)->update([
                 'amount_requisicion' => (string) $totalCantidad,
+                // reforzar type por si cambió en la factory después de loop
+                'type' => in_array($requisicion->type, ['Normal','Especial'], true) ? $requisicion->type : 'Normal',
             ]);
         }
 
-        $this->command->info('¡20 requisiciones con productos creadas y totalizadas!');
+        $this->command->info('Requisiciones con type Normal/Especial creadas correctamente.');
     }
 }

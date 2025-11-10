@@ -11,7 +11,7 @@ class DatabaseSeeder extends Seeder
     $this->call([
         // Base
         CentroSeeder::class,
-        SubcentroSeeder::class,
+        //SubcentroSeeder::class,
         //ClienteSeeder::class,
         EstatusSeeder::class,
         //NuevoProductoSeeder::class,

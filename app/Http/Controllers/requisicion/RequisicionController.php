@@ -290,6 +290,7 @@ class RequisicionController extends Controller
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
+            $requisicion->type = 'Normal';
             $requisicion->save();
 
             $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();

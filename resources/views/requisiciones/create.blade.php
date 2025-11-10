@@ -47,6 +47,31 @@
         }
     }
 @endphp
+@php
+    // Normalizador general y detector de categorías de servicio (servicio/servicios, con o sin guiones, case-insensitive)
+    $normalizeCat = function($txt){
+        $t = mb_strtolower(trim((string)$txt), 'UTF-8');
+        $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
+        return $t;
+    };
+    $isServicioCat = function($txt) use ($normalizeCat){
+        $n = $normalizeCat($txt);
+        $compact = preg_replace('/[\s_\-]+/u','', $n);
+        return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
+    };
+    $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat){
+        return !$isServicioCat($p->categoria_produc ?? '');
+    }) : collect();
+    // Categorías únicas filtradas preservando primera presentación
+    $categoriasListaFiltrada = $productosFiltrados
+        ->pluck('categoria_produc')
+        ->map(fn($c) => trim((string)$c))
+        ->filter()
+        ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
+        ->values()
+        ->sort()
+        ->values();
+@endphp
 <x-sidebar />
 <div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white shadow-xl rounded-2xl p-6">
@@ -58,12 +83,7 @@
         @if (session('success'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Listo!',
-                    text: '{{ session('success') }}',
-                    confirmButtonText: 'OK'
-                });
+                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK' });
             });
         </script>
         @endif
@@ -71,12 +91,7 @@
         @if ($errors->any())
         <script>
             window.addEventListener('DOMContentLoaded', () => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    html: `{!! implode('<br>', $errors->all()) !!}`,
-                    confirmButtonText: 'OK'
-                });
+                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK' });
             });
         </script>
         @endif
@@ -192,14 +207,7 @@
                 <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
                 <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
                     @php
-                    // Normalizar (trim + lowercase) y eliminar duplicados preservando la primera presentación encontrada
-                    $categoriasUnicas = collect($productos ?? [])->pluck('categoria_produc')
-                        ->map(fn($c) => trim((string)$c))
-                        ->filter()
-                        ->mapWithKeys(fn($c) => [mb_strtolower($c, 'UTF-8') => $c])
-                        ->values()
-                        ->sort()
-                        ->values();
+                        $categoriasUnicas = $categoriasListaFiltrada;
                     @endphp
                     @foreach ($categoriasUnicas as $categoria)
                     <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
@@ -222,7 +230,7 @@
             <label class="block text-gray-600 font-semibold mb-1">Producto</label>
             <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
             <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                @foreach ($productos as $p)
+                @foreach ($productosFiltrados as $p)
                 <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
                     onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
                     data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
@@ -342,10 +350,10 @@
 
 @section('scripts')
 <script>
-    // Exponer datos globales para el script externo
+    // Exponer datos globales para el script externo (filtrados sin Servicio/Servicios)
     window.PREFILL_DATA = {!! json_encode($prefillData) !!};
-    window.CATEGORIAS = @json($productos->pluck('categoria_produc')->unique()->sort()->values());
-    window.PRODUCTOS_DATA = {!! json_encode($productos->map(function($p){
+    window.CATEGORIAS = @json($categoriasListaFiltrada);
+    window.PRODUCTOS_DATA = {!! json_encode($productosFiltrados->map(function($p){
         return [
             'id' => $p->id,
             'sku' => $p->sku ?? '',
