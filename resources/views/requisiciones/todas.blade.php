@@ -38,6 +38,9 @@
         }
         .sys-comment-toggle { background: transparent; border: none; color: #065f46; font-weight: 600; cursor: pointer; }
         .sys-comment-toggle.hidden { display: none; }
+
+        /* Clamp de 3 líneas para celdas con textos largos (producto en entrega) */
+        .clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 
     <!-- 🔍 Barra de búsqueda -->
@@ -350,8 +353,8 @@
                     <section class="mb-8">
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
                         <div class="border rounded-lg overflow-hidden">
-                            <div class="max-h-80 overflow-y-auto">
-                                <table class="w-full text-sm bg-white">
+                            <div class="max-h-80 overflow-y-auto overflow-x-auto"> {{-- añadido overflow-x-auto --}}
+                                <table class="w-full text-sm bg-white min-w-[900px]"> {{-- ancho mínimo para scroll horizontal --}}
                                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
                                         <tr class="border-b">
                                             <th class="p-3 text-left">Producto</th>
@@ -400,7 +403,7 @@
                                             @endphp
                                             <tr class="border-b">
                                                 <td class="p-3 font-medium text-gray-800 align-top">
-                                                    <div class="truncate">{{ $prod->name_produc }}</div>
+                                                    <div class="clamp-3 leading-5 break-words" title="{{ $prod->name_produc }}">{{ $prod->name_produc }}</div> {{-- reemplaza truncate por clamp multilinea --}}
                                                     @if(!empty($distribucion) && $distribucion->count())
                                                         <div class="mt-2 flex flex-wrap gap-2">
                                                             @foreach($distribucion as $c)
@@ -502,14 +505,14 @@
                                         $unitPriceOriginal = (float) ($pp->price_produc ?? 0);
                                         $origCurrency = strtoupper(trim($pp->moneda ?? 'COP'));
                                     } catch (\Throwable $e) { $unitPriceOriginal = 0.0; $origCurrency = 'COP'; }
-                                    try { $unitPriceCOP = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); } catch (\Throwable $e) { $unitPriceCOP = null; }
+                                    try { $unitPriceCOP = RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); } catch (\Throwable $e) { $unitPriceCOP = null; }
                                     $lineTotalReq = $cantidadRequerida * ($unitPriceCOP ?? $unitPriceOriginal);
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-3 py-2 text-center">
                                         <input type="checkbox" class="ent-req-row-chk" data-producto-id="{{ $productoId }}" data-pendiente="{{ $pendiente }}" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
                                     </td>
-                                    <td class="px-3 py-2">{{ $producto->name_produc }}</td>
+                                    <td class="px-3 py-2"><div class="clamp-3 leading-5" title="{{ $producto->name_produc }}">{{ $producto->name_produc }}</div></td>
                                     <td class="px-3 py-2 text-center">{{ $unit }}</td>
                                     <td class="px-3 py-2 text-center">{{ $cantidadRequerida }}</td>
                                     <td class="px-3 py-2 text-center">
