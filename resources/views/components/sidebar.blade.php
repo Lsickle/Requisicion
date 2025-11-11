@@ -33,6 +33,14 @@
                     Requisición</a>
             </li>
             @endif
+            
+            @if($hasPermission('Especial'))
+            <li>
+                <a href="{{ route('requisiciones.especial') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
+                    Requisición Especial</a>
+            </li>
+            @endif
 
             @if($hasPermission('aprobar requisicion'))
             <li>

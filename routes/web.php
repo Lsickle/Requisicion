@@ -70,6 +70,11 @@ Route::middleware([AuthSession::class])->group(function () {
         ->name('requisiciones.create')
         ->middleware(CheckPermission::class . ':crear requisicion');
 
+    // Nueva ruta para requisición especial
+    Route::get('/requisiciones/especial', [RequisicionController::class, 'createEspecial'])
+        ->name('requisiciones.especial')
+        ->middleware(CheckPermission::class . ':crear requisicion');
+
     // Solicitar nuevo producto con permiso
     Route::get('/productos/nuevoproducto', [NuevoProductoController::class, 'create'])
         ->name('productos.nuevoproducto')

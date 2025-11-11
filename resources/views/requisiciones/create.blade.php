@@ -7,7 +7,7 @@
     $fromId = request()->query('from');
     if (!empty($fromId)) {
         try {
-            $__req = \App\Models\Requisicion::with('productos')->find($fromId);
+            $__req = Requisicion::with('productos')->find($fromId);
             if ($__req) {
                 $distRows = DB::table('centro_producto as cp')
                     ->join('centro as c','c.id','=','cp.centro_id')
@@ -59,8 +59,14 @@
         $compact = preg_replace('/[\s_\-]+/u','', $n);
         return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
     };
-    $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat){
-        return !$isServicioCat($p->categoria_produc ?? '');
+    $isAlquilerCat = function($txt) use ($normalizeCat){
+        $n = $normalizeCat($txt);
+        $compact = preg_replace('/[\s_\-]+/u','', $n);
+        return in_array($compact, ['alquiler','alquilers','alquileres'], true);
+    };
+    $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){
+        $cat = $p->categoria_produc ?? '';
+        return !$isServicioCat($cat) && !$isAlquilerCat($cat);
     }) : collect();
     // Categorías únicas filtradas preservando primera presentación
     $categoriasListaFiltrada = $productosFiltrados

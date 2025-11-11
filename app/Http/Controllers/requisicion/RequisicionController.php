@@ -85,6 +85,47 @@ class RequisicionController extends Controller
     }
 
     /**
+     * Mostrar formulario de creación de requisición (vista especial).
+     * @return \Illuminate\View\View
+     */
+    public function createEspecial()
+    {
+        // Mismo comportamiento que create(): cargar subcentros asignados al usuario
+        $sessionEmail = session('user.email');
+        $asignados = collect();
+        if (!empty($sessionEmail)) {
+            try {
+                $ids = DB::table('userxsubcentro')
+                    ->where('email_user', $sessionEmail)
+                    ->whereNull('deleted_at')
+                    ->pluck('subcentro_id');
+
+                if ($ids && $ids->count() > 0) {
+                    $asignados = DB::table('subcentros as s')
+                        ->leftJoin('centro as c', 'c.id', '=', 's.centro_id')
+                        ->whereIn('s.id', $ids)
+                        ->whereNull('s.deleted_at')
+                        ->whereNull('c.deleted_at')
+                        ->select('s.id', 's.name_subcentro', 'c.id as centro_id', 'c.name_centro as centro_nombre')
+                        ->orderBy('s.name_subcentro')
+                        ->get()
+                        ->map(function ($r) {
+                            return (object) [
+                                'id' => $r->id,
+                                'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
+                                'centro_nombre' => (string)($r->centro_nombre ?? ''),
+                                'centro_id' => (int)($r->centro_id ?? 0),
+                            ];
+                        });
+                }
+            } catch (\Throwable $e) { /* noop */ }
+        }
+        $centros = $asignados;
+        $productos = Producto::all();
+        return view('requisiciones.especial', compact('centros', 'productos'));
+    }
+
+    /**
      * Mostrar menú principal de requisiciones.
      * @return \Illuminate\View\View
      */
@@ -277,7 +318,6 @@ class RequisicionController extends Controller
             $userId = session('user.id');
             $nombreUsuario = session('user.name', 'Usuario Desconocido');
             $emailUsuario = session('user.email', 'email@desconocido.com');
-            // Obtener operación desde el formulario (ya validada) en lugar de la sesión
             $operacionUsuario = trim($validated['operacion_user']);
 
             $requisicion = new Requisicion();
@@ -290,7 +330,8 @@ class RequisicionController extends Controller
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
-            $requisicion->type = 'Normal';
+            // Guardar tipo desde el request: 'Especial' si viene, de lo contrario 'Normal'
+            $requisicion->type = $request->input('type', 'Normal');
             $requisicion->save();
 
             $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
@@ -331,11 +372,16 @@ class RequisicionController extends Controller
             DB::commit();
 
             RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
-
+            // Redirigir según tipo
+            if (strtolower((string)$requisicion->type) === 'especial') {
+                return redirect()->route('requisiciones.especial')->with('success', 'Requisición especial creada correctamente.');
+            }
             return redirect()->route('requisiciones.create')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
+            // Volver a la vista según type con errores
+            $route = strtolower((string)$request->input('type')) === 'especial' ? 'requisiciones.especial' : 'requisiciones.create';
+            return redirect()->route($route)->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
     }
 
