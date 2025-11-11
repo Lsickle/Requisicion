@@ -5,62 +5,67 @@
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-    .swal2-confirm {
-        background-color: #2563eb !important;
-        border-color: #2563eb !important;
-    }
-
-    .swal2-confirm:hover {
-        background-color: #1d4ed8 !important;
-    }
-
-    .border-red-500 {
-        border-color: #ef4444;
-    }
+    .swal2-confirm { background-color: #2563eb !important; border-color: #2563eb !important; }
+    .swal2-confirm:hover { background-color: #1d4ed8 !important; }
+    .border-red-500 { border-color: #ef4444; }
+    /* Scrollbar fino y clamp multilinea */
+    .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+    .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 </style>
-</head>
+{{-- eliminado </head> inválido --}}
 @section('content')
 <x-sidebar />
 
-<body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8 mt-20">
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <div class="bg-blue-600 px-6 py-4">
-                <h2 class="text-white text-xl font-bold">Solicitar nuevo producto</h2>
+<div class="min-h-[70vh]">
+    <div class="container mx-auto px-4 py-8 mt-10">
+        <div class="bg-white/95 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 ring-1 ring-slate-100">
+            <div class="px-6 py-5 border-b bg-indigo-50">
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-gray-800">Solicitar nuevo producto</h2>
+                        <p class="text-xs text-gray-500">Ingresa los detalles del producto a solicitar.</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-5">
                 <div>
                     <form id="productoForm" action="{{ route('nuevo_producto.store') }}" method="POST">
-                     @csrf
+                        @csrf
+                        <div class="mb-4">
+                            <label for="nombre" class="block text-gray-700 text-sm font-medium mb-1">Nombre del producto</label>
+                            <input type="text" id="nombre" name="nombre" value="{{ old('nombre') }}"
+                                   class="w-full px-3 py-2 border border-indigo-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300/60 focus:border-indigo-400 shadow-sm"
+                                   placeholder="Ingresa el nombre del producto" required>
+                            @error('nombre')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
 
-                     <div class="mb-4">
-                         <label for="nombre" class="block text-gray-700 text-sm font-bold mb-2">Nombre del producto</label>
-                         <input type="text" id="nombre" name="nombre"
-                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             placeholder="Ingresa el nombre del producto" value="{{ old('nombre') }}" required>
-                         @error('nombre')
-                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                         @enderror
-                     </div>
+                        <div class="mb-6">
+                            <label for="descripcion" class="block text-gray-700 text-sm font-medium mb-1">Descripción</label>
+                            <textarea id="descripcion" name="descripcion" rows="4" required
+                                      class="w-full px-3 py-2 border border-indigo-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300/60 focus:border-indigo-400 shadow-sm"
+                                      placeholder="Describe el producto que deseas solicitar">{{ old('descripcion') }}</textarea>
+                            @error('descripcion')
+                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
 
-                     <div class="mb-6">
-                         <label for="descripcion" class="block text-gray-700 text-sm font-bold mb-2">Descripción</label>
-                         <textarea id="descripcion" name="descripcion" rows="4"
-                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             placeholder="Describe el producto que deseas solicitar"
-                             required>{{ old('descripcion') }}</textarea>
-                         @error('descripcion')
-                         <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                         @enderror
-                     </div>
-
-                     <div class="flex justify-center">
-                         <button type="submit"
-                             class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded focus:outline-none focus:shadow-outline transition duration-150 ease-in-out">
-                             Solicitar
-                         </button>
-                     </div>
+                        <div class="flex justify-center">
+                            <button type="submit"
+                                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm transition">
+                                <i class="fas fa-paper-plane"></i>
+                                Solicitar
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -69,21 +74,34 @@
                     @if($misSolicitudes->isEmpty())
                         <p class="text-sm text-gray-500">No tienes solicitudes registradas.</p>
                     @else
-                        <div class="overflow-auto max-h-80 border rounded bg-white">
+                        <div class="overflow-auto max-h-80 border rounded-xl bg-white thin-scrollbar">
                             <table class="w-full text-sm">
-                                <thead class="bg-gray-50 sticky top-0">
+                                <thead class="bg-indigo-50 sticky top-0 text-indigo-900 text-xs font-semibold">
                                     <tr>
                                         <th class="px-3 py-2 text-left">Fecha</th>
                                         <th class="px-3 py-2 text-left">Producto</th>
-                                        <th class="px-3 py-2 text-left">Comentario</th>
+                                        <th class="px-3 py-2 text-left">Descripción</th>
+                                        <th class="px-3 py-2 text-left">Estatus</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($misSolicitudes as $s)
-                                        <tr class="border-t hover:bg-gray-50">
+                                        <tr class="border-t odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                                             <td class="px-3 py-2">{{ isset($s->created_at) ? (\Carbon\Carbon::parse($s->created_at)->format('d/m/Y')) : '' }}</td>
-                                            <td class="px-3 py-2">{{ $s->nombre ?? ($s->name ?? '-') }}</td>
-                                            <td class="px-3 py-2">{{ $s->comentario ?? ($s->descripcion ?? '-') }}</td>
+                                            <td class="px-3 py-2 font-medium text-slate-800">{{ $s->nombre ?? ($s->name ?? '-') }}</td>
+                                            <td class="px-3 py-2 text-slate-700">
+                                                <div class="clamp-2" title="{{ $s->descripcion ?? ($s->comentario ?? '-') }}">{{ $s->descripcion ?? ($s->comentario ?? '-') }}</div>
+                                            </td>
+                                            @php
+                                                $isDeleted = !empty($s->deleted_at);
+                                                $isRejected = $isDeleted && !empty($s->comentario);
+                                                $statusText = $isRejected ? 'Rechazado' : ($isDeleted ? 'Añadido' : 'Pendiente');
+                                                $statusCls = $isRejected ? 'bg-red-100 text-red-700' : ($isDeleted ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700');
+                                                $tooltip = $isRejected ? ('Motivo: '.($s->comentario ?? '')) : ($isDeleted ? 'Producto creado a partir de esta solicitud' : 'En revisión');
+                                            @endphp
+                                            <td class="px-3 py-2">
+                                                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $statusCls }}" title="{{ $tooltip }}">{{ $statusText }}</span>
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -92,9 +110,9 @@
                     @endif
                 </div>
             </div>
-         </div>
         </div>
-     </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')

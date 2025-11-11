@@ -9,18 +9,35 @@
 
     <!-- Contenido principal -->
     <div class="flex-1 px-4 md:px-8 pb-10">
-        <div class="max-w-7xl mx-auto bg-gray-50 rounded-xl shadow-lg p-6 flex flex-col min-h-[80vh]">
+        <div class="max-w-7xl mx-auto bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 p-6 flex flex-col min-h-[80vh]">
 
-            <!-- Encabezado: Título a la izquierda, Volver a la direita -->
+            <!-- Encabezado -->
             <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-gray-800">Requisiciones Aprobadas para Orden de Compra</h1>
-                <a href="{{ route('requisiciones.menu') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">← Volver</a>
+                <div class="flex items-center gap-3">
+                    <div class="h-11 w-11 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Requisiciones Aprobadas para Orden de Compra</h1>
+                </div>
+                <a href="{{ route('requisiciones.menu') }}" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white shadow-sm transition">← Volver</a>
             </div>
+
+            <style>
+                .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+                .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+                .status-badge { display:inline-block; padding:0.25rem 0.6rem; border-radius:9999px; font-size:.7rem; font-weight:700; line-height:1; white-space:normal; text-wrap:balance; }
+            </style>
 
             <!-- Barra de búsqueda -->
             <div class="mb-4">
-                <input type="text" id="busquedaLista" placeholder="Buscar requisición..."
-                    class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+                <div class="relative w-full md:w-1/3">
+                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+                    <input type="text" id="busquedaLista" placeholder="Buscar requisición..."
+                        class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none">
+                </div>
             </div>
 
             <!-- Mostrar solo requisiciones con estatus permitidos y EXCLUIR explícitamente estatus 10 -->
@@ -35,11 +52,11 @@
             @endphp
 
             <!-- Contenedor scrollable -->
-            <div class="flex-1 overflow-y-auto">
+            <div class="flex-1 overflow-y-auto thin-scrollbar">
                 <!-- Tabla en escritorio -->
-                <div class="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
+                <div class="bg-white rounded-xl shadow-sm ring-1 ring-slate-100 overflow-x-auto hidden md:block">
                     <table id="tablaRequisicionesLista" class="min-w-full table-auto border-collapse">
-                        <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
+                        <thead class="bg-indigo-50 text-indigo-900 text-xs font-semibold uppercase tracking-wide sticky top-0 z-10">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
                                 <th class="px-4 py-2 text-left">Centro de Costo</th>
@@ -91,34 +108,27 @@
                                     ->count();
                                 $totalSelectCount = $sinDistribuirCount + $pendientesOcpCount;
                             @endphp
-                            <tr class="border-b hover:bg-gray-50">
+                            <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
                                 <td class="px-4 py-2">{{ $req->operacion_user }}</td>
                                 <td class="px-4 py-2">
-                                    <span class="px-2 py-1 rounded-full text-xs font-semibold 
-                                        {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
-                                           ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
-                                           'bg-green-100 text-green-800') }}">
-                                        {{ ucfirst($req->prioridad_requisicion) }}
-                                    </span>
+                                    <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
                                 <td class="px-4 py-2">
                                     @php $tipo = strtolower((string)($req->type ?? '')); @endphp
-                                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                                    <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
                                 </td>
                                 <td class="px-4 py-2">
                                     @if($totalSelectCount > 0)
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
+                                        <span class="status-badge bg-amber-100 text-amber-800" title="Faltan líneas por OC">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
                                     @else
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Órdenes de compra creadas</span>
+                                        <span class="status-badge bg-green-100 text-green-800">Órdenes de compra creadas</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-2 text-center">
                                     <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                        class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
-                                        Ver
-                                    </button>
+                                        class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition">Ver</button>
                                 </td>
                             </tr>
                             @empty
@@ -133,29 +143,20 @@
                 <!-- Vista móvil como tarjetas -->
                 <div id="listaMobile" class="md:hidden space-y-4">
                     @forelse($requisicionesFiltradas as $req)
-                    <div class="bg-white rounded-lg shadow p-4 req-card">
-                        <h2 class="font-bold text-lg mb-1">#{{ $req->id }} - {{ $req->operacion_user }}</h2>
-                        <div class="flex items-center gap-2 mb-2">
+                    <div class="bg-white rounded-xl shadow-sm ring-1 ring-slate-100 p-4 req-card">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-bold text-lg">#{{ $req->id }}</h2>
                             @php $tipo = strtolower((string)($req->type ?? '')); @endphp
-                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                            <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div>
-                                <p class="text-sm text-gray-600">Prioridad:</p>
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold 
-                                    {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
-                                       ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
-                                       'bg-green-100 text-green-800') }}">
-                                    {{ ucfirst($req->prioridad_requisicion) }}
-                                </span>
-                            </div>
+                        <p class="text-sm text-gray-600 mb-1">Centro: {{ $req->operacion_user }}</p>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
                         </div>
                         <p class="text-sm text-gray-600">Solicitante: {{ $req->name_user }}</p>
                         <div class="mt-3">
                             <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition text-sm">
-                                Ver Detalles
-                            </button>
+                                class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm shadow-sm">Ver Detalles</button>
                         </div>
                     </div>
                     @empty
@@ -184,9 +185,9 @@
 
 <!-- Modales para cada requisición -->
 @foreach($requisicionesFiltradas as $req)
-<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div class="flex-1 overflow-y-auto p-6 relative">
+        <div class="flex-1 overflow-y-auto p-6 relative thin-scrollbar">
             <button onclick="toggleModal('modal-{{ $req->id }}')"
                 class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
 

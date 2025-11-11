@@ -5,21 +5,41 @@
 @section('content')
 <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de mis Requisiciones</h1>
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <div class="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                <i class="fas fa-history text-xl"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Historial de mis Requisiciones</h1>
+        </div>
+    </div>
+
+    <style>
+        /* Scrollbar fino reutilizable */
+        .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+        .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        /* Badge de estatus: evitar corte y permitir varias líneas sin deformar */
+        .status-badge {display:inline-block; padding:0.35rem 0.9rem; border-radius:0.75rem; line-height:1.15; white-space:normal; word-break:break-word; max-width:240px; text-align:center;}
+    </style>
 
     <!-- 🔍 Barra de búsqueda -->
     <div class="mb-6 flex justify-between items-center">
-        <input type="text" id="busqueda" placeholder="Buscar requisición..."
-            class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+        <div class="relative w-full md:w-1/3">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+            <input type="text" id="busqueda" placeholder="Buscar requisición..." class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none">
+        </div>
     </div>
 
     @if($requisiciones->isEmpty())
     <p class="text-gray-500 text-center py-6">No has realizado ninguna requisición aún.</p>
     @else
-    <div class="overflow-x-auto">
-        <table id="tablaRequisiciones" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
-            <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
+    <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+        <table id="tablaRequisiciones" class="w-full border-collapse bg-white rounded-lg overflow-hidden">
+            <thead class="bg-indigo-50/80 text-indigo-900 uppercase text-xs font-semibold tracking-wide sticky top-0 z-10">
                 <tr>
                     <th class="p-3 text-left">ID</th>
                     <th class="p-3 text-left">Fecha</th>
@@ -32,7 +52,7 @@
             </thead>
             <tbody class="text-gray-700">
                 @foreach($requisiciones as $req)
-                <tr class="border-b hover:bg-gray-50 transition">
+                <tr class="odd:bg-white even:bg-slate-50 border-b hover:bg-indigo-50/40 transition">
 
                     <!-- ID -->
                     <td class="p-3">#{{ $req->id }}</td>
@@ -54,7 +74,7 @@
 
                     <!-- Productos -->
                     <td class="p-3">
-                        <ul class="list-disc list-inside text-sm text-gray-600">
+                        <ul class="list-disc list-inside text-sm text-gray-600 max-h-20 overflow-y-auto pr-1 thin-scrollbar">
                             @foreach($req->productos as $prod)
                             <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
                             @endforeach
@@ -139,7 +159,7 @@
                             }
                             $colorEstatus = $calcColor($displayId);
                         @endphp
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $displayTooltip }}">{{ $displayNombre }}</span>
+                        <span class="status-badge text-xs font-semibold text-white {{ $colorEstatus }} cursor-help" title="{{ $displayTooltip }}">{{ $displayNombre }}</span>
                     </td>
 
                     <!-- Acciones -->
@@ -312,7 +332,7 @@
                          @endphp
                          <div>
                              <span class="font-medium">Estatus actual:</span>
-                             <span class="ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $displayActualNombre }}</span>
+                             <span class="status-badge ml-2 text-xs font-semibold text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $displayActualNombre }}</span>
                          </div>
                          @php
                              // Mostrar motivo sólo si el estatus activo actual es 11 (Ajustes requeridos)
