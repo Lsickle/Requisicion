@@ -285,14 +285,11 @@ class RequisicionController extends Controller
             'prioridad_requisicion' => 'required|in:baja,media,alta',
             'justify_requisicion' => 'required|string|min:3|max:500',
             'detail_requisicion' => 'required|string|min:3|max:1000',
-
             'productos' => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.requisicion_amount' => 'required|integer|min:1',
-
             'productos.*.centros' => 'required|array|min:1',
-            // permitir id de centro o subcentro; se resolverá al centro
             'productos.*.centros.*.id' => 'required|integer|min:1',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
@@ -302,7 +299,6 @@ class RequisicionController extends Controller
         ]);
 
         DB::beginTransaction();
-
         try {
             $totalRequisicion = 0;
             foreach ($validated['productos'] as $prod) {
@@ -330,25 +326,32 @@ class RequisicionController extends Controller
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
-            // Guardar tipo desde el request: 'Especial' si viene, de lo contrario 'Normal'
             $requisicion->type = $request->input('type', 'Normal');
             $requisicion->save();
 
-            $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
-            if ($estatusInicial) {
+            // Estatus inicial: 4 si es Especial, de lo contrario 'Requisición creada'
+            if (strtolower((string)$requisicion->type) === 'especial') {
                 Estatus_Requisicion::create([
                     'requisicion_id' => $requisicion->id,
-                    'estatus_id'     => $estatusInicial->id,
+                    'estatus_id'     => 4,
                     'estatus'        => 1,
                     'date_update'    => now(),
                 ]);
+            } else {
+                $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
+                if ($estatusInicial) {
+                    Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicion->id,
+                        'estatus_id'     => $estatusInicial->id,
+                        'estatus'        => 1,
+                        'date_update'    => now(),
+                    ]);
+                }
             }
 
             foreach ($validated['productos'] as $prod) {
                 $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
-                $requisicion->productos()->attach($prod['id'], [
-                    'pr_amount' => $cantidadTotalCentros
-                ]);
+                $requisicion->productos()->attach($prod['id'], [ 'pr_amount' => $cantidadTotalCentros ]);
 
                 foreach ($prod['centros'] as $centro) {
                     $cidInput = (int)($centro['id'] ?? 0);
@@ -370,16 +373,14 @@ class RequisicionController extends Controller
             }
 
             DB::commit();
-
             RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
-            // Redirigir según tipo
+
             if (strtolower((string)$requisicion->type) === 'especial') {
                 return redirect()->route('requisiciones.especial')->with('success', 'Requisición especial creada correctamente.');
             }
             return redirect()->route('requisiciones.create')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            // Volver a la vista según type con errores
             $route = strtolower((string)$request->input('type')) === 'especial' ? 'requisiciones.especial' : 'requisiciones.create';
             return redirect()->route($route)->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
