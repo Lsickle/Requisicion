@@ -1687,7 +1687,6 @@ class OrdenCompraController extends Controller
 
                 // Forzar estatus 7 independientemente de si está completa o parcial
                 $desiredStatus = 7;
-                $desiredMessage = 'Recepción registrada';
 
                 $currentActive = DB::table('estatus_requisicion')
                     ->where('requisicion_id', $reqId)
@@ -1695,7 +1694,7 @@ class OrdenCompraController extends Controller
                     ->value('estatus_id');
 
                 if ((int)$currentActive !== (int)$desiredStatus) {
-                    $this->setRequisicionStatus((int)$reqId, $desiredStatus, $desiredMessage);
+                    $this->setRequisicionStatus((int)$reqId, $desiredStatus);
                 }
                 // Eliminar envío directo de correo aquí: el Job ya lo envía
             }

@@ -42,9 +42,10 @@
                         <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
-                                <th class="px-4 py-2 text-left">Detalle</th>
+                                <th class="px-4 py-2 text-left">Centro de Costo</th>
                                 <th class="px-4 py-2 text-left">Prioridad</th>
                                 <th class="px-4 py-2 text-left">Solicitante</th>
+                                <th class="px-4 py-2 text-left">Tipo</th>
                                 <th class="px-4 py-2 text-left">Estatus</th>
                                 <th class="px-4 py-2 text-center">Acciones</th>
                             </tr>
@@ -92,7 +93,7 @@
                             @endphp
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
-                                <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
+                                <td class="px-4 py-2">{{ $req->operacion_user }}</td>
                                 <td class="px-4 py-2">
                                     <span class="px-2 py-1 rounded-full text-xs font-semibold 
                                         {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
@@ -102,6 +103,10 @@
                                     </span>
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
+                                <td class="px-4 py-2">
+                                    @php $tipo = strtolower((string)($req->type ?? '')); @endphp
+                                    <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                                </td>
                                 <td class="px-4 py-2">
                                     @if($totalSelectCount > 0)
                                         <span class="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
@@ -118,7 +123,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
+                                <td colspan="7" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -129,7 +134,11 @@
                 <div id="listaMobile" class="md:hidden space-y-4">
                     @forelse($requisicionesFiltradas as $req)
                     <div class="bg-white rounded-lg shadow p-4 req-card">
-                        <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
+                        <h2 class="font-bold text-lg mb-1">#{{ $req->id }} - {{ $req->operacion_user }}</h2>
+                        <div class="flex items-center gap-2 mb-2">
+                            @php $tipo = strtolower((string)($req->type ?? '')); @endphp
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                        </div>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div>
                                 <p class="text-sm text-gray-600">Prioridad:</p>
