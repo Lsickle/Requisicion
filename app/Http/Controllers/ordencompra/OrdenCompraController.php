@@ -20,6 +20,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use App\Jobs\RequisicionEntregaRegistradaJob; // NUEVO
 use App\Jobs\OrdenCompraTerminadaJob;
@@ -1227,22 +1228,22 @@ class OrdenCompraController extends Controller
         $proveedor = null;
         try {
             $lineas = $orden->ordencompraProductos ?? collect();
-            if ($lineas instanceof \Illuminate\Support\Collection && $lineas->count()) {
+            if ($lineas instanceof Collection && $lineas->count()) {
                 $withProv = $lineas->first(fn($l) => !empty($l->proveedor_id));
-                if ($withProv) { $proveedor = $withProv->proveedor ?: \App\Models\Proveedor::find($withProv->proveedor_id); }
+                if ($withProv) { $proveedor = $withProv->proveedor ?: Proveedor::find($withProv->proveedor_id); }
                 if (!$proveedor) {
                     $firstLinea = $lineas->first();
                     $pid = $firstLinea?->producto_id;
                     if ($pid) {
                         $provId = DB::table('productoxproveedor')->where('producto_id', $pid)->orderBy('id')->value('proveedor_id');
-                        if ($provId) { $proveedor = \App\Models\Proveedor::find($provId); }
+                        if ($provId) { $proveedor = Proveedor::find($provId); }
                     }
                 }
             }
         } catch (\Throwable $e) { /* noop */ }
         if (!$proveedor) {
             $provId = optional(optional($orden->ordencompraProductos->first()))->proveedor_id;
-            if ($provId) { try { $proveedor = \App\Models\Proveedor::withTrashed()->find($provId); } catch (\Throwable $e) {} }
+            if ($provId) { try { $proveedor = Proveedor::withTrashed()->find($provId); } catch (\Throwable $e) {} }
         }
 
         $items = [];
@@ -1253,7 +1254,7 @@ class OrdenCompraController extends Controller
 
         foreach ($porProducto as $productoId => $lineas) {
             $producto = optional($lineas->first())->producto;
-            if (!$producto) { try { $producto = \App\Models\Producto::withTrashed()->find($productoId); } catch (\Throwable $e) { $producto = null; } }
+            if (!$producto) { try { $producto = Producto::withTrashed()->find($productoId); } catch (\Throwable $e) { $producto = null; } }
             if (!$producto) { continue; }
 
             $cantidad = (int) $lineas->sum('total');
