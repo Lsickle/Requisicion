@@ -45,6 +45,22 @@
             </div>
             @endif
 
+            @if($hasPermission('Especial'))
+            <!-- Crear Requisición Especial (color cambiado a fucsia) -->
+            <div class="w-full max-w-sm min-h-[315px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-fuchsia-600 flex flex-col justify-between">
+                <div class="flex flex-col items-center text-center w-full">
+                    <div class="w-16 h-16 bg-fuchsia-100 rounded-full flex items-center justify-center mb-4 relative">
+                        <i class="fas fa-star text-fuchsia-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Requisición Especial</h3>
+                    <p class="text-gray-600 mb-4">Crear solicitud exclusiva para servicios o alquiler</p>
+                </div>
+                <a href="{{ route('requisiciones.especial') }}" class="text-center inline-block bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-medium py-2 px-6 rounded-lg transition-colors duration-200">
+                    Crear Especial
+                </a>
+            </div>
+            @endif
+
             @if($hasPermission('aprobar requisicion'))
             <!-- Aprobación de Requisiciones -->
             <div class="w-full max-w-sm min-h-[300px] bg-white rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-amber-500 flex flex-col justify-between">
