@@ -62,7 +62,7 @@ $categoriasListaFiltrada =
 $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->filter()->mapWithKeys(fn($c)=>[$normalizeCat($c)=>$c])->values()->sort()->values();
 @endphp
 <x-sidebar />
-<div class="bg-gradient-to-b from-amber-50 to-white min-h-screen">
+<div class="min-h-screen">
     <!-- wrapper visual distinto -->
     <div class="max-w-5xl mx-auto p-6 mt-20">
         <div class="bg-white/95 shadow-2xl rounded-2xl p-6 border-2 border-amber-400 ring-1 ring-amber-300">

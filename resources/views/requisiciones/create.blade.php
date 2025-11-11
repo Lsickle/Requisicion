@@ -79,17 +79,20 @@
         ->values();
 @endphp
 <x-sidebar />
+<div class="min-h-screen">
 <div class="max-w-5xl mx-auto p-6 mt-20">
-    <div class="bg-white shadow-xl rounded-2xl p-6">
-        <div class="flex justify-center items-center gap-8 py-4 mb-8">
-            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
-            <h1 class="text-3xl font-bold text-gray-700">Crear Requisición</h1>
+    <div class="bg-white/95 shadow-2xl rounded-2xl p-6 border-2 border-indigo-300 ring-1 ring-indigo-200">
+        <div class="flex justify-center items-center gap-6 py-4 mb-6">
+            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-14 w-auto">
+            <div class="flex flex-col">
+                <h1 class="text-3xl font-extrabold text-gray-700 tracking-tight">Crear Requisición</h1>
+            </div>
         </div>
 
         @if (session('success'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK' });
+                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
         </script>
         @endif
@@ -97,7 +100,7 @@
         @if ($errors->any())
         <script>
             window.addEventListener('DOMContentLoaded', () => {
-                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK' });
+                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
         </script>
         @endif
@@ -107,11 +110,11 @@
 
             <!-- Campo Operación con búsqueda -->
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Centro de costo</label>
+                <label class="block text-gray-700 font-semibold mb-1">Centro de costo</label>
                 <div class="relative">
-                    <input type="text" id="operacionFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
+                    <input type="text" id="operacionFilter" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
                     <input type="hidden" name="operacion_user" id="operacionSelect" value="{{ old('operacion_user') }}" required>
-                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
+                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-indigo-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
                         @php
                             $operacionesLista = collect($centros ?? [])
                                 ->pluck('centro_nombre')
@@ -121,7 +124,7 @@
                                 ->values();
                         @endphp
                         @forelse($operacionesLista as $op)
-                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
+                            <div class="p-2 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
                         @empty
                             <div class="p-2 text-gray-500">No hay centros de costo asignados.</div>
                         @endforelse
@@ -131,8 +134,8 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
-                    <select name="Recobrable" class="w-full border rounded-lg p-2" required>
+                    <label class="block text-gray-700 font-semibold mb-1">Recobrable</label>
+                    <select name="Recobrable" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>
                         <option value="">-- Selecciona --</option>
                         <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable
                         </option>
@@ -141,8 +144,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Prioridad</label>
-                    <select name="prioridad_requisicion" class="w-full border rounded-lg p-2" required>
+                    <label class="block text-gray-700 font-semibold mb-1">Prioridad</label>
+                    <select name="prioridad_requisicion" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>
                         <option value="">-- Selecciona --</option>
                         <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja</option>
                         <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media
@@ -153,30 +156,27 @@
             </div>
 
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Justificación</label>
-                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('justify_requisicion') }}</textarea>
+                <label class="block text-gray-700 font-semibold mb-1">Justificación</label>
+                <textarea name="justify_requisicion" rows="3" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>{{ old('justify_requisicion') }}</textarea>
             </div>
 
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Detalles Adicionales</label>
-                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('detail_requisicion') }}</textarea>
+                <label class="block text-gray-700 font-semibold mb-1">Detalles Adicionales</label>
+                <textarea name="detail_requisicion" rows="3" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>{{ old('detail_requisicion') }}</textarea>
             </div>
 
-            <hr class="my-4">
+            <hr class="my-4 border-indigo-200">
 
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
-                <button type="button" id="abrirModalBtn"
-                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
+                <button type="button" id="abrirModalBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-300">
                     + Añadir Producto
                 </button>
             </div>
 
             <div class="overflow-x-auto">
-                <table id="productosTable" class="w-full border border-gray-200 rounded-lg overflow-hidden mt-3">
-                    <thead class="bg-gray-100 text-gray-600 text-left">
+                <table id="productosTable" class="w-full border border-indigo-200 rounded-lg overflow-hidden mt-3">
+                    <thead class="bg-indigo-50 text-indigo-800 text-left">
                         <tr>
                             <th class="p-3">Producto</th>
                             <th class="p-3">Cantidad Total</th>
@@ -189,13 +189,13 @@
             </div>
 
             <div class="flex justify-end">
-                <button type="submit" id="submitBtn"
-                    class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
+                <button type="submit" id="submitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700 focus:ring-2 focus:ring-green-300">
                     Guardar Requisición
                 </button>
             </div>
         </form>
     </div>
+</div>
 </div>
 
 <!-- Modal 1: Selección de Producto -->
@@ -248,8 +248,7 @@
         </div>
 
         <div class="flex justify-end mt-6">
-            <button type="button" id="siguienteModalBtn"
-                class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+            <button type="button" id="siguienteModalBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                 Siguiente <i class="ml-1 fas fa-arrow-right"></i>
             </button>
         </div>
@@ -332,12 +331,10 @@
              </ul>
 
              <div class="flex justify-between mt-6">
-                 <button type="button" id="volverModalBtn"
-                     class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+                 <button type="button" id="volverModalBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
                      <i class="fas fa-arrow-left mr-1"></i> Volver
                  </button>
-                 <button type="button" id="guardarProductoBtn"
-                     class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                 <button type="button" id="guardarProductoBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                      Guardar Producto
                  </button>
              </div>
