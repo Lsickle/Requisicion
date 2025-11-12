@@ -156,7 +156,7 @@
                                 @php
                                     // Obtener precio desde productoxproveedor (nuevo esquema)
                                     try {
-                                        $pp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                        $pp = DB::table('productoxproveedor')
                                             ->where('producto_id', $prod->id)
                                             ->orderBy('id')
                                             ->first();
