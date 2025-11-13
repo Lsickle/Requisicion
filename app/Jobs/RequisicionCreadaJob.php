@@ -53,8 +53,9 @@ class RequisicionCreadaJob implements ShouldQueue
     {
         try {
             $primary = $this->requisicion->email_user ?: env('REQUISICIONES_MAIL_TO', 'admin@example.com');
-            if (!$primary) {
-                Log::warning('RequisicionCreadaJob: sin destinatario', ['req' => $this->requisicion->id]);
+            $primary = trim((string) $primary);
+            if (!filter_var($primary, FILTER_VALIDATE_EMAIL)) {
+                Log::warning('RequisicionCreadaJob: destinatario primario inválido', ['req' => $this->requisicion->id, 'primary' => $primary]);
                 return;
             }
 
@@ -86,6 +87,12 @@ class RequisicionCreadaJob implements ShouldQueue
             // Normalizar y deduplicar CC evitando repetir primary
             $cc = array_values(array_unique(array_filter(array_map(function($s){ return trim((string)$s); }, $cc))));
             $cc = array_values(array_filter($cc, function($addr) use ($primary){ return $addr && strcasecmp($addr, $primary) !== 0; }));
+            // Validar emails (array<string>)
+            /** @var array<string> $cc */
+            $cc = array_values(array_unique(array_filter(array_map(function($s){
+                $s = trim((string)$s);
+                return filter_var($s, FILTER_VALIDATE_EMAIL) ? $s : null;
+            }, $cc))));
 
             // Auditoría BCC (sin incluir areacompras si estará en TO)
             $bcc = [];
@@ -96,18 +103,31 @@ class RequisicionCreadaJob implements ShouldQueue
             $envAudit = env('REQUISICIONES_MAIL_AUDIT');
             if (!empty($envAudit)) { $bcc = array_merge($bcc, preg_split('/[;,]+/', (string)$envAudit) ?: []); }
             // Quitar areacompras aquí; irá como TO secundario
+            /** @var array<string> $bcc */
             $bcc = array_values(array_unique(array_filter(array_map(function($s){
                 $s = trim((string)$s);
                 return (filter_var($s, FILTER_VALIDATE_EMAIL)) ? $s : null;
             }, $bcc))));
             $bcc = array_values(array_filter($bcc, function($addr) use ($primary){ return $addr && strcasecmp($addr, $primary) !== 0 && strcasecmp($addr, 'areacompras@gmail.com') !== 0; }));
 
-            // Destinatarios principales: usuario + compras
+            // TO: usuario + compras
             $compras = env('COMPRAS_MAIL_TO', 'areacompras@gmail.com');
             $toList = [$primary];
             if ($compras && filter_var($compras, FILTER_VALIDATE_EMAIL) && strcasecmp($compras, $primary) !== 0) {
-                $toList[] = $compras;
+                $toList[] = trim($compras);
             }
+            // Normalizar TO (array<string>)
+            /** @var array<string> $toList */
+            $toList = array_values(array_unique(array_filter(array_map(function($s){
+                $s = trim((string)$s);
+                return filter_var($s, FILTER_VALIDATE_EMAIL) ? $s : null;
+            }, $toList))));
+            if (empty($toList)) {
+                Log::warning('RequisicionCreadaJob: lista TO vacía tras normalizar', ['req' => $this->requisicion->id]);
+                return;
+            }
+            // Excluir compras de CC si ya está en TO
+            $cc = array_values(array_filter($cc, function($addr) use ($toList){ return !in_array($addr, $toList, true); }));
 
             Log::info('RequisicionCreadaJob enviando correo', ['req' => $this->requisicion->id, 'to' => $toList, 'cc' => $cc, 'bcc' => $bcc]);
             $mailable = new RequisicionCreadaMailable($this->requisicion);
