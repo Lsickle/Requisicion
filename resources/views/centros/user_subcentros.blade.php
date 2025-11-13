@@ -5,9 +5,18 @@
 @section('content')
 <x-sidebar />
 <div class="container mx-auto px-4 py-8 mt-20">
-    <div class="max-w-4xl mx-auto bg-white rounded shadow p-6">
-        <h2 class="text-xl font-semibold mb-4">Asignar Subcentros a Usuarios</h2>
-        <p class="text-sm text-gray-500 mb-4">Seleccione un usuario desde la lista (traída desde la API) y asigne los subcentros disponibles.</p>
+    <div class="max-w-4xl mx-auto bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 p-6">
+        <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                    <i class="fas fa-user-cog"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-extrabold">Asignar Subcentros a Usuarios</h2>
+                    <p class="text-sm text-gray-500">Seleccione un usuario desde la lista (traída desde la API) y asigne los subcentros disponibles.</p>
+                </div>
+            </div>
+        </div>
 
         @if(session('success'))
         <script>
@@ -36,8 +45,11 @@
 
         <!-- Buscador -->
         <div class="mb-4 flex items-center gap-2">
-            <input type="text" id="usersSearch" placeholder="Buscar por nombre o email..." class="flex-1 px-3 py-2 border rounded" />
-            <button id="usersClearSearch" class="px-3 py-2 bg-gray-200 rounded">Limpiar</button>
+            <div class="relative flex-1">
+                <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 w-9"><i class="fas fa-search"></i></span>
+                <input type="text" id="usersSearch" placeholder="Buscar por nombre o email..." class="pl-12 pr-3 py-2.5 border border-indigo-300 rounded-xl w-full shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40" />
+            </div>
+            <button id="usersClearSearch" class="px-3 py-2 border rounded-xl bg-white hover:bg-gray-50 shadow-sm">Limpiar</button>
         </div>
 
         <div id="usersList" class="space-y-2">
@@ -47,8 +59,8 @@
 
         <!-- Modal asignación -->
         <div id="assignModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg shadow p-6 w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
-                <div class="flex items-start justify-between mb-4">
+            <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 p-6 w-11/12 md:w-3/4 max-h-[90vh] overflow-auto thin-scrollbar">
+                <div class="flex items-start justify-between mb-4 sticky top-0 bg-white pt-2 pb-3 z-10 border-b">
                     <div>
                         <h3 id="assignUserTitle" class="text-lg font-semibold">Asignar subcentros</h3>
                         <div id="assignUserInfo" class="text-sm text-gray-600">&nbsp;</div>
@@ -64,7 +76,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Select de subcentros y botón Agregar -->
-                        <div class="border rounded p-3 max-h-64 overflow-auto">
+                        <div class="border rounded-xl p-3 max-h-64 overflow-auto bg-gray-50 thin-scrollbar">
                             <h4 class="text-sm font-medium mb-2">Subcentros disponibles</h4>
                             <div class="flex gap-2 mb-3">
                                 <!-- Selector de Centros -->
@@ -86,7 +98,7 @@
                                         <option value="{{ $c->id }}">{{ $c->name_centro }}</option>
                                     @endforeach
                                 </select>
-                                <button type="button" id="loadSubcentrosBtn" class="px-3 py-2 bg-indigo-600 text-white rounded">Cargar</button>
+                                <button type="button" id="loadSubcentrosBtn" class="px-3 py-2 bg-indigo-600 text-white rounded shadow-sm hover:bg-indigo-700">Cargar</button>
 
                             </div>
                             <div class="flex gap-2 mb-3">
@@ -94,17 +106,17 @@
                                      <option value="">-- Selecciona un subcentro --</option>
                                      <!-- Se llenará dinámicamente con el centro seleccionado -->
                                  </select>
-                                 <button type="button" id="addSubcentroBtn" class="px-3 py-2 bg-green-600 text-white rounded">Agregar</button>
+                                 <button type="button" id="addSubcentroBtn" class="px-3 py-2 bg-green-600 text-white rounded shadow-sm hover:bg-green-700">Agregar</button>
                              </div>
                              <div class="text-xs text-gray-500">Selecciona y pulsa Agregar para añadir a la lista de asignados.</div>
                          </div>
 
                         <!-- Tabla dinámica de asignados -->
-                        <div class="border rounded p-3 max-h-64 overflow-auto">
+                        <div class="border rounded-xl p-3 max-h-64 overflow-auto thin-scrollbar">
                             <h4 class="text-sm font-medium mb-2">Subcentros asignados</h4>
-                            <table class="min-w-full text-sm" id="assignedTable">
-                                <thead>
-                                    <tr class="text-left text-xs text-gray-500">
+                            <table class="min-w-full text-sm table-auto" id="assignedTable">
+                                <thead class="bg-indigo-50 sticky top-0 z-10">
+                                    <tr class="text-left text-xs text-gray-600">
                                         <th class="px-2 py-1">Subcentro</th>
                                         <th class="px-2 py-1">Centro</th>
                                         <th class="px-2 py-1">Acción</th>
@@ -223,3 +235,15 @@
 </script>
 
 @endsection
+
+<style>
+/* Zebra y hover para tabla asignados */
+#assignedTable tbody tr:nth-child(even){ background-color:#f8fafc; }
+#assignedTable tbody tr:hover{ background-color: rgba(99,102,241,0.08); }
+/* Scrollbar fino reutilizable */
+.thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+.thin-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+.thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+.thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+</style>
