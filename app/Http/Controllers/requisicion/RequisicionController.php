@@ -16,6 +16,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use App\Jobs\RequisicionEntregaRegistradaJob;
 use App\Jobs\EstatusRequisicionActualizadoJob; // asegurar uso
+use App\Jobs\RequisicionEspecialCreadaJob; // correo para requisición especial
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -374,6 +375,17 @@ class RequisicionController extends Controller
 
             DB::commit();
             RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
+
+            // Encolar correo si es una requisición especial
+            try {
+                $tipo = strtolower((string)($request->input('type') ?? ($requisicion->type ?? '')));
+                if ($requisicion instanceof \App\Models\Requisicion && $tipo === 'especial') {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $request->input('operacion_user') ?? 'Usuario';
+                    RequisicionEspecialCreadaJob::dispatch($requisicion, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de requisición especial: '.$e->getMessage());
+            }
 
             if (strtolower((string)$requisicion->type) === 'especial') {
                 return redirect()->route('requisiciones.especial')->with('success', 'Requisición especial creada correctamente.');
