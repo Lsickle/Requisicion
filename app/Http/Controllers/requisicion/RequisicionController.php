@@ -18,6 +18,8 @@ use App\Jobs\RequisicionEntregaRegistradaJob;
 use App\Jobs\EstatusRequisicionActualizadoJob; // asegurar uso
 use App\Jobs\RequisicionEspecialCreadaJob; // correo para requisición especial
 use App\Jobs\RequisicionRevisionComprasJob; // nuevo correo revisión compras
+use App\Jobs\RequisicionCorregidaJob; // correo requisición corregida
+use App\Jobs\RequisicionCanceladaJob; // notificación de cancelación
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -265,6 +267,16 @@ class RequisicionController extends Controller
             }
 
             DB::commit();
+
+            $reqModel = $requisicion ?? ($req ?? null) ?? ($requisicionActualizada ?? null) ?? null;
+            try {
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $reqModel->operacion_user ?? 'Usuario';
+                    RequisicionCorregidaJob::dispatch($reqModel, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de requisición corregida: '.$e->getMessage());
+            }
 
             return redirect()->route('requisiciones.historial')->with('success', 'Requisición corregida y enviada correctamente.');
         } catch (\Throwable $e) {
@@ -584,10 +596,19 @@ class RequisicionController extends Controller
                 'estatus_id'     => 6,
                 'estatus'        => 1,
                 'date_update'    => now(),
-                'comentario'     => 'Cancelada por el solicitante'
             ]);
 
             DB::commit();
+
+            try {
+                $reqModel = $requisicion ?? (\App\Models\Requisicion::find($id) ?: null);
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $reqModel->operacion_user ?? 'Usuario';
+                    RequisicionCanceladaJob::dispatch($reqModel, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de cancelación: '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -644,6 +665,16 @@ class RequisicionController extends Controller
             ]);
 
             DB::commit();
+
+            // Enviar correo de revisión al reenviar
+            try {
+                $reqModel = $requisicion ?? (\App\Models\Requisicion::find($id) ?: null);
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    RequisicionRevisionComprasJob::dispatch($reqModel);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de revisión (reenviar): '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,

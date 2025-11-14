@@ -24,6 +24,8 @@
         .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
         /* Badge de estatus: evitar corte y permitir varias líneas sin deformar */
         .status-badge {display:inline-block; padding:0.35rem 0.9rem; border-radius:0.75rem; line-height:1.15; white-space:normal; word-break:break-word; max-width:240px; text-align:center;}
+        /* Truncar cada producto a máximo 2 líneas para evitar celdas muy altas */
+        .prod-item { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.15; }
     </style>
 
     <!-- 🔍 Barra de búsqueda -->
@@ -76,7 +78,7 @@
                     <td class="p-3">
                         <ul class="list-disc list-inside text-sm text-gray-600 max-h-20 overflow-y-auto pr-1 thin-scrollbar">
                             @foreach($req->productos as $prod)
-                            <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
+                            <li class="prod-item" title="{{ $prod->name_produc }}">{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
                             @endforeach
                         </ul>
                     </td>
