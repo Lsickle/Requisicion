@@ -52,6 +52,13 @@ class RequisicionCreadaJob implements ShouldQueue
     public function handle(): void
     {
         try {
+            // Omitir envío si es una requisición especial (se maneja con otro Job)
+            $tipoReq = strtolower((string)($this->requisicion->type ?? ''));
+            if ($tipoReq === 'especial') {
+                Log::info('RequisicionCreadaJob: omitiendo envío para tipo Especial', ['req' => $this->requisicion->id]);
+                return;
+            }
+
             $primary = $this->requisicion->email_user ?: env('REQUISICIONES_MAIL_TO', 'admin@example.com');
             $primary = trim((string) $primary);
             if (!filter_var($primary, FILTER_VALIDATE_EMAIL)) {
