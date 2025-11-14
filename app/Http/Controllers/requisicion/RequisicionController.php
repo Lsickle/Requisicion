@@ -17,6 +17,7 @@ use App\Jobs\RequisicionCreadaJob;
 use App\Jobs\RequisicionEntregaRegistradaJob;
 use App\Jobs\EstatusRequisicionActualizadoJob; // asegurar uso
 use App\Jobs\RequisicionEspecialCreadaJob; // correo para requisición especial
+use App\Jobs\RequisicionRevisionComprasJob; // nuevo correo revisión compras
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -385,6 +386,21 @@ class RequisicionController extends Controller
                 }
             } catch (\Throwable $e) {
                 Log::warning('No se pudo encolar correo de requisición especial: '.$e->getMessage());
+            }
+
+            $reqModel = $requisicion ?? ($req ?? null) ?? ($requisicionGuardada ?? null) ?? null;
+            try {
+                $tipo = strtolower((string)($request->input('type') ?? ($reqModel->type ?? '')));
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    if ($tipo === 'especial') {
+                        // ...existing dispatch especial (ya agregado anteriormente)...
+                    } else {
+                        // Requisición normal: correo a área de compras para revisión
+                        RequisicionRevisionComprasJob::dispatch($reqModel);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de revisión compras: '.$e->getMessage());
             }
 
             if (strtolower((string)$requisicion->type) === 'especial') {
