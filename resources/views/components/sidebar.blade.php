@@ -5,7 +5,7 @@
         <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
             <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics"
-                class="mx-auto h-9 w-auto object-contain">
+                class="mx-auto h-9 w-auto object-contain rounded-lg drop-shadow">
         </div>
     </nav>
 

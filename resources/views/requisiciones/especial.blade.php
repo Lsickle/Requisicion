@@ -2,65 +2,6 @@
 
 @section('title', 'Crear Requisición Especial')
 @section('content')
-@php
-$prefillData = null;
-$fromId = request()->query('from');
-if (!empty($fromId)) {
-try {
-$__req = Requisicion::with('productos')->find($fromId);
-if ($__req) {
-$distRows = DB::table('centro_producto as cp')
-->join('centro as c','c.id','=','cp.centro_id')
-->where('cp.requisicion_id', $__req->id)
-->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
-->get();
-$distByProd = [];
-foreach ($distRows as $r) {
-$distByProd[$r->producto_id][] = [
-'id' => (string)$r->centro_id,
-'nombre' => $r->name_centro,
-'cantidad' => (int)$r->amount,
-];
-}
-$prods = [];
-foreach ($__req->productos as $p) {
-$prods[] = [
-'id' => (int)$p->id,
-'nombre' => $p->name_produc,
-'unidad' => $p->unit_produc,
-'proveedorId' => $p->proveedor_id ?? null,
-'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
-'centros' => $distByProd[$p->id] ?? [],
-];
-}
-$prefillData = [
-'operacion_user' => $__req->operacion_user ?? '',
-'Recobrable' => $__req->Recobrable ?? '',
-'prioridad_requisicion' => $__req->prioridad_requisicion ?? '',
-'justify_requisicion' => $__req->justify_requisicion ?? '',
-'detail_requisicion' => $__req->detail_requisicion ?? '',
-'productos' => $prods,
-];
-}
-} catch (\Throwable $e) {
-$prefillData = null;
-}
-}
-@endphp
-@php
-$normalizeCat = function($txt){ $t = mb_strtolower(trim((string)$txt), 'UTF-8'); $t = strtr($t,
-['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']); return $t; };
-$isServicioCat = function($txt) use ($normalizeCat){ $n = $normalizeCat($txt); $compact = preg_replace('/[\s_\-]+/u','',
-$n); return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true); };
-// Nueva detección para Alquiler
-$isAlquilerCat = function($txt) use ($normalizeCat){ $n = $normalizeCat($txt); $compact = preg_replace('/[\s_\-]+/u','',
-$n); return in_array($compact, ['alquiler','alquileres','alquilers'], true); };
-// Incluir productos de categoría Servicio o Alquiler
-$productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){ return
-$isServicioCat($p->categoria_produc ?? '') || $isAlquilerCat($p->categoria_produc ?? ''); }) : collect();
-$categoriasListaFiltrada =
-$productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->filter()->mapWithKeys(fn($c)=>[$normalizeCat($c)=>$c])->values()->sort()->values();
-@endphp
 <x-sidebar />
 <div class="min-h-screen">
     <!-- wrapper visual distinto -->
@@ -114,20 +55,7 @@ $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->f
                             value="{{ old('operacion_user') }}" required>
                         <div id="operacionesDropdown"
                             class="absolute left-0 w-full bg-white border border-amber-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
-                            @php
-                            $operacionesLista = collect($centros ?? [])
-                            ->pluck('centro_nombre')
-                            ->filter(fn($v)=> !empty($v))
-                            ->unique()
-                            ->sort()
-                            ->values();
-                            @endphp
-                            @forelse($operacionesLista as $op)
-                            <div class="p-2 hover:bg-amber-50 hover:text-amber-700 cursor-pointer rounded"
-                                data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
-                            @empty
-                            <div class="p-2 text-gray-500">No hay centros de costo asignados.</div>
-                            @endforelse
+                            {!! $operacionesOptionsHtml !!}
                         </div>
                     </div>
                 </div>
@@ -227,15 +155,7 @@ $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->f
                     placeholder="Escribe o selecciona una categoría">
                 <div id="categoriasList"
                     class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
-                    @php
-                    $categoriasUnicas = $categoriasListaFiltrada;
-                    @endphp
-                    @foreach ($categoriasUnicas as $categoria)
-                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded"
-                        onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
-                        {{ $categoria }}
-                    </div>
-                    @endforeach
+                    {!! $categoriasOptionsHtml !!}
                 </div>
             </div>
             <div>
@@ -255,15 +175,7 @@ $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->f
                 placeholder="Escribe o selecciona un producto">
             <div id="productosList"
                 class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                @foreach ($productosFiltrados as $p)
-                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
-                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                    data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}"
-                    data-proveedor="{{ $p->proveedor_id ?? '' }}" data-categoria="{{ $p->categoria_produc }}"
-                    data-unidad="{{ $p->unit_produc }}">
-                    ({{ $p->sku ?? $p->id }}) {{ $p->name_produc }} ({{ $p->unit_produc }})
-                </div>
-                @endforeach
+                {!! $productosOptionsHtml !!}
             </div>
         </div>
 
@@ -304,33 +216,7 @@ $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->f
                         <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
                         <div id="centrosDropdown"
                             class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                            @php
-                            // Subcentros asignados al usuario (por email de sesión)
-                            $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
-                            $subcentrosUsuario = collect();
-                            try {
-                            if ($userEmail) {
-                            $subcentrosUsuario = DB::table('userxsubcentro as ux')
-                            ->join('subcentros as s','s.id','=','ux.subcentro_id')
-                            ->leftJoin('centro as c','c.id','=','s.centro_id')
-                            ->whereNull('ux.deleted_at')
-                            ->where('ux.email_user', $userEmail)
-                            ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
-                            ->orderBy('c.name_centro')
-                            ->orderBy('s.name_subcentro')
-                            ->get();
-                            }
-                            } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
-                            @endphp
-                            @forelse ($subcentrosUsuario as $sc)
-                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded"
-                                data-id="{{ $sc->subcentro_id }}" data-nombre="{{ $sc->name_subcentro }}"
-                                onclick="seleccionarCentro(event, this)">
-                                {{ $sc->name_subcentro }} @if(!empty($sc->name_centro)) ({{ $sc->name_centro }}) @endif
-                            </div>
-                            @empty
-                            <div class="p-2 text-gray-500">No tienes subcentros asignados.</div>
-                            @endforelse
+                            {!! $subcentrosOptionsHtml !!}
                         </div>
                     </div>
                 </div>
@@ -380,7 +266,6 @@ $productosFiltrados->pluck('categoria_produc')->map(fn($c)=>trim((string)$c))->f
 
 @section('scripts')
 <script>
-    // Exponer datos globales para el script externo (filtrados sin Servicio/Servicios)
     window.PREFILL_DATA = {!! json_encode($prefillData) !!};
     window.CATEGORIAS = @json($categoriasListaFiltrada);
     window.PRODUCTOS_DATA = {!! json_encode($productosFiltrados->map(function($p){

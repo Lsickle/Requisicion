@@ -66,11 +66,8 @@ class RequisicionController extends Controller
                         ->map(function ($r) {
                             return (object) [
                                 'id' => $r->id,
-                                // Mantener compatibilidad con la vista que espera name_centro
                                 'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
-                                // Centro padre (para dropdown de Centro de costo)
                                 'centro_nombre' => (string)($r->centro_nombre ?? ''),
-                                // ID del centro padre (para validación exists:centro,id)
                                 'centro_id' => (int)($r->centro_id ?? 0),
                             ];
                         });
@@ -83,9 +80,148 @@ class RequisicionController extends Controller
 
         // La vista espera variable $centros; enviamos solo los asignados (o vacío si no hay asignación)
         $centros = $asignados;
+
+        // Catálogo de productos
         $productos = Producto::all();
 
-        return view('requisiciones.create', compact('centros', 'productos'));
+        // Prefill desde ?from=ID (clonado de otra requisición)
+        $prefillData = null;
+        $fromId = request()->query('from');
+        if (!empty($fromId)) {
+            try {
+                $reqSrc = Requisicion::with('productos')->find($fromId);
+                if ($reqSrc) {
+                    $distRows = DB::table('centro_producto as cp')
+                        ->join('centro as c','c.id','=','cp.centro_id')
+                        ->where('cp.requisicion_id', $reqSrc->id)
+                        ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
+                        ->get();
+                    $distByProd = [];
+                    foreach ($distRows as $r) {
+                        $distByProd[$r->producto_id][] = [
+                            'id' => (string)$r->centro_id,
+                            'nombre' => $r->name_centro,
+                            'cantidad' => (int)$r->amount,
+                        ];
+                    }
+                    $prods = [];
+                    foreach ($reqSrc->productos as $p) {
+                        $prods[] = [
+                            'id' => (int)$p->id,
+                            'nombre' => $p->name_produc,
+                            'unidad' => $p->unit_produc,
+                            'proveedorId' => $p->proveedor_id ?? null,
+                            'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
+                            'centros' => $distByProd[$p->id] ?? [],
+                        ];
+                    }
+                    $prefillData = [
+                        'operacion_user' => $reqSrc->operacion_user ?? '',
+                        'Recobrable' => $reqSrc->Recobrable ?? '',
+                        'prioridad_requisicion' => $reqSrc->prioridad_requisicion ?? '',
+                        'justify_requisicion' => $reqSrc->justify_requisicion ?? '',
+                        'detail_requisicion' => $reqSrc->detail_requisicion ?? '',
+                        'productos' => $prods,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $prefillData = null;
+            }
+        }
+
+        // Normalización y filtros de categorías (excluir Servicios/Alquiler)
+        $normalizeCat = function($txt){
+            $t = mb_strtolower(trim((string)$txt), 'UTF-8');
+            $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
+            return $t;
+        };
+        $isServicioCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
+        };
+        $isAlquilerCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['alquiler','alquilers','alquileres'], true);
+        };
+
+        $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){
+            $cat = $p->categoria_produc ?? '';
+            return !$isServicioCat($cat) && !$isAlquilerCat($cat);
+        }) : collect();
+
+        $categoriasListaFiltrada = $productosFiltrados
+            ->pluck('categoria_produc')
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
+            ->values()
+            ->sort()
+            ->values();
+
+        // Preparar HTML de operaciones para dropdown (sin lógica en la vista)
+        $operacionesLista = collect($centros ?? [])
+            ->pluck('centro_nombre')
+            ->filter(fn($v)=> !empty($v))
+            ->unique()
+            ->sort()
+            ->values();
+        $operacionesOptionsHtml = $operacionesLista->map(function($op){
+            $val = e($op);
+            return '<div class="p-2 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded" data-value="'.$val.'" onclick="seleccionarOperacion(event,this)">'.$val.'</div>';
+        })->implode("\n");
+
+        // Preparar HTML de categorías para el modal 1
+        $categoriasOptionsHtml = $categoriasListaFiltrada->map(function($cat){
+            $txt = e($cat);
+            return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">'.$txt.'</div>';
+        })->implode("\n");
+
+        // Preparar HTML de productos para el modal 1
+        $productosOptionsHtml = $productosFiltrados->map(function($p){
+            $id = e($p->id);
+            $sku = e($p->sku ?? '');
+            $nombre = e($p->name_produc);
+            $proveedor = e($p->proveedor_id ?? '');
+            $categoria = e($p->categoria_produc);
+            $unidad = e($p->unit_produc);
+            $skuDisplay = e($p->sku ?? $p->id);
+            return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words" onclick="seleccionarOpcion(event, this, \'productoSelect\')" data-id="'.$id.'" data-sku="'.$sku.'" data-nombre="'.$nombre.'" data-proveedor="'.$proveedor.'" data-categoria="'.$categoria.'" data-unidad="'.$unidad.'">('.$skuDisplay.') '.$nombre.' ('.$unidad.')</div>';
+        })->implode("\n");
+
+        // Subcentros asignados al usuario para el modal 2
+        $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
+        $subcentrosUsuario = collect();
+        try {
+            if ($userEmail) {
+                $subcentrosUsuario = DB::table('userxsubcentro as ux')
+                    ->join('subcentros as s','s.id','=','ux.subcentro_id')
+                    ->leftJoin('centro as c','c.id','=','s.centro_id')
+                    ->whereNull('ux.deleted_at')
+                    ->where('ux.email_user', $userEmail)
+                    ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
+                    ->orderBy('c.name_centro')
+                    ->orderBy('s.name_subcentro')
+                    ->get();
+            }
+        } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
+        if ($subcentrosUsuario->isEmpty()) {
+            $subcentrosOptionsHtml = '<div class="p-2 text-gray-500">No tienes subcentros asignados.</div>';
+        } else {
+            $subcentrosOptionsHtml = $subcentrosUsuario->map(function($sc){
+                $id = e($sc->subcentro_id);
+                $nom = e($sc->name_subcentro);
+                $centro = trim((string)($sc->name_centro ?? ''));
+                $centroTxt = $centro !== '' ? ' ('.e($centro).')' : '';
+                return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="'.$id.'" data-nombre="'.$nom.'" onclick="seleccionarCentro(event, this)">'.$nom.$centroTxt.'</div>';
+            })->implode("\n");
+        }
+
+        return view('requisiciones.create', compact(
+            'centros', 'productosFiltrados', 'categoriasListaFiltrada', 'prefillData',
+            'operacionesOptionsHtml', 'categoriasOptionsHtml', 'productosOptionsHtml', 'subcentrosOptionsHtml'
+        ));
     }
 
     /**
@@ -94,7 +230,7 @@ class RequisicionController extends Controller
      */
     public function createEspecial()
     {
-        // Mismo comportamiento que create(): cargar subcentros asignados al usuario
+        // Cargar solo los subcentros asignados al usuario en sesión (por email)
         $sessionEmail = session('user.email');
         $asignados = collect();
         if (!empty($sessionEmail)) {
@@ -125,8 +261,146 @@ class RequisicionController extends Controller
             } catch (\Throwable $e) { /* noop */ }
         }
         $centros = $asignados;
+
+        // Catálogo de productos
         $productos = Producto::all();
-        return view('requisiciones.especial', compact('centros', 'productos'));
+
+        // Prefill desde ?from=ID (clonado de otra requisición)
+        $prefillData = null;
+        $fromId = request()->query('from');
+        if (!empty($fromId)) {
+            try {
+                $reqSrc = Requisicion::with('productos')->find($fromId);
+                if ($reqSrc) {
+                    $distRows = DB::table('centro_producto as cp')
+                        ->join('centro as c','c.id','=','cp.centro_id')
+                        ->where('cp.requisicion_id', $reqSrc->id)
+                        ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
+                        ->get();
+                    $distByProd = [];
+                    foreach ($distRows as $r) {
+                        $distByProd[$r->producto_id][] = [
+                            'id' => (string)$r->centro_id,
+                            'nombre' => $r->name_centro,
+                            'cantidad' => (int)$r->amount,
+                        ];
+                    }
+                    $prods = [];
+                    foreach ($reqSrc->productos as $p) {
+                        $prods[] = [
+                            'id' => (int)$p->id,
+                            'nombre' => $p->name_produc,
+                            'unidad' => $p->unit_produc,
+                            'proveedorId' => $p->proveedor_id ?? null,
+                            'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
+                            'centros' => $distByProd[$p->id] ?? [],
+                        ];
+                    }
+                    $prefillData = [
+                        'operacion_user' => $reqSrc->operacion_user ?? '',
+                        'Recobrable' => $reqSrc->Recobrable ?? '',
+                        'prioridad_requisicion' => $reqSrc->prioridad_requisicion ?? '',
+                        'justify_requisicion' => $reqSrc->justify_requisicion ?? '',
+                        'detail_requisicion' => $reqSrc->detail_requisicion ?? '',
+                        'productos' => $prods,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $prefillData = null;
+            }
+        }
+
+        // Filtros de categorías: solo Servicio/Alquiler para Especial
+        $normalizeCat = function($txt){
+            $t = mb_strtolower(trim((string)$txt), 'UTF-8');
+            $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
+            return $t;
+        };
+        $isServicioCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
+        };
+        $isAlquilerCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['alquiler','alquilers','alquileres'], true);
+        };
+
+        $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){
+            $cat = $p->categoria_produc ?? '';
+            return $isServicioCat($cat) || $isAlquilerCat($cat);
+        }) : collect();
+
+        $categoriasListaFiltrada = $productosFiltrados
+            ->pluck('categoria_produc')
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
+            ->values()
+            ->sort()
+            ->values();
+
+        // HTML de operaciones (estilos ámbar para especial)
+        $operacionesLista = collect($centros ?? [])
+            ->pluck('centro_nombre')
+            ->filter(fn($v)=> !empty($v))
+            ->unique()
+            ->sort()
+            ->values();
+        $operacionesOptionsHtml = $operacionesLista->map(function($op){
+            $val = e($op);
+            return '<div class="p-2 hover:bg-amber-50 hover:text-amber-700 cursor-pointer rounded" data-value="'.$val.'" onclick="seleccionarOperacion(event,this)">'.$val.'</div>';
+        })->implode("\n");
+
+        // HTML de categorías (ámbar)
+        $categoriasOptionsHtml = $categoriasListaFiltrada->map(function($cat){
+            $txt = e($cat);
+            return '<div class="p-2 hover:bg-amber-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">'.$txt.'</div>';
+        })->implode("\n");
+
+        // HTML de productos (ámbar hover)
+        $productosOptionsHtml = $productosFiltrados->map(function($p){
+            $id = e($p->id);
+            $sku = e($p->sku ?? '');
+            $nombre = e($p->name_produc);
+            $proveedor = e($p->proveedor_id ?? '');
+            $categoria = e($p->categoria_produc);
+            $unidad = e($p->unit_produc);
+            $skuDisplay = e($p->sku ?? $p->id);
+            return '<div class="p-2 hover:bg-amber-100 cursor-pointer rounded whitespace-normal break-words" onclick="seleccionarOpcion(event, this, \'productoSelect\')" data-id="'.$id.'" data-sku="'.$sku.'" data-nombre="'.$nombre.'" data-proveedor="'.$proveedor.'" data-categoria="'.$categoria.'" data-unidad="'.$unidad.'">('.$skuDisplay.') '.$nombre.' ('.$unidad.')</div>';
+        })->implode("\n");
+
+        // Subcentros del usuario
+        $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
+        $subcentrosUsuario = collect();
+        try {
+            if ($userEmail) {
+                $subcentrosUsuario = DB::table('userxsubcentro as ux')
+                    ->join('subcentros as s','s.id','=','ux.subcentro_id')
+                    ->leftJoin('centro as c','c.id','=','s.centro_id')
+                    ->whereNull('ux.deleted_at')
+                    ->where('ux.email_user', $userEmail)
+                    ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
+                    ->orderBy('c.name_centro')
+                    ->orderBy('s.name_subcentro')
+                    ->get();
+            }
+        } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
+        $subcentrosOptionsHtml = $subcentrosUsuario->isEmpty()
+            ? '<div class="p-2 text-gray-500">No tienes subcentros asignados.</div>'
+            : $subcentrosUsuario->map(function($sc){
+                $id = e($sc->subcentro_id);
+                $nom = e($sc->name_subcentro);
+                $centro = trim((string)($sc->name_centro ?? ''));
+                $centroTxt = $centro !== '' ? ' ('.e($centro).')' : '';
+                return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="'.$id.'" data-nombre="'.$nom.'" onclick="seleccionarCentro(event, this)">'.$nom.$centroTxt.'</div>';
+            })->implode("\n");
+
+        return view('requisiciones.especial', compact(
+            'centros', 'productosFiltrados', 'categoriasListaFiltrada', 'prefillData',
+            'operacionesOptionsHtml', 'categoriasOptionsHtml', 'productosOptionsHtml', 'subcentrosOptionsHtml'
+        ));
     }
 
     /**
