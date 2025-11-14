@@ -35,12 +35,6 @@
                            style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
                             Ir al panel
                         </a>
-                        @if(isset($requisicion->id))
-                        <a href="{{ $detalleUrl ?? route('requisiciones.show', $requisicion->id) }}" 
-                           style="display:inline-block; margin-left:8px; background:#0f766e; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
-                            Ver detalles
-                        </a>
-                        @endif
                     </p>
 
                     <p style="margin:16px 0 0 0;">Saludos,<br/>Equipo</p>
