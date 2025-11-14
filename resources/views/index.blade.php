@@ -14,6 +14,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <!-- Evitar cacheo para que no se pueda volver atrás al cerrar sesión -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script>
         tailwind.config = {
             theme: {
@@ -182,6 +186,27 @@
     <footer class="bg-gray-900 text-gray-300 py-4 text-center">
         <p class="text-sm">&copy; {{ date('Y') }} Vigía Plus Logistics. derechos reservados.</p>
     </footer>
+
+    <!-- Bloqueo de navegación hacia atrás en pantalla de login con alerta inmediata -->
+    <script>
+        (function() {
+            function showLoginAlert(){
+                try { Swal.fire({ icon:'warning', title:'Sesión requerida', text:'Por favor inicia sesión', confirmButtonColor:'#1e40af' }); } catch(_){}
+            }
+            if (window.history && window.history.pushState) {
+                history.pushState(null, '', location.href);
+                window.addEventListener('popstate', function () {
+                    // Mostrar alerta y volver a insertar estado para evitar navegación
+                    showLoginAlert();
+                    history.pushState(null, '', location.href);
+                });
+            }
+            // Si el navegador entrega la página desde bfcache, forzar recarga y alerta
+            window.onpageshow = function(evt) {
+                if (evt.persisted) { showLoginAlert(); window.location.reload(); }
+            };
+        })();
+    </script>
 
     <script>
         // Mostrar/ocultar contraseña

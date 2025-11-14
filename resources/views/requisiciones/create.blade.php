@@ -1,8 +1,18 @@
 @extends('layouts.app')
 
 @section('title', 'Crear Requisición')
+{{--
+    Vista: Crear Requisición
+    - Construye datos de prellenado opcional desde otra requisición (?from=ID) incluyendo distribución por centros.
+    - Normaliza categorías y filtra productos de tipo servicio/alquiler para que no aparezcan en el selector.
+    - Permite seleccionar centro de costo con buscador y agregar productos con distribución por subcentros.
+    - Incluye dos modales: selección de producto y distribución por centros.
+    - Al final expone variables globales a un script externo para manejar UI y validaciones.
+--}}
 @section('content')
 @php
+    // Bloque de prellenado: si llega ?from=ID se cargan datos de esa requisición
+    // (detalles, justificación, y la distribución por centros de cada producto)
     $prefillData = null;
     $fromId = request()->query('from');
     if (!empty($fromId)) {
@@ -82,6 +92,7 @@
 <div class="min-h-screen">
 <div class="max-w-5xl mx-auto p-6 mt-20">
     <div class="bg-white/95 shadow-2xl rounded-2xl p-6 border-2 border-indigo-300 ring-1 ring-indigo-200">
+        {{-- Encabezado visual de la tarjeta (logo y título) --}}
         <div class="flex justify-center items-center gap-6 py-4 mb-6">
             <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-14 w-auto">
             <div class="flex flex-col">
@@ -89,6 +100,7 @@
             </div>
         </div>
 
+        {{-- Alertas emergentes vía SweetAlert para success y errors (renderizadas al cargar) --}}
         @if (session('success'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -105,6 +117,8 @@
         </script>
         @endif
 
+        {{-- Formulario principal: datos de cabecera y tabla de productos con distribución --}}
+        {{-- El botón "+ Añadir Producto" abre el primer modal para seleccionar y configurar el producto --}}
         <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
             @csrf
 
@@ -198,6 +212,9 @@
 </div>
 </div>
 
+{{-- Modal 1: Selección de Producto
+     - Busca y filtra por categoría y nombre de producto (excluye servicio/alquiler).
+     - Permite definir la cantidad total a distribuir y ver la unidad del producto. --}}
 <!-- Modal 1: Selección de Producto -->
 <div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
@@ -255,6 +272,9 @@
     </div>
 </div>
 
+{{-- Modal 2: Distribución por Centros de Costo
+     - Reparte la cantidad del producto entre subcentros asignados al usuario.
+     - Muestra total asignado vs disponible y lista de asignaciones. --}}
 <!-- Modal 2: Distribución por Centros de Costo -->
 <div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
@@ -352,6 +372,13 @@
 @endsection
 
 @section('scripts')
+{{--
+    Sección de scripts: expone datos a js/requisiciones/create.js
+    - PREFILL_DATA: estructura para re-crear productos y su distribución cuando se clona desde otra requisición.
+    - CATEGORIAS: lista de categorías normalizadas para autocompletar.
+    - PRODUCTOS_DATA: catálogo filtrado (sin servicios/alquiler) para pintar el dropdown y buscar.
+    - IS_REREQUEST: bandera para inicializaciones condicionales en el script externo.
+--}}
 <script>
     // Exponer datos globales para el script externo (filtrados sin Servicio/Servicios)
     window.PREFILL_DATA = {!! json_encode($prefillData) !!};
