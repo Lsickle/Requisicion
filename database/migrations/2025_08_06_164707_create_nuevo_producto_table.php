@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name_user');  #nombre del usuario
             $table->string('email_user');  #correo del usuario
-            $table->string('nombre');  #nombre del producto
+            $table->text('nombre');  #nombre del producto
             $table->text('descripcion');  #descripción del producto
             $table->text('comentario')->nullable();  #comentario porque se rechazo el producto
             $table->timestamps();
