@@ -342,7 +342,7 @@
                     </div>
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
-                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar recepción</button>
+                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}" data-confirm-url="{{ route('recepciones.confirmar') }}">Guardar recepción</button>
                     </div>
                     @else
                         <div class="text-gray-600">Esta orden no tiene líneas.</div>
@@ -958,6 +958,7 @@
                 const btnSave = e.target.closest('.rc-save');
                 if (btnSave) {
                     const ocId = btnSave.dataset.ocId;
+                    const endpoint = btnSave.dataset.confirmUrl || `{{ route('recepciones.confirmar') }}`;
                     const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
                     const rows = Array.from(modal.querySelectorAll('.rc-row'));
                     if (rows.length === 0) {
@@ -998,7 +999,7 @@
                             reception_user: receptionUser
                         })) };
 
-                        const resp = await fetch("{{ route('recepciones.confirmar') }}", {
+                        const resp = await fetch(endpoint, {
                             method: 'POST', credentials: 'same-origin',
                             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
