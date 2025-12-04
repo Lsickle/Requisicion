@@ -209,7 +209,7 @@
                             </button>
                             @endif
                             @if(!($isTerminada ?? false))
-                            <button type="button" data-oc-id="{{ $oc->id }}" data-terminar-url="{{ url('/ordenes_compra/terminar/'.$oc->id) }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-terminar-url="{{ route('ordenes_compra.terminar', ['id' => $oc->id], false) }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
@@ -222,7 +222,7 @@
                                     <i class="fas fa-plus"></i>
                                 </a>
                             @endif
-                            <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
+                            <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId, false) }}">
                                 <i class="fas fa-file-pdf"></i>
                             </button>
                         </div>
@@ -342,7 +342,7 @@
                     </div>
                     <div class="flex justify-end gap-3 mt-4">
                         <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
-                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}" data-confirm-url="{{ route('recepciones.confirmar') }}">Guardar recepción</button>
+                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}" data-confirm-url="{{ route('recepciones.confirmar', [], false) }}">Guardar recepción</button>
                     </div>
                     @else
                         <div class="text-gray-600">Esta orden no tiene líneas.</div>
