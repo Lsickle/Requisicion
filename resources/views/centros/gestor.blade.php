@@ -6,16 +6,23 @@
 <x-sidebar/>
 <div class="container mx-auto px-4 py-8 mt-20">
     <div class="max-w-6xl mx-auto">
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 overflow-hidden">
             <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
-                <h2 class="text-white text-2xl font-bold">Gestión de Centros y Subcentros</h2>
-                <p class="text-blue-100 mt-1">Crea, edita y organiza centros y sus subcentros.</p>
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-white text-2xl font-bold">Gestión de Centros y Subcentros</h2>
+                        <p class="text-blue-100 mt-1">Crea, edita y organiza centros y sus subcentros.</p>
+                    </div>
+                </div>
             </div>
             <div class="p-6">
                 <div class="mb-4 flex items-center justify-between">
                     <div></div>
                     <div>
-                        <button type="button" class="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700" onclick="openAddSubModal(null)">
+                        <button type="button" class="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm" onclick="openAddSubModal(null)">
                             <i class="fas fa-plus"></i> Añadir subcentro
                         </button>
                     </div>
@@ -28,7 +35,7 @@
 
                 <div class="grid gap-6" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
                     @foreach($centros as $centro)
-                    <div class="bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden flex flex-col w-full h-full min-h-40">
+                    <div class="bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-slate-300 transition overflow-hidden flex flex-col w-full h-full min-h-40">
                         <div class="p-4 flex items-start justify-between gap-3">
                             <div class="flex-1">
                                 <h3 class="text-lg font-semibold text-gray-800">{{ $centro->name_centro }}</h3>
@@ -40,7 +47,7 @@
  
                              <div class="text-right flex flex-col items-end gap-2">
                                 {{-- Ver subcentros --}}
-                                <button type="button" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200" onclick="toggleSubs(event,'subs-{{ $centro->id }}')" aria-expanded="false">
+                                <button type="button" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 shadow-sm" onclick="toggleSubs(event,'subs-{{ $centro->id }}')" aria-expanded="false">
                                     <i class="fas fa-chevron-down"></i> Ver
                                 </button>
                              </div>
@@ -73,34 +80,34 @@
                                             })->map(function($it){ return ['id'=>$it->id,'name'=>$it->name_subcentro]; })->values();
                                         @endphp
                                         <div class="w-full sm:flex-1 relative">
-                                            <input type="search" class="w-full px-3 py-2 border rounded-md search-select" placeholder="Buscar subcentro..." autocomplete="off" data-subs='@json($subs_for_input)'>
+                                            <input type="search" class="w-full px-3 py-2.5 border border-indigo-300 rounded-xl search-select shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40" placeholder="Buscar subcentro..." autocomplete="off" data-subs='@json($subs_for_input)'>
                                             <input type="hidden" name="existing_id" class="existing-id-input" value="">
-                                            <div class="search-box hidden absolute z-40 left-0 right-0 mt-1 bg-white border rounded shadow max-h-48 overflow-auto"></div>
+                                            <div class="search-box hidden absolute z-40 left-0 right-0 mt-1 bg-white border rounded-xl shadow-lg ring-1 ring-slate-200 max-h-48 overflow-auto thin-scrollbar"></div>
                                         </div>
                                         <div class="w-full sm:w-auto">
-                                            <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 justify-center">
+                                            <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 justify-center shadow-sm">
                                                 <i class="fas fa-plus"></i> <span>Agregar</span>
                                             </button>
                                         </div>
                                     </form>
                                 </div>
 
-                                 <div id="subs-{{ $centro->id }}" class="mt-4 hidden max-h-56 overflow-auto pr-2">
-                                     <table class="min-w-full text-sm bg-white">
-                                         <thead>
-                                             <tr class="text-left text-xs text-gray-500">
-                                                 <th class="px-2 py-1">Subcentro</th>
+                                 <div id="subs-{{ $centro->id }}" class="mt-4 hidden max-h-56 overflow-auto pr-2 thin-scrollbar">
+                                     <table class="min-w-full text-sm bg-white table-auto">
+                                         <thead class="sticky top-0 z-10 bg-indigo-50 text-indigo-900">
+                                             <tr class="text-left text-xs font-semibold uppercase tracking-wide">
+                                                 <th class="px-2 py-2">Subcentro</th>
                                              </tr>
                                          </thead>
                                          <tbody>
                                          @forelse($centro->subcentros as $sub)
-                                             <tr class="bg-gray-50">
+                                             <tr class="odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                                                  <td class="px-2 py-2 text-gray-800 flex items-center justify-between">
                                                      <span>{{ $sub->name_subcentro }}</span>
                                                      <form action="{{ route('centros.subcentros.destroy', $sub->id) }}" method="POST" class="inline-block" data-confirm="Quitar asociación de este subcentro?">
                                                          @csrf
                                                          @method('DELETE')
-                                                         <button type="submit" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700" title="Quitar asociación">
+                                                         <button type="submit" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm" title="Quitar asociación">
                                                              <i class="fas fa-unlink"></i>
                                                          </button>
                                                      </form>
@@ -141,8 +148,8 @@
 
 <!-- Modal reutilizable para añadir subcentro -->
 <div id="addSubModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 px-4">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-auto mx-auto">
-        <div class="p-4 border-b flex items-center justify-between">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 w-full max-w-2xl max-h-[80vh] overflow-auto mx-auto">
+        <div class="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
             <h3 class="text-lg font-semibold">Agregar subcentro</h3>
             <button type="button" class="text-gray-600" onclick="closeAddSubModal()">✕</button>
         </div>
@@ -170,11 +177,11 @@
             </div>
             <div class="mb-3">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Subcentros existentes</label>
-                <div id="modalSubList" class="border rounded max-h-48 overflow-auto p-2">
+                <div id="modalSubList" class="border rounded max-h-48 overflow-auto p-2 thin-scrollbar">
                     <div class="text-sm text-gray-600 mb-2">Lista de subcentros existentes (solo lectura). Para asociar un subcentro existente usa el buscador en la tarjeta del centro correspondiente.</div>
                     <table class="min-w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-xs text-gray-500">
+                        <thead class="bg-indigo-50 sticky top-0 z-10">
+                            <tr class="text-left text-xs text-gray-600">
                                 <th class="px-2 py-1">Subcentro</th>
                                 <th class="px-2 py-1">Centro</th>
                             </tr>
@@ -438,6 +445,12 @@
     @media (max-width: 640px) {
         .p-4 .text-right { align-self: flex-start; }
     }
+    /* Scrollbar fino reutilizable */
+    .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+    .thin-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
  </style>
 
 @if(session('success') || session('error'))

@@ -16,6 +16,10 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Jobs\RequisicionCreadaJob;
 use App\Jobs\RequisicionEntregaRegistradaJob;
 use App\Jobs\EstatusRequisicionActualizadoJob; // asegurar uso
+use App\Jobs\RequisicionEspecialCreadaJob; // correo para requisición especial
+use App\Jobs\RequisicionRevisionComprasJob; // nuevo correo revisión compras
+use App\Jobs\RequisicionCorregidaJob; // correo requisición corregida
+use App\Jobs\RequisicionCanceladaJob; // notificación de cancelación
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -62,11 +66,8 @@ class RequisicionController extends Controller
                         ->map(function ($r) {
                             return (object) [
                                 'id' => $r->id,
-                                // Mantener compatibilidad con la vista que espera name_centro
                                 'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
-                                // Centro padre (para dropdown de Centro de costo)
                                 'centro_nombre' => (string)($r->centro_nombre ?? ''),
-                                // ID del centro padre (para validación exists:centro,id)
                                 'centro_id' => (int)($r->centro_id ?? 0),
                             ];
                         });
@@ -79,9 +80,327 @@ class RequisicionController extends Controller
 
         // La vista espera variable $centros; enviamos solo los asignados (o vacío si no hay asignación)
         $centros = $asignados;
+
+        // Catálogo de productos
         $productos = Producto::all();
 
-        return view('requisiciones.create', compact('centros', 'productos'));
+        // Prefill desde ?from=ID (clonado de otra requisición)
+        $prefillData = null;
+        $fromId = request()->query('from');
+        if (!empty($fromId)) {
+            try {
+                $reqSrc = Requisicion::with('productos')->find($fromId);
+                if ($reqSrc) {
+                    $distRows = DB::table('centro_producto as cp')
+                        ->join('centro as c','c.id','=','cp.centro_id')
+                        ->where('cp.requisicion_id', $reqSrc->id)
+                        ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
+                        ->get();
+                    $distByProd = [];
+                    foreach ($distRows as $r) {
+                        $distByProd[$r->producto_id][] = [
+                            'id' => (string)$r->centro_id,
+                            'nombre' => $r->name_centro,
+                            'cantidad' => (int)$r->amount,
+                        ];
+                    }
+                    $prods = [];
+                    foreach ($reqSrc->productos as $p) {
+                        $prods[] = [
+                            'id' => (int)$p->id,
+                            'nombre' => $p->name_produc,
+                            'unidad' => $p->unit_produc,
+                            'proveedorId' => $p->proveedor_id ?? null,
+                            'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
+                            'centros' => $distByProd[$p->id] ?? [],
+                        ];
+                    }
+                    $prefillData = [
+                        'operacion_user' => $reqSrc->operacion_user ?? '',
+                        'Recobrable' => $reqSrc->Recobrable ?? '',
+                        'prioridad_requisicion' => $reqSrc->prioridad_requisicion ?? '',
+                        'justify_requisicion' => $reqSrc->justify_requisicion ?? '',
+                        'detail_requisicion' => $reqSrc->detail_requisicion ?? '',
+                        'productos' => $prods,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $prefillData = null;
+            }
+        }
+
+        // Normalización y filtros de categorías (excluir Servicios/Alquiler)
+        $normalizeCat = function($txt){
+            $t = mb_strtolower(trim((string)$txt), 'UTF-8');
+            $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
+            return $t;
+        };
+        $isServicioCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
+        };
+        $isAlquilerCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['alquiler','alquilers','alquileres'], true);
+        };
+
+        $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){
+            $cat = $p->categoria_produc ?? '';
+            return !$isServicioCat($cat) && !$isAlquilerCat($cat);
+        }) : collect();
+
+        $categoriasListaFiltrada = $productosFiltrados
+            ->pluck('categoria_produc')
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
+            ->values()
+            ->sort()
+            ->values();
+
+        // Preparar HTML de operaciones para dropdown (sin lógica en la vista)
+        $operacionesLista = collect($centros ?? [])
+            ->pluck('centro_nombre')
+            ->filter(fn($v)=> !empty($v))
+            ->unique()
+            ->sort()
+            ->values();
+        $operacionesOptionsHtml = $operacionesLista->map(function($op){
+            $val = e($op);
+            return '<div class="p-2 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded" data-value="'.$val.'" onclick="seleccionarOperacion(event,this)">'.$val.'</div>';
+        })->implode("\n");
+
+        // Preparar HTML de categorías para el modal 1
+        $categoriasOptionsHtml = $categoriasListaFiltrada->map(function($cat){
+            $txt = e($cat);
+            return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">'.$txt.'</div>';
+        })->implode("\n");
+
+        // Preparar HTML de productos para el modal 1
+        $productosOptionsHtml = $productosFiltrados->map(function($p){
+            $id = e($p->id);
+            $sku = e($p->sku ?? '');
+            $nombre = e($p->name_produc);
+            $proveedor = e($p->proveedor_id ?? '');
+            $categoria = e($p->categoria_produc);
+            $unidad = e($p->unit_produc);
+            $skuDisplay = e($p->sku ?? $p->id);
+            return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words" onclick="seleccionarOpcion(event, this, \'productoSelect\')" data-id="'.$id.'" data-sku="'.$sku.'" data-nombre="'.$nombre.'" data-proveedor="'.$proveedor.'" data-categoria="'.$categoria.'" data-unidad="'.$unidad.'">('.$skuDisplay.') '.$nombre.' ('.$unidad.')</div>';
+        })->implode("\n");
+
+        // Subcentros asignados al usuario para el modal 2
+        $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
+        $subcentrosUsuario = collect();
+        try {
+            if ($userEmail) {
+                $subcentrosUsuario = DB::table('userxsubcentro as ux')
+                    ->join('subcentros as s','s.id','=','ux.subcentro_id')
+                    ->leftJoin('centro as c','c.id','=','s.centro_id')
+                    ->whereNull('ux.deleted_at')
+                    ->where('ux.email_user', $userEmail)
+                    ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
+                    ->orderBy('c.name_centro')
+                    ->orderBy('s.name_subcentro')
+                    ->get();
+            }
+        } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
+        if ($subcentrosUsuario->isEmpty()) {
+            $subcentrosOptionsHtml = '<div class="p-2 text-gray-500">No tienes subcentros asignados.</div>';
+        } else {
+            $subcentrosOptionsHtml = $subcentrosUsuario->map(function($sc){
+                $id = e($sc->subcentro_id);
+                $nom = e($sc->name_subcentro);
+                $centro = trim((string)($sc->name_centro ?? ''));
+                $centroTxt = $centro !== '' ? ' ('.e($centro).')' : '';
+                return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="'.$id.'" data-nombre="'.$nom.'" onclick="seleccionarCentro(event, this)">'.$nom.$centroTxt.'</div>';
+            })->implode("\n");
+        }
+
+        return view('requisiciones.create', compact(
+            'centros', 'productosFiltrados', 'categoriasListaFiltrada', 'prefillData',
+            'operacionesOptionsHtml', 'categoriasOptionsHtml', 'productosOptionsHtml', 'subcentrosOptionsHtml'
+        ));
+    }
+
+    /**
+     * Mostrar formulario de creación de requisición (vista especial).
+     * @return \Illuminate\View\View
+     */
+    public function createEspecial()
+    {
+        // Cargar solo los subcentros asignados al usuario en sesión (por email)
+        $sessionEmail = session('user.email');
+        $asignados = collect();
+        if (!empty($sessionEmail)) {
+            try {
+                $ids = DB::table('userxsubcentro')
+                    ->where('email_user', $sessionEmail)
+                    ->whereNull('deleted_at')
+                    ->pluck('subcentro_id');
+
+                if ($ids && $ids->count() > 0) {
+                    $asignados = DB::table('subcentros as s')
+                        ->leftJoin('centro as c', 'c.id', '=', 's.centro_id')
+                        ->whereIn('s.id', $ids)
+                        ->whereNull('s.deleted_at')
+                        ->whereNull('c.deleted_at')
+                        ->select('s.id', 's.name_subcentro', 'c.id as centro_id', 'c.name_centro as centro_nombre')
+                        ->orderBy('s.name_subcentro')
+                        ->get()
+                        ->map(function ($r) {
+                            return (object) [
+                                'id' => $r->id,
+                                'name_centro' => trim(($r->name_subcentro ?? '') . (($r->centro_nombre ?? '') !== '' ? (' (' . $r->centro_nombre . ')') : '')),
+                                'centro_nombre' => (string)($r->centro_nombre ?? ''),
+                                'centro_id' => (int)($r->centro_id ?? 0),
+                            ];
+                        });
+                }
+            } catch (\Throwable $e) { /* noop */ }
+        }
+        $centros = $asignados;
+
+        // Catálogo de productos
+        $productos = Producto::all();
+
+        // Prefill desde ?from=ID (clonado de otra requisición)
+        $prefillData = null;
+        $fromId = request()->query('from');
+        if (!empty($fromId)) {
+            try {
+                $reqSrc = Requisicion::with('productos')->find($fromId);
+                if ($reqSrc) {
+                    $distRows = DB::table('centro_producto as cp')
+                        ->join('centro as c','c.id','=','cp.centro_id')
+                        ->where('cp.requisicion_id', $reqSrc->id)
+                        ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
+                        ->get();
+                    $distByProd = [];
+                    foreach ($distRows as $r) {
+                        $distByProd[$r->producto_id][] = [
+                            'id' => (string)$r->centro_id,
+                            'nombre' => $r->name_centro,
+                            'cantidad' => (int)$r->amount,
+                        ];
+                    }
+                    $prods = [];
+                    foreach ($reqSrc->productos as $p) {
+                        $prods[] = [
+                            'id' => (int)$p->id,
+                            'nombre' => $p->name_produc,
+                            'unidad' => $p->unit_produc,
+                            'proveedorId' => $p->proveedor_id ?? null,
+                            'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
+                            'centros' => $distByProd[$p->id] ?? [],
+                        ];
+                    }
+                    $prefillData = [
+                        'operacion_user' => $reqSrc->operacion_user ?? '',
+                        'Recobrable' => $reqSrc->Recobrable ?? '',
+                        'prioridad_requisicion' => $reqSrc->prioridad_requisicion ?? '',
+                        'justify_requisicion' => $reqSrc->justify_requisicion ?? '',
+                        'detail_requisicion' => $reqSrc->detail_requisicion ?? '',
+                        'productos' => $prods,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $prefillData = null;
+            }
+        }
+
+        // Filtros de categorías: solo Servicio/Alquiler para Especial
+        $normalizeCat = function($txt){
+            $t = mb_strtolower(trim((string)$txt), 'UTF-8');
+            $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
+            return $t;
+        };
+        $isServicioCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
+        };
+        $isAlquilerCat = function($txt) use ($normalizeCat){
+            $n = $normalizeCat($txt);
+            $compact = preg_replace('/[\s_\-]+/u','', $n);
+            return in_array($compact, ['alquiler','alquilers','alquileres'], true);
+        };
+
+        $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat, $isAlquilerCat){
+            $cat = $p->categoria_produc ?? '';
+            return $isServicioCat($cat) || $isAlquilerCat($cat);
+        }) : collect();
+
+        $categoriasListaFiltrada = $productosFiltrados
+            ->pluck('categoria_produc')
+            ->map(fn($c) => trim((string)$c))
+            ->filter()
+            ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
+            ->values()
+            ->sort()
+            ->values();
+
+        // HTML de operaciones (estilos ámbar para especial)
+        $operacionesLista = collect($centros ?? [])
+            ->pluck('centro_nombre')
+            ->filter(fn($v)=> !empty($v))
+            ->unique()
+            ->sort()
+            ->values();
+        $operacionesOptionsHtml = $operacionesLista->map(function($op){
+            $val = e($op);
+            return '<div class="p-2 hover:bg-amber-50 hover:text-amber-700 cursor-pointer rounded" data-value="'.$val.'" onclick="seleccionarOperacion(event,this)">'.$val.'</div>';
+        })->implode("\n");
+
+        // HTML de categorías (ámbar)
+        $categoriasOptionsHtml = $categoriasListaFiltrada->map(function($cat){
+            $txt = e($cat);
+            return '<div class="p-2 hover:bg-amber-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">'.$txt.'</div>';
+        })->implode("\n");
+
+        // HTML de productos (ámbar hover)
+        $productosOptionsHtml = $productosFiltrados->map(function($p){
+            $id = e($p->id);
+            $sku = e($p->sku ?? '');
+            $nombre = e($p->name_produc);
+            $proveedor = e($p->proveedor_id ?? '');
+            $categoria = e($p->categoria_produc);
+            $unidad = e($p->unit_produc);
+            $skuDisplay = e($p->sku ?? $p->id);
+            return '<div class="p-2 hover:bg-amber-100 cursor-pointer rounded whitespace-normal break-words" onclick="seleccionarOpcion(event, this, \'productoSelect\')" data-id="'.$id.'" data-sku="'.$sku.'" data-nombre="'.$nombre.'" data-proveedor="'.$proveedor.'" data-categoria="'.$categoria.'" data-unidad="'.$unidad.'">('.$skuDisplay.') '.$nombre.' ('.$unidad.')</div>';
+        })->implode("\n");
+
+        // Subcentros del usuario
+        $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
+        $subcentrosUsuario = collect();
+        try {
+            if ($userEmail) {
+                $subcentrosUsuario = DB::table('userxsubcentro as ux')
+                    ->join('subcentros as s','s.id','=','ux.subcentro_id')
+                    ->leftJoin('centro as c','c.id','=','s.centro_id')
+                    ->whereNull('ux.deleted_at')
+                    ->where('ux.email_user', $userEmail)
+                    ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
+                    ->orderBy('c.name_centro')
+                    ->orderBy('s.name_subcentro')
+                    ->get();
+            }
+        } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
+        $subcentrosOptionsHtml = $subcentrosUsuario->isEmpty()
+            ? '<div class="p-2 text-gray-500">No tienes subcentros asignados.</div>'
+            : $subcentrosUsuario->map(function($sc){
+                $id = e($sc->subcentro_id);
+                $nom = e($sc->name_subcentro);
+                $centro = trim((string)($sc->name_centro ?? ''));
+                $centroTxt = $centro !== '' ? ' ('.e($centro).')' : '';
+                return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="'.$id.'" data-nombre="'.$nom.'" onclick="seleccionarCentro(event, this)">'.$nom.$centroTxt.'</div>';
+            })->implode("\n");
+
+        return view('requisiciones.especial', compact(
+            'centros', 'productosFiltrados', 'categoriasListaFiltrada', 'prefillData',
+            'operacionesOptionsHtml', 'categoriasOptionsHtml', 'productosOptionsHtml', 'subcentrosOptionsHtml'
+        ));
     }
 
     /**
@@ -223,6 +542,16 @@ class RequisicionController extends Controller
 
             DB::commit();
 
+            $reqModel = $requisicion ?? ($req ?? null) ?? ($requisicionActualizada ?? null) ?? null;
+            try {
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $reqModel->operacion_user ?? 'Usuario';
+                    RequisicionCorregidaJob::dispatch($reqModel, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de requisición corregida: '.$e->getMessage());
+            }
+
             return redirect()->route('requisiciones.historial')->with('success', 'Requisición corregida y enviada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -244,14 +573,11 @@ class RequisicionController extends Controller
             'prioridad_requisicion' => 'required|in:baja,media,alta',
             'justify_requisicion' => 'required|string|min:3|max:500',
             'detail_requisicion' => 'required|string|min:3|max:1000',
-
             'productos' => 'required|array|min:1',
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.requisicion_amount' => 'required|integer|min:1',
-
             'productos.*.centros' => 'required|array|min:1',
-            // permitir id de centro o subcentro; se resolverá al centro
             'productos.*.centros.*.id' => 'required|integer|min:1',
             'productos.*.centros.*.cantidad' => 'required|integer|min:1',
         ], [
@@ -261,7 +587,6 @@ class RequisicionController extends Controller
         ]);
 
         DB::beginTransaction();
-
         try {
             $totalRequisicion = 0;
             foreach ($validated['productos'] as $prod) {
@@ -277,7 +602,6 @@ class RequisicionController extends Controller
             $userId = session('user.id');
             $nombreUsuario = session('user.name', 'Usuario Desconocido');
             $emailUsuario = session('user.email', 'email@desconocido.com');
-            // Obtener operación desde el formulario (ya validada) en lugar de la sesión
             $operacionUsuario = trim($validated['operacion_user']);
 
             $requisicion = new Requisicion();
@@ -290,24 +614,32 @@ class RequisicionController extends Controller
             $requisicion->justify_requisicion = $validated['justify_requisicion'];
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
-            $requisicion->type = 'Normal';
+            $requisicion->type = $request->input('type', 'Normal');
             $requisicion->save();
 
-            $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
-            if ($estatusInicial) {
+            // Estatus inicial: 4 si es Especial, de lo contrario 'Requisición creada'
+            if (strtolower((string)$requisicion->type) === 'especial') {
                 Estatus_Requisicion::create([
                     'requisicion_id' => $requisicion->id,
-                    'estatus_id'     => $estatusInicial->id,
+                    'estatus_id'     => 4,
                     'estatus'        => 1,
                     'date_update'    => now(),
                 ]);
+            } else {
+                $estatusInicial = Estatus::where('status_name', 'Requisición creada')->first();
+                if ($estatusInicial) {
+                    Estatus_Requisicion::create([
+                        'requisicion_id' => $requisicion->id,
+                        'estatus_id'     => $estatusInicial->id,
+                        'estatus'        => 1,
+                        'date_update'    => now(),
+                    ]);
+                }
             }
 
             foreach ($validated['productos'] as $prod) {
                 $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
-                $requisicion->productos()->attach($prod['id'], [
-                    'pr_amount' => $cantidadTotalCentros
-                ]);
+                $requisicion->productos()->attach($prod['id'], [ 'pr_amount' => $cantidadTotalCentros ]);
 
                 foreach ($prod['centros'] as $centro) {
                     $cidInput = (int)($centro['id'] ?? 0);
@@ -329,13 +661,42 @@ class RequisicionController extends Controller
             }
 
             DB::commit();
-
             RequisicionCreadaJob::dispatch($requisicion, $nombreUsuario);
 
+            // Encolar correo si es una requisición especial
+            try {
+                $tipo = strtolower((string)($request->input('type') ?? ($requisicion->type ?? '')));
+                if ($requisicion instanceof \App\Models\Requisicion && $tipo === 'especial') {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $request->input('operacion_user') ?? 'Usuario';
+                    RequisicionEspecialCreadaJob::dispatch($requisicion, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de requisición especial: '.$e->getMessage());
+            }
+
+            $reqModel = $requisicion ?? ($req ?? null) ?? ($requisicionGuardada ?? null) ?? null;
+            try {
+                $tipo = strtolower((string)($request->input('type') ?? ($reqModel->type ?? '')));
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    if ($tipo === 'especial') {
+                        // ...existing dispatch especial (ya agregado anteriormente)...
+                    } else {
+                        // Requisición normal: correo a área de compras para revisión
+                        RequisicionRevisionComprasJob::dispatch($reqModel);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de revisión compras: '.$e->getMessage());
+            }
+
+            if (strtolower((string)$requisicion->type) === 'especial') {
+                return redirect()->route('requisiciones.especial')->with('success', 'Requisición especial creada correctamente.');
+            }
             return redirect()->route('requisiciones.create')->with('success', 'Requisición creada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            return back()->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
+            $route = strtolower((string)$request->input('type')) === 'especial' ? 'requisiciones.especial' : 'requisiciones.create';
+            return redirect()->route($route)->withInput()->withErrors(['error' => 'Error al crear la requisición: ' . $e->getMessage()]);
         }
     }
 
@@ -509,10 +870,19 @@ class RequisicionController extends Controller
                 'estatus_id'     => 6,
                 'estatus'        => 1,
                 'date_update'    => now(),
-                'comentario'     => 'Cancelada por el solicitante'
             ]);
 
             DB::commit();
+
+            try {
+                $reqModel = $requisicion ?? (\App\Models\Requisicion::find($id) ?: null);
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    $nombre = session('user.name') ?? session('user.nombre') ?? session('user_name') ?? $reqModel->operacion_user ?? 'Usuario';
+                    RequisicionCanceladaJob::dispatch($reqModel, (string)$nombre);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de cancelación: '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -569,6 +939,16 @@ class RequisicionController extends Controller
             ]);
 
             DB::commit();
+
+            // Enviar correo de revisión al reenviar
+            try {
+                $reqModel = $requisicion ?? (\App\Models\Requisicion::find($id) ?: null);
+                if ($reqModel instanceof \App\Models\Requisicion) {
+                    RequisicionRevisionComprasJob::dispatch($reqModel);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo encolar correo de revisión (reenviar): '.$e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,

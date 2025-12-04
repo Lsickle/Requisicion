@@ -76,14 +76,13 @@ class EstatusRequisicionController extends Controller
             ->whereHas('ultimoEstatus', fn($q)=> $q->whereIn('estatus_id',$watchStatuses))
             ->orderBy('created_at','desc')->get();
 
-        // Filtrar por operaciones que corresponden al rol del usuario (con excepciones por nombre en Financiero)
+        // Filtrar por operaciones según roles
         $requisicionesFiltradas = $requisiciones->filter(function($req) use ($hasAreaCompras,$userRolesNorm,$operacionRoleMap,$hasGerenteFinanciero,$hasAdmin){
-            if ($hasAdmin) return true; // Admin ve todas
+            if ($hasAdmin) return true;
             $estatusActual = optional($req->ultimoEstatus)->estatus_id;
-            if ($estatusActual==1) return $hasAreaCompras; // sólo Área de compras
+            if ($estatusActual==1) return $hasAreaCompras;
             if ($estatusActual==2) {
                 $op = $req->operacion_user; if(!$op) return false;
-                // Determinar roles permitidos para etapa 2 (excepciones en Financiero)
                 $opNorm = mb_strtolower(trim($op), 'UTF-8');
                 $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
                 $nameNorm = mb_strtolower(trim($req->name_user ?? ''), 'UTF-8');
@@ -97,7 +96,6 @@ class EstatusRequisicionController extends Controller
                     if (!isset($operacionRoleMap[$op])) return false;
                     $allowedStage2 = [ mb_strtolower($operacionRoleMap[$op],'UTF-8') ];
                 }
-                // Mostrar si el usuario posee cualquiera de los roles permitidos
                 return count(array_intersect($userRolesNorm, $allowedStage2)) > 0;
             }
             if ($estatusActual==3) {
@@ -108,7 +106,7 @@ class EstatusRequisicionController extends Controller
             return false;
         })->values();
 
-        // Cargar proveedores (productoxproveedor) y datos derivados por cada producto en cada requisición
+        // Preparar datos derivados de proveedores y distribución (ya existente)
         foreach ($requisicionesFiltradas as $req) {
             foreach ($req->productos as $prod) {
                 try {
@@ -121,10 +119,8 @@ class EstatusRequisicionController extends Controller
                         ->get();
                 } catch (\Throwable $e) { $provList = collect(); }
 
-                // usar método local de conversión a COP
-                $self = $this;
-                $provJson = $provList->map(function($pv) use ($self) {
-                    $priceCop = $self->convertToCop($pv->price_produc ?? 0, $pv->moneda ?? 'COP');
+                $provJson = $provList->map(function($pv) {
+                    $priceCop = $this->convertToCop($pv->price_produc ?? 0, $pv->moneda ?? 'COP');
                     return [
                         'id' => $pv->id ?? null,
                         'prov_name' => $pv->prov_name ?? null,
@@ -143,14 +139,8 @@ class EstatusRequisicionController extends Controller
                 $selProvId = $selProv->id ?? ($prod->pivot->proveedor_id ?? $prod->pivot->prov_id ?? $prod->proveedor_id ?? null);
                 $selPrice = isset($selProv) ? (float)($selProv->price_produc ?? 0) : ($prod->pivot->price_produc ?? $prod->pivot->price ?? $prod->price_produc ?? 0);
                 $selProvName = $selProv->prov_name ?? null;
-                // moneda del precio seleccionado (original)
-                $selCurrency = null;
-                if ($selProv && isset($selProv->moneda)) { $selCurrency = strtoupper(trim($selProv->moneda)); }
-                elseif (isset($prod->pivot->moneda)) { $selCurrency = strtoupper(trim($prod->pivot->moneda)); }
-                else { $selCurrency = 'COP'; }
-                // precio convertido a COP (usado para cálculos totales)
+                $selCurrency = $selProv? strtoupper(trim($selProv->moneda ?? 'COP')) : (isset($prod->pivot->moneda)? strtoupper(trim($prod->pivot->moneda)): 'COP');
                 $selPriceCop = $this->convertToCop($selPrice, $selCurrency);
-
                 $distribucion = DB::table('centro_producto')
                     ->where('requisicion_id', $req->id)
                     ->where('producto_id', $prod->id)
@@ -158,7 +148,7 @@ class EstatusRequisicionController extends Controller
                     ->select('centro.name_centro', 'centro_producto.amount')
                     ->get();
 
-                // Adjuntar propiedades que la vista usaba directamente
+                // Anexar propiedades para vista
                 $prod->provList = $provList;
                 $prod->provJson = $provJson;
                 $prod->pivotPxpId = $pivotPxpId;
@@ -171,16 +161,189 @@ class EstatusRequisicionController extends Controller
             }
         }
 
-        // Opciones (se mantienen para compatibilidad; la vista ahora calcula por requisición)
+        // Calcular opciones siguientes de estatus (mantener lógica existente)
         $nextOptions = collect();
         if ($hasAreaCompras) { $nextOptions = Estatus::whereIn('id',[2,9])->pluck('status_name','id'); }
         elseif (in_array(2,$watchStatuses)) { $nextOptions = Estatus::whereIn('id',[3,9])->pluck('status_name','id'); }
-        if (in_array(3,$watchStatuses)) { // sobrescribe para etapa 3 cuando aplica (gerente financiero o director contable)
-            $nextOptions = Estatus::whereIn('id',[4,9])->pluck('status_name','id');
+        if (in_array(3,$watchStatuses)) { $nextOptions = Estatus::whereIn('id',[4,9])->pluck('status_name','id'); }
+
+        // Flags globales para vista
+        $isComprasOrAdminGlobal = $hasAreaCompras || $hasAdmin;
+
+        // Generar HTML preprocesado para la vista (tabla escritorio, móvil y modales)
+        $desktopRowsHtml = [];
+        $mobileCardsHtml = [];
+        $modalsHtml = [];
+
+        foreach ($requisicionesFiltradas as $req) {
+            $estatusActual = optional($req->ultimoEstatus)->estatus_id ?? null;
+            $prioLower = mb_strtolower($req->prioridad_requisicion,'UTF-8');
+            $badgeClass = $prioLower === 'alta'
+                ? 'bg-red-100 text-red-700 ring-1 ring-red-200'
+                : ($prioLower === 'media' ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' : 'bg-green-100 text-green-700 ring-1 ring-green-200');
+
+            // Fila escritorio
+            $desktopRowsHtml[] = '<tr class="aprob-item border-b last:border-0 odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition" data-id="'.$req->id.'">'
+                .'<td class="px-4 py-3 font-medium text-gray-700">'.$req->id.'</td>'
+                .'<td class="px-4 py-3 text-gray-700">'.e($req->detail_requisicion).'</td>'
+                .'<td class="px-4 py-3"><span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold tracking-wide '.$badgeClass.'"><i class="fas fa-flag"></i> '.e(ucfirst($req->prioridad_requisicion)).'</span></td>'
+                .'<td class="px-4 py-3 text-gray-700">'.e($req->name_user).'</td>'
+                .'<td class="px-4 py-3 text-center"><button onclick="toggleModal(\'modal-'.$req->id.'\')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 shadow-sm transition">Ver</button></td>'
+                .'</tr>';
+
+            // Tarjeta móvil
+            $mobileCardsHtml[] = '<div class="aprob-item bg-white rounded-xl border border-slate-200 shadow-sm p-4" data-id="'.$req->id.'">'
+                .'<h2 class="font-bold text-sm mb-2 text-gray-800">#'.$req->id.' - '.e($req->detail_requisicion).'</h2>'
+                .'<p class="text-xs text-gray-600"><strong>Solicitante:</strong> '.e($req->name_user).'</p>'
+                .'<p class="text-xs text-gray-600 mt-1"><strong>Prioridad:</strong> '.e(ucfirst($req->prioridad_requisicion)).'</p>'
+                .'<div class="mt-3"><button onclick="toggleModal(\'modal-'.$req->id.'\')" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition">Ver</button></div>'
+                .'</div>';
+
+            // Productos dentro del modal
+            $totalGeneral = 0.0;
+            $productosRows = [];
+            foreach ($req->productos as $prod) {
+                $cantidad = (float)($prod->pivot->pr_amount ?? 0);
+                $provList = $prod->provList ?? collect();
+                $provJson = $prod->provJson ?? collect();
+                $pivotPxpId = $prod->pivotPxpId ?? ($prod->pivot->id_productoxproveedor ?? null);
+                $selProvId = $prod->selProvId ?? null;
+                $selProvName = $prod->selProvName ?? null;
+                $selPrice = (float)($prod->selPrice ?? 0);
+                $selCurrency = $prod->selCurrency ?? 'COP';
+                $selPriceCop = (float)($prod->selPriceCop ?? $selPrice);
+
+                // localizar selección mínimo para fallback visual
+                $selectedName = $selProvName ?: 'Proveedor';
+                $pxpId = $pivotPxpId;
+                $totalProd = round(($selPrice ?: 0) * $cantidad,2);
+                $totalGeneral = round($totalGeneral + $totalProd,2);
+                $distribucion = $prod->distribucion ?? collect();
+
+                // Distribución HTML
+                $distHtml = '';
+                if ($distribucion->count() > 0) {
+                    $distHtml .= '<div class="space-y-2 max-h-56 overflow-y-auto pr-1 thin-scrollbar">';
+                    foreach ($distribucion as $centro) {
+                        $distHtml .= '<div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded border border-gray-100"><span class="font-medium text-xs truncate text-gray-700">'.e($centro->name_centro).'</span><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-bold">'.e($centro->amount).'</span></div>';
+                    }
+                    $distHtml .= '</div>';
+                } else {
+                    $distHtml = '<span class="text-gray-500 text-xs">No hay distribución registrada</span>';
+                }
+
+                // Proveedor HTML según etapa y rol
+                $estatusActualLocal = (int)$estatusActual;
+                $proveedorHtml = '';
+                if ($isComprasOrAdminGlobal && $estatusActualLocal === 1) {
+                    if ($provList->count() === 1) {
+                        $only = $provJson->first();
+                        $proveedorHtml = '<div class="flex flex-col items-start gap-1">'
+                            .'<div class="w-full bg-green-50 border border-green-100 rounded-md p-2">'
+                            .'<div class="text-sm font-semibold text-green-800">'.e($only['prov_name'] ?? 'Proveedor').'</div>'
+                            .'<div class="text-xs text-gray-600">'.number_format($only['price_produc'] ?? 0,2,',','.').' '.e($only['moneda'] ?? 'COP').'</div>'
+                            .'</div>'
+                            .'<select class="prov-select hidden" name="prov_select['.$prod->id.']" data-req="'.$req->id.'" data-prod="'.$prod->id.'" data-qty="'.$cantidad.'">'
+                            .'<option value="'.e($only['pxp_id'] ?? '').'" data-prov-id="'.e($only['id'] ?? '').'" data-price="'.(float)($only['price_cop'] ?? ($only['price_produc'] ?? 0)).'" data-price-original="'.(float)($only['price_produc'] ?? 0).'" data-currency-original="'.e($only['moneda'] ?? 'COP').'" selected>'.e($only['prov_name'] ?? 'Proveedor').'</option>'
+                            .'</select>'
+                            .'</div>';
+                    } else {
+                        $proveedorHtml = '<div class="flex flex-col items-start gap-2">'
+                            .'<button type="button" title="Seleccionar proveedor" class="open-prov-modal-btn inline-flex items-center gap-2 px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white" data-providers="'.e(json_encode($provJson)).'" data-req="'.$req->id.'" data-prod="'.$prod->id.'" data-selected="'.e($pxpId ?? '').'" aria-label="Seleccionar proveedor">'
+                            .'<i class="fas fa-store"></i><span class="text-sm font-medium">Seleccionar proveedor</span>'
+                            .'</button>'
+                            .'<div class="mt-1 w-56"><div id="selprov-name-'.$req->id.'-'.$prod->id.'" class="text-sm font-semibold truncate">'.e($selectedName ?? 'No seleccionado').'</div></div>'
+                            .'</div>';
+                        // select oculto
+                        $proveedorHtml .= '<select class="prov-select hidden" name="prov_select['.$prod->id.']" data-req="'.$req->id.'" data-prod="'.$prod->id.'" data-qty="'.$cantidad.'">'
+                            .'<option value="">Seleccione</option>';
+                        foreach ($provJson as $pvj) {
+                            $selAttr = ($pxpId && $pxpId == $pvj['pxp_id']) ? ' selected' : '';
+                            $proveedorHtml .= '<option value="'.$pvj['pxp_id'].'" data-prov-id="'.$pvj['id'].'" data-price="'.(float)($pvj['price_cop'] ?? ($pvj['price_produc'] ?? 0)).'" data-price-original="'.(float)($pvj['price_produc'] ?? 0).'" data-currency-original="'.e($pvj['moneda'] ?? 'COP').'"'.$selAttr.'>'.e($pvj['prov_name']).' ('.number_format($pvj['price_produc'],2,',','.').' '.e($pvj['moneda']).')</option>';
+                        }
+                        $proveedorHtml .= '</select>';
+                    }
+                } else {
+                    $proveedorHtml = '<div class="text-sm truncate">'.e($selectedName ?? 'Proveedor').'</div>';
+                    if ($pxpId) {
+                        $proveedorHtml .= '<select class="prov-select hidden" name="prov_select['.$prod->id.']" data-req="'.$req->id.'" data-prod="'.$prod->id.'" data-qty="'.$cantidad.'">'
+                            .'<option value="'.$pxpId.'" data-prov-id="'.e($selProvId).'" data-price="'.(float)$selPriceCop.'" data-price-original="'.(float)$selPrice.'" data-currency-original="'.e($selCurrency).'" selected>'.e($selectedName ?? 'Proveedor').'</option>'
+                            .'</select>';
+                    }
+                }
+
+                $productosRows[] = '<tr class="align-top bg-white hover:bg-indigo-50/40 transition" data-req="'.$req->id.'" data-prod="'.$prod->id.'" data-pxp-id="'.e($pxpId).'">'
+                    .'<td class="px-4 py-3 font-medium text-gray-800">'.e($prod->name_produc).'</td>'
+                    .'<td class="w-20 px-2 py-3 text-center font-semibold text-gray-700">'.number_format($cantidad,0,',','.').'</td>'
+                    .'<td class="w-36 px-2 py-3 align-top text-gray-700">'.$proveedorHtml.'</td>'
+                    .'<td class="px-4 py-3 text-right text-gray-700"><div class="text-xs font-medium" id="precio-'.$req->id.'-'.$prod->id.'">'.number_format($selPrice,2,',','.').' '.e($selCurrency).'</div><div class="text-[11px] text-gray-500" id="preciocop-'.$req->id.'-'.$prod->id.'">'.number_format($selPriceCop,2,',','.').' COP</div></td>'
+                    .'<td class="px-4 py-3 text-right font-semibold text-gray-800"><span class="total-cell" id="total-'.$req->id.'-'.$prod->id.'">'.number_format($totalProd,2,',','.').'</span> COP</td>'
+                    .'<td class="px-4 py-3">'.$distHtml.'</td>'
+                    .'</tr>';
+            }
+
+            // Lógica de aprobación especial
+            $opNorm = mb_strtolower(trim($req->operacion_user ?? ''), 'UTF-8');
+            $opNorm = strtr($opNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            $nameNorm = mb_strtolower(trim($req->name_user ?? ''), 'UTF-8');
+            $nameNorm = strtr($nameNorm, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u']);
+            $especial = in_array($opNorm, ['financiero','financiera']) && !in_array($nameNorm, ['linda lozano','zelena mendoza']);
+            $estatusAprobar = null;
+            if ($estatusActual === 1) { $estatusAprobar = $especial ? 3 : 2; }
+            elseif ($estatusActual === 2) { $estatusAprobar = 3; }
+            elseif ($estatusActual === 3) { $estatusAprobar = 4; }
+            $estatusRechazar = 9;
+            $requiresProviders = ($isComprasOrAdminGlobal && (int)$estatusActual === 1) ? '1' : '0';
+
+            // Modal HTML completo
+            $modalsHtml[] = '<div id="modal-'.$req->id.'" data-estatus-actual="'.$estatusActual.'" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">'
+                .'<div class="bg-white rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 w-full max-w-4xl max-h-[90vh] flex flex-col">'
+                .'<div class="flex-1 overflow-y-auto p-6 relative thin-scrollbar">'
+                .'<button onclick="toggleModal(\'modal-'.$req->id.'\')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>'
+                .'<h2 class="text-2xl font-bold mb-5 text-gray-800">Requisición #'.$req->id.'</h2>'
+                .'<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">'
+                .'<div class="bg-gray-50 p-4 rounded-lg border border-gray-200">'
+                .'<h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2"><i class="fas fa-user text-indigo-600"></i> Información del Solicitante</h3>'
+                .'<p class="text-sm"><strong>Nombre:</strong> '.e($req->name_user).'</p>'
+                .'<p class="text-sm"><strong>Email:</strong> '.e($req->email_user).'</p>'
+                .'<p class="text-sm"><strong>Operación:</strong> '.e($req->operacion_user).'</p>'
+                .'<p class="text-sm"><strong>Prioridad:</strong> '.e(ucfirst($req->prioridad_requisicion)).'</p>'
+                .'</div>'
+                .'<div class="bg-gray-50 p-4 rounded-lg border border-gray-200">'
+                .'<h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2"><i class="fas fa-info-circle text-indigo-600"></i> Detalles de la Requisición</h3>'
+                .'<p class="text-sm"><strong>Detalle:</strong> '.e($req->detail_requisicion).'</p>'
+                .'<p class="text-sm"><strong>Justificación:</strong> '.e($req->justify_requisicion).'</p>'
+                .'</div>'
+                .'</div>'
+                .'<h3 class="text-xl font-semibold mb-4 text-gray-800">Productos</h3>'
+                .'<div class="overflow-x-auto rounded-lg border border-slate-200 thin-scrollbar">'
+                .'<table class="min-w-full text-sm">'
+                .'<thead class="bg-indigo-50 text-indigo-900 sticky top-0 z-10">'
+                .'<tr class="border-b border-indigo-100"><th class="px-4 py-2 text-left">Producto</th><th class="w-20 px-2 py-2 text-center">Cant</th><th class="w-32 px-2 py-2 text-left">Proveedor</th><th class="px-4 py-2 text-right">Precio</th><th class="px-4 py-2 text-right">Total</th><th class="px-4 py-2 text-left">Distribución por Centros</th></tr>'
+                .'</thead>'
+                .'<tbody class="divide-y divide-slate-100">'.implode('', $productosRows).'</tbody>'
+                .'<tfoot class="bg-indigo-50"><tr><td class="px-4 py-3 text-right font-semibold" colspan="4">Total general</td><td class="px-4 py-3 text-right font-bold text-indigo-900"><span id="total-general-'.$req->id.'">'.number_format($totalGeneral,2,',','.').'</span> COP</td><td></td></tr></tfoot>'
+                .'</table>'
+                .'</div>'
+                .'</div>'
+                .'<div class="flex justify-end gap-2 p-4 border-t bg-gray-50 rounded-b-2xl">'
+                .($estatusAprobar ? '<button class="status-btn bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 shadow-sm transition" data-id="'.$req->id.'" data-estatus="'.$estatusAprobar.'" data-action="aprobar" data-estatus-actual="'.$estatusActual.'" data-requires-providers="'.$requiresProviders.'">Aprobar</button>' : '')
+                .'<button class="status-btn bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 shadow-sm transition" data-id="'.$req->id.'" data-estatus="'.$estatusRechazar.'" data-action="rechazar">Rechazar</button>'
+                .'</div>'
+                .'</div>'
+                .'</div>';
         }
 
         Log::info('Aprobacion index debug', [ 'watch_statuses'=>$watchStatuses,'filtered_reqs'=>$requisicionesFiltradas->count(), 'admin'=>$hasAdmin ]);
-        return view('requisiciones.aprobacion',[ 'requisiciones'=>$requisiciones,'requisicionesFiltradas'=>$requisicionesFiltradas,'estatusOptions'=>$nextOptions ]);
+
+        return view('requisiciones.aprobacion',[
+            'requisiciones' => $requisiciones,
+            'requisicionesFiltradas' => $requisicionesFiltradas,
+            'estatusOptions' => $nextOptions,
+            'desktopRowsHtml' => $desktopRowsHtml,
+            'mobileCardsHtml' => $mobileCardsHtml,
+            'modalsHtml' => $modalsHtml,
+        ]);
     }
 
     public function show($id)

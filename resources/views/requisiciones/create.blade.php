@@ -1,89 +1,28 @@
 @extends('layouts.app')
 
 @section('title', 'Crear Requisición')
+{{--
+    Vista: Crear Requisición
+    - Datos de prellenado ($prefillData), catálogo filtrado ($productosFiltrados) y categorías ($categoriasListaFiltrada) provienen del controlador.
+--}}
 @section('content')
-@php
-    $prefillData = null;
-    $fromId = request()->query('from');
-    if (!empty($fromId)) {
-        try {
-            $__req = \App\Models\Requisicion::with('productos')->find($fromId);
-            if ($__req) {
-                $distRows = DB::table('centro_producto as cp')
-                    ->join('centro as c','c.id','=','cp.centro_id')
-                    ->where('cp.requisicion_id', $__req->id)
-                    ->select('cp.producto_id','cp.centro_id','cp.amount','c.name_centro')
-                    ->get();
-                $distByProd = [];
-                foreach ($distRows as $r) {
-                    $distByProd[$r->producto_id][] = [
-                        'id' => (string)$r->centro_id,
-                        'nombre' => $r->name_centro,
-                        'cantidad' => (int)$r->amount,
-                    ];
-                }
-                $prods = [];
-                foreach ($__req->productos as $p) {
-                    $prods[] = [
-                        'id' => (int)$p->id,
-                        'nombre' => $p->name_produc,
-                        'unidad' => $p->unit_produc,
-                        'proveedorId' => $p->proveedor_id ?? null,
-                        'cantidadTotal' => (int)($p->pivot->pr_amount ?? 0),
-                        'centros' => $distByProd[$p->id] ?? [],
-                    ];
-                }
-                $prefillData = [
-                    'operacion_user' => $__req->operacion_user ?? '',
-                    'Recobrable' => $__req->Recobrable ?? '',
-                    'prioridad_requisicion' => $__req->prioridad_requisicion ?? '',
-                    'justify_requisicion' => $__req->justify_requisicion ?? '',
-                    'detail_requisicion' => $__req->detail_requisicion ?? '',
-                    'productos' => $prods,
-                ];
-            }
-        } catch (\Throwable $e) {
-            $prefillData = null;
-        }
-    }
-@endphp
-@php
-    // Normalizador general y detector de categorías de servicio (servicio/servicios, con o sin guiones, case-insensitive)
-    $normalizeCat = function($txt){
-        $t = mb_strtolower(trim((string)$txt), 'UTF-8');
-        $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ä'=>'a','ë'=>'e','ï'=>'i','ö'=>'o','ü'=>'u','ñ'=>'n']);
-        return $t;
-    };
-    $isServicioCat = function($txt) use ($normalizeCat){
-        $n = $normalizeCat($txt);
-        $compact = preg_replace('/[\s_\-]+/u','', $n);
-        return in_array($compact, ['servicio','servicios','servicioservicio','servicioservicios'], true);
-    };
-    $productosFiltrados = isset($productos) ? $productos->filter(function($p) use ($isServicioCat){
-        return !$isServicioCat($p->categoria_produc ?? '');
-    }) : collect();
-    // Categorías únicas filtradas preservando primera presentación
-    $categoriasListaFiltrada = $productosFiltrados
-        ->pluck('categoria_produc')
-        ->map(fn($c) => trim((string)$c))
-        ->filter()
-        ->mapWithKeys(function($c) use ($normalizeCat){ return [$normalizeCat($c) => $c]; })
-        ->values()
-        ->sort()
-        ->values();
-@endphp
 <x-sidebar />
+<div class="min-h-screen">
 <div class="max-w-5xl mx-auto p-6 mt-20">
-    <div class="bg-white shadow-xl rounded-2xl p-6">
-        <div class="flex justify-center items-center gap-8 py-4 mb-8">
-            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
-            <h1 class="text-3xl font-bold text-gray-700">Crear Requisición</h1>
+    <div class="bg-white/95 shadow-2xl rounded-2xl p-6 border-2 border-indigo-300 ring-1 ring-indigo-200">
+        {{-- Encabezado visual de la tarjeta (logo y título) --}}
+        <div class="flex justify-center items-center gap-6 py-4 mb-6">
+            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-14 w-auto">
+            <div class="flex flex-col">
+                <h1 class="text-3xl font-extrabold text-gray-700 tracking-tight">Crear Requisición</h1>
+            </div>
         </div>
 
+        {{-- Alertas emergentes vía SweetAlert para success y errors (renderizadas al cargar) --}}
         @if (session('success'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK' });
+                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
         </script>
         @endif
@@ -91,42 +30,32 @@
         @if ($errors->any())
         <script>
             window.addEventListener('DOMContentLoaded', () => {
-                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK' });
+                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
         </script>
         @endif
 
+        {{-- Formulario principal: datos de cabecera y tabla de productos con distribución --}}
+        {{-- El botón "+ Añadir Producto" abre el primer modal para seleccionar y configurar el producto --}}
         <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
             @csrf
 
             <!-- Campo Operación con búsqueda -->
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Centro de costo</label>
+                <label class="block text-gray-700 font-semibold mb-1">Centro de costo</label>
                 <div class="relative">
-                    <input type="text" id="operacionFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
+                    <input type="text" id="operacionFilter" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
                     <input type="hidden" name="operacion_user" id="operacionSelect" value="{{ old('operacion_user') }}" required>
-                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
-                        @php
-                            $operacionesLista = collect($centros ?? [])
-                                ->pluck('centro_nombre')
-                                ->filter(fn($v)=> !empty($v))
-                                ->unique()
-                                ->sort()
-                                ->values();
-                        @endphp
-                        @forelse($operacionesLista as $op)
-                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
-                        @empty
-                            <div class="p-2 text-gray-500">No hay centros de costo asignados.</div>
-                        @endforelse
+                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-indigo-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
+                        {!! $operacionesOptionsHtml !!}
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
-                    <select name="Recobrable" class="w-full border rounded-lg p-2" required>
+                    <label class="block text-gray-700 font-semibold mb-1">Recobrable</label>
+                    <select name="Recobrable" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>
                         <option value="">-- Selecciona --</option>
                         <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable
                         </option>
@@ -135,8 +64,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Prioridad</label>
-                    <select name="prioridad_requisicion" class="w-full border rounded-lg p-2" required>
+                    <label class="block text-gray-700 font-semibold mb-1">Prioridad</label>
+                    <select name="prioridad_requisicion" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>
                         <option value="">-- Selecciona --</option>
                         <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja</option>
                         <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media
@@ -147,30 +76,27 @@
             </div>
 
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Justificación</label>
-                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('justify_requisicion') }}</textarea>
+                <label class="block text-gray-700 font-semibold mb-1">Justificación</label>
+                <textarea name="justify_requisicion" rows="3" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>{{ old('justify_requisicion') }}</textarea>
             </div>
 
             <div>
-                <label class="block text-gray-600 font-semibold mb-1">Detalles Adicionales</label>
-                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('detail_requisicion') }}</textarea>
+                <label class="block text-gray-700 font-semibold mb-1">Detalles Adicionales</label>
+                <textarea name="detail_requisicion" rows="3" class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400" required>{{ old('detail_requisicion') }}</textarea>
             </div>
 
-            <hr class="my-4">
+            <hr class="my-4 border-indigo-200">
 
             <div class="flex justify-between items-center">
                 <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
-                <button type="button" id="abrirModalBtn"
-                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
+                <button type="button" id="abrirModalBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-300">
                     + Añadir Producto
                 </button>
             </div>
 
             <div class="overflow-x-auto">
-                <table id="productosTable" class="w-full border border-gray-200 rounded-lg overflow-hidden mt-3">
-                    <thead class="bg-gray-100 text-gray-600 text-left">
+                <table id="productosTable" class="w-full border border-indigo-200 rounded-lg overflow-hidden mt-3">
+                    <thead class="bg-indigo-50 text-indigo-800 text-left">
                         <tr>
                             <th class="p-3">Producto</th>
                             <th class="p-3">Cantidad Total</th>
@@ -183,15 +109,18 @@
             </div>
 
             <div class="flex justify-end">
-                <button type="submit" id="submitBtn"
-                    class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
+                <button type="submit" id="submitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700 focus:ring-2 focus:ring-green-300">
                     Guardar Requisición
                 </button>
             </div>
         </form>
     </div>
 </div>
+</div>
 
+{{-- Modal 1: Selección de Producto
+     - Busca y filtra por categoría y nombre de producto (excluye servicio/alquiler).
+     - Permite definir la cantidad total a distribuir y ver la unidad del producto. --}}
 <!-- Modal 1: Selección de Producto -->
 <div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
@@ -206,14 +135,7 @@
                 <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
                 <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
                 <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
-                    @php
-                        $categoriasUnicas = $categoriasListaFiltrada;
-                    @endphp
-                    @foreach ($categoriasUnicas as $categoria)
-                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
-                        {{ $categoria }}
-                    </div>
-                    @endforeach
+                    {!! $categoriasOptionsHtml !!}
                 </div>
             </div>
             <div>
@@ -230,26 +152,21 @@
             <label class="block text-gray-600 font-semibold mb-1">Producto</label>
             <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
             <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                @foreach ($productosFiltrados as $p)
-                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
-                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                    data-sku="{{ $p->sku ?? '' }}" data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
-                    data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                    ({{ $p->sku ?? $p->id }}) {{ $p->name_produc }} ({{ $p->unit_produc }})
-                </div>
-                @endforeach
+                {!! $productosOptionsHtml !!}
             </div>
         </div>
 
         <div class="flex justify-end mt-6">
-            <button type="button" id="siguienteModalBtn"
-                class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+            <button type="button" id="siguienteModalBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                 Siguiente <i class="ml-1 fas fa-arrow-right"></i>
             </button>
         </div>
     </div>
 </div>
 
+{{-- Modal 2: Distribución por Centros de Costo
+     - Reparte la cantidad del producto entre subcentros asignados al usuario.
+     - Muestra total asignado vs disponible y lista de asignaciones. --}}
 <!-- Modal 2: Distribución por Centros de Costo -->
 <div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
@@ -276,31 +193,7 @@
                         <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un subcentro" autocomplete="off">
                         <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
                         <div id="centrosDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                            @php
-                                // Subcentros asignados al usuario (por email de sesión)
-                                $userEmail = session('user.email') ?? session('email') ?? session('user_email') ?? null;
-                                $subcentrosUsuario = collect();
-                                try {
-                                    if ($userEmail) {
-                                        $subcentrosUsuario = DB::table('userxsubcentro as ux')
-                                            ->join('subcentros as s','s.id','=','ux.subcentro_id')
-                                            ->leftJoin('centro as c','c.id','=','s.centro_id')
-                                            ->whereNull('ux.deleted_at')
-                                            ->where('ux.email_user', $userEmail)
-                                            ->select('s.id as subcentro_id','s.name_subcentro','c.name_centro')
-                                            ->orderBy('c.name_centro')
-                                            ->orderBy('s.name_subcentro')
-                                            ->get();
-                                    }
-                                } catch (\Throwable $e) { $subcentrosUsuario = collect(); }
-                            @endphp
-                            @forelse ($subcentrosUsuario as $sc)
-                                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $sc->subcentro_id }}" data-nombre="{{ $sc->name_subcentro }}" onclick="seleccionarCentro(event, this)">
-                                    {{ $sc->name_subcentro }} @if(!empty($sc->name_centro)) ({{ $sc->name_centro }}) @endif
-                                </div>
-                            @empty
-                                <div class="p-2 text-gray-500">No tienes subcentros asignados.</div>
-                            @endforelse
+                            {!! $subcentrosOptionsHtml !!}
                          </div>
                      </div>
                  </div>
@@ -326,12 +219,10 @@
              </ul>
 
              <div class="flex justify-between mt-6">
-                 <button type="button" id="volverModalBtn"
-                     class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+                 <button type="button" id="volverModalBtn" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
                      <i class="fas fa-arrow-left mr-1"></i> Volver
                  </button>
-                 <button type="button" id="guardarProductoBtn"
-                     class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+                 <button type="button" id="guardarProductoBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
                      Guardar Producto
                  </button>
              </div>

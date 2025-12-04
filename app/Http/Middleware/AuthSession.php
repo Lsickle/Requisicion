@@ -22,10 +22,19 @@ class AuthSession
         // Verifica si hay sesión de usuario y token
         if (!Session::has('api_token') || !Session::has('user')) {
             Log::warning('Usuario no autenticado intentando acceder a: ' . $request->path());
-            return redirect('/')->with('error', 'Por favor inicia sesión');
+            $response = redirect('/')->with('error', 'Por favor inicia sesión');
+            // Forzar no-cache también en el redirect
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+            return $response;
         }
 
-        Log::info('Usuario autenticado, permitiendo acceso a: ' . $request->path());
-        return $next($request);
+        $response = $next($request);
+        // Evitar que las páginas protegidas queden en caché/bfcache (back-forward cache)
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+        return $response;
     }
 }

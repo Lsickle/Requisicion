@@ -5,23 +5,21 @@
 @section('content')
 <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Todas las Requisiciones</h1>
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100"> <!-- antes: bg-gray-100 rounded-lg shadow-md -->
+    <div class="flex items-center justify-between mb-6"> <!-- reemplaza h1 solo -->
+        <div class="flex items-center gap-3">
+            <div class="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                <i class="fas fa-clipboard-list text-xl"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Todas las Requisiciones</h1>
+        </div>
+    </div>
 
     <style>
         .status-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            white-space: normal;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.75rem;
-            line-height: 1.1;
-            max-width: 220px;
-            word-break: break-word;
-            vertical-align: middle;
-            margin: 0 auto;
+            display: inline-flex; align-items: center; justify-content: center; padding: 0.25rem 0.75rem; border-radius: 0.75rem; line-height: 1.1; white-space: normal; word-break: break-word; max-width: 220px; margin: 0 auto; /* restaurado wrap */
         }
+        .status-singleline { white-space: nowrap; word-break: normal; max-width: 100%; }
         .status-badge.text-xs { font-size: 0.75rem; }
         .max-w-7xl { margin-left: auto; margin-right: auto; }
         #tablaRequisiciones thead th { text-transform: uppercase; letter-spacing: 0.02em; }
@@ -38,20 +36,32 @@
         }
         .sys-comment-toggle { background: transparent; border: none; color: #065f46; font-weight: 600; cursor: pointer; }
         .sys-comment-toggle.hidden { display: none; }
+
+        /* Clamp de 3 líneas para celdas con textos largos (producto en entrega) */
+        .clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Scrollbar fino reutilizable */
+        .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+        .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
     </style>
 
     <!-- 🔍 Barra de búsqueda -->
     <div class="mb-6 flex justify-between items-center">
-        <input type="text" id="busqueda" placeholder="Buscar requisición..."
-            class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+        <div class="relative w-full md:w-1/3">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+            <input type="text" id="busqueda" placeholder="Buscar requisición..." class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none" />
+        </div>
     </div>
 
     @if($requisiciones->isEmpty())
         <p class="text-gray-500 text-center py-6">No hay requisiciones registradas.</p>
     @else
-    <div class="overflow-x-auto">
-        <table id="tablaRequisiciones" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
-            <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
+    <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-sm"> <!-- antes: overflow-x-auto -->
+        <table id="tablaRequisiciones" class="w-full border-collapse bg-white rounded-lg overflow-hidden">
+            <thead class="bg-indigo-50/80 text-indigo-900 uppercase text-xs font-semibold tracking-wide sticky top-0 z-10"> <!-- estilos header -->
                 <tr>
                     <th class="p-3 text-left">ID</th>
                     <th class="p-3 text-left">Fecha</th>
@@ -83,7 +93,7 @@
                     $canManage = in_array('area de compras', $rolesLower) || in_array('admin requisicion', $rolesLower);
                     $isAdmin = in_array('admin requisicion', $rolesLower);
                 @endphp
-                <tr class="border-b hover:bg-gray-50 transition">
+                <tr class="odd:bg-white even:bg-slate-50 border-b hover:bg-indigo-50/40 transition"> <!-- zebra + hover -->
                     <td class="p-3">#{{ $req->id }}</td>
                     <td class="p-3">{{ $req->created_at->format('d/m/Y') }}</td>
                     <td class="p-3">{{ $req->name_user ?? 'Desconocido' }}</td>
@@ -97,7 +107,7 @@
                     </td>
                     <td class="p-3">{{ $req->Recobrable }}</td>
                     <td class="p-3">
-                        <ul class="list-disc list-inside text-sm text-gray-600">
+                        <ul class="list-disc list-inside text-sm text-gray-600 max-h-20 overflow-y-auto pr-1 thin-scrollbar"> <!-- limitar altura lista productos -->
                             @foreach($req->productos as $prod)
                                 <li>{{ $prod->name_produc }} ({{ $prod->pivot->pr_amount }})</li>
                             @endforeach
@@ -137,7 +147,7 @@
                             ];
                             $tooltip = $descripcionesEstatus[$ultimoEstatusId] ?? 'Pendiente por gestión.';
                         @endphp
-                        <span class="status-badge px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help" title="{{ $tooltip }}">
+                        <span class="status-badge px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorEstatus }} cursor-help {{ $ultimoEstatusId == 10 ? 'status-singleline' : '' }}" title="{{ $tooltip }}">
                             <span>{{ $nombreEstatus }}</span>
                         </span>
                     </td>
@@ -286,7 +296,7 @@
                             @endphp
                             <div>
                                 <span class="font-medium">Estatus actual:</span>
-                                <span class="status-badge ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
+                                <span class="status-badge ml-2 px-3 py-1 text-xs font-semibold rounded-full text-white {{ $colorActual }} cursor-help {{ $estatusActualId == 10 ? 'status-singleline' : '' }}" title="{{ $tooltipModal }}">{{ $estatusActualNombre }}</span>
                             </div>
 
                             {{-- El comentario se muestra fuera de la cuadrícula para permitir contenido largo --}}
@@ -350,8 +360,8 @@
                     <section class="mb-8">
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
                         <div class="border rounded-lg overflow-hidden">
-                            <div class="max-h-80 overflow-y-auto">
-                                <table class="w-full text-sm bg-white">
+                            <div class="max-h-80 overflow-y-auto overflow-x-auto thin-scrollbar">
+                                <table class="w-full text-sm bg-white min-w-[900px]">
                                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
                                         <tr class="border-b">
                                             <th class="p-3 text-left">Producto</th>
@@ -400,7 +410,7 @@
                                             @endphp
                                             <tr class="border-b">
                                                 <td class="p-3 font-medium text-gray-800 align-top">
-                                                    <div class="truncate">{{ $prod->name_produc }}</div>
+                                                    <div class="clamp-3 leading-5 break-words" title="{{ $prod->name_produc }}">{{ $prod->name_produc }}</div> {{-- reemplaza truncate por clamp multilinea --}}
                                                     @if(!empty($distribucion) && $distribucion->count())
                                                         <div class="mt-2 flex flex-wrap gap-2">
                                                             @foreach($distribucion as $c)
@@ -502,14 +512,14 @@
                                         $unitPriceOriginal = (float) ($pp->price_produc ?? 0);
                                         $origCurrency = strtoupper(trim($pp->moneda ?? 'COP'));
                                     } catch (\Throwable $e) { $unitPriceOriginal = 0.0; $origCurrency = 'COP'; }
-                                    try { $unitPriceCOP = \App\Http\Controllers\requisicion\RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); } catch (\Throwable $e) { $unitPriceCOP = null; }
+                                    try { $unitPriceCOP = RequisicionController::convertToCop($unitPriceOriginal, $origCurrency); } catch (\Throwable $e) { $unitPriceCOP = null; }
                                     $lineTotalReq = $cantidadRequerida * ($unitPriceCOP ?? $unitPriceOriginal);
                                 @endphp
                                 <tr class="border-t">
                                     <td class="px-3 py-2 text-center">
                                         <input type="checkbox" class="ent-req-row-chk" data-producto-id="{{ $productoId }}" data-pendiente="{{ $pendiente }}" {{ ($isDone || $pendientesNoConfirmadas > 0) ? 'disabled' : '' }}>
                                     </td>
-                                    <td class="px-3 py-2">{{ $producto->name_produc }}</td>
+                                    <td class="px-3 py-2"><div class="clamp-3 leading-5" title="{{ $producto->name_produc }}">{{ $producto->name_produc }}</div></td>
                                     <td class="px-3 py-2 text-center">{{ $unit }}</td>
                                     <td class="px-3 py-2 text-center">{{ $cantidadRequerida }}</td>
                                     <td class="px-3 py-2 text-center">

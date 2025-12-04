@@ -12,18 +12,23 @@
 
 <body class="bg-gray-100 pt-16">
     <x-sidebar />
-    <div class="max-w-7xl mx-auto mt-4 bg-white">
+    <div class="max-w-7xl mx-auto mt-6 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 overflow-hidden">
         @php
             $categorias = collect($productos ?? [])->pluck('categoria_produc')->filter()->map(fn($c)=> trim((string)$c))->unique()->sort()->values();
             $unidades = collect($productos ?? [])->pluck('unit_produc')->filter()->map(fn($u)=> trim((string)$u))->unique()->sort()->values();
         @endphp
         <!-- Header -->
-        <div class="bg-gray-100 border border-solid border-gray-300 px-6 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
+        <div class="px-6 py-4 border-b bg-indigo-50 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
+            </div>
         </div>
 
         <!-- Tabs -->
-        <div class="flex space-x-1 bg-gray-200 px-2 pt-2">
+        <div class="flex space-x-1 bg-slate-100 px-2 pt-2 border-b">
             <button id="tab-productos" onclick="toggleSection('productos')"
                 class="px-4 py-2 bg-white rounded-t-lg shadow text-gray-700 font-medium">
                 Productos Registrados
@@ -73,9 +78,9 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto thin-scrollbar">
                 <table id="productosTable" class="w-full table-auto">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-indigo-50 sticky top-0 z-10">
                         <tr>
                             <th class="px-4 py-2 text-left">SKU</th>
                             <th class="px-4 py-2 text-left">Producto</th>
@@ -176,12 +181,12 @@
         </div>
 
         <!-- Sección de Productos Solicitados (oculta inicialmente) -->
-        <div id="solicitudes-section" class="p-4 overflow-x-auto hidden">
+        <div id="solicitudes-section" class="p-4 overflow-x-auto hidden thin-scrollbar">
             @if($solicitudes->isEmpty())
             <p class="text-gray-500">No hay productos solicitados.</p>
             @else
             <table id="solicitudesTable" class="w-full table-auto">
-                <thead class="bg-gray-50">
+                <thead class="bg-indigo-50 sticky top-0 z-10">
                     <tr>
                         <th class="px-4 py-2 text-left">Fecha</th>
                         <th class="px-4 py-2 text-left">Solicitado por</th>
@@ -1995,6 +2000,14 @@
     .option-item-cat:hover {
         background-color: #e0e7ff !important;
     }
+
+    /* UI helpers */
+    .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+    .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    .status-badge { display:inline-block; padding:0.25rem 0.6rem; border-radius:9999px; font-size:.7rem; font-weight:600; line-height:1; }
 </style>
 
 </body>

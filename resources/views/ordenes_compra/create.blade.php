@@ -62,21 +62,56 @@
             line-height: 1.2;
             max-width: 100%;
         }
+
+        /* Mejora visual general */
+        .oc-create-scope .main-card{background:rgba(255,255,255,0.95);border:1px solid #e2e8f0;border-radius:1rem;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08),0 8px 10px -6px rgba(0,0,0,0.04);}
+        .oc-create-scope .section-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;}
+        .oc-create-scope h1,.oc-create-scope h2,.oc-create-scope h3{letter-spacing:.5px;}
+        /* Encabezados sticky refinados */
+        .oc-create-scope table thead{background:#eef2ff;color:#1e3a8a;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;}
+        .oc-create-scope table thead th{font-weight:600;}
+        /* Zebra + hover */
+        .oc-create-scope table tbody tr:nth-child(odd){background:#ffffff;}
+        .oc-create-scope table tbody tr:nth-child(even){background:#f1f5f9;}
+        .oc-create-scope table tbody tr:hover{background:#e0e7ff;}
+        /* Botones reutilizables */
+        .btn-base{display:inline-flex;align-items:center;justify-content:center;font-weight:500;border-radius:.6rem;transition:.25s;box-shadow:0 1px 2px rgba(0,0,0,.12);} 
+        .btn-base:focus-visible{outline:2px solid #6366f1;outline-offset:2px;}
+        .btn-primary{background:#2563eb;color:#fff;}
+        .btn-primary:hover{background:#1d4ed8;}
+        .btn-secondary{background:#6366f1;color:#fff;}
+        .btn-secondary:hover{background:#4f46e5;}
+        .btn-danger{background:#dc2626;color:#fff;}
+        .btn-danger:hover{background:#b91c1c;}
+        .btn-warning{background:#d97706;color:#fff;}
+        .btn-warning:hover{background:#b45309;}
+        /* Scrollbar fino */
+        .thin-scrollbar{scrollbar-width:thin;scrollbar-color:#94a3b8 #e2e8f0;}
+        .thin-scrollbar::-webkit-scrollbar{width:8px;height:8px;}
+        .thin-scrollbar::-webkit-scrollbar-track{background:#e2e8f0;border-radius:8px;}
+        .thin-scrollbar::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:8px;}
+        .thin-scrollbar::-webkit-scrollbar-thumb:hover{background:#64748b;}
+        /* Ajustar tabla responsive borde */
+        .table-responsive{border:1px solid #e2e8f0;border-radius:.75rem;background:#fff;}
+        /* Chips / badges */
+        .badge-mini{display:inline-flex;align-items:center;font-size:.65rem;font-weight:600;padding:.25rem .5rem;border-radius:999px;letter-spacing:.03em;}
+        /* Precio/IVA etiquetas */
+        .precio-cop-span{font-size:.6rem;font-weight:500;color:#475569;display:block;margin-top:2px;}
     </style>
     <!-- Sidebar -->
     <x-sidebar />
 
     <!-- Contenido principal -->
-    <div class="flex-1 px-4 md:px-8 pb-10">
-        <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-md p-6 flex flex-col min-h-[80vh]">
+    <div class="flex-1 px-4 md:px-8 pb-10 oc-create-scope">
+        <div class="max-w-7xl mx-auto main-card p-6 flex flex-col min-h-[80vh]">
 
             <!-- Encabezado -->
             <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-semibold text-gray-800">Crear Orden de Compra</h1>
-                <a href="{{ route('ordenes_compra.lista') }}"
-                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100">
-                    Volver
-                </a>
+                <div class="flex items-center gap-3">
+                    <div class="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner"><i class="fas fa-file-signature text-xl"></i></div>
+                    <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Crear Orden de Compra</h1>
+                </div>
+                <a href="{{ route('ordenes_compra.lista') }}" class="btn-base bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 text-sm">Volver</a>
             </div>
 
             <!-- Mensaje éxito -->
@@ -156,7 +191,7 @@
                                 @php
                                     // Obtener precio desde productoxproveedor (nuevo esquema)
                                     try {
-                                        $pp = \Illuminate\Support\Facades\DB::table('productoxproveedor')
+                                        $pp = DB::table('productoxproveedor')
                                             ->where('producto_id', $prod->id)
                                             ->orderBy('id')
                                             ->first();
@@ -1193,7 +1228,7 @@
         }
 
         // Re-evaluar productosAgregados después del intento automático
-        if (productosAgregados.length === 0) {
+        if (productosAgregados.length ===  0) {
             e.preventDefault();
             Swal.fire({icon: 'warning', title: 'Atención', text: 'Debe añadir al menos un producto.'});
             return;

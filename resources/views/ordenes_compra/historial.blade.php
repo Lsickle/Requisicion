@@ -5,20 +5,30 @@
 @section('content')
 <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md oc-scope">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de Órdenes de Compra</h1>
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 oc-scope">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <div class="h-11 w-11 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                <i class="fas fa-file-signature"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Historial de Órdenes de Compra</h1>
+        </div>
+    </div>
 
     <div class="mb-6 flex justify-between items-center">
-        <input type="text" id="busqueda" placeholder="Buscar orden..."
-            class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+        <div class="relative w-full md:w-1/3">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+            <input type="text" id="busqueda" placeholder="Buscar orden..."
+                class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none">
+        </div>
     </div>
 
     @if($ordenes->isEmpty())
     <p class="text-gray-500 text-center py-6">No hay órdenes de compra registradas.</p>
     @else
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto thin-scrollbar">
         <table id="tablaOC" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
-            <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
+            <thead class="bg-indigo-50 text-indigo-900 uppercase text-sm font-semibold sticky top-0 z-10">
                 <tr>
                     <th class="p-3 text-left w-24" style="width:100px;">Requisición</th>
                     <th class="p-3 text-left">Orden</th>
@@ -162,7 +172,7 @@
 
                 $showCreate = (($oc->deleted_at !== null) || in_array($estatusLower, ['completada','anulada','cancelada'])) && !$requisicionCompleta;
                 @endphp
-                <tr class="border-b hover:bg-gray-50 transition">
+                <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
                     <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</td>
@@ -186,9 +196,7 @@
                         }
                     @endphp
                     <td class="p-3">
-                        <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
-                            {!! implode('<br>', array_map('e', preg_split('/\s+/', $estatusDisplay))) !!}
-                        </span>
+                        <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">{!! implode('<br>', array_map('e', preg_split('/\s+/', $estatusDisplay))) !!}</span>
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 items-center">
@@ -252,7 +260,7 @@
                     <h3 class="text-lg font-semibold">Recibir productos de la OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                     <button type="button" class="text-gray-600 hover:text-gray-800 rc-close" data-oc-id="{{ $oc->id }}">✕</button>
                 </div>
-                <div class="p-6 overflow-y-auto max-h-[70vh]">
+                <div class="p-6 overflow-y-auto max-h-[70vh] thin-scrollbar">
                     @php
                         // Subconsulta para sumar las cantidades recibidas por producto en esta OC
                         $recSum = DB::table('recepcion')
@@ -287,9 +295,9 @@
                     @endphp
                     @if(($recRows ?? collect())->count())
                     @php $grandRecTotal = 0; @endphp
-                    <div class="overflow-x-auto rc-table-wrapper">
+                    <div class="overflow-x-auto rc-table-wrapper thin-scrollbar">
                         <table class="w-full text-sm border rounded overflow-hidden bg-white rc-table">
-                            <thead class="bg-gray-100">
+                            <thead class="bg-indigo-50">
                                 <tr>
                                     <th class="p-2 text-left whitespace-nowrap col-prod">Producto</th>
                                     <th class="p-2 text-center whitespace-nowrap">Cant. OC</th>
@@ -351,11 +359,11 @@
                     <h3 class="text-lg font-semibold">Editar precios de factura - {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                     <button type="button" class="text-gray-600 hover:text-gray-800 pf-close" data-oc-id="{{ $oc->id }}">✕</button>
                 </div>
-                <div class="p-6">
+                <div class="p-6 thin-scrollbar overflow-y-auto max-h-[75vh]">
                     @php $lines = $oc->ordencompraProductos; @endphp
                     @if(($lines ?? collect())->count())
                     <table class="w-full text-sm border rounded overflow-hidden bg-white">
-                        <thead class="bg-gray-100">
+                        <thead class="bg-indigo-50">
                             <tr>
                                 <th class="p-2 text-left">Producto</th>
                                 <th class="p-2 text-left">Proveedor</th>
@@ -408,7 +416,7 @@
                 <button onclick="toggleModal('modal-{{ $oc->id }}')"
                     class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl z-10"
                     aria-label="Cerrar modal">&times;</button>
-                <div class="overflow-y-auto p-8" style="max-height:calc(85vh - 92px);">
+                <div class="overflow-y-auto p-8 thin-scrollbar" style="max-height:calc(85vh - 92px);">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</h2>
 
                     <section class="mb-8">
@@ -430,12 +438,9 @@
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
                         <div class="border rounded-lg overflow-hidden">
                             <div>
-                                @php
-                                    // Inicializar total general; se acumula con el precio correcto por línea (COP)
-                                    $grandTotal = 0;
-                                @endphp
+                                @php $grandTotal = 0; @endphp
                                  <table class="w-full text-sm bg-white">
-                                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                     <thead class="bg-indigo-50 text-indigo-900 sticky top-0 z-10">
                                          <tr class="border-b">
                                              <th class="p-3 text-left">Producto</th>
                                              <th class="p-3 text-center">Cant.</th>
@@ -527,7 +532,7 @@
                 <div id="modal-estatus-oc-{{ $oc->id }}" class="fixed inset-0 z-[10000] hidden items-center justify-center p-4">
                     <div class="absolute inset-0 bg-black/50" data-close="1"></div>
                     <div class="relative w-full max-w-3xl">
-                        <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
+                        <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative thin-scrollbar">
                             <button onclick="toggleModal('modal-estatus-oc-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">✕</button>
 
                             @php
@@ -1138,6 +1143,12 @@
         /* Columna producto más estrecha con elipsis */
         .rc-table .col-prod{max-width:160px;width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         @media (max-width: 640px){ .rc-table .col-prod{max-width:120px;width:120px;} }
+        /* Scrollbar fino y badge */
+        .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+        .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
 </style>
 <script>
 // Inyectar span de info de paginación de OC si falta

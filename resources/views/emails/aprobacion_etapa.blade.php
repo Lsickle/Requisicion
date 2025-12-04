@@ -32,12 +32,6 @@
                     <p style="margin:0 0 16px 0;"><strong>Productos:</strong> {{ (int)($requisicion->amount_requisicion ?? 0) }}</p>
 
                     <p style="margin:16px 0 0 0;">Ingresa al sistema para realizar la aprobación.</p>
-                    <p style="margin:8px 0 0 0;">
-                        <a href="{{ $panelUrl }}" 
-                           style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
-                            Ir al panel
-                        </a>
-                    </p>
 
                     <p style="margin:16px 0 0 0;">Saludos</p>
                 </div>

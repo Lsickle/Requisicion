@@ -5,7 +5,7 @@
         <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
             <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics"
-                class="mx-auto h-9 w-auto object-contain">
+                class="mx-auto h-9 w-auto object-contain rounded-lg drop-shadow">
         </div>
     </nav>
 
@@ -31,6 +31,14 @@
                 <a href="{{ route('requisiciones.create') }}"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
                     Requisición</a>
+            </li>
+            @endif
+            
+            @if($hasPermission('Especial'))
+            <li>
+                <a href="{{ route('requisiciones.especial') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
+                    Requisición Especial</a>
             </li>
             @endif
 

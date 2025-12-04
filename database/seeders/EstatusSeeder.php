@@ -13,17 +13,17 @@ class EstatusSeeder extends Seeder
         $names = [
             'Requisición creada',
             'Revisado por compras',
-            'Aprobado Operaciones',
-            'Aprobado Financiera',
+            'Aprobado Gerencia Operaciones',
+            'Aprobado Gerencia Financiera',
             'Orden de compra generada',
             'Cancelada',
             'Recibido en bodega',
             'Recibido por coordinador',
-            'Rechazado financiera',
+            'Rechazado Gerencia Financiera',
             'Completado',
             'Ajustes requeridos',
             'Entregado parcial',
-            'Rechazado Operacones',
+            'Rechazado Gerencia Operaciones',
         ];
 
         // Mapeo de sinónimos/históricos a nombres canónicos

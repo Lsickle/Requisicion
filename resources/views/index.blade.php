@@ -14,6 +14,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <!-- Evitar cacheo para que no se pueda volver atrás al cerrar sesión -->
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script>
         tailwind.config = {
             theme: {
@@ -27,63 +31,117 @@
             }
         }
     </script>
+    <style>
+        /* Fondo dinámico con patrón y blobs */
+        .bg-grid {
+            background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+            background-size: 22px 22px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .bg-grid {
+                background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+            }
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(44px);
+            opacity: .35;
+            pointer-events: none;
+        }
+
+        @keyframes blobMove {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(40px, 20px) scale(1.1);
+            }
+
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+        }
+
+        @keyframes blobMove2 {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(-30px, 10px) scale(1.08);
+            }
+
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+        }
+    </style>
 </head>
 
 <body class="min-h-screen bg-lightgray flex flex-col">
     <!-- Navbar -->
     <x-navbar />
 
-    <!-- Contenido principal -->
-    <div class="flex-grow flex items-start justify-center px-4 pt-24 pb-6">
-        <div class="login w-full max-w-[17rem] sm:max-w-[25rem] md:max-w-[26rem]">
-            <div class="bg-white rounded-lg shadow-sm md:shadow p-5 md:p-6 w-full">
-                <!-- Logo -->
-                <div class="mb-6 md:mb-7">
-                    <img src="/images/VigiaLogoC.png" alt="Vigía Plus Logistics"
-                        class="mx-auto h-14 md:h-16 w-auto rounded-lg">
+    <!-- Contenido principal con fondo dinámico -->
+    <div class="relative flex-grow px-4 pt-24 pb-10">
+        <div class="absolute inset-0 bg-gradient-to-b from-white/70 to-slate-100/80"></div>
+        <div class="absolute inset-0 bg-grid"></div>
+
+        <div class="relative flex items-start justify-center">
+            <div class="login w-full max-w-[19rem] sm:max-w-[26rem] md:max-w-[28rem]">
+                <div class="bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 p-6 md:p-7 transition-transform duration-300 hover:-translate-y-0.5">
+                    <!-- Logo sin fondo de colores -->
+                    <div class="mb-6 md:mb-7 relative flex justify-center">
+                        <img src="/images/VigiaLogoC.png" alt="Vigía Plus Logistics"
+                            class="mx-auto h-14 md:h-16 w-auto rounded-lg drop-shadow">
+                    </div>
+
+                    <!-- Formulario de login (IDs y acción sin cambios) -->
+                    <form id="loginForm" method="POST" action="/auth/api-login">
+                        @csrf
+                        <div class="mb-5">
+                            <label for="email" class="block text-gray-700 text-sm font-medium mb-2">Correo
+                                electrónico</label>
+                            <div class="relative">
+                                <input id="email" type="email" name="email" placeholder="tu.correo@ejemplo.com"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
+                                    required autofocus>
+                                <span class="absolute inset-y-0 right-3 flex items-center text-gray-400">
+                                    <i class="far fa-envelope"></i>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
+                            <label for="password" class="block text-gray-700 text-sm font-medium mb-2">Contraseña</label>
+                            <div class="relative">
+                                <input id="password" type="password" name="password" placeholder="••••••••"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
+                                    required>
+                                <span
+                                    class="absolute inset-y-0 right-3 flex items-center text-gray-400 cursor-pointer toggle-password">
+                                    <i class="far fa-eye"></i>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="mb-5 text-right">
+                            <a href="#" id="forgotPasswordLink"
+                                class="text-xs md:text-sm text-primary hover:text-secondary transition duration-200 hover:underline underline-offset-4">
+                                ¿Olvidaste tu contraseña?
+                            </a>
+                        </div>
+
+                        <button type="submit"
+                            class="w-full bg-blue-900 text-white py-2 md:py-2.5 px-4 rounded-lg font-medium text-sm md:text-base hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow">
+                            Iniciar sesión
+                        </button>
+                    </form>
                 </div>
-
-                <!-- Formulario de login -->
-                <form id="loginForm" method="POST" action="/auth/api-login">
-                    @csrf
-                    <div class="mb-5">
-                        <label for="email" class="block text-gray-700 text-sm font-medium mb-2">Correo
-                            electrónico</label>
-                        <div class="relative">
-                            <input id="email" type="email" name="email" placeholder="tu.correo@ejemplo.com"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
-                                required autofocus>
-                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-400">
-                                <i class="far fa-envelope"></i>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="mb-5">
-                        <label for="password" class="block text-gray-700 text-sm font-medium mb-2">Contraseña</label>
-                        <div class="relative">
-                            <input id="password" type="password" name="password" placeholder="••••••••"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-200"
-                                required>
-                            <span
-                                class="absolute inset-y-0 right-3 flex items-center text-gray-400 cursor-pointer toggle-password">
-                                <i class="far fa-eye"></i>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="mb-5 text-right">
-                        <a href="#" id="forgotPasswordLink"
-                            class="text-xs md:text-sm text-primary hover:text-secondary transition duration-200 hover:underline">
-                            ¿Olvidaste tu contraseña?
-                        </a>
-                    </div>
-
-                    <button type="submit"
-                        class="w-full bg-blue-900 text-white py-2 md:py-2.5 px-4 rounded-lg font-medium text-sm md:text-base hover:opacity-90 transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow">
-                        Iniciar sesión
-                    </button>
-                </form>
             </div>
         </div>
     </div>
@@ -128,6 +186,27 @@
     <footer class="bg-gray-900 text-gray-300 py-4 text-center">
         <p class="text-sm">&copy; {{ date('Y') }} Vigía Plus Logistics. derechos reservados.</p>
     </footer>
+
+    <!-- Bloqueo de navegación hacia atrás en pantalla de login con alerta inmediata -->
+    <script>
+        (function() {
+            function showLoginAlert(){
+                try { Swal.fire({ icon:'warning', title:'Sesión requerida', text:'Por favor inicia sesión', confirmButtonColor:'#1e40af' }); } catch(_){}
+            }
+            if (window.history && window.history.pushState) {
+                history.pushState(null, '', location.href);
+                window.addEventListener('popstate', function () {
+                    // Mostrar alerta y volver a insertar estado para evitar navegación
+                    showLoginAlert();
+                    history.pushState(null, '', location.href);
+                });
+            }
+            // Si el navegador entrega la página desde bfcache, forzar recarga y alerta
+            window.onpageshow = function(evt) {
+                if (evt.persisted) { showLoginAlert(); window.location.reload(); }
+            };
+        })();
+    </script>
 
     <script>
         // Mostrar/ocultar contraseña
