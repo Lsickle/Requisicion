@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Historial de Órdenes de Compra')
-    <link rel="icon" type="image/png" href="{{ asset('images/favicon1.png') }}">
+<link rel="icon" type="image/png" href="{{ asset('images/favicon1.png') }}">
 @section('content')
 <x-sidebar />
 
@@ -209,12 +209,12 @@
                             </button>
                             @endif
                             @if(!($isTerminada ?? false))
-                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-terminar-url="{{ url('/ordenes_compra/terminar/'.$oc->id) }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
                             {{-- Nuevo botón: editar precios factura/TRM (una sola vez) --}}
-                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-precios-url="{{ url('/ordenes_compra/actualizar-precios-factura') }}" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
                                 <i class="fas fa-file-invoice-dollar"></i>
                             </button>
                             @if($showCreate)
@@ -1017,13 +1017,14 @@
                 const btnTerm = e.target.closest('.btn-terminar-oc');
                 if (btnTerm) {
                     const ocId = btnTerm.dataset.ocId;
+                    const endpoint = btnTerm.dataset.terminarUrl || `{{ url('/ordenes_compra/terminar') }}/${ocId}`;
                     if (window.Swal){
                         const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
                         if (!confirmed.isConfirmed) return;
                         Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     }
                     try {
-                        const resp = await fetch("{{ url('/ordenes_compra/terminar') }}/"+ocId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                        const resp = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
                         if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' }); }
@@ -1099,7 +1100,8 @@
                         Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     }
                     try {
-                        const resp = await fetch("{{ url('/ordenes_compra/actualizar-precios-factura') }}", {
+                        const endpoint = document.querySelector(`.btn-open-precios-factura[data-oc-id='${ocId}']`)?.dataset?.preciosUrl || `{{ url('/ordenes_compra/actualizar-precios-factura') }}`;
+                        const resp = await fetch(endpoint, {
                             method: 'POST', credentials: 'same-origin',
                             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                             body: JSON.stringify({ orden_compra_id: ocId, items })
