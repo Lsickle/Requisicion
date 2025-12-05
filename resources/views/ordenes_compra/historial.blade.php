@@ -214,7 +214,7 @@
                             </button>
                             @endif
                             {{-- Nuevo botón: editar precios factura/TRM (una sola vez) --}}
-                            <button type="button" data-oc-id="{{ $oc->id }}" data-precios-url="{{ url('/ordenes_compra/actualizar-precios-factura') }}" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-precios-url="/ordenes_compra/actualizar-precios-factura" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
                                 <i class="fas fa-file-invoice-dollar"></i>
                             </button>
                             @if($showCreate)
@@ -1101,7 +1101,7 @@
                         Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                     }
                     try {
-                        const endpoint = document.querySelector(`.btn-open-precios-factura[data-oc-id='${ocId}']`)?.dataset?.preciosUrl || `{{ url('/ordenes_compra/actualizar-precios-factura') }}`;
+                        const endpoint = document.querySelector(`.btn-open-precios-factura[data-oc-id='${ocId}']`)?.dataset?.preciosUrl || '/ordenes_compra/actualizar-precios-factura';
                         const resp = await fetch(endpoint, {
                             method: 'POST', credentials: 'same-origin',
                             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
