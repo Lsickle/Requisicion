@@ -1036,6 +1036,28 @@
                     return;
                 }
 
+                // Finalizar requisición (proceso separado)
+                const btnFinReq = e.target.closest('.btn-finalizar-requisicion');
+                if (btnFinReq) {
+                    const reqId = btnFinReq.dataset.requisicionId;
+                    const endpoint = btnFinReq.dataset.finalizarUrl || `{{ url('/requisiciones') }}/${reqId}/finalizar`;
+                    if (window.Swal){
+                        const confirmed = await Swal.fire({ title: 'Finalizar requisición', text: 'Esto marcará la requisición como completada (estatus 10). ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, finalizar', cancelButtonText: 'Cancelar' });
+                        if (!confirmed.isConfirmed) return;
+                        Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const resp = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                        const data = await resp.json().catch(()=>({}));
+                        if (!resp.ok) throw new Error(data.message || 'Error al finalizar la requisición');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'success', title: 'Requisición finalizada', text: data.message || 'Proceso completado.' }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
+                    return;
+                }
+
                 // Crear OC desde línea pendiente
                 const btnCreateFromPending = e.target.closest('.btn-create-from-pending');
                 if (btnCreateFromPending) {
