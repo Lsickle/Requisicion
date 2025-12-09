@@ -29,12 +29,16 @@ class AprobacionEtapaMail extends Mailable
         $this->mensajePrincipal = $mensajePrincipal;
         $this->panelUrl = $panelUrl;
         $this->detalleUrl = $detalleUrl;
+        $this->subject($this->subjectLine);
     }
 
     public function build()
     {
-        return $this->subject($this->subjectLine)
-            ->view('emails.aprobacion_etapa')
+        $view = 'emails.aprobacion_etapa';
+        if ($this->stageKey === 'stage2') {
+            $view = 'emails.requisicion_pendiente_aprobacion';
+        }
+        return $this->view($view)
             ->with([
                 'requisicion' => $this->requisicion,
                 'estatus' => $this->estatus,

@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Models\Nuevo_producto;
+use App\Jobs\SendRequestedProductAddedEmail;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductosController extends Controller
 {
@@ -17,7 +20,7 @@ class ProductosController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Producto::withTrashed()->with('proveedor')->orderBy('name_produc');
+        $query = Producto::withTrashed()->orderBy('name_produc');
 
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
@@ -31,7 +34,7 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'proveedores', 'solicitudes'));
     }
@@ -41,7 +44,7 @@ class ProductosController extends Controller
      */
     public function gestor()
     {
-        $productos = Producto::withTrashed()->with('proveedor')->orderBy('name_produc')->get();
+        $productos = Producto::withTrashed()->orderBy('name_produc')->get();
 
         $productosSolicitados = DB::table('producto_requisicion')
             ->join('requisicion', 'producto_requisicion.id_requisicion', '=', 'requisicion.id')
@@ -63,9 +66,23 @@ class ProductosController extends Controller
         $proveedores = Proveedor::orderBy('prov_name')->get();
 
         // Agregamos las solicitudes de nuevos productos
-        $solicitudes = Nuevo_producto::withTrashed()->orderBy('created_at', 'desc')->get();
+        $solicitudes = Nuevo_producto::orderBy('created_at', 'desc')->get();
 
         return view('productos.gestor', compact('productos', 'productosSolicitados', 'proveedores', 'solicitudes'));
+    }
+
+    /**
+     * Lista simple de productos (SKU, nombre, categoría, unidad).
+     */
+    public function lista()
+    {
+        try {
+            $productos = Producto::whereNull('deleted_at')->orderBy('name_produc')->get();
+            return view('productos.lista', compact('productos'));
+        } catch (\Throwable $e) {
+            Log::warning('Error cargando lista de productos', ['err'=>$e->getMessage()]);
+            return view('productos.lista', ['productos' => collect()])->with('error', 'No se pudieron cargar los productos');
+        }
     }
 
     /**
@@ -77,9 +94,9 @@ class ProductosController extends Controller
             $validator = Validator::make($request->all(), [
                 'name_produc' => 'required|string|max:255',
                 'categoria_produc' => 'required|string|max:255',
-                'proveedor_id' => 'required|exists:proveedores,id',
+                'proveedor_id' => 'nullable|exists:proveedores,id',
                 'stock_produc' => 'required|integer|min:0',
-                'price_produc' => 'required|numeric|min:0',
+                'price_produc' => 'nullable|numeric|min:0',
                 'iva' => 'nullable|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
                 'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
@@ -92,13 +109,48 @@ class ProductosController extends Controller
                     ->with('error', 'Por favor, corrige los errores en el formulario.');
             }
 
-            // Guardar solo campos permitidos
-            Producto::create($request->only(['proveedor_id','categoria_produc','name_produc','stock_produc','description_produc','price_produc','unit_produc','iva']));
+            // Generar SKU único automático (8 caracteres alfanuméricos)
+            do {
+                $sku = Str::upper(Str::random(8));
+            } while (Producto::where('sku', $sku)->exists());
+            
+            // Guardar solo campos permitidos (sin price_produc ni proveedor_id en la tabla productos)
+            $data = $request->only(['categoria_produc','name_produc','stock_produc','description_produc','unit_produc','iva']);
+            $data['sku'] = $sku;
+            $producto = Producto::create($data);
 
-            // Si viene de una solicitud, eliminar la solicitud
+            // Si se envía proveedor + precio, crear entrada en productoxproveedor
+            $provId = $request->input('proveedor_id');
+            $price = $request->input('price_produc');
+            $moneda = $request->input('moneda') ?? null;
+            if ($provId && $price !== null && is_numeric($price)) {
+                DB::table('productoxproveedor')->insert([
+                    'producto_id' => $producto->id,
+                    'proveedor_id' => $provId,
+                    'price_produc' => $price,
+                    'moneda' => $moneda,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Si viene de una solicitud: notificar al solicitante y soft-delete de la solicitud
             if ($request->has('solicitud_id') && $request->solicitud_id) {
                 $solicitud = Nuevo_producto::find($request->solicitud_id);
                 if ($solicitud) {
+                    // Preparar payload para el correo de 'agregado'
+                    $payload = [
+                        'nombre' => $solicitud->nombre,
+                        'descripcion' => $solicitud->descripcion,
+                        'name_user' => $solicitud->name_user,
+                        'email_user' => $solicitud->email_user,
+                        'comentario' => $solicitud->comentario ?? '',
+                    ];
+
+                    // Despachar job para notificar que su solicitud fue atendida (producto creado)
+                    SendRequestedProductAddedEmail::dispatch($payload);
+
+                    // Soft-delete la solicitud para que no vuelva a mostrarse
                     $solicitud->delete();
                 }
             }
@@ -122,7 +174,10 @@ public function storeProveedor(Request $request)
                 'prov_phone'  => 'required|string|max:20',
                 'prov_adress' => 'required|string|max:255',
                 'prov_city'   => 'required|string|max:100',
+                'prov_email'  => 'required|email|max:255',
                 'prov_descrip' => 'required|string|max:1000', // Ahora es obligatorio
+                'methods_oc' => 'nullable|string|max:255',
+                'plazo_oc' => 'nullable|string|max:255',
             ]);
 
             if ($validator->fails()) {
@@ -132,7 +187,18 @@ public function storeProveedor(Request $request)
                 ], 422);
             }
 
-            Proveedor::create($request->all());
+            Proveedor::create($request->only([
+                'prov_name',
+                'prov_descrip',
+                'prov_nit',
+                'prov_name_c',
+                'prov_phone',
+                'prov_adress',
+                'prov_city',
+                'prov_email',
+                'methods_oc',
+                'plazo_oc'
+            ]));
 
             return response()->json([
                 'success' => true,
@@ -154,12 +220,11 @@ public function storeProveedor(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
-                'proveedor_id' => 'required|exists:proveedores,id',
                 'categoria_produc' => 'required|string|max:255',
                 'name_produc' => 'required|string|max:255',
                 'stock_produc' => 'required|integer|min:0',
                 'description_produc' => 'required|string|max:1000', // Cambiado de 'text' a 'string'
-                'price_produc' => 'required|numeric|min:0',
+                // price_produc no se guarda en productos; si necesita actualizar proveedores use el modal de proveedores
                 'iva' => 'nullable|numeric|min:0',
                 'unit_produc' => 'required|string|max:50',
             ]);
@@ -171,16 +236,18 @@ public function storeProveedor(Request $request)
                     ->with('error', 'Por favor, corrige los errores en el formulario.');
             }
 
-            $producto->update([
-                 'proveedor_id' => $request->proveedor_id,
-                 'categoria_produc' => $request->categoria_produc,
-                 'name_produc' => $request->name_produc,
-                 'stock_produc' => $request->stock_produc,
-                 'description_produc' => $request->description_produc,
-                 'price_produc' => $request->price_produc,
+            // Actualizar solo las columnas que realmente existen en la tabla productos
+            $updateData = [
+                'categoria_produc' => $request->categoria_produc,
+                'name_produc' => $request->name_produc,
+                'stock_produc' => $request->stock_produc,
+                'description_produc' => $request->description_produc,
                 'iva' => $request->iva ?? 0,
-                 'unit_produc' => $request->unit_produc,
-             ]);
+                'unit_produc' => $request->unit_produc,
+                'updated_at' => now(),
+            ];
+
+            DB::table('productos')->where('id', $producto->id)->update($updateData);
 
             return redirect()->route('productos.gestor')->with('success', 'Producto actualizado exitosamente.');
         } catch (\Exception $e) {
@@ -241,6 +308,52 @@ public function storeProveedor(Request $request)
             return response()->json($solicitud);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Solicitud no encontrada'], 404);
+        }
+    }
+
+    /**
+     * Actualizar proveedores asociados a un producto (recibe JSON)
+     */
+    public function updateProviders(Request $request, $id)
+    {
+        try {
+            $providers = $request->input('providers', []);
+
+            if (!is_array($providers)) {
+                return response()->json(['success' => false, 'message' => 'Formato de proveedores inválido'], 400);
+            }
+
+            DB::beginTransaction();
+            DB::table('productoxproveedor')->where('producto_id', $id)->delete();
+
+            $now = now();
+            $inserts = [];
+            foreach ($providers as $p) {
+                $provId = $p['provider_id'] ?? null;
+                $price = $p['price'] ?? 0;
+                $moneda = $p['moneda'] ?? null;
+                if (!$provId) continue;
+                $inserts[] = [
+                    'producto_id' => $id,
+                    'proveedor_id' => $provId,
+                    'price_produc' => $price,
+                    'moneda' => $moneda,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (!empty($inserts)) {
+                DB::table('productoxproveedor')->insert($inserts);
+            }
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Proveedores actualizados correctamente']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error updating product providers: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al guardar proveedores'], 500);
         }
     }
 }

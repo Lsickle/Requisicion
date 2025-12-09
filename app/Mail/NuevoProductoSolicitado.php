@@ -26,8 +26,8 @@ class NuevoProductoSolicitado extends Mailable
         try {
             return $this->subject('Nueva Solicitud de Producto - ' . $this->producto->nombre)
                 ->view('emails.nuevo_producto_solicitado')
-                ->replyTo($this->producto->email_user, $this->producto->name_user) // 👈 para responder al usuario
-                ->to('pardomoyasegio@gmail.com');
+                ->replyTo($this->producto->email_user, $this->producto->name_user) // para responder al usuario
+                ->to('ejemplo@gmail.com');
         } catch (\Exception $e) {
             Log::error('Error construyendo correo: ' . $e->getMessage());
             throw $e;

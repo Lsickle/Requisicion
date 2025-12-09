@@ -31,7 +31,7 @@ class NuevoProductoSolicitadoJob implements ShouldQueue
             Log::debug('Intentando enviar correo...');
 
             // Envía el correo
-            Mail::to('pardomoyasegio@gmail.com')->send(new NuevoProductoSolicitado($this->producto));
+            Mail::to('areacompras@gmail.com')->send(new NuevoProductoSolicitado($this->producto));
 
             Log::info('Correo enviado exitosamente para producto #' . $this->producto->id);
         } catch (\Exception $e) {

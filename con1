@@ -1,0 +1,38 @@
+CREATE VIEW historial_precios_orden_compra_ultimos_30dias AS
+SELECT
+    oc.id AS orden_compra_id,
+    oc.requisicion_id,
+    oc.oc_user,
+    oc.observaciones,
+    oc.date_oc,
+    oc.methods_oc,
+    oc.plazo_oc,
+    oc.order_oc,
+    oc.created_at AS fecha_orden_compra,
+    ocp.id AS ordencompra_producto_id,
+    ocp.producto_id,
+    p.name_produc,
+    p.categoria_produc,
+    p.description_produc,
+    p.unit_produc,
+    p.price_produc AS precio_unitario,
+    ocp.total AS cantidad_solicitada,
+    ocp.apply_iva,
+    ocp.proveedor_id,
+    cp.centro_id,
+    c.name_centro AS nombre_centro,
+    cp.amount AS cantidad_por_centro,
+    oce.activo AS estatus_ordencompra_activo,
+    eoc.status_name AS nombre_estatus_ordencompra,
+    oce.date_update AS fecha_cambio_estatus
+FROM orden_compras oc
+INNER JOIN ordencompra_producto ocp ON ocp.orden_compras_id = oc.id
+INNER JOIN productos p ON p.id = ocp.producto_id
+LEFT JOIN ordencompra_centro_producto cp ON cp.orden_compra_id = oc.id AND cp.producto_id = ocp.producto_id
+LEFT JOIN centro c ON cp.centro_id = c.id
+LEFT JOIN orden_compra_estatus oce ON oce.orden_compra_id = oc.id AND oce.activo = 1 AND oce.deleted_at IS NULL
+LEFT JOIN estatus_orden_compra eoc ON oce.estatus_id = eoc.id
+WHERE oc.deleted_at IS NULL
+  AND p.deleted_at IS NULL
+  AND ocp.deleted_at IS NULL
+  AND oc.date_oc >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);

@@ -20,8 +20,6 @@ class OrdenCompra extends Model
         'oc_user',
         'observaciones',
         'date_oc',
-        'methods_oc',
-        'plazo_oc',
         'order_oc',
         'validation_hash',
     ];

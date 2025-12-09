@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('id_producto')->constrained('productos')->onDelete('cascade'); #id del producto
             $table->foreignId('id_requisicion')->constrained('requisicion')->onDelete('cascade'); #id de la requisicion
+            $table->foreignId('id_productoxproveedor')->nullable()->constrained('productoxproveedor')->nullOnDelete(); #id del producto por proveedor
             $table->integer('pr_amount'); #cantidad de productos por requisicion
             $table->timestamps();
             $table->softDeletes();

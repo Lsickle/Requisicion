@@ -32,17 +32,7 @@ class CentroController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name_centro' => 'required|string|max:255|unique:centros,name_centro',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $centro = Centro::create($request->all());
-
-        return response()->json(['message' => 'Centro creado exitosamente', 'centro' => $centro], 201);
+        return response()->json(['message' => 'Creación de centros deshabilitada en esta interfaz'], 403);
     }
 
     /**
@@ -66,22 +56,7 @@ class CentroController extends Controller
      */
     public function update(Request $request, Centro $centro)
     {
-        $validator = Validator::make($request->all(), [
-            'name_centro' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('centros', 'name_centro')->ignore($centro->id),
-            ],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $centro->update($request->all());
-
-        return response()->json(['message' => 'Centro actualizado exitosamente', 'centro' => $centro]);
+        return response()->json(['message' => 'Edición de centros deshabilitada en esta interfaz'], 403);
     }
 
     /**
@@ -89,8 +64,7 @@ class CentroController extends Controller
      */
     public function destroy(Centro $centro)
     {
-        $centro->delete();
-        return response()->json(['message' => 'Centro eliminado correctamente']);
+        return response()->json(['message' => 'Eliminación de centros deshabilitada en esta interfaz'], 403);
     }
 
     /**
@@ -98,9 +72,6 @@ class CentroController extends Controller
      */
     public function restore($id)
     {
-        $centro = Centro::withTrashed()->findOrFail($id);
-        $centro->restore();
-
-        return response()->json(['message' => 'Centro restaurado correctamente', 'centro' => $centro]);
+        return response()->json(['message' => 'Restauración de centros deshabilitada en esta interfaz'], 403);
     }
 }

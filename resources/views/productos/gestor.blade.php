@@ -12,14 +12,23 @@
 
 <body class="bg-gray-100 pt-16">
     <x-sidebar />
-    <div class="max-w-7xl mx-auto mt-4 bg-white">
+    <div class="max-w-7xl mx-auto mt-6 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 overflow-hidden">
+        @php
+            $categorias = collect($productos ?? [])->pluck('categoria_produc')->filter()->map(fn($c)=> trim((string)$c))->unique()->sort()->values();
+            $unidades = collect($productos ?? [])->pluck('unit_produc')->filter()->map(fn($u)=> trim((string)$u))->unique()->sort()->values();
+        @endphp
         <!-- Header -->
-        <div class="bg-gray-100 border border-solid border-gray-300 px-6 py-3 flex justify-between items-center">
-            <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
+        <div class="px-6 py-4 border-b bg-indigo-50 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <h1 class="text-xl font-semibold text-gray-800">Gestor de Productos</h1>
+            </div>
         </div>
 
         <!-- Tabs -->
-        <div class="flex space-x-1 bg-gray-200 px-2 pt-2">
+        <div class="flex space-x-1 bg-slate-100 px-2 pt-2 border-b">
             <button id="tab-productos" onclick="toggleSection('productos')"
                 class="px-4 py-2 bg-white rounded-t-lg shadow text-gray-700 font-medium">
                 Productos Registrados
@@ -46,17 +55,9 @@
                     <select id="filterCategoria" onchange="filterTable()"
                         class="px-3 py-2 border rounded-md w-full md:w-48">
                         <option value="">Todas las Categorías</option>
-                        <option value="Tecnología">Tecnología</option>
-                        <option value="Contabilidad">Contabilidad</option>
-                        <option value="Talento Humano">Talento Humano</option>
-                        <option value="Compras">Compras</option>
-                        <option value="Calidad">Calidad</option>
-                        <option value="HSEQ">HSEQ</option>
-                        <option value="Comercial">Comercial</option>
-                        <option value="Operaciones">Operaciones</option>
-                        <option value="Financiera">Financiera</option>
-                        <option value="Mantenimiento">Mantenimiento</option>
-                        <option value="Otros">Otros</option>
+                        @foreach($categorias as $cat)
+                            <option value="{{ $cat }}">{{ $cat }}</option>
+                        @endforeach
                     </select>
 
                     <!-- Filtro de Proveedor -->
@@ -77,15 +78,16 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto thin-scrollbar">
                 <table id="productosTable" class="w-full table-auto">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-indigo-50 sticky top-0 z-10">
                         <tr>
+                            <th class="px-4 py-2 text-left">SKU</th>
                             <th class="px-4 py-2 text-left">Producto</th>
                             <th class="px-4 py-2 text-left">Categoría</th>
                             <th class="px-4 py-2 text-left">Proveedor</th>
                             <th class="px-4 py-2 text-left">Stock</th>
-                            <th class="px-4 py-2 text-left">Precio</th>
+                            <th class="px-4 py-2 text-left">Unidad</th>
                             <th class="px-4 py-2 text-left">IVA</th>
                             <th class="px-4 py-2 text-left">Estado</th>
                             <th class="px-4 py-2 text-center">Acciones</th>
@@ -93,59 +95,71 @@
                     </thead>
                     <tbody>
                         @foreach($productos as $producto)
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ $producto->name_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->categoria_produc }}</td>
-                            <td class="px-4 py-2">{{ $producto->proveedor->prov_name ?? 'N/A' }}</td>
-                            <td class="px-4 py-2">{{ $producto->stock_produc }}</td>
-                            <td class="px-4 py-2">${{ number_format($producto->price_produc, 2) }}</td>
-                            <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
-                            <td class="px-4 py-2">
-                                @if($producto->trashed())
-                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">Eliminado</span>
-                                @else
-                                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
-                                @endif
-                            </td>
-                            <td class="px-4 py-2 text-center">
-                                <div class="flex justify-center space-x-2">
-                                    @if($producto->trashed())
-                                    <form action="{{ route('productos.restore', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="showLoading(event)">
-                                        @csrf
-                                        @method('POST')
-                                        <button type="submit" class="text-green-600 hover:text-green-800"
-                                            title="Restaurar">
-                                            <i class="fas fa-undo"></i>
-                                        </button>
-                                    </form>
-                                    <form action="{{ route('productos.forceDelete', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="return confirmDelete(event)">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800"
-                                            title="Eliminar Permanentemente">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
+                            @if(!$producto->trashed())
+                            @php
+                                // Obtener proveedores asociados y precios desde la tabla productoxproveedor
+                                $provList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
+                                    ->join('proveedores as prov','prov.id','=','pxp.proveedor_id')
+                                    ->where('pxp.producto_id', $producto->id)
+                                    ->select('prov.id as prov_id','prov.prov_name','pxp.price_produc','pxp.moneda')
+                                    ->orderBy('pxp.id','asc')
+                                    ->get();
+                                $firstProv = $provList->first();
+                            @endphp
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2" data-col="sku">{{ $producto->sku ?? $producto->id }}</td>
+                                <td class="px-4 py-2" data-col="nombre">{{ $producto->name_produc }}</td>
+                                <td class="px-4 py-2" data-col="categoria">{{ $producto->categoria_produc }}</td>
+                                <td class="px-4 py-2" data-col="proveedor">
+                                    @if($provList && $provList->count())
+                                        <ul class="text-sm">
+                                            @foreach($provList as $pv)
+                                                <li>{{ $pv->prov_name }} <small class="text-gray-500">(${!! number_format($pv->price_produc,2) !!} {{ $pv->moneda ?? '' }})</small></li>
+                                            @endforeach
+                                        </ul>
                                     @else
-                                    <button
-                                        onclick="openEditModal({{ $producto->id }}, '{{ $producto->name_produc }}', '{{ $producto->categoria_produc }}', {{ $producto->proveedor_id }}, {{ $producto->stock_produc }}, {{ $producto->price_produc }}, {{ $producto->iva ?? 0 }}, '{{ $producto->unit_produc }}', `{{ $producto->description_produc }}`)"
-                                        class="text-blue-600 hover:text-blue-800" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
-                                        class="inline" onsubmit="return confirmDelete(event)">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
+                                        N/A
                                     @endif
-                                </div>
-                            </td>
-                        </tr>
+                                </td>
+                                <td class="px-4 py-2">{{ number_format($producto->stock_produc, 0) }}</td>
+                                <td class="px-4 py-2">{{ $producto->unit_produc }}</td>
+                                <td class="px-4 py-2">{{ isset($producto->iva) ? number_format($producto->iva, 2).'%' : '-' }}</td>
+                                <td class="px-4 py-2" data-col="estado">
+                                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Activo</span>
+                                </td>
+                                <td class="px-4 py-2 text-center">
+                                    <div class="flex justify-center space-x-2">
+                                        @php
+                                            // Valores por defecto para el modal: usar el primer proveedor si existe
+                                            $editProvId = $firstProv->prov_id ?? 'null';
+                                            $editPrice = $firstProv->price_produc ?? 0;
+                                        @endphp
+                                        <button
+                                            data-providers='@json($provList)'
+                                            onclick="openEditModal(this, {{ $producto->id }}, '{{ addslashes($producto->name_produc) }}', '{{ addslashes($producto->categoria_produc) }}', {{ $producto->stock_produc }}, {{ $editPrice }}, {{ $producto->iva ?? 0 }}, '{{ addslashes($producto->unit_produc) }}', `{{ addslashes($producto->description_produc) }}`)"
+                                            class="text-blue-600 hover:text-blue-800" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <!-- Botón para gestionar proveedores (abre modal separado) -->
+                                        <button
+                                            data-providers='@json($provList)'
+                                            data-product-name="{{ addslashes($producto->name_produc) }}"
+                                            onclick="openManageProvidersModal(this, {{ $producto->id }})"
+                                            class="text-yellow-600 hover:text-yellow-800" title="Gestionar Proveedores">
+                                            <i class="fas fa-boxes"></i>
+                                        </button>
+                                        <form action="{{ route('productos.destroy', [$producto->id], false) }}" method="POST"
+                                            class="inline" onsubmit="return confirmDelete(event)">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:text-red-800" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            @endif
                         @endforeach
                     </tbody>
                 </table>
@@ -167,12 +181,12 @@
         </div>
 
         <!-- Sección de Productos Solicitados (oculta inicialmente) -->
-        <div id="solicitudes-section" class="p-4 overflow-x-auto hidden">
+        <div id="solicitudes-section" class="p-4 overflow-x-auto hidden thin-scrollbar">
             @if($solicitudes->isEmpty())
             <p class="text-gray-500">No hay productos solicitados.</p>
             @else
             <table id="solicitudesTable" class="w-full table-auto">
-                <thead class="bg-gray-50">
+                <thead class="bg-indigo-50 sticky top-0 z-10">
                     <tr>
                         <th class="px-4 py-2 text-left">Fecha</th>
                         <th class="px-4 py-2 text-left">Solicitado por</th>
@@ -294,50 +308,9 @@
                                     <!-- Dropdown personalizado -->
                                     <div id="categoria_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Tecnología">
-                                            Tecnología
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Contabilidad">
-                                            Contabilidad
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Talento Humano">
-                                            Talento Humano
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Compras">
-                                            Compras
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Calidad">
-                                            Calidad
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="HSEQ">
-                                            HSEQ
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Comercial">
-                                            Comercial
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Operaciones">
-                                            Operaciones
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Financiera">
-                                            Financiera
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Mantenimiento">
-                                            Mantenimiento
-                                        </div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat"
-                                            data-value="Otros">
-                                            Otros
-                                        </div>
+                                        @foreach($categorias as $cat)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="{{ $cat }}">{{ $cat }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
 
@@ -346,48 +319,11 @@
                                 <span id="categoria_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
 
-                            <div class="relative mb-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                                <div class="relative flex">
-                                    <!-- Input con búsqueda -->
-                                    <input type="text" id="proveedor_input" name="proveedor_name"
-                                        placeholder="Escribe o selecciona un proveedor..."
-                                        class="w-full px-3 py-2 border rounded-md rounded-r-none" autocomplete="off"
-                                        required>
-
-                                    <!-- Botón para crear nuevo proveedor -->
-                                    <button type="button" onclick="openModal('proveedor')"
-                                        class="bg-blue-500 text-white px-3 rounded-r-md">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                </div>
-
-                                <!-- Dropdown personalizado - Ahora está dentro del contenedor relativo -->
-                                <div id="proveedor_dropdown"
-                                    class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                    @foreach($proveedores as $proveedor)
-                                    <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item"
-                                        data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}">
-                                        {{ $proveedor->prov_name }}
-                                    </div>
-                                    @endforeach
-                                </div>
-
-                                <input type="hidden" id="proveedor_id" name="proveedor_id">
-                                <span id="proveedor_id_error" class="text-red-500 text-xs hidden"></span>
-                            </div>
-
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                                <input type="number" id="stock_produc" name="stock_produc" min="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
+                                <input type="number" id="stock_produc" name="stock_produc" min="0" step="1"
+                                    value="0" class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="stock_produc_error" class="text-red-500 text-xs hidden"></span>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Precio</label>
-                                <input type="number" id="price_produc" name="price_produc" step="0.01" min="0"
-                                    class="w-full px-3 py-2 border rounded-md" required>
-                                <span id="price_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">IVA (%)</label>
@@ -398,25 +334,13 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida</label>
                                 <div class="relative">
                                     <input type="text" id="unit_input" name="unit_input"
-                                        placeholder="Selecciona una unidad..."
-                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly>
+                                        placeholder="Selecciona o escribe una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
                                     <div id="unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Unidad">Unidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Pieza">Pieza</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Docena">Docena</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Caja">Caja</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Paquete">Paquete</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Rollo">Rollo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Juego">Juego</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Litro">Litro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Mililitro">Mililitro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Kilogramo">Kilogramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Gramo">Gramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Metro">Metro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Centímetro">Centímetro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Galón">Galón</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="Otro">Otro</div>
+                                        @foreach($unidades as $uni)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat" data-value="{{ $uni }}">{{ $uni }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
                                 <input type="hidden" id="unit_produc" name="unit_produc">
@@ -427,6 +351,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                             <textarea id="description_produc" name="description_produc" rows="3"
                                 class="w-full px-3 py-2 border rounded-md"></textarea>
+                            <span id="description_produc_error" class="text-red-500 text-xs hidden"></span>
                         </div>
                     </form>
                 </div>
@@ -454,7 +379,7 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <form id="proveedorForm" method="POST">
+                    <form id="proveedorForm" method="POST" action="{{ route('proveedores.store', [], false) }}">
                         @csrf
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
@@ -493,6 +418,28 @@
                                 <input type="text" id="prov_city" name="prov_city"
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="prov_city_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico *</label>
+                                <input type="email" id="prov_email" name="prov_email" class="w-full px-3 py-2 border rounded-md" required>
+                                <span id="prov_email_error" class="text-red-500 text-xs hidden"></span>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Método de Pago</label>
+                                <select id="methods_oc" name="methods_oc" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="">(Vacío)</option>
+                                    <option value="Efectivo">Efectivo</option>
+                                    <option value="Transferencia">Transferencia</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Plazo de Pago</label>
+                                <select id="plazo_oc" name="plazo_oc" class="w-full px-3 py-2 border rounded-md">
+                                    <option value="">(Vacío)</option>
+                                    <option value="Contado">Contado</option>
+                                    <option value="30 días">30 días</option>
+                                    <option value="45 días">45 días</option>
+                                </select>
                             </div>
                         </div>
                         <div class="mb-4">
@@ -572,28 +519,9 @@
 
                                     <div id="solicitud_categoria_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Tecnología">Tecnología</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Contabilidad">Contabilidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Talento Humano">Talento Humano</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Compras">Compras</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Calidad">Calidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="HSEQ">HSEQ</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Comercial">Comercial</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Operaciones">Operaciones</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Financiera">Financiera</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Mantenimiento">Mantenimiento</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud"
-                                            data-value="Otros">Otros</div>
+                                        @foreach($categorias as $cat)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="{{ $cat }}">{{ $cat }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
 
@@ -636,7 +564,7 @@
                             <!-- Stock -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
-                                <input type="number" id="solicitud_stock_produc" name="stock_produc" min="0" value="0"
+                                <input type="number" id="solicitud_stock_produc" name="stock_produc" min="0" step="1" value="0"
                                     class="w-full px-3 py-2 border rounded-md" required>
                                 <span id="solicitud_stock_produc_error" class="text-red-500 text-xs hidden"></span>
                             </div>
@@ -660,25 +588,13 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Unidad de Medida *</label>
                                 <div class="relative">
                                     <input type="text" id="solicitud_unit_input" name="unit_input"
-                                        placeholder="Selecciona una unidad..."
-                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" readonly value="Unidad">
+                                        placeholder="Selecciona o escribe una unidad..."
+                                        class="w-full px-3 py-2 border rounded-md cursor-pointer" autocomplete="off" value="Unidad">
                                     <div id="solicitud_unit_dropdown"
                                         class="absolute z-20 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto hidden">
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Unidad">Unidad</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Pieza">Pieza</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Docena">Docena</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Caja">Caja</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Paquete">Paquete</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Rollo">Rollo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Juego">Juego</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Litro">Litro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Mililitro">Mililitro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Kilogramo">Kilogramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Gramo">Gramo</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Metro">Metro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Centímetro">Centímetro</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Galón">Galón</div>
-                                        <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="Otro">Otro</div>
+                                        @foreach($unidades as $uni)
+                                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item-cat-solicitud" data-value="{{ $uni }}">{{ $uni }}</div>
+                                        @endforeach
                                     </div>
                                 </div>
                                 <input type="hidden" id="solicitud_unit_produc" name="unit_produc" value="Unidad">
@@ -710,18 +626,89 @@
             </div>
         </div>
 
-        <!-- Loading overlay -->
-        <div id="loadingOverlay"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-                <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
-                <p class="text-center text-gray-500">Por favor espere.</p>
+        <!-- Modal para gestionar proveedores por producto (separado) -->
+        <div id="manageProvidersModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg w-11/12 md:w-3/4 lg:w-2/3 max-h-screen overflow-y-auto">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Proveedores del Producto</h2>
+                    <button onclick="closeModal('manageProviders')" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="p-4">
+                    <div class="mb-4">
+                        <h3 id="manageProductName" class="text-lg font-medium"></h3>
+                        <p id="manageProductCategory" class="text-sm text-gray-500"></p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Añadir proveedor</label>
+                        <div class="flex gap-2 items-center mb-2">
+                            <div class="relative flex-1">
+                                <input type="text" id="manage_prov_input" placeholder="Selecciona un proveedor..." class="w-full px-3 py-2 border rounded-md" autocomplete="off">
+                                <!-- Dropdown movido al final del body para evitar recorte -->
+                            </div>
+                            <!-- Botón para abrir modal de crear proveedor desde gestionar proveedores -->
+                            <button type="button" onclick="openModal('proveedor')" title="Nuevo proveedor" class="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <input type="number" id="manage_prov_price" placeholder="Precio" step="0.01" min="0" class="w-32 px-3 py-2 border rounded-md">
+                            <div class="relative">
+                                <input type="text" id="manage_prov_moneda_input" placeholder="Moneda (ej: COP)" value="COP" class="w-36 md:w-48 px-3 py-2 border rounded-md cursor-pointer" autocomplete="off">
+                            </div>
+                            <select id="manage_prov_moneda" class="hidden">
+                                @php
+                                    $ISO_CURRENCIES = ['COP', 'USD', 'EUR'];
+                                @endphp
+                                @foreach($ISO_CURRENCIES as $cc)
+                                    <option value="{{ $cc }}" {{ $cc === 'COP' ? 'selected' : '' }}>{{ $cc }}</option>
+                                @endforeach
+                            </select>
+                            <button type="button" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700" onclick="addManageProviderRow()">Agregar</button>
+                        </div>
+
+                        <div class="overflow-auto max-h-48 border rounded">
+                            <table class="w-full text-sm" id="manageProvidersTable">
+                                  <thead class="bg-gray-50">
+                                      <tr>
+                                          <th class="px-3 py-2 text-left">Proveedor</th>
+                                          <th class="px-3 py-2 text-left">Precio</th>
+                                          <th class="px-3 py-2 text-left">Moneda</th>
+                                          <th class="px-3 py-2 text-left">Método</th>
+                                          <th class="px-3 py-2 text-left">Plazo</th>
+                                          <th class="px-3 py-2 text-center">Acción</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody></tbody>
+                              </table>
+                        </div>
+                        <div id="manageProvidersInputs"></div>
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button class="px-4 py-2 bg-gray-300 text-gray-700 rounded" onclick="closeModal('manageProviders')">Cerrar</button>
+                        <button class="px-4 py-2 bg-indigo-600 text-white rounded" onclick="submitManageProviders()">Guardar proveedores</button>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <script>
-            // Abrir modal de solicitud
+<!-- Loading overlay -->
+<div id="loadingOverlay"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden"
+    style="z-index:100200 !important;">
+    <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+        <h2 class="text-center text-gray-700 text-xl font-semibold">Procesando...</h2>
+        <p class="text-center text-gray-500">Por favor espere.</p>
+    </div>
+</div>
+
+<script>
+    // Evitar redeclaraciones de manageProviderIndex: declarar una vez en ámbito global
+    var manageProviderIndex = typeof manageProviderIndex !== 'undefined' ? manageProviderIndex : 0;
+
+    // Abrir modal de solicitud
     function openSolicitudModal(nombre, descripcion, usuario) {
         document.getElementById('solicitudNombre').textContent = nombre;
         document.getElementById('solicitudDescripcion').textContent = descripcion;
@@ -737,38 +724,55 @@
     // Abrir modal para añadir desde solicitud
     function openAddFromSolicitudModal(solicitudId) {
         // Mostrar loading
-        document.getElementById('loadingOverlay').classList.remove('hidden');
-        
-        // Obtener datos de la solicitud
+        const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden');
+
         fetch(`/productos/solicitud/${solicitudId}`)
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error al obtener los datos de la solicitud');
-                }
+                if (!response.ok) throw new Error('Error al obtener los datos de la solicitud');
                 return response.json();
             })
             .then(data => {
-                // Llenar el formulario con los datos de la solicitud
-                document.getElementById('solicitudId').value = solicitudId;
-                document.getElementById('solicitud_name_produc').value = data.nombre;
-                document.getElementById('solicitud_description_produc').value = data.descripcion;
-                
-                // Mostrar el modal
-                document.getElementById('addFromSolicitudModal').classList.remove('hidden');
-                
-                // Ocultar loading
-                document.getElementById('loadingOverlay').classList.add('hidden');
+                try {
+                    // Abrir modal de producto (resetea el formulario)
+                    openModal('producto');
+
+                    // Asegurar que el formulario de producto tiene un input hidden solicitud_id
+                    const form = document.getElementById('productForm');
+                    if (form) {
+                        let hid = form.querySelector('input[name="solicitud_id"]');
+                        if (!hid) {
+                            hid = document.createElement('input'); hid.type = 'hidden'; hid.name = 'solicitud_id'; hid.id = 'product_solicitud_id';
+                            form.appendChild(hid);
+                        }
+                        hid.value = solicitudId;
+                    }
+
+                    // Mapear datos de la solicitud en los mismos campos que el modal de producto
+                    if (data.nombre) document.getElementById('name_produc').value = data.nombre;
+                    if (typeof data.descripcion !== 'undefined') document.getElementById('description_produc').value = data.descripcion || '';
+                    const stockEl = document.getElementById('stock_produc'); if (stockEl) stockEl.value = sanitizeToInt(data.stock_produc ?? data.stock ?? 0);
+                    const ivaEl = document.getElementById('iva'); if (ivaEl) ivaEl.value = (typeof data.iva !== 'undefined') ? data.iva : (ivaEl.value || 0);
+
+                    // Categoría y unidad (asegurar también los campos ocultos)
+                    const catIn = document.getElementById('categoria_input'); const catHidden = document.getElementById('categoria_produc');
+                    if (catIn) catIn.value = data.categoria ?? (data.categoria_produc || '');
+                    if (catHidden) catHidden.value = data.categoria ?? (data.categoria_produc || '');
+
+                    const unitIn = document.getElementById('unit_input'); const unitHidden = document.getElementById('unit_produc');
+                    if (unitIn) unitIn.value = data.unit_input ?? (data.unit_produc || 'Unidad');
+                    if (unitHidden) unitHidden.value = data.unit_input ?? (data.unit_produc || 'Unidad');
+
+                    // Ocultar overlay
+                    if (overlay) overlay.classList.add('hidden');
+                } catch (e) {
+                    if (overlay) overlay.classList.add('hidden');
+                    console.warn(e);
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error al abrir el modal de producto' , confirmButtonColor: '#1e40af'});
+                }
             })
-            .catch(error => {
-                // Ocultar loading
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.message,
-                    confirmButtonColor: '#1e40af'
-                });
+            .catch(err => {
+                if (overlay) overlay.classList.add('hidden');
+                Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Error al obtener la solicitud', confirmButtonColor: '#1e40af'});
             });
     }
 
@@ -781,9 +785,11 @@
             document.getElementById('formMethod').value = 'POST';
             document.getElementById('productForm').action = "{{ route('productos.store', [], false) }}";
             document.getElementById('productForm').reset();
+            // Asegurar stock entero por defecto
+            const defaultStockEl = document.getElementById('stock_produc'); if (defaultStockEl) defaultStockEl.value = 0;
             // Limpiar campos de búsqueda
-            document.getElementById('proveedor_input').value = '';
-            document.getElementById('categoria_input').value = '';
+            const provInput = document.getElementById('proveedor_input'); if(provInput) provInput.value = '';
+            const catInput = document.getElementById('categoria_input'); if(catInput) catInput.value = '';
             const uIn = document.getElementById('unit_input');
             const uHidden = document.getElementById('unit_produc');
             if (uIn) uIn.value = '';
@@ -811,20 +817,36 @@
             document.getElementById('proveedorModal').classList.add('hidden');
         } else if (type === 'addFromSolicitud') {
             document.getElementById('addFromSolicitudModal').classList.add('hidden');
+        } else if (type === 'manageProviders') {
+            document.getElementById('manageProvidersModal').classList.add('hidden');
         }
     }
 
     function openEditModal(id, nombre, categoria, proveedorId, stock, precio, unidad, descripcion) {
         // backward compatible: support signature with iva param
         let ivaParam = 0;
-        if (arguments.length === 9) {
-            // new signature: id, nombre, categoria, proveedorId, stock, precio, iva, unidad, descripcion
-            ivaParam = arguments[6];
+        // Si se llama con el elemento como primer argumento, el orden esperado es:
+        // (elem, id, nombre, categoria, stock, precio, iva, unidad, descripcion)
+        if (typeof id === 'object' && id.dataset) {
+            const elem = id;
+            id = arguments[1];
+            nombre = arguments[2];
+            categoria = arguments[3];
+            // aquí stock viene en la posición 4
+            stock = arguments[4];
             precio = arguments[5];
-            unidad = arguments[7];
-            descripcion = arguments[8];
-        } else if (arguments.length === 8) {
-            // old signature
+            ivaParam = arguments[6] ?? 0;
+            unidad = arguments[7] ?? '';
+            descripcion = arguments[8] ?? '';
+
+            // populate providers from data attribute if present
+            try {
+                const provData = elem.getAttribute('data-providers');
+                const providers = provData ? JSON.parse(provData) : [];
+                populateProvidersTable(providers);
+            } catch (e) { console.warn('No providers data', e); }
+        } else {
+            // llamado sin elemento, asumir signature id,nombre,categoria,proveedorId,stock,precio,unidad,descripcion
             ivaParam = 0;
         }
         document.getElementById('modalTitle').textContent = 'Editar Producto';
@@ -833,8 +855,7 @@
         document.getElementById('productForm').action = '/productos/' + id;
         
         document.getElementById('name_produc').value = nombre;
-        document.getElementById('stock_produc').value = stock;
-        document.getElementById('price_produc').value = precio;
+        const stockElem = document.getElementById('stock_produc'); if (stockElem) stockElem.value = sanitizeToInt(stock);
         document.getElementById('iva').value = ivaParam;
         const uIn = document.getElementById('unit_input');
         const uHidden = document.getElementById('unit_produc');
@@ -859,50 +880,7 @@
         clearErrorMessages();
     }
 
-    function toggleSection(section) {
-        const productosSection = document.getElementById('productos-section');
-        const solicitudesSection = document.getElementById('solicitudes-section');
-
-        const tabProductos = document.getElementById('tab-productos');
-        const tabSolicitudes = document.getElementById('tab-solicitudes');
-
-        if (section === 'productos') {
-            productosSection.classList.remove('hidden');
-            solicitudesSection.classList.add('hidden');
-
-            // Activar tab productos
-            tabProductos.classList.add('bg-white', 'shadow', 'text-gray-700');
-            tabProductos.classList.remove('text-gray-600');
-
-            // Desactivar tab solicitudes
-            tabSolicitudes.classList.remove('bg-white', 'shadow', 'text-gray-700');
-            tabSolicitudes.classList.add('text-gray-600');
-
-            // Recalcular paginación de productos al mostrar la pestaña
-            if (typeof prodShowPage === 'function') {
-                const page = (typeof prodCurrentPage === 'number' && prodCurrentPage > 0) ? prodCurrentPage : 1;
-                setTimeout(() => prodShowPage(page), 0);
-            }
-        } else {
-            productosSection.classList.add('hidden');
-            solicitudesSection.classList.remove('hidden');
-
-            // Activar tab solicitudes
-            tabSolicitudes.classList.add('bg-white', 'shadow', 'text-gray-700');
-            tabSolicitudes.classList.remove('text-gray-600');
-
-            // Desactivar tab productos
-            tabProductos.classList.remove('bg-white', 'shadow', 'text-gray-700');
-            tabProductos.classList.add('text-gray-600');
-
-            // Recalcular paginación de solicitudes al mostrar la pestaña
-            if (typeof solShowPage === 'function') {
-                const page = (typeof solCurrentPage === 'number' && solCurrentPage > 0) ? solCurrentPage : 1;
-                setTimeout(() => solShowPage(page), 0);
-            }
-        }
-    }
-
+    // Gestión de proveedores dentro del modal de producto eliminada: usar modal "Gestionar Proveedores".
     // Función para filtrar proveedores en el modal de añadir desde solicitud
     function filterSolicitudProveedores() {
         const searchTerm = document.getElementById('solicitud_proveedor_search').value.toLowerCase();
@@ -943,39 +921,310 @@
         }
     }
 
-    // Cerrar resultados al hacer clic fuera
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#proveedor_search') && !e.target.closest('#proveedor_results')) {
-            document.getElementById('proveedor_results').classList.add('hidden');
+    // Gestión de proveedores por producto (modal separado)
+    manageProviderIndex = 0;
+    function openManageProvidersModal(elem, productId) {
+        const provData = elem.getAttribute('data-providers');
+        const productName = elem.getAttribute('data-product-name') || '';
+        document.getElementById('manageProductName').textContent = productName;
+        document.getElementById('manageProductCategory').textContent = '';
+        document.getElementById('manageProvidersTable').querySelector('tbody').innerHTML = '';
+        document.getElementById('manageProvidersInputs').innerHTML = '';
+        manageProviderIndex = 0;
+        if (provData) {
+            try {
+                const provs = JSON.parse(provData);
+                populateManageProvidersTable(provs);
+            } catch (e) { console.warn(e); }
         }
-    });
+        // show modal and store product id
+        document.getElementById('manageProvidersModal').dataset.productId = productId;
+        document.getElementById('manageProvidersModal').classList.remove('hidden');
+    }
 
-    // Mostrar loading
-    function showLoading(event) {
+    function addManageProviderRow() {
+        const nameInput = document.getElementById('manage_prov_input');
+        const priceInput = document.getElementById('manage_prov_price');
+        const monedaSelect = document.getElementById('manage_prov_moneda');
+        const dropdown = document.getElementById('manage_prov_dropdown');
+        const tbody = document.querySelector('#manageProvidersTable tbody');
+        const provName = nameInput.value.trim();
+        const price = parseFloat(priceInput.value);
+        const moneda = monedaSelect ? monedaSelect.value : '';
+        if (!provName) { Swal.fire({icon:'info', title:'Proveedor', text:'Seleccione un proveedor'}); return; }
+        if (isNaN(price) || price < 0) { Swal.fire({icon:'info', title:'Precio', text:'Ingrese un precio válido'}); return; }
+        // Buscar opción por nombre (case-insensitive)
+        const option = Array.from(dropdown.querySelectorAll('.manage-option-item')).find(o => (o.getAttribute('data-name') || o.textContent || '').toLowerCase() === provName.toLowerCase());
+        const providerId = option ? option.getAttribute('data-id') : null;
+        const methods = option ? (option.getAttribute('data-methods') || '') : '';
+        const plazo = option ? (option.getAttribute('data-plazo') || '') : '';
+        if (!providerId) { Swal.fire({icon:'error', title:'Proveedor', text:'Proveedor no válido'}); return; }
+        if (document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${providerId}"]`)) { Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'}); return; }
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-prov-id', providerId);
+        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+        tbody.appendChild(tr);
+        const inputsDiv = document.getElementById('manageProvidersInputs');
+        const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
+        wrapper.setAttribute('data-prov-id', providerId);
+        wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${providerId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+        inputsDiv.appendChild(wrapper);
+        manageProviderIndex++;
+        nameInput.value = ''; priceInput.value = '';
+    }
+
+    function removeManageProviderRow(idx) {
+        const wrapper = document.getElementById('manage_provider_row_' + idx);
+        let provId = null;
+        if (wrapper) provId = wrapper.getAttribute('data-prov-id') || wrapper.querySelector('input')?.value;
+        if (wrapper) wrapper.remove();
+        if (provId) {
+            const tr = document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${provId}"]`);
+            if (tr) tr.remove();
+        } else {
+            // fallback: remove any row at that index
+            const tbody = document.querySelector('#manageProvidersTable tbody'); const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows[idx]) rows[idx].remove();
+        }
+    }
+
+    function populateManageProvidersTable(providers) {
+        const tbody = document.querySelector('#manageProvidersTable tbody'); tbody.innerHTML = '';
+        const inputsDiv = document.getElementById('manageProvidersInputs'); inputsDiv.innerHTML = '';
+        manageProviderIndex = 0;
+        providers.forEach(p => {
+            const name = p.prov_name || p.prov_name || '';
+            const price = parseFloat(p.price_produc || p.price || 0);
+            const moneda = p.moneda || p.currency || '';
+            const methods = p.methods_oc || p.methods || '';
+            const plazo = p.plazo_oc || p.plazo || '';
+            const provId = p.prov_id || p.id || p.proveedor_id;
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-prov-id', provId);
+            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+            tbody.appendChild(tr);
+            const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
+            wrapper.setAttribute('data-prov-id', provId);
+            wrapper.innerHTML = `<input type="hidden" name="providers[${manageProviderIndex}][provider_id]" value="${provId}"><input type="hidden" name="providers[${manageProviderIndex}][price]" value="${price}"><input type="hidden" name="providers[${manageProviderIndex}][moneda]" value="${moneda}">`;
+            inputsDiv.appendChild(wrapper);
+            manageProviderIndex++;
+        });
+    }
+
+    function submitManageProviders() {
+        const modal = document.getElementById('manageProvidersModal');
+        const productId = modal.dataset.productId;
+        const wrappers = Array.from(document.querySelectorAll('#manageProvidersInputs > div'));
+        const providers = [];
+        wrappers.forEach(w => {
+            const pid = w.querySelector('input[name$="[provider_id]"]')?.value || null;
+            const price = w.querySelector('input[name$="[price]"]')?.value || 0;
+            const moneda = w.querySelector('input[name$="[moneda]"]')?.value || null;
+            if (pid) providers.push({provider_id: pid, price: price, moneda: moneda});
+         });
+
+        // Si no se agregaron proveedores, avisar y no enviar
+        if (!providers.length) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin proveedores',
+                text: 'Agregue al menos un proveedor antes de guardar.',
+                confirmButtonColor: '#1e40af'
+            });
+            return;
+        }
+
+        fetch(`/productos/${productId}/providers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ providers })
+        }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+                Swal.fire({icon:'success', title:'Guardado', text: data.message || 'Proveedores guardados'}).then(()=> location.reload());
+            } else {
+                Swal.fire({icon:'error', title:'Error', text: data.message || 'No se pudo guardar'});
+            }
+        }).catch(e => {
+            Swal.fire({icon:'error', title:'Error', text:'Error al guardar proveedores'});
+        });
+    }
+
+    // Script adicional para manejo seguro de creación de proveedores y notificaciones
+    function submitProveedorForm() {
+        if (!validateProveedorForm()) return;
+        const form = document.getElementById('proveedorForm');
+        const url = form.action;
+        const fd = new FormData(form);
         document.getElementById('loadingOverlay').classList.remove('hidden');
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: fd
+        }).then(async (res) => {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            let data = null;
+            try { data = await res.json(); } catch (e) { data = null; }
+
+            // Si hubo redirección, recargar
+            if (res.redirected) {
+                Swal.fire({icon:'success', title:'Proveedor creado', text: 'Proveedor guardado correctamente'}).then(() => location.reload());
+                return;
+            }
+
+            // Si la respuesta es JSON con errores de validación
+            if (!res.ok) {
+                // Construir mensaje legible
+                let htmlMessage = '';
+                if (data && data.errors && typeof data.errors === 'object') {
+                    htmlMessage = '<ul style="text-align:left;margin:0;padding-left:18px;">';
+                    Object.keys(data.errors).forEach(key => {
+                        const arr = data.errors[key] || [];
+                        arr.forEach(msg => { htmlMessage += `<li>${msg}</li>`; });
+                    });
+                    htmlMessage += '</ul>';
+                } else if (data && data.message) {
+                    htmlMessage = `<div style="text-align:left;">${data.message}</div>`;
+                } else {
+                    htmlMessage = 'No se pudo crear el proveedor';
+                }
+
+                Swal.fire({icon:'error', title:'Error', html: htmlMessage});
+                return;
+            }
+
+            // OK response
+            if (data && (data.success || data.provider)) {
+                const prov = data.provider || data;
+                try { addProveedorToUI(prov); } catch (e) { console.warn(e); }
+                form.reset();
+                document.getElementById('proveedorModal').classList.add('hidden');
+                Swal.fire({icon:'success', title:'Proveedor creado', text: data.message || 'Proveedor guardado correctamente'}).then(() => location.reload());
+            } else {
+                // Fallback: mostrar mensaje si viene en data
+                const msg = (data && data.message) ? data.message : 'Proveedor creado';
+                Swal.fire({icon:'success', title:'Proveedor creado', text: msg}).then(() => location.reload());
+            }
+        }).catch(err => {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            console.error(err);
+            Swal.fire({icon:'error', title:'Error', text: 'Error al guardar proveedor'});
+        });
+    }
+
+    // Mostrar overlay de carga y permitir que el formulario continúe con el submit
+    function showLoading(event) {
+        try {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+        } catch (e) { console.warn('showLoading:', e); }
+        // No llamar event.preventDefault() aquí: permitimos que el envío continúe
         return true;
     }
 
-    // Confirmar eliminación
+    // Confirmación genérica para eliminar (usa SweetAlert2). Previene el submit y envía si confirma.
     function confirmDelete(event) {
-        event.preventDefault();
-        const form = event.target;
-        
+        // localizar el formulario asociado
+        let form = null;
+        try {
+            if (event && event.target) {
+                form = (event.target.tagName === 'FORM') ? event.target : event.target.closest('form');
+            }
+        } catch (e) { form = null; }
+
+        // Si el formulario fue marcado para saltar la confirmación (envío programático), permitirlo
+        if (form && form.dataset && form.dataset.skipConfirm === '1') {
+            // limpiar la marca y permitir que el envío continúe
+            delete form.dataset.skipConfirm;
+            return true;
+        }
+
+        const action = form ? (form.getAttribute('action') || '') : '';
+        const isNuevoProducto = action.includes('nuevo_producto');
+
+        // Función que abre el prompt de texto para el motivo de rechazo
+        const openRejectionPrompt = (frm) => {
+            Swal.fire({
+                title: 'Rechazar solicitud',
+                input: 'textarea',
+                inputLabel: 'Motivo del rechazo (opcional)',
+                inputPlaceholder: 'Escribe el motivo por el cual rechazas la solicitud...',
+                showCancelButton: true,
+                confirmButtonText: 'Enviar',
+                cancelButtonText: 'Cancelar',
+                inputAttributes: { 'aria-label': 'Motivo del rechazo' }
+            }).then((res) => {
+                if (!res.isConfirmed) return; // usuario canceló
+                const comentario = (res.value || '').trim();
+
+                const doSubmitWithComment = () => {
+                    try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch (e) {}
+                    if (!frm) return;
+                    let inp = frm.querySelector('input[name="comentario"]');
+                    if (!inp) {
+                        inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'comentario'; frm.appendChild(inp);
+                    }
+                    inp.value = comentario;
+                    try { frm.dataset.skipConfirm = '1'; } catch (e) {}
+                    if (typeof frm.requestSubmit === 'function') frm.requestSubmit(); else frm.submit();
+                };
+
+                if (comentario === '') {
+                    Swal.fire({
+                        title: 'Enviar sin comentario?',
+                        text: '¿Desea rechazar la solicitud sin proporcionar un comentario?',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, enviar sin comentario',
+                        cancelButtonText: 'Volver'
+                    }).then(c => {
+                        if (c.isConfirmed) {
+                            doSubmitWithComment();
+                        } else {
+                            // volver a abrir el prompt de rechazo
+                            setTimeout(() => openRejectionPrompt(frm), 50);
+                        }
+                    });
+                } else {
+                    doSubmitWithComment();
+                }
+            });
+        };
+
+        // Si es una solicitud de nuevo producto, pedir comentario antes de enviar
+        if (isNuevoProducto) {
+            try { event.preventDefault(); } catch (e) { /* ignore */ }
+            openRejectionPrompt(form);
+            return false;
+        }
+
+        // Comportamiento genérico para otras eliminaciones
+        try { event.preventDefault(); } catch (e) { /* ignore */ }
         Swal.fire({
-            title: '¿Estás seguro?',
-            text: "Esta acción no se puede deshacer",
+            title: '¿Está seguro?',
+            text: 'Se notificará al solicitante.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#1e40af',
-            cancelButtonColor: '#d33',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#6b7280',
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                showLoading();
-                form.submit();
+                try { const overlay = document.getElementById('loadingOverlay'); if (overlay) overlay.classList.remove('hidden'); } catch(e){}
+                if (form) {
+                    // marcar para que el onsubmit no vuelva a pedir confirmación
+                    try { form.dataset.skipConfirm = '1'; } catch (e) {}
+                    // usar requestSubmit si está disponible para respetar onsubmit
+                    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                    else form.submit();
+                }
             }
         });
+        return false;
     }
 
     // Limpiar mensajes de error
@@ -983,7 +1232,7 @@
         const errorElements = document.querySelectorAll('[id$="_error"]');
         errorElements.forEach(element => {
             element.classList.add('hidden');
-            element.textContent = '';
+ element.textContent = '';
         });
     }
 
@@ -999,61 +1248,33 @@
     function validateProductForm() {
         clearErrorMessages();
         let isValid = true;
-        
-        const name_produc = document.getElementById('name_produc');
-        const proveedor_id = document.getElementById('proveedor_id');
-        const categoria_produc = document.getElementById('categoria_produc');
-        const stock_produc = document.getElementById('stock_produc');
-        const price_produc = document.getElementById('price_produc');
-        const unit_produc = document.getElementById('unit_produc');
+
+        const nameElem = document.getElementById('name_produc');
+        const catElem = document.getElementById('categoria_produc');
+        const stockElem = document.getElementById('stock_produc');
         const ivaElem = document.getElementById('iva');
-        
-        if (!name_produc.value.trim()) {
-            document.getElementById('name_produc_error').textContent = 'El nombre del producto es requerido';
-            document.getElementById('name_produc_error').classList.remove('hidden');
-            isValid = false;
+        const unitElem = document.getElementById('unit_produc');
+
+        if (!nameElem || !nameElem.value.trim()) { const e = document.getElementById('name_produc_error'); if (e) { e.textContent = 'El nombre del producto es requerido'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!catElem || !catElem.value) { const e = document.getElementById('categoria_produc_error'); if (e) { e.textContent = 'La categoría es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!stockElem) { const e = document.getElementById('stock_produc_error'); if (e) { e.textContent = 'El stock es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        else {
+            const stockVal = parseInt(stockElem.value, 10);
+            if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('stock_produc_error'); if (e) { e.textContent = 'El stock debe ser un entero mayor o igual a 0'; e.classList.remove('hidden'); } isValid = false; }
+            else stockElem.value = stockVal;
         }
-        
-        if (!categoria_produc.value) {
-            document.getElementById('categoria_produc_error').textContent = 'La categoría es requerida';
-            document.getElementById('categoria_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!proveedor_id.value) {
-            document.getElementById('proveedor_id_error').textContent = 'El proveedor es requerido';
-            document.getElementById('proveedor_id_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!stock_produc.value || stock_produc.value < 0) {
-            document.getElementById('stock_produc_error').textContent = 'El stock debe ser un número válido mayor o igual a 0';
-            document.getElementById('stock_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!price_produc.value || price_produc.value < 0) {
-            document.getElementById('price_produc_error').textContent = 'El precio debe ser un número válido mayor o igual a 0';
-            document.getElementById('price_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) {
-            document.getElementById('iva_error').textContent = 'El IVA debe ser un número válido mayor o igual a 0';
-            document.getElementById('iva_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!unit_produc.value.trim()) {
-            document.getElementById('unit_produc_error').textContent = 'La unidad de medida es requerida';
-            document.getElementById('unit_produc_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (isValid) {
-            showLoading();
-        }
-        
+
+        if (ivaElem && (isNaN(parseFloat(ivaElem.value)) || parseFloat(ivaElem.value) < 0)) { const e = document.getElementById('iva_error'); if (e) { e.textContent = 'El IVA debe ser un número válido mayor o igual a 0'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (!unitElem || !unitElem.value.trim()) { const e = document.getElementById('unit_produc_error'); if (e) { e.textContent = 'La unidad de medida es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        // Validar descripción: mostrar mensaje debajo del campo y evitar envío
+        const descEl = document.getElementById('description_produc');
+        if (!descEl || !descEl.value.trim()) { const e = document.getElementById('description_produc_error'); if (e) { e.textContent = 'La descripción es requerida'; e.classList.remove('hidden'); } isValid = false; }
+
+        if (isValid) showLoading();
         return isValid;
     }
 
@@ -1061,54 +1282,29 @@
     function validateProveedorForm() {
         clearProveedorErrorMessages();
         let isValid = true;
-        
         const prov_name = document.getElementById('prov_name');
         const prov_nit = document.getElementById('prov_nit');
         const prov_name_c = document.getElementById('prov_name_c');
         const prov_phone = document.getElementById('prov_phone');
         const prov_adress = document.getElementById('prov_adress');
         const prov_city = document.getElementById('prov_city');
-        
-        if (!prov_name.value.trim()) {
-            document.getElementById('prov_name_error').textContent = 'El nombre del proveedor es requerido';
-            document.getElementById('prov_name_error').classList.remove('hidden');
-            isValid = false;
+        const prov_descrip = document.getElementById('prov_descrip');
+        const prov_email = document.getElementById('prov_email');
+
+        if (!prov_name || !prov_name.value.trim()) { const e = document.getElementById('prov_name_error'); if (e) { e.textContent = 'El nombre del proveedor es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_nit || !prov_nit.value.trim()) { const e = document.getElementById('prov_nit_error'); if (e) { e.textContent = 'El NIT es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_name_c || !prov_name_c.value.trim()) { const e = document.getElementById('prov_name_c_error'); if (e) { e.textContent = 'El nombre de contacto es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_phone || !prov_phone.value.trim()) { const e = document.getElementById('prov_phone_error'); if (e) { e.textContent = 'El teléfono es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_adress || !prov_adress.value.trim()) { const e = document.getElementById('prov_adress_error'); if (e) { e.textContent = 'La dirección es requerida'; e.classList.remove('hidden'); } isValid = false; }
+        if (!prov_city || !prov_city.value.trim()) { const e = document.getElementById('prov_city_error'); if (e) { e.textContent = 'La ciudad es requerida'; e.classList.remove('hidden'); } isValid = false; }
+        // Nuevo: validar correo
+        if (!prov_email || !prov_email.value.trim()) { const e = document.getElementById('prov_email_error'); if (e) { e.textContent = 'El correo es requerido'; e.classList.remove('hidden'); } isValid = false; }
+        else {
+            const emailVal = prov_email.value.trim();
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!re.test(emailVal)) { const e = document.getElementById('prov_email_error'); if (e) { e.textContent = 'Correo inválido'; e.classList.remove('hidden'); } isValid = false; }
         }
-        
-        if (!prov_nit.value.trim()) {
-            document.getElementById('prov_nit_error').textContent = 'El NIT es requerido';
-            document.getElementById('prov_nit_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_name_c.value.trim()) {
-            document.getElementById('prov_name_c_error').textContent = 'El nombre de contacto es requerido';
-            document.getElementById('prov_name_c_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_phone.value.trim()) {
-            document.getElementById('prov_phone_error').textContent = 'El teléfono es requerido';
-            document.getElementById('prov_phone_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_adress.value.trim()) {
-            document.getElementById('prov_adress_error').textContent = 'La dirección es requerida';
-            document.getElementById('prov_adress_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_city.value.trim()) {
-            document.getElementById('prov_city_error').textContent = 'La ciudad es requerida';
-            document.getElementById('prov_city_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (isValid) {
-            showLoading();
-        }
-        
+        if (!prov_descrip || !prov_descrip.value.trim()) { const e = document.getElementById('prov_descrip_error'); if (e) { e.textContent = 'La descripción es requerida'; e.classList.remove('hidden'); } isValid = false; }
         return isValid;
     }
 
@@ -1119,11 +1315,7 @@
         }
     }
 
-    function submitProveedorForm() {
-        if (validateProveedorForm()) {
-            document.getElementById('proveedorForm').submit();
-        }
-    }
+    // submitProveedorForm está implementada previamente usando fetch() para manejar respuestas JSON y mostrar SweetAlert
 
     // Función para abrir modal de proveedor desde cualquier formulario
     function openProveedorModal() {
@@ -1135,134 +1327,6 @@
     // Función para cerrar modal de proveedor
     function closeProveedorModal() {
         document.getElementById('proveedorModal').classList.add('hidden');
-    }
-
-    // Validar formulario de proveedor
-    function validateProveedorForm() {
-        clearProveedorErrorMessages();
-        let isValid = true;
-        
-        const prov_name = document.getElementById('prov_name');
-        const prov_nit = document.getElementById('prov_nit');
-        const prov_name_c = document.getElementById('prov_name_c');
-        const prov_phone = document.getElementById('prov_phone');
-        const prov_adress = document.getElementById('prov_adress');
-        const prov_city = document.getElementById('prov_city');
-        const prov_descrip = document.getElementById('prov_descrip');
-        
-        if (!prov_name.value.trim()) {
-            document.getElementById('prov_name_error').textContent = 'El nombre del proveedor es requerido';
-            document.getElementById('prov_name_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_nit.value.trim()) {
-            document.getElementById('prov_nit_error').textContent = 'El NIT es requerido';
-            document.getElementById('prov_nit_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_name_c.value.trim()) {
-            document.getElementById('prov_name_c_error').textContent = 'El nombre de contacto es requerido';
-            document.getElementById('prov_name_c_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_phone.value.trim()) {
-            document.getElementById('prov_phone_error').textContent = 'El teléfono es requerido';
-            document.getElementById('prov_phone_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_adress.value.trim()) {
-            document.getElementById('prov_adress_error').textContent = 'La dirección es requerida';
-            document.getElementById('prov_adress_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_city.value.trim()) {
-            document.getElementById('prov_city_error').textContent = 'La ciudad es requerida';
-            document.getElementById('prov_city_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        if (!prov_descrip.value.trim()) {
-            document.getElementById('prov_descrip_error').textContent = 'La descripción es requerida';
-            document.getElementById('prov_descrip_error').classList.remove('hidden');
-            isValid = false;
-        }
-        
-        return isValid;
-    }
-
-    // Enviar formulario de proveedor via AJAX
-    function submitProveedorForm() {
-        if (!validateProveedorForm()) {
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('prov_name', document.getElementById('prov_name').value);
-        formData.append('prov_nit', document.getElementById('prov_nit').value);
-        formData.append('prov_name_c', document.getElementById('prov_name_c').value);
-        formData.append('prov_phone', document.getElementById('prov_phone').value);
-        formData.append('prov_adress', document.getElementById('prov_adress').value);
-        formData.append('prov_city', document.getElementById('prov_city').value);
-        formData.append('prov_descrip', document.getElementById('prov_descrip').value);
-        formData.append('_token', '{{ csrf_token() }}');
-
-        showLoading();
-
-        fetch('{{ route("proveedores.store", [], false) }}', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Mostrar SweetAlert de éxito (confirmación)
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Éxito!',
-                    text: data.message,
-                    confirmButtonColor: '#1e40af'
-                }).then(() => {
-                    // Actualizar select de proveedores en todos los formularios
-                    updateProveedoresSelect(data.proveedores);
-                    // Cerrar modal
-                    closeModal('proveedor');
-                });
-            } else {
-                // Mostrar errores de validación
-                if (data.errors) {
-                    for (const field in data.errors) {
-                        const errorElement = document.getElementById(field + '_error');
-                        if (errorElement) {
-                            errorElement.textContent = data.errors[field][0];
-                            errorElement.classList.remove('hidden');
-                        }
-                    }
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: data.message || 'Error al crear el proveedor',
-                        confirmButtonColor: '#1e40af'
-                    });
-                }
-            }
-        })
-        .catch(error => {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error al procesar la solicitud',
-                confirmButtonColor: '#1e40af'
-            });
-        })
-        .finally(() => {
-            document.getElementById('loadingOverlay').classList.add('hidden');
-        });
     }
 
     // NUEVO: Validación modal "Añadir desde Solicitud"
@@ -1285,83 +1349,96 @@
         const unitHidden = document.getElementById('solicitud_unit_produc');
         const descEl = document.getElementById('solicitud_description_produc');
 
-        if (!nameEl.value.trim()) { const e = document.getElementById('solicitud_name_produc_error'); e.textContent = 'Requerido'; e.classList.remove('hidden'); ok = false; }
-        if (!catHidden.value) { const e = document.getElementById('solicitud_categoria_produc_error'); e.textContent = 'Seleccione una categoría'; e.classList.remove('hidden'); ok = false; }
-        if (!provHidden.value) { const e = document.getElementById('solicitud_proveedor_id_error'); e.textContent = 'Seleccione un proveedor'; e.classList.remove('hidden'); ok = false; }
+        if (!nameEl || !nameEl.value.trim()) { const e = document.getElementById('solicitud_name_produc_error'); if (e) { e.textContent = 'Requerido'; e.classList.remove('hidden'); } ok = false; }
+        if (!catHidden || !catHidden.value) { const e = document.getElementById('solicitud_categoria_produc_error'); if (e) { e.textContent = 'Seleccione una categoría'; e.classList.remove('hidden'); } ok = false; }
+        // El proveedor no es obligatorio al añadir desde solicitud; omitir validación
 
-        const stockVal = parseInt(stockEl.value, 10);
-        if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('solicitud_stock_produc_error'); e.textContent = 'Stock inválido'; e.classList.remove('hidden'); ok = false; }
+        if (!stockEl) { const e = document.getElementById('solicitud_stock_produc_error'); if (e) { e.textContent = 'Stock requerido'; e.classList.remove('hidden'); } ok = false; }
+        else {
+            const stockVal = parseInt(stockEl.value, 10);
+            if (isNaN(stockVal) || stockVal < 0) { const e = document.getElementById('solicitud_stock_produc_error'); if (e) { e.textContent = 'Stock inválido'; e.classList.remove('hidden'); } ok = false; }
+            else stockEl.value = stockVal;
+        }
 
-        const priceVal = parseFloat(priceEl.value);
-        if (isNaN(priceVal) || priceVal < 0) { const e = document.getElementById('solicitud_price_produc_error'); e.textContent = 'Precio inválido'; e.classList.remove('hidden'); ok = false; }
+        if (!priceEl) { const e = document.getElementById('solicitud_price_produc_error'); if (e) { e.textContent = 'Precio requerido'; e.classList.remove('hidden'); } ok = false; }
+        else { const priceVal = parseFloat(priceEl.value); if (isNaN(priceVal) || priceVal < 0) { const e = document.getElementById('solicitud_price_produc_error'); if (e) { e.textContent = 'Precio inválido'; e.classList.remove('hidden'); } ok = false; } }
 
-        const ivaVal = parseFloat(ivaEl.value);
-        if (isNaN(ivaVal) || ivaVal < 0) { const e = document.getElementById('solicitud_iva_error'); e.textContent = 'IVA inválido'; e.classList.remove('hidden'); ok = false; }
+        if (ivaEl && (isNaN(parseFloat(ivaEl.value)) || parseFloat(ivaEl.value) < 0)) { const e = document.getElementById('solicitud_iva_error'); if (e) { e.textContent = 'IVA inválido'; e.classList.remove('hidden'); } ok = false; }
 
-        if (!unitHidden.value.trim()) { const e = document.getElementById('solicitud_unit_produc_error'); e.textContent = 'Seleccione una unidad'; e.classList.remove('hidden'); ok = false; }
-        if (!descEl.value.trim()) { const e = document.getElementById('solicitud_description_produc_error'); e.textContent = 'Descripción requerida'; e.classList.remove('hidden'); ok = false; }
+        if (!unitHidden || !unitHidden.value.trim()) { const e = document.getElementById('solicitud_unit_produc_error'); if (e) { e.textContent = 'Seleccione una unidad'; e.classList.remove('hidden'); } ok = false; }
+        if (!descEl || !descEl.value.trim()) { const e = document.getElementById('solicitud_description_produc_error'); if (e) { e.textContent = 'Descripción requerida'; e.classList.remove('hidden'); } ok = false; }
 
         return ok;
     }
 
-    function submitAddFromSolicitudForm() {
-        if (validateAddFromSolicitudForm()) {
-            showLoading();
-            document.getElementById('addFromSolicitudForm').submit();
-        }
-    }
-
     // Actualizar select de proveedores en todos los formularios
     function updateProveedoresSelect(proveedores) {
-        const selectElements = [
-            document.getElementById('proveedor_id'),
-            document.getElementById('solicitud_proveedor_id')
-        ];
+        // update solicitud select
+        const solicitudSelect = document.getElementById('solicitud_proveedor_id');
+        if (solicitudSelect) {
+            const currentValue = solicitudSelect.value;
+            while (solicitudSelect.options.length > 0) { solicitudSelect.remove(0); }
+            proveedores.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.prov_name; solicitudSelect.appendChild(o); });
+            if (currentValue && solicitudSelect.querySelector(`option[value="${currentValue}"]`)) solicitudSelect.value = currentValue;
+        }
 
-        // Actualizar los dropdowns visuales
-        const proveedorDropdowns = [
-            document.getElementById('proveedor_dropdown'),
-            document.getElementById('solicitud_proveedor_dropdown')
-        ];
-
-        selectElements.forEach(select => {
-            if (select) {
-                const currentValue = select.value;
-
-                while (select.options.length > 1) {
-                    select.remove(1);
-                }
-
-                proveedores.forEach(proveedor => {
-                    const option = document.createElement('option');
-                    option.value = proveedor.id;
-                    option.textContent = proveedor.prov_name;
-                    select.appendChild(option);
-                });
-
-                if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
-                    select.value = currentValue;
-                }
-            }
+        // actualizar dropdowns visuales: solicitud y manage
+        const solicitudDropdown = document.getElementById('solicitud_proveedor_dropdown');
+        const manageDropdown = document.getElementById('manage_prov_dropdown');
+        [solicitudDropdown, manageDropdown].forEach(dropdown => {
+            if (!dropdown) return;
+            dropdown.innerHTML = '';
+            proveedores.forEach(proveedor => {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer';
+                div.setAttribute('data-id', proveedor.id);
+                div.setAttribute('data-name', proveedor.prov_name);
+                div.textContent = proveedor.prov_name;
+                dropdown.appendChild(div);
+            });
         });
+     }
 
-        // Actualizar los dropdowns visuales
-        proveedorDropdowns.forEach(dropdown => {
-            if (dropdown) {
-                dropdown.innerHTML = '';
-                
-                proveedores.forEach(proveedor => {
-                    const div = document.createElement('div');
-                    div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer option-item' + 
-                                    (dropdown.id === 'solicitud_proveedor_dropdown' ? '-solicitud' : '');
-                    div.setAttribute('data-id', proveedor.id);
-                    div.setAttribute('data-name', proveedor.prov_name);
-                    div.textContent = proveedor.prov_name;
-                    dropdown.appendChild(div);
-                });
-            }
-        });
+    // Función para alternar secciones (Productos / Solicitudes)
+    function toggleSection(section) {
+        const prodBtn = document.getElementById('tab-productos');
+        const solBtn = document.getElementById('tab-solicitudes');
+        const prodSec = document.getElementById('productos-section');
+        const solSec = document.getElementById('solicitudes-section');
+        if (!prodBtn || !solBtn || !prodSec || !solSec) return;
+
+        if (section === 'productos') {
+            prodSec.classList.remove('hidden');
+            solSec.classList.add('hidden');
+            prodBtn.classList.add('bg-white');
+            solBtn.classList.remove('bg-white');
+        } else if (section === 'solicitudes') {
+            prodSec.classList.add('hidden');
+            solSec.classList.remove('hidden');
+            prodBtn.classList.remove('bg-white');
+            solBtn.classList.add('bg-white');
+        }
+
+        // Reset pagination/views
+        try { if (typeof prodShowPage === 'function') prodShowPage(1); } catch(e) {}
+        try { if (typeof solShowPage === 'function') solShowPage(1); } catch(e) {}
     }
+
+    // Asegurar que la pestaña de Productos esté activa al cargar
+    document.addEventListener('DOMContentLoaded', function(){
+        const prodBtn = document.getElementById('tab-productos');
+        const solBtn = document.getElementById('tab-solicitudes');
+        const prodSec = document.getElementById('productos-section');
+        const solSec = document.getElementById('solicitudes-section');
+        if (!prodBtn || !solBtn || !prodSec || !solSec) return;
+        // si la vista de solicitudes está visible por alguna razón, mantenerla oculta
+        if (!prodBtn.classList.contains('bg-white') && !solBtn.classList.contains('bg-white')) {
+            prodBtn.classList.add('bg-white');
+        }
+        // asegurar sección por defecto
+        prodSec.classList.remove('hidden');
+        solSec.classList.add('hidden');
+    });
 
     // Mostrar mensajes de éxito/error con SweetAlert
     @if(session('success'))
@@ -1399,17 +1476,18 @@
         const rows = document.querySelectorAll('#productosTable tbody tr');
 
         rows.forEach(row => {
-            const cells = row.getElementsByTagName('td');
-            if (cells.length < 6) return;
-            const nombre = cells[0].textContent.toLowerCase();
-            const categoria = cells[1].textContent;
-            const proveedor = cells[2].textContent;
-            const estadoElement = cells[5].querySelector('span');
-            let estado = estadoElement ? estadoElement.textContent.trim() : '';
+            const nombre = (row.querySelector('td[data-col="nombre"]')?.textContent || '').toLowerCase();
+            const sku = (row.querySelector('td[data-col="sku"]')?.textContent || '').toLowerCase();
+            const categoria = (row.querySelector('td[data-col="categoria"]')?.textContent || '').toLowerCase();
+            const proveedor = (row.querySelector('td[data-col="proveedor"]')?.textContent || '').toLowerCase();
+            const estadoEl = row.querySelector('td[data-col="estado"] span');
+            const estado = estadoEl ? estadoEl.textContent.trim() : '';
 
-            const matchesSearch = !searchInput || nombre.includes(searchInput);
-            const matchesCategoria = !filterCategoria || categoria === filterCategoria;
-            const matchesProveedor = !filterProveedor || proveedor === filterProveedor;
+            // Buscar en nombre, sku, categoría y proveedor
+            const matchesSearch = !searchInput || nombre.includes(searchInput) || sku.includes(searchInput) || categoria.includes(searchInput) || proveedor.includes(searchInput);
+
+            const matchesCategoria = !filterCategoria || categoria === filterCategoria.toLowerCase();
+            const matchesProveedor = !filterProveedor || proveedor.includes(filterProveedor.toLowerCase());
             const matchesEstado = !filterEstado || estado === filterEstado;
 
             row.dataset.match = (matchesSearch && matchesCategoria && matchesProveedor && matchesEstado) ? '1' : '0';
@@ -1480,6 +1558,8 @@
         return Array.from(document.querySelectorAll('#solicitudesTable tbody tr'));
     }
 
+
+
     function solShowPage(page = 1){
         const rows = solGetAllRows();
         const totalPages = Math.max(1, Math.ceil(rows.length / solPageSize));
@@ -1549,256 +1629,386 @@
         }
     });
     // ===== Inicializar selects personalizados (Producto y Solicitud) =====
- document.addEventListener('DOMContentLoaded', function(){
-        // Producto - Proveedor
-        const provIn = document.getElementById('proveedor_input');
-        const provDrop = document.getElementById('proveedor_dropdown');
-        const provId = document.getElementById('proveedor_id');
-        const provErr = document.getElementById('proveedor_id_error');
-        if (provIn && provDrop) {
-            const filterProv = () => {
-                const q = (provIn.value || '').toLowerCase();
-                provDrop.querySelectorAll('.option-item').forEach(opt => {
-                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
-                    opt.style.display = name.includes(q) ? '' : 'none';
-                });
-            };
-            provIn.addEventListener('focus', () => provDrop.classList.remove('hidden'));
-            provIn.addEventListener('input', filterProv);
-            provIn.addEventListener('blur', () => setTimeout(() => provDrop.classList.add('hidden'), 150));
-            provDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item');
-                if (!el) return;
-                provIn.value = el.getAttribute('data-name') || '';
-                if (provId) provId.value = el.getAttribute('data-id') || '';
-                provDrop.classList.add('hidden');
-                if (provErr) provErr.classList.add('hidden');
-            });
+  document.addEventListener('DOMContentLoaded', function(){
+        // Manage providers dropdown: move element to body and use fixed positioning so it's not clipped by modal
+        const mProvIn = document.getElementById('manage_prov_input');
+        let mProvDrop = document.getElementById('manage_prov_dropdown');
+        if (!mProvIn) return;
+
+        // ensure dropdown exists and is attached to body
+        if (!mProvDrop) {
+            mProvDrop = document.createElement('div');
+            mProvDrop.id = 'manage_prov_dropdown';
+            mProvDrop.className = 'fixed z-50 bg-white border border-gray-300 rounded-md shadow-lg';
+            document.body.appendChild(mProvDrop);
+        } else if (mProvDrop.parentElement !== document.body) {
+            document.body.appendChild(mProvDrop);
         }
 
-        // Producto - Categoría
-        const catIn = document.getElementById('categoria_input');
-        const catDrop = document.getElementById('categoria_dropdown');
-        const catHidden = document.getElementById('categoria_produc');
-        const catErr = document.getElementById('categoria_produc_error');
-        if (catIn && catDrop) {
-            const filterCat = () => {
-                const q = (catIn.value || '').toLowerCase();
-                catDrop.querySelectorAll('.option-item-cat').forEach(opt => {
-                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
-                    opt.style.display = val.includes(q) ? '' : 'none';
-                });
-            };
-            catIn.addEventListener('focus', () => catDrop.classList.remove('hidden'));
-            catIn.addEventListener('input', filterCat);
-            catIn.addEventListener('blur', () => setTimeout(() => catDrop.classList.add('hidden'), 150));
-            catDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-cat');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                catIn.value = val;
-                if (catHidden) catHidden.value = val;
-                catDrop.classList.add('hidden');
-                if (catErr) catErr.classList.add('hidden');
-            });
+        // Si el dropdown está vacío en el DOM, poblarlo con la lista de proveedores del servidor
+        if (!mProvDrop.innerHTML || !mProvDrop.innerHTML.trim()) {
+            mProvDrop.innerHTML = `
+                <div style="padding:6px 0;">
+                @foreach($proveedores as $proveedor)
+                    <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer manage-option-item" data-id="{{ $proveedor->id }}" data-name="{{ $proveedor->prov_name }}" data-methods="{{ $proveedor->methods_oc ?? '' }}" data-plazo="{{ $proveedor->plazo_oc ?? '' }}">{{ $proveedor->prov_name }}</div>
+                @endforeach
+                </div>
+            `;
         }
 
-        // Producto - Unidad
-        const uIn = document.getElementById('unit_input');
-        const uDrop = document.getElementById('unit_dropdown');
-        const uHidden = document.getElementById('unit_produc');
-        const uErr = document.getElementById('unit_produc_error');
-        if (uIn && uDrop) {
-            uIn.addEventListener('focus', () => uDrop.classList.remove('hidden'));
-            uIn.addEventListener('click', () => uDrop.classList.remove('hidden'));
-            uIn.addEventListener('blur', () => setTimeout(() => uDrop.classList.add('hidden'), 150));
-            uDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('[data-value]');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                uIn.value = val;
-                if (uHidden) uHidden.value = val;
-                uDrop.classList.add('hidden');
-                if (uErr) uErr.classList.add('hidden');
-            });
-        }
+        mProvDrop.style.position = 'fixed';
+        mProvDrop.style.display = 'none';
+        mProvDrop.style.zIndex = 9999;
+        mProvDrop.style.maxHeight = '220px';
+        mProvDrop.style.overflow = 'auto';
 
-        // Solicitud - Proveedor
-        const sProvIn = document.getElementById('solicitud_proveedor_input');
-        const sProvDrop = document.getElementById('solicitud_proveedor_dropdown');
-        const sProvId = document.getElementById('solicitud_proveedor_id');
-        const sProvErr = document.getElementById('solicitud_proveedor_id_error');
-        if (sProvIn && sProvDrop) {
-            const filterSProv = () => {
-                const q = (sProvIn.value || '').toLowerCase();
-                sProvDrop.querySelectorAll('.option-item-solicitud').forEach(opt => {
-                    const name = (opt.getAttribute('data-name') || '').toLowerCase();
-                    opt.style.display = name.includes(q) ? '' : 'none';
-                });
-            };
-            sProvIn.addEventListener('focus', () => sProvDrop.classList.remove('hidden'));
-            sProvIn.addEventListener('input', filterSProv);
-            sProvIn.addEventListener('blur', () => setTimeout(() => sProvDrop.classList.add('hidden'), 150));
-            sProvDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-solicitud');
-                if (!el) return;
-                sProvIn.value = el.getAttribute('data-name') || '';
-                if (sProvId) sProvId.value = el.getAttribute('data-id') || '';
-                sProvDrop.classList.add('hidden');
-                if (sProvErr) sProvErr.classList.add('hidden');
+        const filterMProv = () => {
+            const q = (mProvIn.value || '').toLowerCase();
+            Array.from(mProvDrop.querySelectorAll('.manage-option-item')).forEach(opt => {
+                const name = (opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                opt.style.display = name.indexOf(q) > -1 ? '' : 'none';
             });
-        }
+        };
 
-        // Solicitud - Categoría
-        const sCatIn = document.getElementById('solicitud_categoria_input');
-        const sCatDrop = document.getElementById('solicitud_categoria_dropdown');
-        const sCatHidden = document.getElementById('solicitud_categoria_produc');
-        const sCatErr = document.getElementById('solicitud_categoria_produc_error');
-        if (sCatIn && sCatDrop) {
-            const filterSCat = () => {
-                const q = (sCatIn.value || '').toLowerCase();
-                sCatDrop.querySelectorAll('.option-item-cat-solicitud').forEach(opt => {
-                    const val = (opt.getAttribute('data-value') || '').toLowerCase();
-                    opt.style.display = val.includes(q) ? '' : 'none';
-                });
-            };
-            sCatIn.addEventListener('focus', () => sCatDrop.classList.remove('hidden'));
-            sCatIn.addEventListener('input', filterSCat);
-            sCatIn.addEventListener('blur', () => setTimeout(() => sCatDrop.classList.add('hidden'), 150));
-            sCatDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('.option-item-cat-solicitud');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                sCatIn.value = val;
-                if (sCatHidden) sCatHidden.value = val;
-                sCatDrop.classList.add('hidden');
-                if (sCatErr) sCatErr.classList.add('hidden');
-            });
-        }
+        const updatePosition = () => {
+            const rect = mProvIn.getBoundingClientRect();
+            // position relative to viewport
+            mProvDrop.style.left = rect.left + 'px';
+            mProvDrop.style.top = rect.bottom + 'px';
+            mProvDrop.style.width = rect.width + 'px';
+        };
 
-        // Solicitud - Unidad
-        const suIn = document.getElementById('solicitud_unit_input');
-        const suDrop = document.getElementById('solicitud_unit_dropdown');
-        const suHidden = document.getElementById('solicitud_unit_produc');
-        const suErr = document.getElementById('solicitud_unit_produc_error');
-        if (suIn && suDrop) {
-            suIn.addEventListener('focus', () => suDrop.classList.remove('hidden'));
-            suIn.addEventListener('click', () => suDrop.classList.remove('hidden'));
-            suIn.addEventListener('blur', () => setTimeout(() => suDrop.classList.add('hidden'), 150));
-            suDrop.addEventListener('click', (e) => {
-                const el = e.target.closest('[data-value]');
-                if (!el) return;
-                const val = el.getAttribute('data-value') || '';
-                suIn.value = val;
-                if (suHidden) suHidden.value = val;
-                suDrop.classList.add('hidden');
-                if (suErr) suErr.classList.add('hidden');
-            });
-        }
+        const show = () => { filterMProv(); updatePosition(); mProvDrop.style.display = 'block'; mProvDrop.classList.remove('hidden'); };
+        const hide = () => { mProvDrop.style.display = 'none'; mProvDrop.classList.add('hidden'); };
+
+        mProvIn.addEventListener('focus', show);
+        mProvIn.addEventListener('input', show);
+        mProvIn.addEventListener('click', show);
+
+        // Support keyboard navigation: Escape hides
+        mProvIn.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+
+        mProvDrop.addEventListener('click', (e) => {
+            const el = e.target.closest('.manage-option-item');
+            if (!el) return;
+            mProvIn.value = el.getAttribute('data-name') || el.textContent.trim();
+            // trigger input event so any listeners update
+            mProvIn.dispatchEvent(new Event('input', { bubbles: true }));
+            hide();
+        });
+
+        // Hide on outside click
+        document.addEventListener('click', function(e){ if (!mProvIn.contains(e.target) && !mProvDrop.contains(e.target)) hide(); });
+        // Hide on window resize
+        window.addEventListener('resize', hide);
+        // Hide on scrolls that originate outside the input/dropdown (ignore scrolls inside the dropdown)
+        document.addEventListener('scroll', function(e){
+            const t = e.target;
+            if (!mProvIn.contains(t) && !mProvDrop.contains(t)) hide();
+        }, true);
+
+        // Prevent wheel events inside the dropdown from bubbling up and closing it
+        mProvDrop.addEventListener('wheel', function(e){ e.stopPropagation(); }, { passive: true });
     });
     
-    // Cuando se abre el modal de añadir desde solicitud, asegurarse de que el campo IVA esté disponible
+    // Dropdown de moneda con lista corta visible (scrollable)
     document.addEventListener('DOMContentLoaded', function(){
-        const solIva = document.getElementById('solicitud_iva');
-        if (solIva) solIva.value = solIva.value || 0;
+        const cInput = document.getElementById('manage_prov_moneda_input');
+        const cHidden = document.getElementById('manage_prov_moneda');
+        if (cInput && cHidden) {
+            // sincronizar valor por defecto desde select oculto
+            try { const sel = cHidden.options[cHidden.selectedIndex]; if (sel) cInput.value = sel.value || 'COP'; } catch(e){}
+            let cDrop = document.getElementById('manage_currency_dropdown');
+            if (!cDrop) {
+                cDrop = document.createElement('div');
+                cDrop.id = 'manage_currency_dropdown';
+                cDrop.className = 'fixed z-50 bg-white border border-gray-300 rounded-md shadow-lg';
+                // contenido: lista de códigos con filtro simple
+                cDrop.innerHTML = `
+                    <div style="padding:4px 0; max-height: 180px; overflow:auto;">
+                        @foreach($ISO_CURRENCIES as $cc)
+                            <div class="px-3 py-2 hover:bg-indigo-100 cursor-pointer currency-item" data-code="{{ $cc }}">{{ $cc }}</div>
+                        @endforeach
+                    </div>
+                `;
+                document.body.appendChild(cDrop);
+            }
+            // estilos base
+            cDrop.style.position = 'fixed';
+            cDrop.style.display = 'none';
+            cDrop.style.zIndex = 10000;
+
+            const updatePos = () => {
+                const r = cInput.getBoundingClientRect();
+                cDrop.style.left = r.left + 'px';
+                cDrop.style.top = (r.bottom + 0) + 'px';
+                cDrop.style.width = r.width + 'px';
+            };
+            const showC = () => { updatePos(); cDrop.style.display = 'block'; cDrop.classList.remove('hidden'); };
+            const hideC = () => { cDrop.style.display = 'none'; cDrop.classList.add('hidden'); };
+
+            cInput.addEventListener('focus', showC);
+            cInput.addEventListener('click', showC);
+            cInput.addEventListener('input', function(){
+                const q = (this.value||'').toUpperCase();
+                cDrop.querySelectorAll('.currency-item').forEach(it => {
+                    const code = (it.getAttribute('data-code')||'').toUpperCase();
+                    it.style.display = code.indexOf(q) > -1 ? '' : 'none';
+                });
+                showC();
+            });
+            cDrop.addEventListener('click', function(e){
+                const it = e.target.closest('.currency-item');
+                if (!it) return;
+                const code = it.getAttribute('data-code') || 'COP';
+                cInput.value = code;
+                try { cHidden.value = code; } catch(e){}
+                hideC();
+            });
+            document.addEventListener('click', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); });
+            window.addEventListener('resize', hideC);
+            document.addEventListener('scroll', function(e){ if (!cInput.contains(e.target) && !cDrop.contains(e.target)) hideC(); }, true);
+        }
+  });
+
+    // Conectar dropdowns simples (categoría y unidad) con sus inputs y campos ocultos
+    document.addEventListener('DOMContentLoaded', function(){
+        function wireDropdown(inputId, dropdownId, hiddenId, optionSelector) {
+            const input = document.getElementById(inputId);
+            const dropdown = document.getElementById(dropdownId);
+            const hidden = hiddenId ? document.getElementById(hiddenId) : null;
+            if (!input || !dropdown) return;
+
+            // Asegurar estado inicial
+            dropdown.classList.add('hidden');
+
+            const getOptions = () => Array.from(dropdown.querySelectorAll(optionSelector || '.option-item-cat, .option-item-cat-solicitud, .option-item'));
+
+            const show = () => { dropdown.classList.remove('hidden'); };
+            const hide = () => { dropdown.classList.add('hidden'); };
+
+            input.addEventListener('focus', (e) => { show(); });
+            input.addEventListener('click', (e) => { e.stopPropagation(); show(); });
+
+            input.addEventListener('input', function(){
+                const q = (this.value || '').toLowerCase();
+                getOptions().forEach(opt => {
+                    const txt = (opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                    opt.style.display = txt.includes(q) ? '' : 'none';
+                });
+                show();
+            });
+
+            dropdown.addEventListener('click', function(e){
+                const opt = e.target.closest(optionSelector || '.option-item-cat, .option-item-cat-solicitud, .option-item');
+                if (!opt) return;
+                const val = opt.getAttribute('data-value') || opt.getAttribute('data-name') || opt.textContent.trim();
+                input.value = opt.getAttribute('data-name') || val;
+                if (hidden) hidden.value = val;
+                hide();
+                // trigger input event
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            // Ocultar al clicar fuera
+            document.addEventListener('click', function(e){
+                if (e.target === input || input.contains(e.target) || dropdown.contains(e.target)) return;
+                hide();
+            });
+            window.addEventListener('resize', hide);
+        }
+
+        // Wire main dropdowns
+        wireDropdown('categoria_input', 'categoria_dropdown', 'categoria_produc', '.option-item-cat');
+        wireDropdown('unit_input', 'unit_dropdown', 'unit_produc', '.option-item-cat');
+
+        // Wire dropdowns inside "Añadir desde Solicitud" modal
+        wireDropdown('solicitud_categoria_input', 'solicitud_categoria_dropdown', 'solicitud_categoria_produc', '.option-item-cat-solicitud');
+        wireDropdown('solicitud_unit_input', 'solicitud_unit_dropdown', 'solicitud_unit_produc', '.option-item-cat-solicitud');
+        wireDropdown('solicitud_proveedor_input', 'solicitud_proveedor_dropdown', 'solicitud_proveedor_id', '.option-item-solicitud');
     });
-        </script>
 
-        <style>
-            .hidden {
-                display: none;
+    // Helper: convertir cualquier representación numérica (p. ej. "782,47" o " 782.47 ") a entero
+    function sanitizeToInt(val) {
+        let s = (val === null || val === undefined) ? '' : String(val);
+        // normalizar coma decimal y eliminar caracteres no numéricos excepto punto y signo
+        s = s.replace(/\s+/g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+        const n = parseFloat(s);
+        if (isNaN(n)) return 0;
+        return Math.trunc(n);
+    }
+
+    // Inicializar dropdowns filtrables que permiten seleccionar o escribir un valor libre
+    (function(){
+        function safeOpen(id){
+            try{ document.getElementById(id).classList.remove('hidden'); }catch(e){ console.warn('No se pudo abrir modal', id, e); }
+        }
+        // Añadir handlers para botones inline que usan openModal('proveedor') / 'producto' / 'addFromSolicitud'
+        document.querySelectorAll('button[onclick]').forEach(btn=>{
+            const oc = btn.getAttribute('onclick') || '';
+            if(oc.includes("openModal('proveedor')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); // limpiar form y abrir
+                    const form = document.getElementById('proveedorForm'); if(form) form.reset(); safeOpen('proveedorModal');
+                });
             }
-
-            .loader {
-                border-top-color: #1e40af;
-                -webkit-animation: spinner 1.5s linear infinite;
-                animation: spinner 1.5s linear infinite;
+            if(oc.includes("openModal('producto')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); const form = document.getElementById('productForm'); if(form){ form.reset(); document.getElementById('formMethod').value='POST'; } safeOpen('productModal'); });
             }
-
-            @-webkit-keyframes spinner {
-                0% {
-                    -webkit-transform: rotate(0deg);
-                }
-
-                100% {
-                    -webkit-transform: rotate(360deg);
-                }
+            if(oc.includes("openModal('addFromSolicitud')")){
+                btn.addEventListener('click', function(e){ e.preventDefault(); safeOpen('addFromSolicitudModal'); });
             }
+        });
+    })();
 
-            @keyframes spinner {
-                0% {
-                    transform: rotate(0deg);
-                }
+    // Reparar/asegurar apertura de modales: reemparejar botones que usan inline onclick
+    document.addEventListener('DOMContentLoaded', function(){
+        try {
+            // Botones que abren el modal de producto
+            document.querySelectorAll("button[onclick*=\"openModal('producto')\"]").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { openModal('producto'); } catch(err){ console.warn(err); if (old) { try { eval(old); } catch(e){} } } });
+            });
 
-                100% {
-                    transform: rotate(360deg);
-                }
+            // Botones que abren el modal de proveedor
+            document.querySelectorAll("button[onclick*=\"openModal('proveedor')\"]").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { openModal('proveedor'); } catch(err){ console.warn(err); if (old) { try { eval(old); } catch(e){} } } });
+            });
+
+            // Botones que llaman a openAddFromSolicitudModal(id)
+            document.querySelectorAll("button[onclick*='openAddFromSolicitudModal(']").forEach(btn => {
+                const old = btn.getAttribute('onclick');
+                btn.removeAttribute('onclick');
+                btn.addEventListener('click', function(e){ e.preventDefault(); try { if (old) { eval(old); } } catch(err){ console.warn('openAddFromSolicitudModal eval failed', err); } });
+            });
+        } catch (e) { console.warn('Rebind modals failed', e); }
+    });
+
+    // Sincronizar y permitir agregar nuevas categorías a los dropdowns si el usuario escribe una no listada
+    document.addEventListener('DOMContentLoaded', function(){
+        function ensureOptionInDropdown(dropdown, value, cls){
+            if (!dropdown || !value) return;
+            const exists = Array.from(dropdown.querySelectorAll('.' + cls)).some(el => (el.getAttribute('data-value')||'').toLowerCase() === value.toLowerCase());
+            if (!exists) {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-indigo-100 cursor-pointer ' + cls;
+                div.setAttribute('data-value', value);
+                div.textContent = value;
+                dropdown.appendChild(div);
             }
+        }
+        // Producto modal
+        const catIn = document.getElementById('categoria_input');
+        const catHidden = document.getElementById('categoria_produc');
+        const catDrop = document.getElementById('categoria_dropdown');
+        if (catIn) {
+            catIn.addEventListener('input', function(){ if (catHidden) catHidden.value = (catIn.value||'').trim(); });
+            catIn.addEventListener('blur', function(){ const v = (catIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(catDrop, v, 'option-item-cat'); if (catHidden) catHidden.value = v; });
+        }
+        // Producto modal: unidad
+        const unitIn = document.getElementById('unit_input');
+        const unitHidden = document.getElementById('unit_produc');
+        const unitDrop = document.getElementById('unit_dropdown');
+        if (unitIn) {
+            unitIn.addEventListener('input', function(){ if (unitHidden) unitHidden.value = (unitIn.value||'').trim(); });
+            unitIn.addEventListener('blur', function(){ const v = (unitIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(unitDrop, v, 'option-item-cat'); if (unitHidden) unitHidden.value = v; });
+        }
+        // Añadir desde solicitud modal
+        const scatIn = document.getElementById('solicitud_categoria_input');
+        const scatHidden = document.getElementById('solicitud_categoria_produc');
+        const scatDrop = document.getElementById('solicitud_categoria_dropdown');
+        if (scatIn) {
+            scatIn.addEventListener('input', function(){ if (scatHidden) scatHidden.value = (scatIn.value||'').trim(); });
+            scatIn.addEventListener('blur', function(){ const v = (scatIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(scatDrop, v, 'option-item-cat-solicitud'); if (scatHidden) scatHidden.value = v; });
+        }
+        // Añadir desde solicitud modal: unidad
+        const suIn = document.getElementById('solicitud_unit_input');
+        const suHidden = document.getElementById('solicitud_unit_produc');
+        const suDrop = document.getElementById('solicitud_unit_dropdown');
+        if (suIn) {
+            suIn.addEventListener('input', function(){ if (suHidden) suHidden.value = (suIn.value||'').trim(); });
+            suIn.addEventListener('blur', function(){ const v = (suIn.value||'').trim(); if (!v) return; ensureOptionInDropdown(suDrop, v, 'option-item-cat-solicitud'); if (suHidden) suHidden.value = v; });
+        }
+    });
+</script>
 
-            /* Asegurar que el modal de proveedor tenga mayor z-index */
-            #proveedorModal {
-                z-index: 60;
-            }
+<style>
+    /* Override: asegurar que el modal de proveedor esté por encima de otros modales */
+    #proveedorModal {
+        z-index: 99999 !important;
+    }
 
-            #productModal,
-            #addFromSolicitudModal,
-            #solicitudModal {
-                z-index: 50;
-            }
+    /* Forzar SweetAlert por encima de modales */
+    .swal2-container {
+        z-index: 100100 !important;
+    }
+    .swal2-popup, .swal2-modal {
+        z-index: 100101 !important;
+    }
 
-            /* Tabs estilo Chrome */
-            button[id^="tab-"] {
-                border-top-left-radius: 0.5rem;
-                border-top-right-radius: 0.5rem;
-                transition: all 0.2s;
-            }
+    /* Tabs estilo Chrome */
+    button[id^="tab-"] {
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+        transition: all 0.2s;
+    }
 
-            button[id^="tab-"]:hover {
-                background-color: #f9f9f9;
-            }
+    button[id^="tab-"]:hover {
+        background-color: #f9f9f9;
+    }
 
-            button[id^="tab-"].bg-white {
-                border-bottom: 3px solid #2563eb;
-                /* azul Tailwind */
-            }
+    button[id^="tab-"].bg-white {
+        border-bottom: 3px solid #2563eb;
+        /* azul Tailwind */
+    }
 
-            #proveedor_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            }
+    #proveedor_dropdown {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
 
-            .option-item {
-                transition: background-color 0.2s ease;
-            }
+    .option-item {
+        transition: background-color 0.2s ease;
+    }
 
-            .option-item:not(:last-child) {
-                border-bottom: 1px solid #f3f4f6;
-            }
+    .option-item:not(:last-child) {
+        border-bottom: 1px solid #f3f4f6;
+    }
 
-            .option-item:hover {
-                background-color: #e0e7ff !important;
-            }
+    .option-item:hover {
+        background-color: #e0e7ff !important;
+    }
 
-            #proveedor_dropdown,
-            #categoria_dropdown {
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0.06);
-            }
+    #proveedor_dropdown,
+    #categoria_dropdown {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0,  0, 0, 0.06);
+    }
 
-            .option-item,
-            .option-item-cat {
-                transition: background-color 0.2s ease;
-                cursor: pointer;
-            }
+    .option-item,
+    .option-item-cat {
+        transition: background-color 0.2s ease;
+        cursor: pointer;
+    }
 
-            .option-item:not(:last-child),
-            .option-item-cat:not(:last-child) {
-                border-bottom: 1px solid #f3f4f6;
-            }
+    .option-item:not(:last-child),
+    .option-item-cat:not(:last-child) {
+        border-bottom: 1px solid #f3f4f6;
+    }
 
-            .option-item:hover,
-            .option-item-cat:hover {
-                background-color: #e0e7ff !important;
-            }
-        </style>
+    .option-item:hover,
+    .option-item-cat:hover {
+        background-color: #e0e7ff !important;
+    }
+
+    /* UI helpers */
+    .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+    .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+    .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    .status-badge { display:inline-block; padding:0.25rem 0.6rem; border-radius:9999px; font-size:.7rem; font-weight:600; line-height:1; }
+</style>
+
 </body>
-
 </html>

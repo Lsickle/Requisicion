@@ -2,35 +2,29 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Solicitud de Nuevo Producto</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #3b82f6; color: white; padding: 20px; text-align: center; }
-        .content { background-color: #f9fafb; padding: 20px; border-radius: 0 0 5px 5px; }
-        .detail { margin-bottom: 15px; }
-        .label { font-weight: bold; color: #4b5563; }
-    </style>
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Nueva Solicitud de Producto</title>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Nueva Solicitud de Producto</h1>
-        </div>
-        <div class="content">
-            <div class="detail">
-                <span class="label">Producto:</span> {{ $producto->nombre }}
-            </div>
-            <div class="detail">
-                <span class="label">Descripción:</span> {{ $producto->descripcion }}
-            </div>
-            <div class="detail">
-                <span class="label">Solicitado por:</span> {{ $producto->name_user }} 
-            </div>
-            <div class="detail">
-                <span class="label">Fecha de solicitud:</span> {{ $producto->created_at->format('d/m/Y H:i') }}
-            </div>
-        </div>
-    </div>
+<body style="font-family: Arial, Helvetica, sans-serif; background-color:#f5f7fb; padding:24px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px; margin:0 auto; background:#ffffff; border-radius:8px; overflow:hidden;">
+        <tr>
+            <td style="background:#1e40af; padding:16px 24px; color:#ffffff;"><strong>Vigía Plus Logistics</strong></td>
+        </tr>
+        <tr>
+            <td style="padding:24px; color:#111827;">
+                <div style="font-family: Arial, sans-serif; color:#111;">
+                    <h2 style="margin:0 0 12px 0;">Nueva Solicitud de Producto</h2>
+                    <p style="margin:0 0 6px 0;"><strong>Producto:</strong> {{ $producto->nombre }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Descripción:</strong> {{ $producto->descripcion }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Solicitado por:</strong> {{ $producto->name_user }}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Fecha de solicitud:</strong> {{ $producto->created_at->format('d/m/Y H:i') }}</p>
+                    <p style="margin:16px 0 0 0;">Saludos,<br/>Equipo</p>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:12px 24px; color:#6b7280; font-size:12px; background:#f9fafb;">© {{ date('Y') }} Vigía Plus Logistics</td>
+        </tr>
+    </table>
 </body>
 </html>

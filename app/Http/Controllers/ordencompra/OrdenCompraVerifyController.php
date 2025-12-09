@@ -65,124 +65,6 @@ class OrdenCompraVerifyController extends Controller
         return view('ordenes_compra.verify_form');
     }
 
-    public function verifyFile($id, Request $request)
-    {
-        $request->validate([
-            'pdf' => 'required|file|mimes:pdf|max:10240',
-        ]);
-
-        $orden = OrdenCompra::with(['ordencompraProductos.producto'])->find($id);
-        if (!$orden || (method_exists($orden, 'trashed') && $orden->trashed())) {
-            return view('ordenes_compra.verify_form', [
-                'orden' => null,
-                'valid' => false,
-                'expected' => null,
-                'provided' => null,
-                'message' => 'La orden de compra no existe o fue eliminada.'
-            ]);
-        }
-
-        // Obtener hash esperado almacenado en la orden
-        $expectedHash = $orden->validation_hash;
-
-        // Leer ruta del PDF subido
-        $path = $request->file('pdf')->getRealPath();
-        $provided = '';
-
-        // Intentar extraer texto con pdftotext si está disponible (mejor para búsquedas fiables)
-        $tmpTxt = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'oc_text_' . uniqid() . '.txt';
-        $pdftotextCmd = 'pdftotext ' . escapeshellarg($path) . ' ' . escapeshellarg($tmpTxt) . ' 2>&1';
-        $txt = '';
-        try {
-            @exec($pdftotextCmd, $outputLines, $retCode);
-            if (file_exists($tmpTxt) && filesize($tmpTxt) > 0) {
-                $txt = file_get_contents($tmpTxt);
-            }
-        } catch (\Throwable $e) {
-            $txt = '';
-        } finally {
-            @unlink($tmpTxt);
-        }
-
-        // Función utilitaria para buscar un hash de 64 hex en un texto
-        $find64 = function($haystack) {
-            if (preg_match('/\b([A-Fa-f0-9]{64})\b/', $haystack, $mm)) {
-                return $mm[1];
-            }
-            return '';
-        };
-
-        // 1) Si pdftotext devolvió texto, buscar en ese texto primero
-        if (!empty($txt)) {
-            if (!empty($expectedHash) && strpos($txt, $expectedHash) !== false) {
-                $provided = $expectedHash;
-            }
-            if (empty($provided)) {
-                // buscar patrón marcado
-                if (preg_match('/VALIDATION[_\s-]*HASH\s*[:\-]?\s*([A-Fa-f0-9]{64})/i', $txt, $m)) {
-                    $provided = $m[1];
-                }
-            }
-            if (empty($provided)) {
-                $provided = $find64($txt);
-            }
-        }
-
-        // 2) Si no se encontró en texto, intentar en el contenido binario como fallback
-        if (empty($provided)) {
-            $content = @file_get_contents($path) ?: '';
-
-            // 2a) Revisar metadatos HTML (si el PDF conserva <meta name>)
-            if (preg_match('/<meta[^>]+name=["\']validation_hash["\'][^>]+content=["\']([A-Fa-f0-9]{32,256})["\']/i', $content, $m)) {
-                $provided = $m[1];
-            }
-
-            // 2b) Si sigue vacío, buscar el hash esperado literalmente en binario
-            if (empty($provided) && !empty($expectedHash) && strpos($content, $expectedHash) !== false) {
-                $provided = $expectedHash;
-            }
-
-            // 2c) Extraer sólo caracteres hex del contenido y buscar secuencia de 64 hex para evitar fragmentos extraños
-            if (empty($provided)) {
-                $hexOnly = preg_replace('/[^A-Fa-f0-9]/', '', $content);
-                if (preg_match('/([A-Fa-f0-9]{64})/', $hexOnly, $m)) {
-                    $provided = $m[1];
-                }
-            }
-        }
-
-        if (empty($provided)) {
-            return view('ordenes_compra.verify_form', [
-                'orden' => $orden,
-                'valid' => false,
-                'expected' => $expectedHash,
-                'provided' => '',
-                'message' => 'No se encontró un hash válido en el PDF subido.'
-            ]);
-        }
-
-        // Normalizar y sanear antes de comparar
-        $providedSan = strtolower(trim($provided));
-        $providedSan = preg_replace('/[^a-f0-9]/', '', $providedSan);
-        $expectedSan = strtolower(trim($expectedHash ?? ''));
-
-        $valid = false;
-        if ($expectedSan !== '' && $providedSan !== '') {
-            $valid = hash_equals($expectedSan, $providedSan);
-        }
-
-        if (!$valid && !empty($expectedSan)) {
-            $message = 'El documento ha sido alterado o no es igual al original.';
-        }
-
-        return view('ordenes_compra.verify_form', [
-            'orden' => $orden,
-            'valid' => $valid,
-            'expected' => $expectedHash,
-            'provided' => $providedSan,
-            'message' => $valid ? null : (empty($expectedHash) ? 'No hay hash almacenado para esta orden.' : null),
-        ]);
-    }
 
     // Handler for form post where id is provided together with the uploaded PDF
     public function verifyFilePost(Request $request)
@@ -204,33 +86,47 @@ class OrdenCompraVerifyController extends Controller
             ]);
         }
 
-        // No se guarda el PDF binario en BD; usar sólo el hash de validación
-        $expectedHash = $orden->validation_hash;
+        // Obtener todos los hashes históricos de esta orden desde orden_hash
+        $expectedHashes = DB::table('orden_hash')
+            ->where('orden_compra_id', $orden->id)
+            ->orderByDesc('created_at')
+            ->pluck('validation_hash')
+            ->map(function($h){ return strtolower(trim(preg_replace('/[^a-f0-9]/', '', (string)$h))); })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $uploadedPath = $request->file('pdf')->getRealPath();
         $providedHash = hash_file('sha256', $uploadedPath);
-
         $providedSan = strtolower(trim(preg_replace('/[^a-f0-9]/', '', $providedHash)));
-        $expectedSan = strtolower(trim(preg_replace('/[^a-f0-9]/', '', (string)$expectedHash)));
 
-        $valid = false;
-        if ($providedSan !== '' && $expectedSan !== '') {
-            $valid = hash_equals($expectedSan, $providedSan);
+        $valid = false; $matched = null;
+        foreach ($expectedHashes as $h) {
+            if ($providedSan !== '' && $h !== '' && hash_equals($h, $providedSan)) {
+                $valid = true; $matched = $h; break;
+            }
         }
 
+        $latest = $expectedHashes[0] ?? null;
+        $outdated = $valid && $matched !== null && $latest !== null && !hash_equals($matched, $latest);
+
         $message = '';
-        if (empty($expectedSan)) {
-            $message = 'No hay hash de validación almacenado para esta orden.';
-        } else if ($valid) {
-            $message = 'El archivo coincide con el hash de validación (SHA256 igual).';
+        if (empty($expectedHashes)) {
+            $message = 'No hay hashes registrados para esta orden.';
+        } elseif ($valid && $outdated) {
+            $message = 'El archivo coincide con un hash válido, pero no es el más reciente. El documento está desactualizado.';
+        } elseif ($valid) {
+            $message = 'El archivo coincide con el hash de validación registrado.';
         } else {
-            $message = 'El documento ha sido alterado o no coincide con el hash de validación.';
+            $message = 'El documento no coincide con ninguno de los hashes registrados.';
         }
 
         return view('ordenes_compra.verify_upload', [
             'valid' => $valid,
+            'outdated' => $outdated,
             'message' => $message,
-            'expected' => $expectedSan,
+            'expected' => $matched ?? ($latest ?? null),
             'provided' => $providedSan,
             'orden' => $orden,
         ]);
@@ -246,6 +142,7 @@ class OrdenCompraVerifyController extends Controller
             ->whereNull('deleted_at')
             ->get();
 
+            
         $secret = config('app.key') ?? env('APP_KEY');
         $result = [];
 

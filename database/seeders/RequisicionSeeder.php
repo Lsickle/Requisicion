@@ -6,29 +6,74 @@ use Illuminate\Database\Seeder;
 use App\Models\Requisicion;
 use App\Models\Producto;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 
 class RequisicionSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        // Crear 20 requisiciones con factory
-        $requisiciones = Requisicion::factory()->count(20)->create();
-
-        // Asociar productos a cada requisición
-        foreach ($requisiciones as $requisicion) {
-            $productos = Producto::inRandomOrder()->limit(rand(1, 5))->get();
-            
-            foreach ($productos as $producto) {
-                DB::table('producto_requisicion')->insert([
-                    'id_producto' => $producto->id,
-                    'id_requisicion' => $requisicion->id,
-                    'pr_amount' => rand(1, 20),
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-            }
+        // Asegurar que existan productos y proveedores antes de crear requisiciones.
+        // Si no existen, ejecutar los seeders necesarios para evitar excepciones.
+        if (DB::table('productos')->count() === 0) {
+            $this->call(\Database\Seeders\ProductosSeeder::class);
+        }
+        if (DB::table('proveedores')->count() === 0) {
+            $this->call(\Database\Seeders\ProveedoresSeeder::class);
         }
 
-        $this->command->info('¡20 requisiciones con productos creadas exitosamente!');
+        // Crear exactamente 20 requisiciones
+        $requisiciones = Requisicion::factory()->count(43)->create()->each(function($req){
+            $type = rand(0,1) ? 'Normal' : 'Especial';
+            if (!in_array($req->type, ['Normal','Especial'], true)) {
+                $req->type = $type;
+                $req->save();
+            } else {
+                // Normalizar capitalización por si el factory puso otra variante
+                $req->type = ucfirst(strtolower($req->type));
+                if (!in_array($req->type, ['Normal','Especial'], true)) {
+                    $req->type = $type;
+                }
+                $req->save();
+            }
+        });
+
+        foreach ($requisiciones as $requisicion) {
+            // Fecha base aleatoria (últimos 120 días)
+            $fechaBase = now()->subDays(rand(5, 120))->startOfDay()->addMinutes(rand(0, 1200));
+            DB::table('requisicion')->where('id', $requisicion->id)->update([
+                'created_at' => $fechaBase,
+                'updated_at' => $fechaBase,
+            ]);
+
+            // Asociar entre 1 y 5 productos con cantidades coherentes (siempre >= 1)
+            $productos = Producto::inRandomOrder()->limit(rand(1, 5))->get();
+            if ($productos->isEmpty()) {
+                // Si no hay productos, lanzamos excepción para no dejar requisiciones incompletas
+                throw new \RuntimeException('No hay productos para asociar a las requisiciones. Ejecute primero el seeder de productos.');
+            }
+
+            $totalCantidad = 0;
+
+            foreach ($productos as $producto) {
+                $cantidad = rand(3, 20);
+                DB::table('producto_requisicion')->insert([
+                    'id_producto'   => $producto->id,
+                    'id_requisicion'=> $requisicion->id,
+                    'pr_amount'     => $cantidad,
+                    'created_at'    => $fechaBase,
+                    'updated_at'    => $fechaBase,
+                ]);
+                $totalCantidad += $cantidad;
+            }
+
+            // Guardar el total de cantidades de la requisición (campo es texto)
+            DB::table('requisicion')->where('id', $requisicion->id)->update([
+                'amount_requisicion' => (string) $totalCantidad,
+                // reforzar type por si cambió en la factory después de loop
+                'type' => in_array($requisicion->type, ['Normal','Especial'], true) ? $requisicion->type : 'Normal',
+            ]);
+        }
+
+        $this->command->info('Requisiciones con type Normal/Especial creadas correctamente.');
     }
 }

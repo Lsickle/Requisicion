@@ -10,10 +10,27 @@ use App\Helpers\PermissionHelper;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Client\ConnectionException;
 
+/**
+ * ApiAuthController
+ *
+ * Controlador para autenticación contra el servicio externo VPL_CORE.
+ * - login: valida credenciales, llama al endpoint externo, guarda token y datos de usuario en sesión,
+ *   extrae roles y permisos y redirige según permisos disponibles.
+ * - logout: borra la sesión local y notifica al servicio externo para invalidar el token.
+ */
 class ApiAuthController extends Controller
 {
     /**
      * Login contra el API externo
+     *
+     * Valida los campos del request (email/password), realiza la petición POST al endpoint
+     * de autenticación externo y maneja resultados:
+     *  - guarda token y datos de usuario en sesión
+     *  - extrae roles y permisos con PermissionHelper
+     *  - normaliza permisos y decide si redirigir a la vista de requisiciones
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function login(Request $request)
     {
@@ -116,6 +133,12 @@ class ApiAuthController extends Controller
 
     /**
      * Logout (elimina la sesión)
+     *
+     * Borra todas las claves de sesión relacionadas con la autenticación y, si existe
+     * un token, notifica al servicio externo para invalidarlo.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function logout(Request $request)
     {

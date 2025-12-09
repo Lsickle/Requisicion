@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Mail\EstatusRequisicionActualizado;
+use App\Mail\RequisicionCompletada; // nuevo
 use App\Models\Requisicion;
 use App\Models\Estatus_Requisicion;
 use Illuminate\Bus\Queueable;
@@ -11,15 +12,18 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
+use App\Mail\EstatusRequisicionActualizado as EstatusRequisicionActualizadoMail;
 
 class EstatusRequisicionActualizadoJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $requisicion;
-    protected $estatus;
-    protected $userEmail;
+    public $requisicion;
+    public $estatus;
+    public $userEmail;
+
+    public $tries = 3;
+    public function backoff(): array { return [10, 30, 60]; }
 
     /**
      * Create a new job instance.
@@ -29,6 +33,7 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
         $this->requisicion = $requisicion;
         $this->estatus = $estatus;
         $this->userEmail = $userEmail;
+        $this->afterCommit = true; // usar propiedad del trait
     }
 
     /**
@@ -36,22 +41,15 @@ class EstatusRequisicionActualizadoJob implements ShouldQueue
      */
     public function handle()
     {
+        // Enviar correo siempre que el email sea válido
+        if (empty($this->userEmail) || !filter_var($this->userEmail, FILTER_VALIDATE_EMAIL)) { return; }
+        $estatusId = (int)($this->estatus->estatus_id ?? 0);
         try {
-            // Preferir el email proporcionado, si no, usar el email guardado en la requisición o el usuario relacionado
-            $to = $this->userEmail
-                ?? ($this->requisicion->email_user ?? null)
-                ?? optional($this->requisicion->user)->email
-                ?? null;
-
-            if ($to) {
-                Mail::to($to)->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
-                Log::info("Correo de estatus enviado a: {$to} para requisición #{$this->requisicion->id}");
-            } else {
-                Log::warning("No se encontró email destinatario para requisición #{$this->requisicion->id}. Enviando fallback a admin.");
-                Mail::to('admin@empresa.com')->send(new EstatusRequisicionActualizado($this->requisicion, $this->estatus));
+            if ($estatusId === 10) {
+                Mail::to($this->userEmail)->send(new RequisicionCompletada($this->requisicion, $this->estatus));
+                return;
             }
-        } catch (\Exception $e) {
-            Log::error("Error enviando correo para requisición #{$this->requisicion->id}: " . $e->getMessage());
-        }
+            Mail::to($this->userEmail)->send(new EstatusRequisicionActualizadoMail($this->requisicion, $this->estatus));
+        } catch (\Throwable $e) { /* silencio */ }
     }
 }

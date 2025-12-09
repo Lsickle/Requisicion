@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mail\AprobacionEtapaMail;
 
 class NotificarAprobacionEtapaJob implements ShouldQueue
@@ -35,10 +36,35 @@ class NotificarAprobacionEtapaJob implements ShouldQueue
         $this->mensajePrincipal = $mensajePrincipal;
         $this->panelUrl = $panelUrl;
         $this->detalleUrl = $detalleUrl;
+        // asegurar envío después del commit sin declarar propiedad propia (usa la del trait Queueable)
+        $this->afterCommit = true;
     }
 
     public function handle(): void
     {
+        $toCandidates = $this->destinatarios;
+        $emails = [];
+
+        if (is_string($toCandidates) && strlen(trim($toCandidates)) > 0) {
+            $parts = preg_split('/[;\,\s]+/', $toCandidates) ?: [];
+            $toCandidates = $parts;
+        }
+
+        if (is_array($toCandidates)) {
+            foreach ($toCandidates as $item) {
+                $s = trim((string)$item);
+                if (!$s) continue;
+                if (preg_match('/<([^>]+)>/', $s, $m)) { $s = $m[1]; }
+                if (filter_var($s, FILTER_VALIDATE_EMAIL)) { $emails[] = $s; }
+            }
+        }
+
+        $to = array_values(array_unique($emails));
+        if (empty($to)) {
+            Log::warning('NotificarAprobacionEtapaJob: sin destinatarios válidos', ['req'=>$this->requisicion->id ?? null,'stage'=>$this->stageKey]);
+            return;
+        }
+
         $mailable = new AprobacionEtapaMail(
             $this->requisicion,
             $this->estatus,
@@ -48,6 +74,12 @@ class NotificarAprobacionEtapaJob implements ShouldQueue
             $this->panelUrl,
             $this->detalleUrl
         );
-        Mail::to($this->destinatarios)->send($mailable);
+
+        try {
+            Mail::to($to)->send($mailable);
+            Log::info('NotificarAprobacionEtapaJob enviado', [ 'req'=>$this->requisicion->id ?? null, 'stage'=>$this->stageKey, 'to'=>$to, 'tipo'=>'inicial' ]);
+        } catch (\Throwable $e) {
+            Log::error('NotificarAprobacionEtapaJob: error enviando correo', ['err'=>$e->getMessage(), 'req'=>$this->requisicion->id ?? null, 'to'=>$to]);
+        }
     }
 }

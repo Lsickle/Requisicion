@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ordencompra\OrdenCompraController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\excel\ExcelController;
 use App\Http\Controllers\PDF\PdfController;
 use App\Http\Controllers\requisicion\RequisicionController;
 use App\Http\Controllers\estatusrequisicion\EstatusRequisicionController;
@@ -18,11 +17,16 @@ use App\Http\Controllers\productos\ProductosController;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
-use App\Http\Controllers\Proveedores\ProveedoresController;
-use App\Http\Controllers\dashboard\DashboardController;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
+use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
+use App\Http\Controllers\centros\CentroController;
+use App\Http\Controllers\centros\UserSubcentroController;
+use App\Http\Controllers\requisicion\AprobadoresController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 // Página de login (index.blade.php)
 Route::get('/', function () {
@@ -64,6 +68,11 @@ Route::middleware([AuthSession::class])->group(function () {
     // Crear requisiciones con permiso
     Route::get('/requisiciones/create', [RequisicionController::class, 'create'])
         ->name('requisiciones.create')
+        ->middleware(CheckPermission::class . ':crear requisicion');
+
+    // Nueva ruta para requisición especial
+    Route::get('/requisiciones/especial', [RequisicionController::class, 'createEspecial'])
+        ->name('requisiciones.especial')
         ->middleware(CheckPermission::class . ':crear requisicion');
 
     // Solicitar nuevo producto con permiso
@@ -129,6 +138,8 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para obtener datos de solicitud
     Route::get('/productos/solicitud/{id}', [ProductosController::class, 'getSolicitudData'])
         ->name('productos.solicitud.data');
+    // Lista simple de productos (SKU, nombre, categoría, unidad)
+    Route::get('/productos/lista', [ProductosController::class, 'lista'])->name('productos.lista');
 
     // Rutas para proveedores
     Route::post('/proveedores', [ProductosController::class, 'storeProveedor'])
@@ -212,33 +223,8 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('ordenes_compra/{id}', [OrdenCompraController::class, 'show'])
         ->name('ordenes_compra.show');
 
-    // Ruta para terminar una orden (por id) — closure para evitar dependencia del método del controlador
-    Route::post('ordenes_compra/terminar/{id}', function (\Illuminate\Http\Request $request, $id) {
-        try {
-            \Illuminate\Support\Facades\DB::table('orden_compra_estatus')
-                ->where('orden_compra_id', $id)
-                ->where('activo', 1)
-                ->update(['activo' => 0, 'updated_at' => now()]);
-
-            $terminado = \Illuminate\Support\Facades\DB::table('estatus_orden_compra')->where('id', 3)->first()
-                ?? \Illuminate\Support\Facades\DB::table('estatus_orden_compra')->first();
-
-            \Illuminate\Support\Facades\DB::table('orden_compra_estatus')->insert([
-                'estatus_id' => $terminado->id ?? 3,
-                'orden_compra_id' => $id,
-                'recepcion_id' => null,
-                'activo' => 1,
-                'date_update' => now(),
-                'user_id' => session('user.id') ?? null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            return response()->json(['ok' => true]);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
-        }
-    })->name('ordenes_compra.terminar');
+    // Ruta para terminar una orden (por id)
+    Route::post('ordenes_compra/terminar/{id}', [OrdenCompraController::class, 'terminar'])->name('ordenes_compra.terminar');
 
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
@@ -296,8 +282,35 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/requisiciones/{id}/transferir', [RequisicionController::class, 'transferir'])->name('requisiciones.transferir.post');
 
     // Endpoint para obtener usuarios desde servicio VPL_CORE (proxy)
-    Route::get('requisiciones/usuarios-external', [\App\Http\Controllers\requisicion\RequisicionController::class, 'fetchExternalUsers'])
+    Route::get('requisiciones/usuarios-external', [RequisicionController::class, 'fetchExternalUsers'])
         ->name('requisiciones.usuarios_external');
+
+    // Rutas para gestión de centros y subcentros
+    Route::prefix('centros')->name('centros.')->group(function(){
+        Route::get('/', [CentroController::class, 'index'])->name('index');
+        Route::post('/', [CentroController::class, 'store'])->name('store');
+        Route::put('/{id}', [CentroController::class, 'update'])->name('update');
+        Route::delete('/{id}', [CentroController::class, 'destroy'])->name('destroy');
+
+        Route::post('/{centro}/subcentros', [CentroController::class, 'storeSubcentro'])->name('subcentros.store');
+        Route::put('/subcentros/{id}', [CentroController::class, 'updateSubcentro'])->name('subcentros.update');
+        Route::delete('/subcentros/{id}', [CentroController::class, 'destroySubcentro'])->name('subcentros.destroy');
+    });
+
+    Route::get('/centros/user_subcentros', [UserSubcentroController::class, 'index'])->name('centros.user_subcentros.index');
+    Route::post('/centros/user_subcentros', [UserSubcentroController::class, 'store'])->name('centros.user_subcentros.store');
+    Route::get('/centros/user_subcentros/list/{email}', [UserSubcentroController::class, 'listForUser'])->name('centros.user_subcentros.list');
+    Route::get('/centros/user_subcentros/fetch', [UserSubcentroController::class, 'fetchUsers'])->name('centros.user_subcentros.fetch');
+
+    // Rutas para gestión de aprobadores por centro (vista y store) — delegadas a controller
+    Route::get('/requisiciones/gestor-aprobadores', [AprobadoresController::class, 'index'])
+        ->name('requisiciones.aprobadores.gestor')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
+    Route::post('/requisiciones/aprobadores', [AprobadoresController::class, 'store'])
+        ->name('requisiciones.aprobadores.store')
+        ->middleware(CheckPermission::class . ':aprobar requisicion');
+
 });
 
 // Ruta para confirmar recepciones/entregas en lote desde la vista
@@ -308,15 +321,27 @@ Route::resource('nuevo_producto', NuevoProductoController::class);
 // Logout
 Route::post('/logout', [ApiAuthController::class, 'logout'])->name('logout');
 
-// Reportes excel
-Route::prefix('exportar')->group(function () {
-    Route::get('/productos', [ExcelController::class, 'export'])->name('export.productos')->defaults('type', 'productos');
-    Route::get('/ordenes-compra', [ExcelController::class, 'export'])->name('export.ordenes-compra')->defaults('type', 'ordenes-compra');
-    Route::get('/requisiciones', [ExcelController::class, 'export'])->name('export.requisiciones')->defaults('type', 'requisiciones');
-    Route::get('/estatus-requisicion', [ExcelController::class, 'export'])->name('export.estatus-requisicion')->defaults('type', 'estatus-requisicion');
-});
 
 Route::view('/index', 'index')->name('index');
 
 
-Route::resource('proveedores', ProveedoresController::class);
+// Ruta para notificar por correo al añadir el producto solicitado
+Route::post('/nuevo-producto/{id}/notify-added', [NuevoProductoController::class, 'notifyAdded'])->name('nuevo_producto.notifyAdded');
+
+// Ruta para actualizar proveedores de un producto
+Route::post('productos/{id}/providers', [ProductosController::class, 'updateProviders'])->name('productos.updateProviders');
+
+// Ruta para actualizar date_oc y observaciones por orden de compra
+Route::post('/ordenes-compra/{id}/basicos', [OrdenCompraController::class, 'updateBasicos'])->name('ordenes_compra.updateBasicos');
+
+// Ruta específica para actualizar precios de factura (debe ir antes del resource para no colisionar con {orden_compra})
+Route::post('/ordenes_compra/actualizar-precios-factura', [OrdenCompraController::class, 'actualizarPreciosFactura'])
+    ->name('ordenes_compra.actualizar_precios_factura');
+
+// Aceptar GET en /centros/subcentros (redirige a /centros si el servicio REST tiene solo PUT/DELETE)
+Route::get('/centros/subcentros', function() {
+    return redirect('/centros');
+});
+
+// Finalizar requisición (estatus 10)
+Route::post('/requisiciones/{id}/finalizar', [RequisicionController::class, 'finalizar'])->name('requisiciones.finalizar');

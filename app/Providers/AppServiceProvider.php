@@ -10,6 +10,7 @@ use App\Models\Estatus_Requisicion;
 use App\Observers\EstatusRequisicionObserver;
 use App\Models\OrdenCompra;
 use App\Observers\OrdenCompraObserver;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,6 +36,15 @@ class AppServiceProvider extends ServiceProvider
         // Registrar observer para OrdenCompra
         if (class_exists(OrdenCompra::class) && class_exists(OrdenCompraObserver::class)) {
             OrdenCompra::observe(OrdenCompraObserver::class);
+        }
+
+        // En producción/entornos con HTTPS, forzar esquema https para todas las URLs generadas
+        try {
+            if (config('app.env') === 'production') {
+                URL::forceScheme('https');
+            }
+        } catch (\Throwable $e) {
+            // noop
         }
     }
 
