@@ -256,6 +256,59 @@ public function storeProveedor(Request $request)
     }
 
     /**
+     * Update a provider
+     */
+    public function updateProveedor(Request $request, $id)
+    {
+        try {
+            $prov = Proveedor::findOrFail($id);
+            $validator = Validator::make($request->all(), [
+                'prov_name'   => 'required|string|max:255',
+                'prov_nit'    => 'required|string|max:50|unique:proveedores,prov_nit,' . $prov->id,
+                'prov_name_c' => 'required|string|max:255',
+                'prov_phone'  => 'required|string|max:20',
+                'prov_adress' => 'required|string|max:255',
+                'prov_city'   => 'required|string|max:100',
+                'prov_email'  => 'required|email|max:255',
+                'prov_descrip' => 'required|string|max:1000',
+                'methods_oc' => 'nullable|string|max:255',
+                'plazo_oc' => 'nullable|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $prov->update($request->only([
+                'prov_name',
+                'prov_descrip',
+                'prov_nit',
+                'prov_name_c',
+                'prov_phone',
+                'prov_adress',
+                'prov_city',
+                'prov_email',
+                'methods_oc',
+                'plazo_oc'
+            ]));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Proveedor actualizado exitosamente.',
+                'proveedores' => Proveedor::orderBy('prov_name')->get()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar el proveedor: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Remove the specified resource from storage (soft delete).
      */
     public function destroy(Producto $producto)

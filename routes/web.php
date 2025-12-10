@@ -144,6 +144,11 @@ Route::middleware([AuthSession::class])->group(function () {
     // Rutas para proveedores
     Route::post('/proveedores', [ProductosController::class, 'storeProveedor'])
         ->name('proveedores.store');
+    Route::put('/proveedores/{id}', [ProductosController::class, 'updateProveedor'])
+        ->name('proveedores.update');
+    // Aceptar también POST para actualizar (para fetch con _method=PUT)
+    Route::post('/proveedores/{id}', [ProductosController::class, 'updateProveedor'])
+        ->name('proveedores.update');
 
     // Rutas para solicitud de nuevo producto
     Route::resource('nuevo_producto', NuevoProductoController::class);

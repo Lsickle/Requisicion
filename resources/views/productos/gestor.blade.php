@@ -379,8 +379,10 @@
                     </button>
                 </div>
                 <div class="p-4">
-                    <form id="proveedorForm" method="POST" action="{{ route('proveedores.store', [], false) }}">
+                    <form id="proveedorForm" method="POST" action="{{ route('proveedores.store', [], false) }}" data-update-base="{{ url('/proveedores') }}">
                         @csrf
+                        <input type="hidden" id="proveedorFormMethod" name="_method" value="POST">
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Proveedor
@@ -708,6 +710,25 @@
     // Evitar redeclaraciones de manageProviderIndex: declarar una vez en ámbito global
     var manageProviderIndex = typeof manageProviderIndex !== 'undefined' ? manageProviderIndex : 0;
 
+    // Mapa global de proveedores para edición rápida en modal
+    const PROV_MAP = (() => {
+        try {
+            return Object.fromEntries((@json($proveedores ?? [])).map(p => [String(p.id), {
+                id: p.id,
+                prov_name: p.prov_name,
+                prov_nit: p.prov_nit,
+                prov_name_c: p.prov_name_c,
+                prov_phone: p.prov_phone,
+                prov_adress: p.prov_adress,
+                prov_city: p.prov_city,
+                prov_email: p.prov_email,
+                methods_oc: p.methods_oc,
+                plazo_oc: p.plazo_oc,
+                prov_descrip: p.prov_descrip,
+            }]));
+        } catch(e) { return {}; }
+    })();
+
     // Abrir modal de solicitud
     function openSolicitudModal(nombre, descripcion, usuario) {
         document.getElementById('solicitudNombre').textContent = nombre;
@@ -802,8 +823,14 @@
             clearErrorMessages();
         } else if (type === 'proveedor') {
             document.getElementById('proveedorModal').classList.remove('hidden');
-            document.getElementById('proveedorForm').reset();
-            // Limpiar mensajes de error
+            const form = document.getElementById('proveedorForm');
+            if (form) {
+                form.reset();
+                form.action = "{{ route('proveedores.store', [], false) }}";
+                form.removeAttribute('data-edit-id');
+                const m = document.getElementById('proveedorFormMethod'); if (m) m.value = 'POST';
+                const titleEl = document.querySelector('#proveedorModal h2'); if (titleEl) titleEl.textContent = 'Nuevo Proveedor';
+            }
             clearProveedorErrorMessages();
         } else if (type === 'addFromSolicitud') {
             document.getElementById('addFromSolicitudModal').classList.remove('hidden');
@@ -878,6 +905,33 @@
         
         // Limpiar mensajes de error
         clearErrorMessages();
+    }
+
+    // Abrir modal de proveedor en modo edición y prellenar campos
+    function editProveedorFromList(id, prov){
+        try {
+            const modal = document.getElementById('proveedorModal'); if (modal) modal.classList.remove('hidden');
+            const titleEl = document.querySelector('#proveedorModal h2'); if (titleEl) titleEl.textContent = 'Editar Proveedor';
+            const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = (val ?? ''); };
+            setVal('prov_name', prov.prov_name);
+            setVal('prov_nit', prov.prov_nit);
+            setVal('prov_name_c', prov.prov_name_c);
+            setVal('prov_phone', prov.prov_phone);
+            setVal('prov_adress', prov.prov_adress);
+            setVal('prov_city', prov.prov_city);
+            setVal('prov_email', prov.prov_email);
+            setVal('methods_oc', prov.methods_oc);
+            setVal('plazo_oc', prov.plazo_oc);
+            setVal('prov_descrip', prov.prov_descrip);
+            const form = document.getElementById('proveedorForm');
+            if (form){
+                form.dataset.editId = id;
+                const base = form.getAttribute('data-update-base') || '/proveedores';
+                form.action = (base.endsWith('/') ? base : base + '/') + id;
+                const m = document.getElementById('proveedorFormMethod'); if (m) m.value = 'PUT';
+            }
+            clearProveedorErrorMessages();
+        } catch (e) { console.warn('editProveedorFromList:', e); }
     }
 
     // Gestión de proveedores dentro del modal de producto eliminada: usar modal "Gestionar Proveedores".
@@ -962,7 +1016,7 @@
         if (document.querySelector(`#manageProvidersTable tbody tr[data-prov-id="${providerId}"]`)) { Swal.fire({icon:'info', title:'Duplicado', text:'El proveedor ya fue agregado'}); return; }
         const tr = document.createElement('tr');
         tr.setAttribute('data-prov-id', providerId);
-        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+        tr.innerHTML = `<td class="px-3 py-2">${provName}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-blue-600 mr-3" title="Editar" onclick="(function(){ const d = PROV_MAP['${providerId}']; if (d) editProveedorFromList('${providerId}', d); else Swal.fire({icon:'info', title:'Proveedor', text:'Datos de proveedor no disponibles'}); })()"><i class=\"fas fa-pencil-alt\"></i></button><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})" title="Eliminar"><i class=\"fas fa-trash\"></i></button></td>`;
         tbody.appendChild(tr);
         const inputsDiv = document.getElementById('manageProvidersInputs');
         const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
@@ -998,10 +1052,10 @@
             const moneda = p.moneda || p.currency || '';
             const methods = p.methods_oc || p.methods || '';
             const plazo = p.plazo_oc || p.plazo || '';
-            const provId = p.prov_id || p.id || p.proveedor_id;
+            const provId = String(p.prov_id || p.id || p.proveedor_id);
             const tr = document.createElement('tr');
             tr.setAttribute('data-prov-id', provId);
-            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})"><i class=\"fas fa-trash\"></i></button></td>`;
+            tr.innerHTML = `<td class="px-3 py-2">${name}</td><td class="px-3 py-2">$${price.toFixed(2)}</td><td class=\"px-3 py-2\">${moneda}</td><td class=\"px-3 py-2\">${methods}</td><td class=\"px-3 py-2\">${plazo}</td><td class="px-3 py-2 text-center"><button type="button" class="text-blue-600 mr-3" title="Editar" onclick="(function(){ const d = PROV_MAP['${provId}']; if (d) editProveedorFromList('${provId}', d); else Swal.fire({icon:'info', title:'Proveedor', text:'Datos de proveedor no disponibles'}); })()"><i class=\"fas fa-pencil-alt\"></i></button><button type="button" class="text-red-600" onclick="removeManageProviderRow(${manageProviderIndex})" title="Eliminar"><i class=\"fas fa-trash\"></i></button></td>`;
             tbody.appendChild(tr);
             const wrapper = document.createElement('div'); wrapper.id = 'manage_provider_row_' + manageProviderIndex;
             wrapper.setAttribute('data-prov-id', provId);
@@ -1286,7 +1340,7 @@
         const prov_nit = document.getElementById('prov_nit');
         const prov_name_c = document.getElementById('prov_name_c');
         const prov_phone = document.getElementById('prov_phone');
-        const prov_adress = document.getElementById('prov_adress');
+               const prov_adress = document.getElementById('prov_adress');
         const prov_city = document.getElementById('prov_city');
         const prov_descrip = document.getElementById('prov_descrip');
         const prov_email = document.getElementById('prov_email');
