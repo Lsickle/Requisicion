@@ -81,9 +81,9 @@
                         ->value('estatus_id');
 
                     if ($activeEstatusId) {
-                        // Forzar etiqueta 'Completada' para estatus id 3
+                        // Mapear id 3 como 'Terminada' y no como 'Completada' para permitir crear nueva OC si hay pendientes
                         if ((int)$activeEstatusId === 3) {
-                            $estatusDisplay = 'Completada';
+                            $estatusDisplay = 'Terminada';
                             $isTerminada = true;
                         } elseif ((int)$activeEstatusId === 1) {
                             $estatusDisplay = 'Creada';
@@ -122,7 +122,7 @@
                     }
                 } catch (\Throwable $e) { /* noop */ }
 
-                // Determinar si mostrar el botón de crear nueva OC (cuando esté completada/anulada o soft-deleted)
+                // Determinar si mostrar el botón de crear nueva OC (cuando esté terminada/anulada/cancelada o soft-deleted y haya cantidades pendientes)
                 $estatusLower = strtolower(trim((string)($estatusDisplay ?? '')));
                 
                 // Comprobar si la requisición asociada ya está completa; si está completa, no permitir crear nueva OC
@@ -170,7 +170,7 @@
                     $requisicionCompleta = false;
                 }
 
-                $showCreate = (($oc->deleted_at !== null) || in_array($estatusLower, ['completada','anulada','cancelada'])) && !$requisicionCompleta;
+                $showCreate = ((($oc->deleted_at !== null) || in_array($estatusLower, ['terminada','anulada','cancelada','completada'])) && !$requisicionCompleta && ($pendingQty > 0));
                 @endphp
                 <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
