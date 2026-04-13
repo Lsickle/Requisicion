@@ -147,8 +147,8 @@ provienen del controlador.
 - Busca y filtra por categoría y nombre de producto (excluye servicio/alquiler).
 - Permite definir la cantidad total a distribuir y ver la unidad del producto. --}}
 <!-- Modal 1: Selección de Producto -->
-<div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
+<div id="modalProducto" class="fixed inset-0 flex hidden items-start sm:items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-700">Seleccionar Producto</h2>
             <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
@@ -207,7 +207,7 @@ provienen del controlador.
 - Muestra total asignado vs disponible y lista de asignaciones. --}}
 <!-- Modal 2: Distribución por Centros de Costo -->
 <div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-700">Distribuir Producto</h2>
             <button id="cerrarModalDistribucionBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
