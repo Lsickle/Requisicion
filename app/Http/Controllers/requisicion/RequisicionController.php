@@ -616,6 +616,7 @@ class RequisicionController extends Controller
     {
         $validated = $request->validate([
             'operacion_user' => 'required|string|max:255',
+            'fecha_estimada_recepcion' => 'nullable|date',
             'Recobrable' => 'required|in:Recobrable,No recobrable',
             'prioridad_requisicion' => 'required|in:baja,media,alta',
             'justify_requisicion' => 'required|string|min:3|max:500',
@@ -664,6 +665,12 @@ class RequisicionController extends Controller
             $requisicion->detail_requisicion = $validated['detail_requisicion'];
             $requisicion->amount_requisicion = $totalRequisicion;
             $requisicion->type = $request->input('type', 'Normal');
+            // Si la columna existe, guardar fecha estimada
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('requisicion', 'fecha_estimada_recepcion')) {
+                    $requisicion->fecha_estimada_recepcion = $validated['fecha_estimada_recepcion'] ?? null;
+                }
+            } catch (\Throwable $e) { /* noop */ }
             $requisicion->save();
 
             // Estatus inicial: 4 si es Especial, de lo contrario 'Requisición creada'

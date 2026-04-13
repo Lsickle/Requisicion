@@ -1007,6 +1007,20 @@ class OrdenCompraController extends Controller
                 ->with('error', 'No se puede editar la Orden de Compra porque ya tiene productos recibidos.');
         }
 
+        // También bloquear si el estatus activo contiene referencias a factura/facturada
+        $activeStatus = DB::table('orden_compra_estatus as oce')
+            ->join('estatus_orden_compra as eoc', 'oce.estatus_id', '=', 'eoc.id')
+            ->where('oce.orden_compra_id', $id)
+            ->where('oce.activo', 1)
+            ->whereNull('oce.deleted_at')
+            ->select('eoc.status_name')
+            ->first();
+
+        if ($activeStatus && preg_match('/factur/i', $activeStatus->status_name)) {
+            return redirect()->route('ordenes_compra.show', $id)
+                ->with('error', 'No se puede editar la Orden de Compra porque su estatus está marcado como facturado.');
+        }
+
         $requisicion = Requisicion::with('productos')->findOrFail($ordenCompra->requisicion_id);
         $centros = Centro::all();
 
@@ -1043,6 +1057,20 @@ class OrdenCompraController extends Controller
         if ($hasRecepcion) {
             return redirect()->route('ordenes_compra.show', $id)
                 ->with('error', 'No se puede modificar la Orden de Compra porque ya tiene productos recibidos.');
+        }
+
+        // Bloquear actualización si el estatus activo está relacionado con facturación
+        $activeStatus = DB::table('orden_compra_estatus as oce')
+            ->join('estatus_orden_compra as eoc', 'oce.estatus_id', '=', 'eoc.id')
+            ->where('oce.orden_compra_id', $id)
+            ->where('oce.activo', 1)
+            ->whereNull('oce.deleted_at')
+            ->select('eoc.status_name')
+            ->first();
+
+        if ($activeStatus && preg_match('/factur/i', $activeStatus->status_name)) {
+            return redirect()->route('ordenes_compra.show', $id)
+                ->with('error', 'No se puede modificar la Orden de Compra porque su estatus está marcado como facturado.');
         }
 
         $validator = Validator::make($request->all(), [

@@ -63,6 +63,22 @@
     let unidadMedida = '';
     let editIndex = null; // índice del producto editado
     let productoEsServicio = false; // indica si el producto seleccionado es servicio/alquiler
+    const tipoItemSelect = document.getElementById('tipoItemSelect');
+    // Si el usuario cambia el tipo explícitamente, mostrar/ocultar las secciones de servicio inmediatamente
+    if (tipoItemSelect) {
+      tipoItemSelect.addEventListener('change', function(){
+        const observacionSection = document.getElementById('observacionServicioSection');
+        const planEjecucionSection = document.getElementById('planEjecucionSection');
+        if (!observacionSection || !planEjecucionSection) return;
+        if (this.value === 'servicio') {
+          observacionSection.classList.remove('hidden');
+          planEjecucionSection.classList.remove('hidden');
+        } else {
+          observacionSection.classList.add('hidden');
+          planEjecucionSection.classList.add('hidden');
+        }
+      });
+    }
 
     // Utilidades
     function mostrarError(msg){
@@ -136,7 +152,7 @@
       const input = document.getElementById(inputId);
       if (!input || !element) return;
       input.value = element.textContent.trim();
-      if (inputId === 'productoSelect'){
+        if (inputId === 'productoSelect'){
         input.dataset.id = element.getAttribute('data-id') || '';
         input.dataset.nombre = element.getAttribute('data-nombre') || '';
         input.dataset.proveedor = element.getAttribute('data-proveedor') || '';
@@ -145,8 +161,13 @@
         if (unidadMedidaSpan) unidadMedidaSpan.textContent = input.dataset.unidad ? ('Unidad: ' + input.dataset.unidad) : 'Unidad: -';
         
         // Determinar si es servicio/alquiler
-        const cat = (element.getAttribute('data-categoria') || '').toLowerCase();
-        productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
+            const cat = (element.getAttribute('data-categoria') || '').toLowerCase();
+            // Si el usuario seleccionó explícitamente tipo en el modal, respetarlo; si no, caer a detección por categoría
+            if (tipoItemSelect && tipoItemSelect.value) {
+              productoEsServicio = tipoItemSelect.value === 'servicio';
+            } else {
+              productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
+            }
       }
       if (inputId === 'categoriaFilter') filtrarProductosPorCategoria();
       if (element.parentElement) element.parentElement.style.display = 'none';
@@ -240,9 +261,13 @@
       if (!cantidadTotal || cantidadTotal < 1) return mostrarError('Debes ingresar una cantidad válida.');
       if (productos.some(p => p.id === prodSeleccionado.id)) return mostrarError('Este producto ya fue agregado.');
       
-      // Determinar si es servicio/alquiler basado en la categoría
-      const cat = (prodSeleccionado.categoria || '').toLowerCase();
-      productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
+      // Determinar si es servicio/alquiler: preferir selección explícita del usuario
+      if (tipoItemSelect && tipoItemSelect.value) {
+        productoEsServicio = tipoItemSelect.value === 'servicio';
+      } else {
+        const cat = (prodSeleccionado.categoria || '').toLowerCase();
+        productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
+      }
       
       // Mostrar/ocultar campos de observación y plan de ejecución según el tipo de producto
       const observacionSection = document.getElementById('observacionServicioSection');
@@ -281,6 +306,7 @@
       if (cantidadTotalInput) cantidadTotalInput.value='';
       if (categoriaFilter) categoriaFilter.value='';
       if (unidadMedidaSpan) unidadMedidaSpan.textContent = 'Unidad: -';
+      if (tipoItemSelect) tipoItemSelect.value = 'producto';
     }
     function resetModalDistribucion(){
       if (centroSelect) centroSelect.value='';

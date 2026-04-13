@@ -88,6 +88,12 @@ provienen del controlador.
                     </div>
                 </div>
 
+                <div class="mt-4">
+                    <label class="block text-gray-700 font-semibold mb-1">Fecha estimada de recepción</label>
+                    <input type="date" name="fecha_estimada_recepcion" value="{{ old('fecha_estimada_recepcion') }}"
+                        class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400">
+                </div>
+
                 <div>
                     <label class="block text-gray-700 font-semibold mb-1">Justificación</label>
                     <textarea name="justify_requisicion" rows="3"
@@ -163,6 +169,13 @@ provienen del controlador.
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
                 <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1"
                     placeholder="Ej: 100">
+            </div>
+            <div>
+                <label class="block text-gray-600 font-semibold mb-1">Tipo</label>
+                <select id="tipoItemSelect" class="w-full border rounded-lg p-2" aria-label="Tipo de ítem">
+                    <option value="producto">Producto</option>
+                    <option value="servicio">Servicio / Alquiler</option>
+                </select>
             </div>
             <div class="flex items-center">
                 <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
