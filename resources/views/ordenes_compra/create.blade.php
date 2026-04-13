@@ -573,20 +573,29 @@
                                             <span class="font-medium">{{ $hasDate ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : 'Sin fecha' }}</span>
                                         </div>
                                         <div>
+                                            <span class="text-gray-600 text-xs">F. Estimada:</span>
+                                            <span class="font-medium">{{ $orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : 'Sin fecha' }}</span>
+                                        </div>
+                                        <div>
                                             <span class="text-gray-600 text-xs">Observación:</span>
                                             <span class="font-medium">{{ $hasObs ? $orden->observaciones : 'Sin observación' }}</span>
                                         </div>
                                     </div>
                                 @else
-                                    <form action="{{ route('ordenes_compra.updateBasicos', $orden->id) }}" method="POST" class="oc-basicos-form flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                                    <form action="{{ route('ordenes_compra.updateBasicos', $orden->id) }}" method="POST" class="oc-basicos-form flex flex-col gap-2">
                                         @csrf
-                                        <input type="date" name="date_oc" min="{{ now()->format('Y-m-d') }}"
-                                               value="{{ $orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : '' }}"
-                                               class="border rounded p-1 text-sm" required>
-                                        <input type="text" name="observaciones" placeholder="Observación"
-                                               value="{{ old('observaciones', $orden->observaciones) }}"
-                                               class="border rounded p-1 text-sm w-full sm:w-64">
-                                        <button type="submit" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">Guardar</button>
+                                        <div class="flex flex-wrap gap-2 items-center">
+                                            <input type="date" name="date_oc" min="{{ now()->format('Y-m-d') }}"
+                                                   value="{{ $orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : '' }}"
+                                                   class="border rounded p-1 text-sm" required>
+                                            <input type="date" name="fecha_estimada_recepcion"
+                                                   value="{{ $orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : '' }}"
+                                                   class="border rounded p-1 text-sm" required>
+                                            <input type="text" name="observaciones" placeholder="Observación"
+                                                   value="{{ old('observaciones', $orden->observaciones) }}"
+                                                   class="border rounded p-1 text-sm flex-1 min-w-[150px]">
+                                        </div>
+                                        <button type="submit" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm self-start">Guardar</button>
                                     </form>
                                 @endif
                             </td>

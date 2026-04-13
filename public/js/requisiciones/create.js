@@ -62,6 +62,7 @@
     let cantidadAsignada = 0;
     let unidadMedida = '';
     let editIndex = null; // índice del producto editado
+    let productoEsServicio = false; // indica si el producto seleccionado es servicio/alquiler
 
     // Utilidades
     function mostrarError(msg){
@@ -142,6 +143,10 @@
         input.dataset.categoria = element.getAttribute('data-categoria') || '';
         input.dataset.unidad = element.getAttribute('data-unidad') || '';
         if (unidadMedidaSpan) unidadMedidaSpan.textContent = input.dataset.unidad ? ('Unidad: ' + input.dataset.unidad) : 'Unidad: -';
+        
+        // Determinar si es servicio/alquiler
+        const cat = (element.getAttribute('data-categoria') || '').toLowerCase();
+        productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
       }
       if (inputId === 'categoriaFilter') filtrarProductosPorCategoria();
       if (element.parentElement) element.parentElement.style.display = 'none';
@@ -234,7 +239,30 @@
       if (!prodSeleccionado) return mostrarError('Debes seleccionar un producto.');
       if (!cantidadTotal || cantidadTotal < 1) return mostrarError('Debes ingresar una cantidad válida.');
       if (productos.some(p => p.id === prodSeleccionado.id)) return mostrarError('Este producto ya fue agregado.');
-      productoActual = { id: prodSeleccionado.id, nombre: prodSeleccionado.nombre, proveedorId: prodSeleccionado.proveedor || null, cantidadTotal, unidad: prodSeleccionado.unidad, centros: [] };
+      
+      // Determinar si es servicio/alquiler basado en la categoría
+      const cat = (prodSeleccionado.categoria || '').toLowerCase();
+      productoEsServicio = cat.includes('servicio') || cat.includes('alquiler');
+      
+      // Mostrar/ocultar campos de observación y plan de ejecución según el tipo de producto
+      const observacionSection = document.getElementById('observacionServicioSection');
+      const observacionInput = document.getElementById('observacionServicio');
+      const planEjecucionSection = document.getElementById('planEjecucionSection');
+      const planEjecucionInput = document.getElementById('planEjecucion');
+      
+      if (observacionSection && planEjecucionSection) {
+        if (productoEsServicio) {
+          observacionSection.classList.remove('hidden');
+          planEjecucionSection.classList.remove('hidden');
+        } else {
+          observacionSection.classList.add('hidden');
+          planEjecucionSection.classList.add('hidden');
+          if (observacionInput) observacionInput.value = '';
+          if (planEjecucionInput) planEjecucionInput.value = '';
+        }
+      }
+      
+      productoActual = { id: prodSeleccionado.id, nombre: prodSeleccionado.nombre, proveedorId: prodSeleccionado.proveedor || null, cantidadTotal, unidad: prodSeleccionado.unidad, centros: [], esServicio: productoEsServicio, observacion: '', planEjecucion: '' };
       cantidadAsignada = 0; unidadMedida = prodSeleccionado.unidad;
       if (productoSeleccionadoNombre) productoSeleccionadoNombre.textContent = prodSeleccionado.nombre;
       if (productoSeleccionadoCantidad) productoSeleccionadoCantidad.textContent = cantidadTotal;
@@ -259,7 +287,16 @@
       if (cantidadCentroInput) cantidadCentroInput.value='';
       if (centrosDropdown) centrosDropdown.style.display='none';
       if (centroFilter) centroFilter.value='';
-      productoActual = null; cantidadTotal = 0; cantidadAsignada = 0; unidadMedida = ''; editIndex = null;
+      // Limpiar campos de observación y plan de ejecución de servicio
+      const observacionSection = document.getElementById('observacionServicioSection');
+      const observacionInput = document.getElementById('observacionServicio');
+      const planEjecucionSection = document.getElementById('planEjecucionSection');
+      const planEjecucionInput = document.getElementById('planEjecucion');
+      if (observacionSection) observacionSection.classList.add('hidden');
+      if (observacionInput) observacionInput.value = '';
+      if (planEjecucionSection) planEjecucionSection.classList.add('hidden');
+      if (planEjecucionInput) planEjecucionInput.value = '';
+      productoActual = null; cantidadTotal = 0; cantidadAsignada = 0; unidadMedida = ''; editIndex = null; productoEsServicio = false;
     }
 
     function actualizarResumen(){ if (totalAsignadoSpan) totalAsignadoSpan.textContent = String(cantidadAsignada); }
@@ -321,13 +358,34 @@
             '\n<input type="hidden" name="productos['+i+'][centros]['+j+'][id]" value="'+centro.id+'">'+
             '\n<input type="hidden" name="productos['+i+'][centros]['+j+'][cantidad]" value="'+centro.cantidad+'">';
         });
+        
+        // Mostrar observación y plan de ejecución si es servicio
+        let observacionHTML = '';
+        if (prod.esServicio) {
+          let detalles = '';
+          if (prod.observacion) {
+            detalles += '<div><b>Detalle:</b> ' + prod.observacion + '</div>';
+          }
+          if (prod.planEjecucion) {
+            detalles += '<div><b>Plan:</b> ' + prod.planEjecucion + '</div>';
+          }
+          observacionHTML = '\n<div class="text-xs text-gray-500 mt-1">' + detalles + '</div>'+
+            '\n<input type="hidden" name="productos['+i+'][observacion_servicio]" value="'+prod.observacion+'">'+
+            '\n<input type="hidden" name="productos['+i+'][plan_ejecucion]" value="'+prod.planEjecucion+'">';
+        } else {
+          observacionHTML = '\n<input type="hidden" name="productos['+i+'][observacion_servicio]" value="">'+
+            '\n<input type="hidden" name="productos['+i+'][plan_ejecucion]" value="">';
+        }
+        
         const tr = document.createElement('tr');
         tr.innerHTML = ''+
           '<td class="p-3">'+
           prod.nombre+' ('+prod.unidad+')'+
+          observacionHTML+
           '\n<input type="hidden" name="productos['+i+'][id]" value="'+prod.id+'">'+
           (prod.proveedorId ? ('\n<input type="hidden" name="productos['+i+'][proveedor_id]" value="'+prod.proveedorId+'">') : '')+
           '\n<input type="hidden" name="productos['+i+'][unidad]" value="'+prod.unidad+'">'+
+          (prod.esServicio ? '\n<input type="hidden" name="productos['+i+'][es_servicio]" value="1">' : '\n<input type="hidden" name="productos['+i+'][es_servicio]" value="0">')+
           '</td>'+
           '<td class="p-3">'+
           prod.cantidadTotal+' '+prod.unidad+
@@ -382,6 +440,23 @@
     });
 
     guardarProductoBtn && guardarProductoBtn.addEventListener('click', ()=>{
+      // Validar observación y plan de ejecución si es servicio/alquiler
+      if (productoActual && productoActual.esServicio) {
+        const observacionInput = document.getElementById('observacionServicio');
+        const observacion = (observacionInput?.value || '').trim();
+        if (!observacion) {
+          return mostrarError('La descripción del servicio es obligatoria.');
+        }
+        
+        const planEjecucionInput = document.getElementById('planEjecucion');
+        const planEjecucion = (planEjecucionInput?.value || '').trim();
+        if (!planEjecucion) {
+          return mostrarError('El plan de ejecución es obligatorio para servicios/alquiler.');
+        }
+        
+        productoActual.observacion = observacion;
+        productoActual.planEjecucion = planEjecucion;
+      }
       if (!productoActual || !Array.isArray(productoActual.centros) || productoActual.centros.length === 0) return mostrarError('Debes añadir al menos un centro de costo.');
       if (cantidadAsignada !== cantidadTotal) return mostrarError('Debes distribuir toda la cantidad ('+(cantidadTotal-cantidadAsignada)+' '+unidadMedida+' restantes).');
       if (editIndex !== null) { productos[editIndex] = JSON.parse(JSON.stringify(productoActual)); }

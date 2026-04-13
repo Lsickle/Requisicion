@@ -202,6 +202,17 @@
                     id="productoSeleccionadoUnidad"></span></p>
         </div>
 
+        <!-- Campo de observación para servicios (siempre visible en especial) -->
+        <div id="observacionServicioSection" class="mb-4">
+            <label class="block text-gray-600 font-semibold mb-1">
+                Descripción del servicio <span class="text-red-500">*</span>
+            </label>
+            <textarea id="observacionServicio" rows="3" required
+                class="w-full border border-red-300 rounded-lg p-2 focus:ring-red-300/60 focus:border-red-400"
+                placeholder="Describa los detalles del servicio..."></textarea>
+            <p class="text-xs text-red-500 mt-1">Este campo es obligatorio</p>
+        </div>
+
         <!-- Distribución por centros -->
         <div id="centrosSection" class="mt-4">
             <h4 class="text-lg font-semibold text-gray-700 mb-2">Distribución por Centros de Costo</h4>

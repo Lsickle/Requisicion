@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OrdenCompra extends Model
 {
@@ -22,12 +22,13 @@ class OrdenCompra extends Model
         'date_oc',
         'order_oc',
         'validation_hash',
+        'fecha_estimada_recepcion',
     ];
 
     // Permitir cargar/guardar PDF en la orden (sin casts especiales)
     protected $casts = [
         'date_oc' => 'date',
-        // no class cast for binary blobs; store raw string/blob
+        'fecha_estimada_recepcion' => 'date',
     ];
 
     public function requisicion(): BelongsTo

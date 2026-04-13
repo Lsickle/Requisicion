@@ -33,7 +33,9 @@
         <div class="mt-11 grid gap-6 menu-grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-center place-items-center max-w-7xl mx-auto">
             @php
                 $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+                $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
                 $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
+                $isAdmin = in_array('admin requisicion', $roles, true);
             @endphp
 
             @if($hasPermission('crear requisicion'))
@@ -174,16 +176,16 @@
                 <a href="{{ route('productos.lista') }}" class="text-center inline-block bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-6 rounded-lg">Ver Lista</a>
             </div>
 
-            @if($hasPermission('Centros'))
+            @if($hasPermission('Centros') || $isAdmin)
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
                         <i class="fas fa-building text-indigo-600 text-2xl"></i>
                     </div>
-                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Centros</h3>
-                    <p class="text-gray-600 mb-4">Gestiona centros de costo</p>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Gestión de Centros</h3>
+                    <p class="text-gray-600 mb-4">Administra centros y subcentros de costo</p>
                 </div>
-                <a href="/centros" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Ir a Centros</a>
+                <a href="{{ route('centros.index') }}" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Ir a Gestión</a>
             </div>
             @endif
 

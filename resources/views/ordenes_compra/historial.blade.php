@@ -209,6 +209,11 @@
                             </button>
                             @endif
                             @if(!($isTerminada ?? false))
+                            <a href="{{ route('ordenes_compra.edit', $oc->id) }}" title="Editar OC" class="bg-orange-500 hover:bg-orange-600 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" aria-label="Editar OC">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            @endif
+                            @if(!($isTerminada ?? false))
                             <button type="button" data-oc-id="{{ $oc->id }}" data-terminar-url="{{ route('ordenes_compra.terminar', ['id' => $oc->id], false) }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
@@ -428,6 +433,7 @@
                             <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
                             <div><span class="font-medium">Método de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->methods_oc ?? $oc->methods_oc ?? '—' }}</div>
                             <div><span class="font-medium">Plazo de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->plazo_oc ?? $oc->plazo_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Fecha Estimada Recepción:</span> {{ $oc->fecha_estimada_recepcion ? \Carbon\Carbon::parse($oc->fecha_estimada_recepcion)->format('d/m/Y') : '—' }}</div>
                             @if(!empty($oc->observaciones))
                             <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones }}</div>
                             @endif
