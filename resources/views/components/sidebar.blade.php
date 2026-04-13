@@ -18,7 +18,9 @@
         <ul class="list-none p-0 m-0 flex-1 overflow-y-auto text-sm pr-1 pb-8 divide-y divide-blue-900/30">
             @php
             $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+            $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
             $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
+            $isAdmin = count(array_filter($roles, fn($r) => strpos($r, 'admin') !== false)) > 0;
             @endphp
 
             <li>
@@ -110,14 +112,14 @@
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Lista de productos</a>
             </li>
             
-            @if($hasPermission('Centros'))
+            @if($hasPermission('Centros') || $isAdmin)
             <li>
                 <a href="{{ route('centros.index') }}"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Gestión de Centros</a>
             </li>
             @endif
 
-            @if($hasPermission('Subcentros'))
+            @if($hasPermission('Subcentros') || $isAdmin)
             <li>
                 <a href="{{ route('centros.user_subcentros.index') }}"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Asignar Subcentros</a>

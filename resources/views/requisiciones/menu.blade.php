@@ -35,7 +35,7 @@
                 $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
                 $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
                 $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
-                $isAdmin = in_array('admin requisicion', $roles, true);
+                $isAdmin = count(array_filter($roles, fn($r) => strpos($r, 'admin') !== false)) > 0;
             @endphp
 
             @if($hasPermission('crear requisicion'))
@@ -189,7 +189,7 @@
             </div>
             @endif
 
-            @if($hasPermission('Subcentros'))
+            @if($hasPermission('Subcentros') || $isAdmin)
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-rose-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4">
