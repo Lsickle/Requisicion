@@ -295,9 +295,6 @@
                     Crear Orden de Compra
                 </button>
             </form>
-            <button type="button" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition" data-btn-sacar-stock data-requisicion-id="{{ $req->id }}">
-                Sacar productos de stock
-            </button>
         </div>
         @php
             $prodsData = ($req->productos ?? collect())->map(function($p){
@@ -342,48 +339,6 @@
 </div>
 @endforeach
 
-<!-- Modal global para sacar de stock (inicialmente oculto) -->
-<div id="modal-sacar-stock-global" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div class="px-5 py-3 border-b flex justify-between items-center">
-            <h3 class="font-semibold">Sacar productos de stock</h3>
-            <button type="button" class="text-gray-600 hover:text-gray-800" id="ss-close">✕</button>
-        </div>
-        <div class="p-5 space-y-3">
-            <input type="hidden" id="ss-requisicion-id" value="">
-            <div>
-                <label class="block text-sm text-gray-600 mb-1">Producto</label>
-                <select id="ss-producto" class="w-full border rounded p-2">
-                    <option value="">Seleccione producto</option>
-                </select>
-                <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                        <div class="text-[10px] tracking-wide text-blue-700 uppercase">Stock actual</div>
-                        <div class="text-2xl font-bold text-blue-900"><span id="ss-stock">0</span></div>
-                    </div>
-                    <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                        <div class="text-[10px] tracking-wide text-amber-700 uppercase">Solicitado</div>
-                        <div class="text-2xl font-bold text-amber-900"><span id="ss-req">0</span></div>
-                    </div>
-                    <div class="p-3 rounded-lg bg-gray-50 border border-gray-200 hidden sm:block">
-                        <div class="text-[10px] tracking-wide text-gray-600 uppercase">Unidad</div>
-                        <div class="text-xl font-semibold text-gray-800"><span id="ss-unit">—</span></div>
-                    </div>
-                </div>
-            </div>
-            <div>
-                <label class="block text-sm text-gray-600 mb-1">Cantidad a sacar</label>
-                <input type="number" id="ss-cantidad" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad">
-                <div class="mt-1 text-xs text-gray-500">Máximo permitido: <span id="ss-max">0</span></div>
-            </div>
-        </div>
-        <div class="px-5 py-3 border-t flex justify-end gap-2">
-            <button type="button" class="px-4 py-2 border rounded" id="ss-cancel">Cancelar</button>
-            <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="ss-save">Guardar</button>
-        </div>
-    </div>
-</div>
-
 @endsection
 
 @section('scripts')
@@ -399,13 +354,6 @@
         }
     }
     document.addEventListener('click', function(event) {
-        // Cerrar solo overlays/modales específicos (evitar afectar nav/sidebars u otros elementos 'fixed')
-        const el = event.target;
-        if (el && el.id && (el.id.startsWith('modal-') || el.id === 'modal-sacar-stock-global')) {
-            el.classList.add('hidden');
-            el.classList.remove('flex');
-            document.body.style.overflow = 'auto';
-        }
     });
     // Paginación cliente para lista
     let listaCurrentPage = 1;

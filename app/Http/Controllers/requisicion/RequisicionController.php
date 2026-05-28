@@ -151,11 +151,8 @@ class RequisicionController extends Controller
             return in_array($compact, ['alquiler', 'alquilers', 'alquileres'], true);
         };
 
-        $productosFiltrados = isset($productos) ? $productos->filter(function ($p) use ($isServicioCat, $isAlquilerCat) {
-            $cat = $p->categoria_produc ?? '';
-
-            return ! $isServicioCat($cat) && ! $isAlquilerCat($cat);
-        }) : collect();
+        // Incluir todos los productos (permitir filtrar por 'Servicio' en cliente)
+        $productosFiltrados = $productos ?? collect();
 
         $categoriasListaFiltrada = $productosFiltrados
             ->pluck('categoria_produc')
@@ -187,6 +184,15 @@ class RequisicionController extends Controller
 
             return '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">'.$txt.'</div>';
         })->implode("\n");
+
+        // Añadir opción explícita 'Servicios' solo si no existe ya una categoría de servicio
+        $hasServicioCat = $categoriasListaFiltrada->contains(function ($v) use ($isServicioCat) {
+            return $isServicioCat($v);
+        });
+        if (! $hasServicioCat) {
+            $serviceOption = '<div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, \'categoriaFilter\')">Servicios</div>';
+            $categoriasOptionsHtml = $serviceOption . "\n" . $categoriasOptionsHtml;
+        }
 
         // Preparar HTML de productos para el modal 1
         $productosOptionsHtml = $productosFiltrados->map(function ($p) {
@@ -501,10 +507,11 @@ class RequisicionController extends Controller
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.requisicion_amount' => 'required|integer|min:1',
-            'productos.*.centros' => 'required|array|min:1',
+            'productos.*.centros' => 'nullable|array',
             // permitir que el id sea de centro o subcentro; se resolverá al centro padre
-            'productos.*.centros.*.id' => 'required|integer|min:1',
-            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+            'productos.*.centros.*.id' => 'required_with:productos.*.centros|integer|min:1',
+            'productos.*.centros.*.cantidad' => 'required_with:productos.*.centros|integer|min:1',
+            'productos.*.unidad' => 'nullable|string|max:10',
             'productos.*.es_servicio' => 'nullable|boolean',
             'productos.*.observacion_servicio' => 'nullable|string|max:2000',
             'productos.*.plan_ejecucion' => 'nullable|string|max:5000',
@@ -519,8 +526,9 @@ class RequisicionController extends Controller
             $totalRequisicion = 0;
             foreach ($validated['productos'] as $prod) {
                 $totalRequisicion += (int) $prod['requisicion_amount'];
-                $sumaCentros = array_sum(array_column($prod['centros'], 'cantidad'));
-                if ($sumaCentros !== (int) $prod['requisicion_amount']) {
+                $centrosArr = is_array($prod['centros'] ?? null) ? $prod['centros'] : [];
+                $sumaCentros = $centrosArr ? array_sum(array_column($centrosArr, 'cantidad')) : (int) $prod['requisicion_amount'];
+                if (! empty($centrosArr) && $sumaCentros !== (int) $prod['requisicion_amount']) {
                     throw ValidationException::withMessages([
                         'productos' => "Para el producto {$prod['id']}, la suma de cantidades por centros ({$sumaCentros}) no coincide con la cantidad total indicada ({$prod['requisicion_amount']}).",
                     ]);
@@ -538,7 +546,8 @@ class RequisicionController extends Controller
             DB::table('centro_producto')->where('requisicion_id', $requisicion->id)->delete();
 
             foreach ($validated['productos'] as $prod) {
-                $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+                $centrosArr = is_array($prod['centros'] ?? null) ? $prod['centros'] : [];
+                $cantidadTotalCentros = $centrosArr ? array_sum(array_column($centrosArr, 'cantidad')) : (int) $prod['requisicion_amount'];
                 $esServicio = ! empty($prod['es_servicio']);
                 $observacion = $prod['observacion_servicio'] ?? null;
 
@@ -549,28 +558,36 @@ class RequisicionController extends Controller
                     ]);
                 }
 
-                $requisicion->productos()->attach($prod['id'], [
+                $attachData = [
                     'pr_amount' => $cantidadTotalCentros,
                     'es_servicio' => $esServicio,
                     'observacion_servicio' => $esServicio ? $observacion : null,
-                ]);
+                ];
+                try {
+                    if (Schema::hasColumn('producto_requisicion', 'unidad')) {
+                        $attachData['unidad'] = $prod['unidad'] ?? null;
+                    }
+                } catch (\Throwable $e) { /* noop - no agregar unidad si falla */ }
+                $requisicion->productos()->attach($prod['id'], $attachData);
 
-                foreach ($prod['centros'] as $centro) {
-                    $cidInput = (int) ($centro['id'] ?? 0);
-                    $cidResolved = $this->resolveCentroIdLegacy($cidInput);
-                    if (! $cidResolved) {
-                        throw ValidationException::withMessages([
-                            'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución.",
+                if (! empty($centrosArr)) {
+                    foreach ($centrosArr as $centro) {
+                        $cidInput = (int) ($centro['id'] ?? 0);
+                        $cidResolved = $this->resolveCentroIdLegacy($cidInput);
+                        if (! $cidResolved) {
+                            throw ValidationException::withMessages([
+                                'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución.",
+                            ]);
+                        }
+                        DB::table('centro_producto')->insert([
+                            'producto_id' => $prod['id'],
+                            'centro_id' => $cidResolved,
+                            'requisicion_id' => $requisicion->id,
+                            'amount' => $centro['cantidad'],
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ]);
                     }
-                    DB::table('centro_producto')->insert([
-                        'producto_id' => $prod['id'],
-                        'centro_id' => $cidResolved,
-                        'requisicion_id' => $requisicion->id,
-                        'amount' => $centro['cantidad'],
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
                 }
             }
 
@@ -625,9 +642,10 @@ class RequisicionController extends Controller
             'productos.*.id' => 'required|exists:productos,id',
             'productos.*.proveedor_id' => 'nullable|exists:proveedores,id',
             'productos.*.requisicion_amount' => 'required|integer|min:1',
-            'productos.*.centros' => 'required|array|min:1',
-            'productos.*.centros.*.id' => 'required|integer|min:1',
-            'productos.*.centros.*.cantidad' => 'required|integer|min:1',
+            'productos.*.centros' => 'nullable|array',
+            'productos.*.centros.*.id' => 'required_with:productos.*.centros|integer|min:1',
+            'productos.*.centros.*.cantidad' => 'required_with:productos.*.centros|integer|min:1',
+            'productos.*.unidad' => 'nullable|string|max:10',
             'productos.*.es_servicio' => 'nullable|boolean',
             'productos.*.observacion_servicio' => 'nullable|string|max:2000',
         ], [
@@ -641,8 +659,9 @@ class RequisicionController extends Controller
             $totalRequisicion = 0;
             foreach ($validated['productos'] as $prod) {
                 $totalRequisicion += (int) $prod['requisicion_amount'];
-                $sumaCentros = array_sum(array_column($prod['centros'], 'cantidad'));
-                if ($sumaCentros !== (int) $prod['requisicion_amount']) {
+                $centrosArr = is_array($prod['centros'] ?? null) ? $prod['centros'] : [];
+                $sumaCentros = $centrosArr ? array_sum(array_column($centrosArr, 'cantidad')) : (int) $prod['requisicion_amount'];
+                if (! empty($centrosArr) && $sumaCentros !== (int) $prod['requisicion_amount']) {
                     throw ValidationException::withMessages([
                         'productos' => "Para el producto {$prod['id']}, la suma de cantidades por centros ({$sumaCentros}) no coincide con la cantidad total indicada ({$prod['requisicion_amount']}).",
                     ]);
@@ -694,7 +713,8 @@ class RequisicionController extends Controller
             }
 
             foreach ($validated['productos'] as $prod) {
-                $cantidadTotalCentros = array_sum(array_column($prod['centros'], 'cantidad'));
+                $centrosArr = is_array($prod['centros'] ?? null) ? $prod['centros'] : [];
+                $cantidadTotalCentros = $centrosArr ? array_sum(array_column($centrosArr, 'cantidad')) : (int) $prod['requisicion_amount'];
                 $esServicio = ! empty($prod['es_servicio']);
                 $observacion = $prod['observacion_servicio'] ?? null;
 
@@ -705,28 +725,36 @@ class RequisicionController extends Controller
                     ]);
                 }
 
-                $requisicion->productos()->attach($prod['id'], [
+                $attachData = [
                     'pr_amount' => $cantidadTotalCentros,
                     'es_servicio' => $esServicio,
                     'observacion_servicio' => $esServicio ? $observacion : null,
-                ]);
+                ];
+                try {
+                    if (Schema::hasColumn('producto_requisicion', 'unidad')) {
+                        $attachData['unidad'] = $prod['unidad'] ?? null;
+                    }
+                } catch (\Throwable $e) { /* noop */ }
+                $requisicion->productos()->attach($prod['id'], $attachData);
 
-                foreach ($prod['centros'] as $centro) {
-                    $cidInput = (int) ($centro['id'] ?? 0);
-                    $cidResolved = $this->resolveCentroIdLegacy($cidInput);
-                    if (! $cidResolved) {
-                        throw ValidationException::withMessages([
-                            'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución.",
+                if (! empty($centrosArr)) {
+                    foreach ($centrosArr as $centro) {
+                        $cidInput = (int) ($centro['id'] ?? 0);
+                        $cidResolved = $this->resolveCentroIdLegacy($cidInput);
+                        if (! $cidResolved) {
+                            throw ValidationException::withMessages([
+                                'productos' => "Centro/Subcentro inválido (ID {$cidInput}) en distribución.",
+                            ]);
+                        }
+                        DB::table('centro_producto')->insert([
+                            'producto_id' => $prod['id'],
+                            'centro_id' => $cidResolved,
+                            'requisicion_id' => $requisicion->id,
+                            'amount' => $centro['cantidad'],
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ]);
                     }
-                    DB::table('centro_producto')->insert([
-                        'producto_id' => $prod['id'],
-                        'centro_id' => $cidResolved,
-                        'requisicion_id' => $requisicion->id,
-                        'amount' => $centro['cantidad'],
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
                 }
             }
 

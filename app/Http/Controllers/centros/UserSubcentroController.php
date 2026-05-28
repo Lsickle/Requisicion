@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Subcentro;
 use App\Models\UserxSubcentro;
+use App\Models\Centro;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Helpers\PermissionHelper;
 
 class UserSubcentroController extends Controller
 {
@@ -19,7 +21,10 @@ class UserSubcentroController extends Controller
             ->whereHas('centro', function($q){ $q->whereNull('deleted_at'); })
             ->orderBy('name_subcentro')
             ->get();
-        return view('centros.user_subcentros', compact('subcentros'));
+
+        $centros = Centro::orderBy('name_centro')->get();
+
+        return view('centros.user_subcentros', compact('subcentros', 'centros'));
     }
 
     public function store(Request $request)
@@ -33,12 +38,23 @@ class UserSubcentroController extends Controller
         $email = $data['email_user'];
         $ids = $data['subcentro_ids'] ?? [];
 
-        // eliminar asignaciones previas
-        UserxSubcentro::where('email_user', $email)->delete();
+        // Eliminar solo las asignaciones que se van a reemplazar (las que ya no vengan en el request)
+        $asignacionesActuales = UserxSubcentro::where('email_user', $email)
+            ->whereNull('deleted_at')
+            ->pluck('subcentro_id')
+            ->toArray();
 
-        // crear nuevas
+        $idsAEliminar = array_diff($asignacionesActuales, $ids);
+        if (!empty($idsAEliminar)) {
+            UserxSubcentro::where('email_user', $email)
+                ->whereIn('subcentro_id', $idsAEliminar)
+                ->delete();
+        }
+
+        // Agregar las nuevas asignaciones que no existan
+        $idsAAgregar = array_diff($ids, $asignacionesActuales);
         $rows = [];
-        foreach ($ids as $sid) {
+        foreach ($idsAAgregar as $sid) {
             $rows[] = ['email_user' => $email, 'subcentro_id' => $sid, 'created_at' => now(), 'updated_at' => now()];
         }
         if (!empty($rows)) UserxSubcentro::insert($rows);
@@ -46,17 +62,31 @@ class UserSubcentroController extends Controller
         return redirect()->back()->with('success', 'Asignaciones guardadas');
     }
 
-    // API endpoint que devuelve subcentros asignados a un email
     public function listForUser($email)
     {
         $assigned = UserxSubcentro::where('email_user', $email)
             ->whereNull('deleted_at')
             ->pluck('subcentro_id')
             ->toArray();
-        return response()->json(['assigned' => $assigned]);
+
+        $bodegas = UserxSubcentro::where('email_user', $email)
+            ->whereNull('deleted_at')
+            ->with('subcentro.centro')
+            ->get()
+            ->pluck('subcentro.centro')
+            ->unique('id')
+            ->values();
+
+        $bodegaNombres = $bodegas->pluck('name_centro')->toArray();
+        $bodegaIds = $bodegas->pluck('id')->toArray();
+
+        return response()->json([
+            'assigned' => $assigned,
+            'bodega_actual' => $bodegaIds,
+            'bodega_nombre' => $bodegaNombres,
+        ]);
     }
 
-    // Proxy endpoint para obtener usuarios desde VPL_CORE evitando CORS en cliente
     public function fetchUsers(Request $request)
     {
         $base = rtrim(env('VPL_CORE', ''), "\/");
@@ -71,7 +101,6 @@ class UserSubcentroController extends Controller
             $params = [];
             if ($request->has('start')) $params['start'] = $request->input('start');
             if ($request->has('length')) $params['length'] = $request->input('length');
-            // aceptar search[value] o search
             if ($request->has('search') && is_array($request->input('search')) && isset($request->input('search')['value'])) {
                 $params['search'] = $request->input('search');
             } elseif ($request->has('search')) {

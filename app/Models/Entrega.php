@@ -23,6 +23,9 @@ class Entrega extends Model
         'user_name',
         'reception_user_id',
         'reception_user',
+        'firma_base64',
+        'firma_nombre',
+        'observaciones',
     ];
 
     protected $casts = [

@@ -158,6 +158,8 @@
         .signatures {
             margin-top: 60px;
             overflow: hidden;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
         .signature-box {
@@ -305,12 +307,14 @@
                 <div class="info-item"><strong>NIT:</strong> {{ $proveedor->prov_nit ?? '' }}</div>
                 <div class="info-item"><strong>Contacto:</strong> {{ $proveedor->prov_name_c ?? '' }}</div>
                 <div class="info-item"><strong>Teléfono:</strong> {{ $proveedor->prov_phone ?? '' }}</div>
+                <div class="info-item"><strong>Email:</strong> {{ $proveedor->prov_email ?? '' }}</div>
                 <div class="info-item"><strong>Dirección:</strong> {{ ($proveedor->prov_adress ?? '') . (($proveedor->prov_city ?? '') ? ', '.$proveedor->prov_city : '') }}</div>
             </div>
             <div class="info-box right">
                 <h4>Detalles de la Orden</h4>
                 <div class="info-item"><strong>Método de pago:</strong> {{ $methods_oc }}</div>
                 <div class="info-item"><strong>Plazo de pago:</strong> {{ $plazo_oc }}</div>
+                <div class="info-item"><strong>Ubicación:</strong> {{ $orden->ubicacion ?? 'No especificada' }}</div>
             </div>
             <div class="clear"></div>
         </div>
@@ -417,6 +421,28 @@
             <p>{{ $observaciones }}</p>
         </div>
         @endif
+
+        <!-- Instrucciones Especiales antes de la firma -->
+        <div class="instructions-box"> 
+            <h4>INSTRUCCIONES ESPECIALES:</h4>
+            <div>
+                <p>
+                    Favor confirmar recibido de esta orden al email <strong>juan.santos@vigiaplus.com</strong> y <strong>analista.administrativo@vigiaplus.com</strong>.
+                </p>
+                <p>
+                    El plazo para la entrega no estará sujeto a prorrogas, salvo que sobrevengan hechos constitutivos de fuerza mayor o caso fortuito, que se acuerde entregas adicionales cuya realización implique ampliar dicho plazo, o que VIGIA PLUS SERVICES SAS lo autorice expresamente y por escrito. En todo caso, el proveedor tiene la obligación de dar pronto aviso por escrito si la entrega puede demorar. VIGIA PLUS SERVICES SAS no se responsabiliza por carga que no sea remitida de acuerdo con estas instrucciones. VIGIA PLUS SERVICES SAS, previo acuerdo con el proveedor, autorizará las entregas o despachos parciales.
+                </p>
+                <p><strong>-</strong> Todos los bienes entregados tratándose de químicos o reactivos, estos deben tener ficha técnica de manejo y destino final una vez se consuman.</p>
+
+                <h5>PARA LA PRESENTACIÓN DE LAS FACTURAS SE DEBEN TENER EN CUENTA LAS SIGUIENTES INSTRUCCIONES:</h5>
+                <ul>
+                    <li>Fecha límite de recibo de facturas para pagos nacionales es el día veinticinco (25) de cada mes; las facturas recibidas con posterioridad a esta fecha límite deben traer fecha de expedición del mes siguiente, de lo contrario serán devueltas.</li>
+                    <li>La factura deberá ser enviada al buzón destinado <strong>recepcionfacturas@vigiaplus.com</strong>.</li>
+                    <li>En la factura debe estar relacionado el número de la orden de compra; de lo contrario será devuelta.</li>
+                    <li>Al momento de la entrega el proveedor debe traer impresa la respectiva orden de compra.</li>
+                </ul>
+            </div>
+        </div>
 
         <div class="signatures">
             <div class="signature-box">

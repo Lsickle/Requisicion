@@ -19,45 +19,69 @@
                 </div>
             </div>
             <div class="p-6">
-                <div class="mb-4 flex items-center justify-between">
-                    <div></div>
-                    <div>
-                        <button type="button" class="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm" onclick="openAddSubModal(null)">
-                            <i class="fas fa-plus"></i> Añadir subcentro
+                <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" class="inline-flex items-center px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-md transition-colors font-medium text-sm" onclick="window.location.href='{{ route('centros.bodegas.index') }}'">
+                            <i class="fas fa-warehouse mr-2"></i>Bodegas
+                        </button>
+                        <button type="button" class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md transition-colors font-medium text-sm" onclick="openCentroModal(null)">
+                            <i class="fas fa-building mr-2"></i>Añadir centro
+                        </button>
+                        <button type="button" class="inline-flex items-center px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-md transition-colors font-medium text-sm" onclick="openAddSubModal(null)">
+                            <i class="fas fa-layer-group mr-2"></i>Añadir subcentro
                         </button>
                     </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start mb-6">
-                    <div class="flex justify-end md:justify-end">
-                        <div class="text-sm text-gray-500">Total centros: <span class="font-semibold text-gray-700">{{ $centros->count() }}</span></div>
+                    <div class="inline-flex items-center px-4 py-2 bg-slate-100 rounded-lg">
+                        <i class="fas fa-archive text-slate-500 mr-2"></i>
+                        <span class="text-sm text-gray-600">Total centros:</span>
+                        <span class="ml-2 font-bold text-gray-800">{{ $centros->count() }}</span>
                     </div>
                 </div>
 
-                <div class="grid gap-6" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     @foreach($centros as $centro)
-                    <div class="bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-slate-300 transition overflow-hidden flex flex-col w-full h-full min-h-40">
-                        <div class="p-4 flex items-start justify-between gap-3">
-                            <div class="flex-1">
-                                <h3 class="text-lg font-semibold text-gray-800">{{ $centro->name_centro }}</h3>
-                                <p class="text-sm text-gray-500 mt-1">Subcentros: <span class="font-medium text-gray-700">{{ $centro->subcentros->count() }}</span></p>
+<div class="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-lg hover:border-indigo-300 transition-all duration-200 overflow-hidden flex flex-col w-full h-full">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <div class="flex items-center justify-between gap-4">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-10 w-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <h3 class="text-lg font-bold text-gray-900 truncate">{{ $centro->name_centro }}</h3>
+                                            <p class="text-xs text-gray-500 mt-0.5">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                                                    <i class="fas fa-layer-group mr-1"></i>{{ $centro->subcentros->count() }} subcentros
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 flex-shrink-0">
+                                    <button type="button" class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors" title="Editar centro" onclick="openCentroModal({{ $centro->id }}, '{{ addslashes($centro->name_centro) }}')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <form action="{{ route('centros.destroy', $centro->id) }}" method="POST" onsubmit="return confirm('Eliminar centro y sus subcentros?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar centro">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium" onclick="toggleSubs(event,'subs-{{ $centro->id }}')" aria-expanded="false">
+                                        <i class="fas fa-chevron-down mr-1"></i><span>Ver</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                                {{-- Edición de centros deshabilitada desde aquí --}}
-                                <div class="mt-3 text-sm text-gray-700 font-medium">{{ $centro->name_centro }}</div>
-                             </div>
- 
-                             <div class="text-right flex flex-col items-end gap-2">
-                                {{-- Ver subcentros --}}
-                                <button type="button" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 shadow-sm" onclick="toggleSubs(event,'subs-{{ $centro->id }}')" aria-expanded="false">
-                                    <i class="fas fa-chevron-down"></i> Ver
-                                </button>
-                             </div>
-                         </div>
-
-                        <div class="border-t">
-                            <div class="p-4">
-                                <div class="mt-3 flex-shrink-0">
+<div class="p-5">
+                            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                                <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-plus-circle text-green-600"></i>Agregar subcentro
+                                </h4>
                                     @php
-                                        // Normalizador simple para comparar nombres insensible a mayúsculas y acentos
                                         $normalizeName = function($t){
                                             $t = mb_strtolower(trim((string)$t), 'UTF-8');
                                             $t = strtr($t, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','Á'=>'a','É'=>'e','Í'=>'i','Ó'=>'o','Ú'=>'u','ñ'=>'n','Ñ'=>'n','ü'=>'u','Ü'=>'u']);
@@ -65,62 +89,85 @@
                                             $t = preg_replace('/\s+/',' ',$t);
                                             return $t;
                                         };
-                                        // Incluir subcentros soft-deleted y desduplicar por nombre normalizado,
-                                        // preferir registros no eliminados al hacer sort
                                         $allSubcentros = \App\Models\Subcentro::withTrashed()->orderBy('name_subcentro')->get();
                                         $allSubcentros = $allSubcentros->sortBy(function($s){ return $s->deleted_at ? 1 : 0; })->unique(function($s) use ($normalizeName){ return $normalizeName($s->name_subcentro); })->values();
                                     @endphp
-                                    <form action="{{ route('centros.subcentros.store', $centro->id) }}" method="POST" class="add-sub-form flex flex-col sm:flex-row gap-3 items-center" data-centro-id="{{ $centro->id }}">
+                                    <form action="{{ route('centros.subcentros.store', $centro->id) }}" method="POST" class="add-sub-form" data-centro-id="{{ $centro->id }}">
                                         @csrf
                                         @php
-                                            // excluir subcentros que ya están asociados a este centro por NOMBRE (normalizado)
                                             $existingNames = $centro->subcentros->pluck('name_subcentro')->map(function($n) use ($normalizeName){ return $normalizeName($n); })->toArray();
                                             $subs_for_input = $allSubcentros->filter(function($it) use ($existingNames, $normalizeName){
                                                 return !in_array($normalizeName($it->name_subcentro), $existingNames);
                                             })->map(function($it){ return ['id'=>$it->id,'name'=>$it->name_subcentro]; })->values();
                                         @endphp
-                                        <div class="w-full sm:flex-1 relative">
-                                            <input type="search" class="w-full px-3 py-2.5 border border-indigo-300 rounded-xl search-select shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40" placeholder="Buscar subcentro..." autocomplete="off" data-subs='@json($subs_for_input)'>
-                                            <input type="hidden" name="existing_id" class="existing-id-input" value="">
-                                            <div class="search-box hidden absolute z-40 left-0 right-0 mt-1 bg-white border rounded-xl shadow-lg ring-1 ring-slate-200 max-h-48 overflow-auto thin-scrollbar"></div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-500 mb-1">Unidad</label>
+                                                <select name="unidad" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" aria-label="Unidad">
+                                                    <option value="">Seleccionar</option>
+                                                    <option value="UND">UND</option>
+                                                    <option value="KG">KG</option>
+                                                    <option value="GLN">GLN</option>
+                                                    <option value="MT">MT</option>
+                                                    <option value="PQT">PQT</option>
+                                                    <option value="CJ">CJ</option>
+                                                </select>
+                                            </div>
+                                            <div class="sm:col-span-2 relative">
+                                                <label class="block text-xs font-medium text-gray-500 mb-1">Subcentro</label>
+                                                <input type="search" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-sm" placeholder="Buscar subcentro..." autocomplete="off" data-subs='@json($subs_for_input)'>
+                                                <input type="hidden" name="existing_id" class="existing-id-input" value="">
+                                                <div class="search-box hidden absolute z-40 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-auto thin-scrollbar"></div>
+                                            </div>
                                         </div>
-                                        <div class="w-full sm:w-auto">
-                                            <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 justify-center shadow-sm">
-                                                <i class="fas fa-plus"></i> <span>Agregar</span>
+                                        <div class="mt-3 flex justify-end">
+                                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 shadow-sm transition-colors text-sm font-medium">
+                                                <i class="fas fa-plus"></i>Agregar
                                             </button>
                                         </div>
                                     </form>
-                                </div>
+                            </div>
 
-                                 <div id="subs-{{ $centro->id }}" class="mt-4 hidden max-h-56 overflow-auto pr-2 thin-scrollbar">
-                                     <table class="min-w-full text-sm bg-white table-auto">
-                                         <thead class="sticky top-0 z-10 bg-indigo-50 text-indigo-900">
-                                             <tr class="text-left text-xs font-semibold uppercase tracking-wide">
-                                                 <th class="px-2 py-2">Subcentro</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody>
-                                         @forelse($centro->subcentros as $sub)
-                                             <tr class="odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
-                                                 <td class="px-2 py-2 text-gray-800 flex items-center justify-between">
-                                                     <span>{{ $sub->name_subcentro }}</span>
-                                                     <form action="{{ route('centros.subcentros.destroy', $sub->id) }}" method="POST" class="inline-block" data-confirm="Quitar asociación de este subcentro?">
-                                                         @csrf
-                                                         @method('DELETE')
-                                                         <button type="submit" class="px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm" title="Quitar asociación">
-                                                             <i class="fas fa-unlink"></i>
-                                                         </button>
-                                                     </form>
-                                                 </td>
-                                             </tr>
-                                         @empty
-                                             <tr><td class="text-sm text-gray-500 italic px-2 py-2">No hay subcentros registrados.</td></tr>
-                                         @endforelse
-                                         </tbody>
-                                     </table>
-                                 </div>
-                             </div>
-                         </div>
+                                  <div id="subs-{{ $centro->id }}" class="mt-4 hidden rounded-xl border border-slate-200 overflow-hidden">
+                                      <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                                          <span class="text-sm font-semibold text-gray-700">Lista de subcentros</span>
+                                          <span class="text-xs text-gray-500">{{ $centro->subcentros->count() }} registros</span>
+                                      </div>
+                                      <div class="max-h-64 overflow-auto thin-scrollbar">
+                                          <table class="min-w-full text-sm">
+                                              <thead class="sticky top-0 bg-slate-50 text-slate-700 shadow-sm">
+                                                  <tr class="text-left text-xs font-semibold uppercase tracking-wide">
+                                                      <th class="px-4 py-3">Subcentro</th>
+                                                      <th class="px-4 py-3 text-right">Acción</th>
+                                                  </tr>
+                                              </thead>
+                                              <tbody class="divide-y divide-slate-100">
+                                          @forelse($centro->subcentros as $sub)
+                                              <tr class="hover:bg-slate-50 transition-colors">
+                                                  <td class="px-4 py-3 text-gray-800">
+                                                      <div class="flex items-center gap-2">
+                                                          <i class="fas fa-folder text-gray-400"></i>
+                                                          <span>{{ $sub->name_subcentro }}</span>
+                                                      </div>
+                                                  </td>
+                                                  <td class="px-4 py-3 text-right">
+                                                      <form action="{{ route('centros.subcentros.destroy', $sub->id) }}" method="POST" class="inline-block" data-confirm="Quitar asociación de este subcentro?">
+                                                          @csrf
+                                                          @method('DELETE')
+                                                          <button type="submit" class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Quitar asociación">
+                                                              <i class="fas fa-unlink"></i>
+                                                          </button>
+                                                      </form>
+                                                  </td>
+                                              </tr>
+                                          @empty
+                                              <tr><td colspan="2" class="px-4 py-6 text-center text-gray-500 italic">No hay subcentros registrados.</td></tr>
+                                          @endforelse
+                                              </tbody>
+                                          </table>
+                                      </div>
+                                  </div>
+                        </div>
                      </div>
                      @endforeach
                  </div>
@@ -147,6 +194,29 @@
 @endphp
 
 <!-- Modal reutilizable para añadir subcentro -->
+<!-- Modal para crear/editar Centro -->
+<div id="addCentroModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 px-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 w-full max-w-lg max-h-[80vh] overflow-auto mx-auto">
+        <div class="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+            <h3 class="text-lg font-semibold">Centro de costo</h3>
+            <button type="button" class="text-gray-600" onclick="closeCentroModal()">✕</button>
+        </div>
+        <div class="p-4">
+            <form id="centroForm" action="{{ route('centros.store') }}" method="POST">
+                @csrf
+                <input type="hidden" id="centroIdInput" name="centro_id" value="">
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del centro</label>
+                    <input type="text" id="centroNameInput" name="name_centro" class="w-full px-3 py-2 border rounded" required>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="px-3 py-2 bg-gray-300 rounded" onclick="closeCentroModal()">Cancelar</button>
+                    <button type="submit" class="px-3 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <div id="addSubModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 px-4">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 w-full max-w-2xl max-h-[80vh] overflow-auto mx-auto">
         <div class="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
@@ -202,6 +272,8 @@
 </div>
 
 <script>
+    const BASE_CENTROS_URL = '{{ url('/centros') }}';
+
     function toggleSubs(e, id) {
         const el = document.getElementById(id);
         if (!el) return;
@@ -255,6 +327,19 @@
             box.addEventListener('mousedown', function(e){ if (hideTimeout) clearTimeout(hideTimeout); });
         });
 
+        // sincronizar selects de subcentros (si existen) con el hidden existing_id y el input
+        document.querySelectorAll('.subs-select').forEach(function(sel){
+            sel.addEventListener('change', function(){
+                const val = this.value || '';
+                const form = this.closest('form');
+                const hid = form && form.querySelector('.existing-id-input');
+                const search = form && form.querySelector('.search-select');
+                if (hid) hid.value = val;
+                if (search) search.value = this.selectedOptions[0] ? this.selectedOptions[0].textContent : '';
+                const box = form && form.querySelector('.search-box'); if (box) box.classList.add('hidden');
+            });
+        });
+
         // submit handler: require existing_id (hidden) or show message
         document.querySelectorAll('.add-sub-form').forEach(function(form){
             form.addEventListener('submit', function(e){
@@ -274,6 +359,35 @@
         document.getElementById('modalNewName').value = '';
         document.getElementById('addSubModal').classList.remove('hidden');
     }
+
+    // Centro modal handlers
+    function openCentroModal(id, name){
+        const modal = document.getElementById('addCentroModal');
+        const form = document.getElementById('centroForm');
+        const idInput = document.getElementById('centroIdInput');
+        const nameInput = document.getElementById('centroNameInput');
+        if (!modal || !form) return;
+        if (id) {
+            // editar
+            idInput.value = id;
+            nameInput.value = name || '';
+            form.action = BASE_CENTROS_URL + '/' + id;
+            // add method input for PUT if not exists
+            if (!form.querySelector('input[name="_method"]')) {
+                const m = document.createElement('input'); m.type='hidden'; m.name='_method'; m.value='PUT'; form.appendChild(m);
+            }
+        } else {
+            // crear
+            idInput.value = '';
+            nameInput.value = '';
+            form.action = '{{ route('centros.store') }}';
+            const m = form.querySelector('input[name="_method"]'); if (m) m.remove();
+        }
+        modal.classList.remove('hidden');
+        nameInput.focus();
+    }
+
+    function closeCentroModal(){ const modal = document.getElementById('addCentroModal'); if (modal) modal.classList.add('hidden'); }
 
     function closeAddSubModal(){ document.getElementById('addSubModal').classList.add('hidden'); }
 
@@ -455,7 +569,7 @@
 
 @if(session('success') || session('error'))
 <script>
-    document.addEventListener('DOMContentLoaded', function(){
+ document.addEventListener('DOMContentLoaded', function(){
         @if(session('success'))
             Swal.fire({ icon: 'success', title: 'Listo', text: {!! json_encode(session('success')) !!} });
         @endif

@@ -19,6 +19,7 @@ use App\Http\Middleware\AuthSession;
 use App\Models\Nuevo_Producto;
 use App\Http\Controllers\EntregasController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\SalidaStockController;
 use App\Http\Controllers\ordencompra\OrdenCompraVerifyController;
 use App\Http\Controllers\ordencompra\OrdenCompraExtrasController;
 use App\Http\Controllers\centros\CentroController;
@@ -230,6 +231,9 @@ Route::middleware([AuthSession::class])->group(function () {
     // Ruta para terminar una orden (por id)
     Route::post('ordenes_compra/terminar/{id}', [OrdenCompraController::class, 'terminar'])->name('ordenes_compra.terminar');
 
+    // Ruta para cancelar un producto de la orden
+    Route::post('ordenes_compra/{id}/cancelar-producto', [OrdenCompraController::class, 'cancelarProducto'])->name('ordenes_compra.cancelarProducto');
+
     // Ruta para exportar PDF individual
     Route::get('ordenes_compra/{id}/pdf', [OrdenCompraController::class, 'exportPDF'])
         ->name('ordenes_compra.pdf');
@@ -265,6 +269,12 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/recepciones/salida-stock', [\App\Http\Controllers\ordencompra\OrdenCompraController::class, 'storeSalidaStockEnEntrega'])
         ->name('recepciones.storeSalidaStockEnEntrega');
 
+    // Formulario de Salida de Stock con firma
+    Route::get('/salida-stock', [SalidaStockController::class, 'index'])->name('salida_stock.index');
+    Route::get('/salida-stock/buscar', [SalidaStockController::class, 'buscar'])->name('salida_stock.buscar');
+    Route::post('/salida-stock', [SalidaStockController::class, 'store'])->name('salida_stock.store');
+    Route::get('/salida-stock/historial', [SalidaStockController::class, 'historial'])->name('salida_stock.historial');
+
     Route::post('/requisiciones/{requisicion}/entregar', [\App\Http\Controllers\requisicion\RequisicionController::class, 'entregarRequisicion'])->name('requisiciones.entregar');
 
     // Mostrar formulario si alguien hace GET accidentalmente a la ruta de verificación por archivo
@@ -278,7 +288,7 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/ordenes/verify-file', [OrdenCompraVerifyController::class, 'verifyFilePost'])->name('ordenes.verify_file');
     Route::get('/ordenes/verify-upload', function() { return view('ordenes_compra.verify_upload'); })->name('ordenes.verify_upload');
 
-    // Endpoint para generar/asegurar hashes de validación para órdenes de una requisición
+    // Endpoint para generar/asegurar hashes de validación para órdenes de unphp a requisición
     Route::post('/ordenes/ensure-hashes/{requisicion}', [OrdenCompraVerifyController::class, 'ensureHashesForRequisition'])->name('ordenes_compra.ensure_hashes');
 
     // Transferir titularidad (solo Admin requisicion)
@@ -306,6 +316,17 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/centros/user_subcentros/list/{email}', [UserSubcentroController::class, 'listForUser'])->name('centros.user_subcentros.list');
     Route::get('/centros/user_subcentros/fetch', [UserSubcentroController::class, 'fetchUsers'])->name('centros.user_subcentros.fetch');
 
+    // Rutas para gestión de bodegas y operaciones
+    Route::get('/centros/bodegas', [\App\Http\Controllers\centros\BodegaController::class, 'index'])->name('centros.bodegas.index');
+    Route::post('/centros/bodegas', [\App\Http\Controllers\centros\BodegaController::class, 'store'])->name('centros.bodegas.store');
+    Route::put('/centros/bodegas/{id}', [\App\Http\Controllers\centros\BodegaController::class, 'update'])->name('centros.bodegas.update');
+    Route::delete('/centros/bodegas/{id}', [\App\Http\Controllers\centros\BodegaController::class, 'destroy'])->name('centros.bodegas.destroy');
+    Route::post('/centros/bodegas/subcentro', [\App\Http\Controllers\centros\BodegaController::class, 'storeSubcentro'])->name('centros.bodegas.subcentro.store');
+    Route::put('/centros/bodegas/subcentro/{id}', [\App\Http\Controllers\centros\BodegaController::class, 'updateSubcentro'])->name('centros.bodegas.subcentro.update');
+    Route::delete('/centros/bodegas/subcentro/{id}', [\App\Http\Controllers\centros\BodegaController::class, 'destroySubcentro'])->name('centros.bodegas.subcentro.destroy');
+    Route::get('/centros/bodegas/get-subcentros', [\App\Http\Controllers\centros\BodegaController::class, 'getSubcentros'])->name('centros.bodegas.getSubcentros');
+    Route::get('/centros/bodegas/usuarios', [\App\Http\Controllers\centros\BodegaController::class, 'getUsuariosBodega'])->name('centros.bodegas.usuarios');
+
     // Rutas para gestión de aprobadores por centro (vista y store) — delegadas a controller
     Route::get('/requisiciones/gestor-aprobadores', [AprobadoresController::class, 'index'])
         ->name('requisiciones.aprobadores.gestor')
@@ -314,6 +335,58 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::post('/requisiciones/aprobadores', [AprobadoresController::class, 'store'])
         ->name('requisiciones.aprobadores.store')
         ->middleware(CheckPermission::class . ':aprobar requisicion');
+
+    // Rutas para Módulo de Inventarios
+    Route::prefix('inventario')->name('inventario.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\InventarioController::class, 'index'])
+            ->name('index')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
+        Route::get('/buscar', [\App\Http\Controllers\InventarioController::class, 'buscar'])
+            ->name('buscar')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
+        Route::post('/entrada', [\App\Http\Controllers\InventarioController::class, 'storeEntrada'])
+            ->name('entrada')
+            ->middleware([AuthSession::class]);
+
+        Route::post('/salida', [\App\Http\Controllers\InventarioController::class, 'storeSalida'])
+            ->name('salida')
+            ->middleware([AuthSession::class]);
+
+        Route::get('/historial', [\App\Http\Controllers\InventarioController::class, 'historial'])
+            ->name('historial')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
+        Route::get('/exportar', [\App\Http\Controllers\InventarioController::class, 'exportar'])
+            ->name('exportar')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
+        Route::put('/editar', [\App\Http\Controllers\InventarioController::class, 'editar'])
+            ->name('editar')
+            ->middleware([AuthSession::class]);
+
+        Route::delete('/eliminar', [\App\Http\Controllers\InventarioController::class, 'eliminar'])
+            ->name('eliminar')
+            ->middleware([AuthSession::class]);
+
+        // Rutas para Transferencias
+        Route::get('/transferencia', [\App\Http\Controllers\TransferenciaController::class, 'index'])
+            ->name('transferencia.index')
+            ->middleware([AuthSession::class, CheckPermission::class . ':crear requisicion']);
+
+        Route::get('/transferencia/inventario', [\App\Http\Controllers\TransferenciaController::class, 'getInventario'])
+            ->name('transferencia.inventario')
+            ->middleware([AuthSession::class, CheckPermission::class . ':crear requisicion']);
+
+        Route::post('/transferencia', [\App\Http\Controllers\TransferenciaController::class, 'store'])
+            ->name('transferencia.store')
+            ->middleware([AuthSession::class, CheckPermission::class . ':crear requisicion']);
+
+        Route::get('/transferencia/pdf/{id}', [\App\Http\Controllers\TransferenciaController::class, 'pdf'])
+            ->name('transferencia.pdf')
+            ->middleware([AuthSession::class, CheckPermission::class . ':crear requisicion']);
+    });
 
 });
 
@@ -349,3 +422,9 @@ Route::get('/centros/subcentros', function() {
 
 // Finalizar requisición (estatus 10)
 Route::post('/requisiciones/{id}/finalizar', [RequisicionController::class, 'finalizar'])->name('requisiciones.finalizar');
+
+// Rutas para recepción de órdenes de compra
+Route::get('/recepciones/crear', [\App\Http\Controllers\RecepcionController::class, 'create'])->name('recepciones.create');
+Route::post('/recepciones/buscar-oc', [\App\Http\Controllers\RecepcionController::class, 'buscarOc'])->name('recepciones.buscarOc');
+Route::post('/recepciones/guardar', [\App\Http\Controllers\RecepcionController::class, 'store'])->name('recepciones.store');
+Route::get('/recepciones/{orden_compra_id}/pdf', [\App\Http\Controllers\RecepcionController::class, 'generarPdf'])->name('recepciones.pdf');

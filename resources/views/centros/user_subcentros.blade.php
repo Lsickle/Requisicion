@@ -240,6 +240,7 @@
 /* Zebra y hover para tabla asignados */
 #assignedTable tbody tr:nth-child(even){ background-color:#f8fafc; }
 #assignedTable tbody tr:hover{ background-color: rgba(99,102,241,0.08); }
+/* (revertido) select scroll styling removed */
 /* Scrollbar fino reutilizable */
 .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
 .thin-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }

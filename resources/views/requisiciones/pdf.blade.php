@@ -260,6 +260,7 @@
                     'Desconocido' }}</div>
                 <div class="info-item"><span class="label">Prioridad:</span> {{
                     ucfirst($requisicion->prioridad_requisicion)}}</div>
+                <div class="info-item"><span class="label">Fecha estimada recepción:</span> {{ $requisicion->fecha_estimada_recepcion ? $requisicion->fecha_estimada_recepcion->format('d/m/Y') : '—' }}</div>
                 <div class="info-item"><span class="label">Recobrable:</span> {{ $requisicion->Recobrable }}</div>
                 <div class="info-item"><span class="label">Detalles:</span> {{ $requisicion->detail_requisicion }}</div>
                 <div class="info-item"><span class="label">Justificación:</span> {{ $requisicion->justify_requisicion }}
@@ -312,7 +313,8 @@
                 @foreach($page as $producto)
                 <tr>
                     <td>{{ $producto->name_produc }}</td>
-                    <td>{{ $producto->unit_produc ?? '-' }}</td>
+                    @php $unidadProducto = $producto->pivot->unidad ?? $producto->unit_produc ?? '-'; @endphp
+                    <td>{{ $unidadProducto }}</td>
                     <td>{{ $producto->pivot->pr_amount }}</td>
                     @php
                         $pxpRow = null;
@@ -354,7 +356,7 @@
                             @endphp
                             @if($distros && is_countable($distros) && count($distros) > 0)
                                 @foreach($distros as $centro)
-                                <li>{{ $centro->name_centro }} ({{ $centro->amount }})</li>
+                                <li>{{ $centro->name_centro }} ({{ $centro->amount }} {{ $unidadProducto }})</li>
                                 @endforeach
                             @else
                                 <li>No hay centros asignados</li>

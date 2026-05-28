@@ -21,6 +21,10 @@ class Requisicion extends Model
         'Recobrable'
     ];
 
+    protected $casts = [
+        'fecha_estimada_recepcion' => 'date',
+    ];
+
     public function productos()
     {
         return $this->belongsToMany(Producto::class, 'producto_requisicion', 'id_requisicion', 'id_producto')

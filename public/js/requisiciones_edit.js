@@ -87,7 +87,8 @@
         productoSeleccionadoUnidad.textContent = editingProduct.unidad;
         cantidadDisponibleSpan.textContent = editingProduct.cantidadTotal;
         unidadDisponibleSpan.textContent = editingProduct.unidad;
-        totalAsignadoSpan.textContent = '0';
+        // No usar distribución por centros: mostrar la cantidad total como asignada
+        totalAsignadoSpan.textContent = String(editingProduct.cantidadTotal);
         centrosList.innerHTML = '';
         cantidadCentroInput.value='';
 
@@ -110,27 +111,31 @@
     });
 
     function renderCentrosList(){
-        centrosList.innerHTML = '';
-        let suma = 0;
-        editingProduct.centros.forEach((c, i)=>{
-            suma += c.cantidad;
-            const li = document.createElement('li');
-            li.className = 'flex items-center justify-between py-1';
-            li.innerHTML = `<div>${escapeHtml(c.nombre)} (${c.cantidad})</div><div><button data-i="${i}" class="quitarCentro text-sm text-red-600">Quitar</button></div>`;
-            centrosList.appendChild(li);
-        });
+        // Distribution disabled: clear list and show cantidadTotal as assigned
+        if (centrosList) centrosList.innerHTML = '';
+        const suma = editingProduct ? (editingProduct.cantidadTotal || 0) : 0;
         totalAsignadoSpan.textContent = suma;
-        if(suma === editingProduct.cantidadTotal){ totalAsignadoSpan.classList.add('text-green-600'); } else { totalAsignadoSpan.classList.remove('text-green-600'); }
+        if (editingProduct && suma === (editingProduct.cantidadTotal || 0)) { totalAsignadoSpan.classList.add('text-green-600'); } else { totalAsignadoSpan.classList.remove('text-green-600'); }
+    }
+
+    // Actualizar resumen cuando el usuario modifica la cantidad (sin distribución)
+    if (cantidadCentroInput && totalAsignadoSpan) {
+        cantidadCentroInput.addEventListener('input', function(){
+            const v = parseInt(this.value || '0', 10) || 0;
+            totalAsignadoSpan.textContent = String(v);
+        });
     }
 
     centrosList?.addEventListener('click', function(e){ const btn = e.target.closest('.quitarCentro'); if(!btn) return; const idx = parseInt(btn.dataset.i,10); if(isNaN(idx)) return; editingProduct.centros.splice(idx,1); renderCentrosList(); });
 
     guardarProductoBtn?.addEventListener('click', function(){
         if(!editingProduct) return;
-        const suma = editingProduct.centros.reduce((s,c)=>s+c.cantidad,0);
-        if(suma !== editingProduct.cantidadTotal){ Swal.fire({icon:'error', title:'Error', text:`La suma por centros (${suma}) debe ser igual a la cantidad total (${editingProduct.cantidadTotal}).`}); return; }
-        // añadir al listado
-        initialProducts.push({ id: editingProduct.id, nombre: editingProduct.nombre, cantidadTotal: editingProduct.cantidadTotal, unidad: editingProduct.unidad, centros: editingProduct.centros.slice() });
+        // Guardar sin distribución: usar cantidad ingresada o la cantidad total
+        const entered = parseInt(cantidadCentroInput.value || String(editingProduct.cantidadTotal || '0'),10) || editingProduct.cantidadTotal || 0;
+        if (!entered || entered < 1) { Swal.fire({icon:'error', title:'Error', text:'Ingrese una cantidad válida.'}); return; }
+        editingProduct.cantidadTotal = entered;
+        // añadir al listado sin centros
+        initialProducts.push({ id: editingProduct.id, nombre: editingProduct.nombre, cantidadTotal: editingProduct.cantidadTotal, unidad: editingProduct.unidad, centros: [] });
         renderProductosTable();
         closeModal(modalDistribucion);
         editingProduct = null;

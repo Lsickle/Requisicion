@@ -47,6 +47,14 @@
     const cantidadCentroInput = $('#cantidadCentroInput');
     const centrosList = $('#centrosList');
 
+    // Actualizar resumen cuando el usuario modifica la cantidad (sin distribución)
+    if (cantidadCentroInput && totalAsignadoSpan) {
+      cantidadCentroInput.addEventListener('input', function(){
+        const v = parseInt(this.value || '0', 10) || 0;
+        totalAsignadoSpan.textContent = String(v);
+      });
+    }
+
     // Tabla
     const productosTable = document.querySelector('#productosTable tbody');
 
@@ -235,7 +243,7 @@
       if (!cantidadTotal || cantidadTotal < 1) return mostrarError('Debes ingresar una cantidad válida.');
       if (productos.some(p => p.id === prodSeleccionado.id)) return mostrarError('Este producto ya fue agregado.');
       productoActual = { id: prodSeleccionado.id, nombre: prodSeleccionado.nombre, proveedorId: prodSeleccionado.proveedor || null, cantidadTotal, unidad: prodSeleccionado.unidad, centros: [] };
-      cantidadAsignada = 0; unidadMedida = prodSeleccionado.unidad;
+      cantidadAsignada = prodSeleccionado.cantidad || 0; unidadMedida = prodSeleccionado.unidad;
       if (productoSeleccionadoNombre) productoSeleccionadoNombre.textContent = prodSeleccionado.nombre;
       if (productoSeleccionadoCantidad) productoSeleccionadoCantidad.textContent = cantidadTotal;
       if (productoSeleccionadoUnidad) productoSeleccionadoUnidad.textContent = prodSeleccionado.unidad;
@@ -351,14 +359,14 @@
       productoActual = JSON.parse(JSON.stringify(base));
       cantidadTotal = parseInt(productoActual.cantidadTotal || 0,10) || 0;
       unidadMedida = productoActual.unidad || '';
-      cantidadAsignada = (Array.isArray(productoActual.centros) ? productoActual.centros.reduce((a,c)=> a + (parseInt(c.cantidad,10)||0), 0) : 0);
+      cantidadAsignada = parseInt(productoActual.cantidadTotal || 0,10) || 0;
       if (productoSeleccionadoNombre) productoSeleccionadoNombre.textContent = productoActual.nombre || '';
       if (productoSeleccionadoCantidad) productoSeleccionadoCantidad.textContent = cantidadTotal;
       if (productoSeleccionadoUnidad) productoSeleccionadoUnidad.textContent = unidadMedida;
       if (cantidadDisponibleSpan) cantidadDisponibleSpan.textContent = cantidadTotal;
       if (unidadDisponibleSpan) unidadDisponibleSpan.textContent = unidadMedida;
       if (totalAsignadoSpan) totalAsignadoSpan.textContent = cantidadAsignada;
-      renderCentrosList();
+      // No usar lista de centros al editar (distribución deshabilitada)
       modalProducto && modalProducto.classList.add('hidden');
       modalDistribucion && modalDistribucion.classList.remove('hidden');
     };
@@ -382,8 +390,11 @@
     });
 
     guardarProductoBtn && guardarProductoBtn.addEventListener('click', ()=>{
-      if (!productoActual || !Array.isArray(productoActual.centros) || productoActual.centros.length === 0) return mostrarError('Debes añadir al menos un centro de costo.');
-      if (cantidadAsignada !== cantidadTotal) return mostrarError('Debes distribuir toda la cantidad ('+(cantidadTotal-cantidadAsignada)+' '+unidadMedida+' restantes).');
+      // Guardar sin distribución por centros: tomar la cantidad ingresada o la cantidad total del producto
+      const enteredQty = parseInt((cantidadCentroInput && cantidadCentroInput.value) || String(productoActual.cantidadTotal || '0'), 10) || parseInt(productoActual.cantidadTotal || '0', 10);
+      if (!enteredQty || enteredQty < 1) return mostrarError('Ingrese una cantidad válida para el producto.');
+      productoActual.cantidadTotal = enteredQty;
+      productoActual.centros = Array.isArray(productoActual.centros) ? productoActual.centros : [];
       if (editIndex !== null) { productos[editIndex] = JSON.parse(JSON.stringify(productoActual)); }
       else { productos.push(productoActual); }
       actualizarTabla();

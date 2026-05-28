@@ -202,6 +202,19 @@
             </div>
             @endif
 
+            @if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin)
+            <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-emerald-500 flex flex-col justify-between">
+                <div class="flex flex-col items-center text-center w-full">
+                    <div class="menu-icon w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-warehouse text-emerald-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Inventario de Bodega</h3>
+                    <p class="text-gray-600 mb-4">Consulta y gestiona el inventario de tu bodega</p>
+                </div>
+                <a href="{{ route('inventario.index') }}" class="text-center inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg">Ver Inventario</a>
+            </div>
+            @endif
+
         </div>
         </div>
 @endsection

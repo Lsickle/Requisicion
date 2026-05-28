@@ -19,6 +19,7 @@ class OrdenCompra extends Model
         'requisicion_id',
         'oc_user',
         'observaciones',
+        'ubicacion',
         'date_oc',
         'order_oc',
         'validation_hash',

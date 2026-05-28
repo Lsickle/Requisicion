@@ -1,6 +1,9 @@
 (function(){
   'use strict';
 
+  // Estado global para el modal de asignacion
+  window.__uscState = { bodegaActual: null, bodegaNombre: '' };
+
   function $(sel, root){ return (root||document).querySelector(sel); }
   function $$(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
 
@@ -133,30 +136,45 @@
       const idNum = Number(s.id);
       if (!assignedSet.has(idNum)) {
         const label = (s.name || '') + (s.centro ? ` (${s.centro})` : '');
-        opts.push(`<option value="${idNum}">${label}</option>`);
+        const opt = document.createElement('option');
+        opt.value = idNum;
+        opt.textContent = label;
+        opt.setAttribute('data-centro-id', s.centro_id || '');
+        select.appendChild(opt);
       }
     });
-    select.innerHTML = opts.join('');
     if (prev && !assignedSet.has(Number(prev))) select.value = prev;
   }
 
   async function openAssignModal(email, name){
     $('#assign_email_user').value = email;
-    $('#assignUserTitle').textContent = 'Asignar subcentros a ' + (name || email);
-    $('#assignUserInfo').textContent = email;
+    const titleText = 'Asignar subcentros a ' + (name || email);
+    $('#assignUserTitle').textContent = titleText;
+    $('#assignUserInfo').innerHTML = email;
     const select = $('#subcentroSelect'); if (select) select.value = '';
     assignedSet = new Set();
+    window.__uscState = { bodegaActual: [], bodegaNombre: [] };
+    
     try {
       const r = await fetch(`/centros/user_subcentros/list/${encodeURIComponent(email)}`);
       const data = await r.json();
       if (data && Array.isArray(data.assigned)) data.assigned.forEach(id => assignedSet.add(Number(id)));
+      window.__uscState.bodegaActual = Array.isArray(data?.bodega_actual) ? data.bodega_actual : (data?.bodega_actual ? [data.bodega_actual] : []);
+      window.__uscState.bodegaNombre = Array.isArray(data?.bodega_nombre) ? data.bodega_nombre : (data?.bodega_nombre ? [data.bodega_nombre] : []);
     } catch(e){ console.warn(e); }
+
+    // Mostrar bodegas actuales si existen
+    if (window.__uscState.bodegaActual?.length && window.__uscState.bodegaNombre?.length) {
+      const bodegaTags = window.__uscState.bodegaNombre.map(b => `<span class="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">${b}</span>`).join(' ');
+      $('#assignUserInfo').innerHTML = email + ' <div class="mt-1">' + bodegaTags + '</div>';
+    }
 
     const addBtn = $('#addSubcentroBtn');
     if (addBtn) {
       addBtn.onclick = function(){
         const sel = $('#subcentroSelect'); if (!sel) return;
         const v = sel.value; if (!v) return;
+        
         assignedSet.add(Number(v));
         renderAssignedTable();
         renderAvailableSubcentros();

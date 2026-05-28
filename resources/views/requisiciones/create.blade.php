@@ -43,7 +43,8 @@ provienen del controlador.
 
                 <!-- Campo Operación con búsqueda -->
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-1">Centro de costo</label>
+                    
+                    <label class="block text-gray-700 font-semibold mb-1">Proceso Solicitante</label>
                     <div class="relative">
                         <input type="text" id="operacionFilter"
                             class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
@@ -206,6 +207,10 @@ provienen del controlador.
 - Reparte la cantidad del producto entre subcentros asignados al usuario.
 - Muestra total asignado vs disponible y lista de asignaciones. --}}
 <!-- Modal 2: Distribución por Centros de Costo -->
+@php
+    // lista de subcentros para el modal (solo activos por simplicidad)
+    $modalSubcentros = \App\Models\Subcentro::orderBy('name_subcentro')->get();
+@endphp
 <div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
@@ -243,42 +248,41 @@ provienen del controlador.
 
         <!-- Distribución por centros -->
         <div id="centrosSection" class="mt-4">
-            <h4 class="text-lg font-semibold text-gray-700 mb-2">Distribución por Centros de Costo</h4>
-            <p class="text-sm text-gray-500 mb-4">Distribuya la cantidad total entre los centros de costo</p>
+            <h4 class="text-lg font-semibold text-gray-700 mb-2">Cantidad</h4>
+            <p class="text-sm text-gray-500 mb-4">Ingrese la cantidad para este producto</p>
 
-            <div class="grid grid-cols-3 gap-4 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Subcentros</label>
-                    <div class="relative">
-                        <input type="text" id="centroFilter" class="w-full border rounded-lg p-2"
-                            placeholder="Escribe o selecciona un subcentro" autocomplete="off">
-                        <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
-                        <div id="centrosDropdown"
-                            class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                            {!! $subcentrosOptionsHtml !!}
-                        </div>
-                    </div>
+                    <label class="block text-gray-600 font-semibold mb-1">Unidad</label>
+                    <select id="unidadModalSelect" class="w-full border rounded-lg p-2">
+                        <option value="">-- Unidad --</option>
+                        <option value="UND">UND</option>
+                        <option value="KG">KG</option>
+                        <option value="GLN">GLN</option>
+                        <option value="MT">MT</option>
+                        <option value="PQT">PQT</option>
+                        <option value="CJ">CJ</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-600 font-semibold mb-1">Subcentro</label>
+                    <select id="subcentroModalSelect" class="w-full border rounded-lg p-2">
+                        <option value="">-- Selecciona subcentro (opcional) --</option>
+                        @foreach($modalSubcentros as $ms)
+                            <option value="{{ $ms->id }}">{{ $ms->name_subcentro }}@if(optional($ms->centro)) ({{ optional($ms->centro)->name_centro }})@endif</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
                     <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1"
                         placeholder="Ej: 50">
                 </div>
-                <div>
-                    <button type="button" id="agregarCentroBtn"
-                        class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                        Agregar
-                    </button>
-                </div>
             </div>
 
             <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span
-                    id="unidadDisponible"></span>
+                Cantidad seleccionada: <span id="totalAsignado">0</span> <span id="unidadDisponible"></span>
             </div>
-
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto">
-            </ul>
 
             <div class="flex justify-between mt-6">
                 <button type="button" id="volverModalBtn"

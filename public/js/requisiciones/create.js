@@ -46,6 +46,24 @@
     const centroSelect = $('#centroSelect');
     const cantidadCentroInput = $('#cantidadCentroInput');
     const centrosList = $('#centrosList');
+    const unidadModalSelect = $('#unidadModalSelect');
+    const subcentroModalSelect = $('#subcentroModalSelect');
+
+    if (unidadModalSelect) {
+      unidadModalSelect.addEventListener('change', function(){
+        const v = this.value || '';
+        if (productoSeleccionadoUnidad) productoSeleccionadoUnidad.textContent = v || productoSeleccionadoUnidad.textContent;
+        if (unidadDisponibleSpan) unidadDisponibleSpan.textContent = v || unidadDisponibleSpan.textContent;
+      });
+    }
+
+    // Actualizar resumen cuando el usuario modifica la cantidad (sin distribución)
+    if (cantidadCentroInput && totalAsignadoSpan) {
+      cantidadCentroInput.addEventListener('input', function(){
+        const v = parseInt(this.value || '0', 10) || 0;
+        totalAsignadoSpan.textContent = String(v);
+      });
+    }
 
     // Tabla
     const productosTable = document.querySelector('#productosTable tbody');
@@ -294,6 +312,7 @@
       if (productoSeleccionadoUnidad) productoSeleccionadoUnidad.textContent = prodSeleccionado.unidad;
       if (cantidadDisponibleSpan) cantidadDisponibleSpan.textContent = cantidadTotal;
       if (unidadDisponibleSpan) unidadDisponibleSpan.textContent = prodSeleccionado.unidad;
+      if (unidadModalSelect) unidadModalSelect.value = prodSeleccionado.unidad || '';
       if (totalAsignadoSpan) totalAsignadoSpan.textContent = '0';
       if (centrosList) centrosList.innerHTML = '';
       modalProducto && modalProducto.classList.add('hidden');
@@ -435,14 +454,20 @@
       productoActual = JSON.parse(JSON.stringify(base));
       cantidadTotal = parseInt(productoActual.cantidadTotal || 0,10) || 0;
       unidadMedida = productoActual.unidad || '';
-      cantidadAsignada = (Array.isArray(productoActual.centros) ? productoActual.centros.reduce((a,c)=> a + (parseInt(c.cantidad,10)||0), 0) : 0);
+      // Sin distribución por centros: considerar asignada igual a la cantidad seleccionada (por compatibilidad visual)
+      cantidadAsignada = parseInt(productoActual.cantidadTotal || 0,10) || 0;
       if (productoSeleccionadoNombre) productoSeleccionadoNombre.textContent = productoActual.nombre || '';
       if (productoSeleccionadoCantidad) productoSeleccionadoCantidad.textContent = cantidadTotal;
       if (productoSeleccionadoUnidad) productoSeleccionadoUnidad.textContent = unidadMedida;
       if (cantidadDisponibleSpan) cantidadDisponibleSpan.textContent = cantidadTotal;
       if (unidadDisponibleSpan) unidadDisponibleSpan.textContent = unidadMedida;
       if (totalAsignadoSpan) totalAsignadoSpan.textContent = cantidadAsignada;
-      renderCentrosList();
+      if (unidadModalSelect) unidadModalSelect.value = unidadMedida || '';
+      if (subcentroModalSelect) {
+        const first = (productoActual.centros && productoActual.centros.length) ? productoActual.centros[0] : null;
+        subcentroModalSelect.value = first ? String(first.id) : '';
+      }
+      // Ya no se usa la lista de centros; omitir renderCentrosList
       modalProducto && modalProducto.classList.add('hidden');
       modalDistribucion && modalDistribucion.classList.remove('hidden');
     };
@@ -483,8 +508,19 @@
         productoActual.observacion = observacion;
         productoActual.planEjecucion = planEjecucion;
       }
-      if (!productoActual || !Array.isArray(productoActual.centros) || productoActual.centros.length === 0) return mostrarError('Debes añadir al menos un centro de costo.');
-      if (cantidadAsignada !== cantidadTotal) return mostrarError('Debes distribuir toda la cantidad ('+(cantidadTotal-cantidadAsignada)+' '+unidadMedida+' restantes).');
+      // Guardar producto: aplicar unidad seleccionada y cantidad ingresada
+      if (unidadModalSelect && unidadModalSelect.value) productoActual.unidad = unidadModalSelect.value;
+      const enteredQty = parseInt((cantidadCentroInput && cantidadCentroInput.value) || String(productoActual.cantidadTotal || '0'), 10) || parseInt(productoActual.cantidadTotal || '0', 10);
+      if (!enteredQty || enteredQty < 1) return mostrarError('Ingrese una cantidad válida para el producto.');
+      productoActual.cantidadTotal = enteredQty;
+      // Si el usuario seleccionó un subcentro en el modal, registrar ese destino con la cantidad indicada
+      if (subcentroModalSelect && subcentroModalSelect.value) {
+        const scId = String(subcentroModalSelect.value);
+        const scName = subcentroModalSelect.selectedOptions[0] ? subcentroModalSelect.selectedOptions[0].textContent : scId;
+        productoActual.centros = [{ id: scId, nombre: scName, cantidad: enteredQty }];
+      } else {
+        productoActual.centros = Array.isArray(productoActual.centros) ? productoActual.centros : [];
+      }
       if (editIndex !== null) { productos[editIndex] = JSON.parse(JSON.stringify(productoActual)); }
       else { productos.push(productoActual); }
       actualizarTabla();

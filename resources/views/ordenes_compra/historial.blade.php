@@ -380,15 +380,22 @@
                         <tbody>
                             @foreach($lines as $ln)
                                 @php
-                                    $provName = optional($ln->proveedor)->prov_name ?? '—';
                                     $cant = (int)($ln->total ?? 0);
-                                    $pFac  = $ln->precio_factura; // puede ser null
-                                    $trm   = $ln->trm_factura;    // puede ser null
-                                    $disabled = false; // siempre editable
+                                    $pFac  = $ln->precio_factura;
+                                    $trm   = $ln->trm_factura;
                                 @endphp
-                                <tr class="border-t pf-row" data-ocp-id="{{ $ln->id }}">
+                                <tr class="border-t pf-row" data-ocp-id="{{ $ln->id }}" data-proveedor-id="{{ $ln->proveedor_id }}">
                                     <td class="p-2">{{ optional($ln->producto)->name_produc ?? ('#'.$ln->producto_id) }}</td>
-                                    <td class="p-2">{{ $provName }}</td>
+                                    <td class="p-2">
+                                        <select class="pf-proveedor border rounded p-1 w-full text-sm" data-ocp-id="{{ $ln->id }}">
+                                            @php $allProveedores = \App\Models\Proveedor::all(); @endphp
+                                            @foreach($allProveedores as $prov)
+                                                <option value="{{ $prov->id }}" {{ $ln->proveedor_id == $prov->id ? 'selected' : '' }}>
+                                                    {{ $prov->prov_name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </td>
                                     <td class="p-2 text-center">{{ $cant }}</td>
                                     <td class="p-2 text-center">
                                         <input type="number" step="0.01" min="0" class="pf-price border rounded p-1 w-28 text-right" value="{{ !is_null($pFac) ? number_format((float)$pFac, 2, '.', '') : '' }}" placeholder="0.00">
@@ -1108,6 +1115,7 @@
                     const rows = Array.from(modal.querySelectorAll('.pf-row'));
                     const items = rows.map(tr => {
                         const ocpId = parseInt(tr.dataset.ocpId, 10);
+                        const proveedor_id = parseInt(tr.querySelector('.pf-proveedor').value, 10);
                         const priceEl = tr.querySelector('.pf-price');
                         const trmEl = tr.querySelector('.pf-trm');
                         const precio = parseFloat(twoDec(priceEl?.value || ''));
@@ -1115,7 +1123,7 @@
                         const trm = trmTxt === null ? null : parseFloat(trmTxt);
                         if (isNaN(precio) || precio < 0) return null;
                         if (trm !== null && (isNaN(trm) || trm < 0)) return null;
-                        return { ocp_id: ocpId, precio_factura: precio, trm_factura: trm };
+                        return { ocp_id: ocpId, proveedor_id: proveedor_id, precio_factura: precio, trm_factura: trm };
                     }).filter(Boolean);
 
                     if (items.length === 0) {

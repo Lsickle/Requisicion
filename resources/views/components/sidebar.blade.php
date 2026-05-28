@@ -84,6 +84,14 @@
             </li>
             @endif
 
+            @if($hasPermission('ver oc') || $hasPermission('crear requisicion'))
+            <li>
+                <a href="{{ route('recepciones.create') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Recepción
+                    de Órdenes de Compra</a>
+            </li>
+            @endif
+
             @if($hasPermission('total requisiciones'))
             <li>
                 <a href="{{ route('requisiciones.todas') }}"
@@ -123,6 +131,24 @@
             <li>
                 <a href="{{ route('centros.user_subcentros.index') }}"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Asignar Subcentros</a>
+            </li>
+            @endif
+
+            @if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin)
+            <li>
+                <a href="{{ route('inventario.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Inventario de Bodega</a>
+            </li>
+            <li>
+                <a href="{{ route('inventario.transferencia.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Transferencia</a>
+            </li>
+            @endif
+
+            @if($hasPermission('inventario solicitante') || $hasPermission('ver inventario') || $isAdmin)
+            <li>
+                <a href="{{ route('salida_stock.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Salida de Stock</a>
             </li>
             @endif
         </ul>

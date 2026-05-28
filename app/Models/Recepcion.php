@@ -18,7 +18,8 @@ class Recepcion extends Model
         'cantidad',
         'cantidad_recibido',
         'reception_user',
-        'fecha'
+        'fecha',
+        'firma_digital'
     ];
 
     protected $casts = [

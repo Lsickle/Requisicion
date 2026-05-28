@@ -264,6 +264,21 @@
                     @csrf
                     <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
 
+                    <!-- Ubicación -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Ubicación de Almacenamiento</label>
+                        <select name="ubicacion" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
+                            <option value="">Seleccione una ubicación</option>
+                            <option value="bodega 12G">Bodega 12G</option>
+                            <option value="bodega 6C">Bodega 6C</option>
+                            <option value="bodega 16C">Bodega 16C</option>
+                            <option value="bodega 8H">Bodega 8H</option>
+                            <option value="bodega 1E">Bodega 1E</option>
+                            <option value="bodega 3A">Bodega 3A</option>
+                            <option value="Coltabaco">Coltabaco</option>
+                        </select>
+                    </div>
+
                     <!-- Selector de productos -->
                     <div class="mt-6">
                         <label class="block text-sm font-medium text-gray-600 mb-2">Añadir Producto</label>
@@ -315,7 +330,6 @@
                                      data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
                                      data-nombre="{{ $producto->name_produc }}"
                                      data-unidad="{{ $producto->unit_produc }}"
-                                     data-stock="{{ $producto->stock_produc }}"
                                      data-proveedor="{{ $producto->proveedor_id ?? '' }}"
                                      data-iva="{{ $producto->iva ?? 0 }}"
                                      data-price="{{ ($ppList->first()->price_produc ?? 0) }}"
@@ -347,7 +361,6 @@
                                             data-ocp-id="{{ $ld->ocp_id }}"
                                             data-nombre="{{ $ld->name_produc }}"
                                             data-unidad="{{ $ld->unit_produc }}"
-                                            data-stock="{{ $ld->stock_produc }}"
                                             data-cantidad="{{ $ld->cantidad }}"
                                             data-iva="{{ $ld->iva ?? 0 }}"
                                             data-price="{{ ($ppList->first()->price_produc ?? $ldPrice) }}"
@@ -387,7 +400,6 @@
                                      <th class="p-3 text-center" style="width:160px">Precio unitario</th>
                                      <th class="p-3 text-center" style="width:90px">IVA</th>
                                      <th class="p-3 text-center" style="width:100px">Entregado</th>
-                                     <th class="p-3 text-center" style="width:110px">Stock</th>
                                      <th class="p-3" style="width:40%">Distribución</th>
                                      <th class="p-3 text-center" style="width:90px">Acciones</th>
                                  </tr>
@@ -631,150 +643,19 @@
     </div>
 </div>
 
-@php
-    // Listado para modal Restaurar stock
-    $restaurables = [];
-    $recepcionesRestaurables = collect();
-    if (!empty($requisicion?->id)) {
-        $restaurables = DB::table('ordencompra_producto as ocp')
-            ->join('productos as p','p.id','=','ocp.producto_id')
-            ->join('orden_compras as oc','oc.id','=','ocp.orden_compras_id')
-            ->leftJoin('proveedores as prov','prov.id','=','ocp.proveedor_id')
-            ->whereNull('ocp.deleted_at')
-            ->where('ocp.requisicion_id', $requisicion->id)
-            ->whereNotNull('ocp.stock_e')
-            ->where('ocp.stock_e','>',0)
-            ->select('ocp.id as ocp_id','p.name_produc','ocp.stock_e','oc.order_oc','oc.id as oc_id','prov.prov_name')
-            ->orderBy('ocp.id','desc')
-            ->get();
-        // Recepciones desde stock (para permitir restaurar lo que se sacó)
-        $recepcionesRestaurables = DB::table('recepcion as r')
-            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
-            ->join('productos as p','p.id','=','r.producto_id')
-            ->where('oc.requisicion_id', $requisicion->id)
-            ->whereNull('r.deleted_at')
-            ->select('r.id as recep_id','p.id as producto_id','p.name_produc','oc.id as oc_id','oc.order_oc','r.cantidad','r.cantidad_recibido')
-            ->orderBy('r.id','desc')
-            ->get();
-        // Mapear cada recepción a una línea ocp con stock_e disponible (si existe)
-        foreach ($recepcionesRestaurables as $idx => $r) {
-            $ocpId = DB::table('ordencompra_producto as ocp')
-                ->whereNull('ocp.deleted_at')
-                ->where('ocp.orden_compras_id', $r->oc_id)
-                ->where('ocp.producto_id', $r->producto_id)
-                ->orderByDesc('ocp.stock_e')
-                ->value('ocp.id');
-            $recepcionesRestaurables[$idx]->ocp_id = $ocpId; // puede ser null
-        }
-    }
-@endphp
 
-<div id="modal-restaurar-stock" class="fixed inset-0 z-50 hidden bg-black bg-opacity-50 items-center justify-center p-4">
-    <div class="bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
-        <div class="flex justify-between items-center px-6 py-4 border-b">
-            <h3 class="text-lg font-semibold">Restaurar stock</h3>
-            <button type="button" id="rs-close" class="text-gray-600 hover:text-gray-800">✕</button>
-        </div>
-        <div class="p-6 space-y-6">
-            <div class="max-h-[40vh] overflow-y-auto border rounded">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-100 sticky top-0 z-10">
-                        <tr>
-                            <th class="px-3 py-2 text-left">Producto</th>
-                            <th class="px-3 py-2 text-center">Reservado</th>
-                            <th class="px-3 py-2 text-left">OC</th>
-                            <th class="px-3 py-2 text-center">Restaurar</th>
-                        </tr>
-                    </thead>
-                    <tbody id="rs-tbody">
-                        @forelse($restaurables as $r)
-                        <tr class="border-t">
-                            <td class="px-3 py-2">{{ $r->name_produc }}</td>
-                            <td class="px-3 py-2 text-center font-semibold">{{ $r->stock_e }}</td>
-                            <td class="px-3 py-2">{{ $r->order_oc ?? ('OC-'.$r->oc_id) }}</td>
-                            <td class="px-3 py-2 text-center">
-                                <div class="inline-flex items-center gap-2">
-                                    <input type="number" min="1" value="{{ $r->stock_e }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $r->ocp_id }}">
-                                    <button type="button" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm rs-restore-btn">Restaurar</button>
-                                </div>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr><td colspan="4" class="px-3 py-3 text-center text-gray-500">No hay stock reservado para restaurar.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-            <div class="max-h-[40vh] overflow-y-auto border rounded">
-                <div class="px-3 py-2 bg-gray-50 border-b text-sm font-medium">Salidas de stock realizadas</div>
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-100 sticky top-0 z-10">
-                        <tr>
-                            <th class="px-3 py-2 text-left">Producto</th>
-                            <th class="px-3 py-2 text-left">OC</th>
-                            <th class="px-3 py-2 text-center">Cantidad</th>
-                            <th class="px-3 py-2 text-left">Estado</th>
-                            <th class="px-3 py-2 text-center">Restaurar</th>
-                        </tr>
-                    </thead>
-                    <tbody id="rs-tbody-salidas">
-                        @forelse($recepcionesRestaurables as $rr)
-                        <tr class="border-t">
-                            <td class="px-3 py-2">{{ $rr->name_produc }}</td>
-                            <td class="px-3 py-2">{{ $rr->order_oc ?? ('OC-'.$rr->oc_id) }}</td>
-                            <td class="px-3 py-2 text-center">{{ $rr->cantidad }}</td>
-                            <td class="px-3 py-2">
-                                @if(is_null($rr->cantidad_recibido) || (int)$rr->cantidad_recibido === 0)
-                                    <span class="px-2 py-1 rounded text-xs bg-amber-100 text-amber-700">Esperando confirmación</span>
-                                @else
-                                    <span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Confirmado por {{ (int)$rr->cantidad_recibido }}</span>
-                                @endif
-                            </td>
-                            <td class="px-3 py-2 text-center">
-                                <div class="inline-flex items-center gap-2">
-                                    <input type="number" min="1" value="{{ $rr->cantidad }}" class="w-24 border rounded p-1 text-center rs-cant-input" data-ocp-id="{{ $rr->ocp_id }}">
-                                    <button type="button" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm rs-restore-btn" @if(empty($rr->ocp_id)) disabled title="Sin línea asociada" @endif>Restaurar</button>
-                                </div>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr><td colspan="5" class="px-3 py-3 text-center text-gray-500">No hay salidas de stock registradas.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
 
-@php
-    // Variables para bloquear sacar de stock por producto ya recibido y totales previos
-    $productosConRecepcionIds = [];
-    $entregasPrevPorProducto = [];
-    // Nota: no se consultará la tabla `recepcion` en esta vista para evitar que sus registros influyan en los totales mostrados.
-@endphp
+
 
 <script>
     // Cambiar a llave compuesta para permitir líneas distribuidas del mismo producto
      let productosAgregados = [];
      let centros = @json($centros);
      let proveedoresMap = @json($proveedores->pluck('prov_name','id'));
-     let productosConRecepcion = @json($productosConRecepcionIds);
-     let entregasPrevPorProducto = @json($entregasPrevPorProducto);
+     let productosConRecepcion = [];
+     let entregasPrevPorProducto = [];
      let totalConfirmadoPorProducto = @json($totalConfirmadoPorProducto ?? []);
-     // Flag global: hay stock reservado sin entregar (impide anular)
-     window.hayReservadoSinEntrega = @json(($entregables ?? collect())->count() > 0);
-    // Flag global: existen salidas de stock (entrega) pendientes de confirmación para esta requisición
-    window.haySalidasPendientes = @json(isset($requisicion) ? DB::table('entrega')->where('requisicion_id', $requisicion->id)->whereNull('deleted_at')->where(function($q){ $q->whereNull('cantidad_recibido')->orWhere('cantidad_recibido', 0); })->exists() : false);
     
-    function yaTuvoEntrega(productoId){
-        return productosConRecepcion.includes(Number(productoId));
-    }
-
-    function showYaEntregadoAlert(){
-        Swal.fire({icon:'info', title:'Aviso', text:'Ya se realizó una entrega de stock para este producto en esta requisición.'});
-    }
-
     // Preparar la distribución original de la requisición
     let distribucionOriginal = {};
     @if($requisicion)
@@ -801,7 +682,6 @@
         const proveedorId = selectedOption.dataset.proveedor;
         const unidad = selectedOption.dataset.unidad || '';
         const cantidadOriginal = parseInt(selectedOption.dataset.cantidad || '1', 10);
-        const stockDisponible = parseInt(selectedOption.dataset.stock ?? '0', 10);
         const iva = parseFloat(selectedOption.dataset.iva ?? '0');
         const precio = parseFloat(selectedOption.dataset.price ?? '0');
         const precioCurrency = selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP';
@@ -818,10 +698,10 @@
             proveedorSelect.value = proveedorId;
         }
 
-        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio, selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP');
+        agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, cantidadOriginal, selector, ocpId, selectedOption.dataset.distribuido === '1', iva, precio, selectedOption.dataset.priceCurrency || selectedOption.dataset['price-currency'] || 'COP');
     }
 
-    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, unidad, cantidadOriginal, stockDisponible, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0, precioCurrency = 'COP', providersJson = '', priceCop = '', productoxproveedorId = '') {
+    function agregarProductoFinal(rowKey, productoId, productoNombre, proveedorId, cantidadOriginal, selector, ocpId = null, esDistribuido = false, iva = 0, precio = 0, precioCurrency = 'COP', providersJson = '', priceCop = '', productoxproveedorId = '') {
          const table = document.getElementById('productos-table');
          const rowId = `producto-${rowKey}`;
          if (document.getElementById(rowId)) return;
@@ -900,8 +780,8 @@
                          <div class="font-semibold text-gray-800 product-name" title="${productoNombre}">${productoNombre} ${esDistribuido && proveedorId ? `<span class=\"text-xs text-gray-500\">(Distribuido)</span>`:''}</div>
                      </div>
                  </div>
-                 <input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
-                     data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-stock="${stockDisponible}" data-iva="${iva}" data-price="${precio}" data-price-currency="${precioCurrency}">
+<input type="hidden" name="productos[${rowKey}][id]" value="${productoId}" 
+                      data-proveedor="${proveedorId||''}" data-unidad="${unidad}" data-nombre="${productoNombre}" data-cantidad="${cantidadOriginal}" data-iva="${iva}" data-price="${precio}" data-price-currency="${precioCurrency}">
                  <input type="hidden" name="productos[${rowKey}][proveedor_id]" value="${proveedorId||''}">
                  <input type="hidden" name="productos[${rowKey}][productoxproveedor_id]" id="productoxproveedor-${rowKey}" value="${productoxproveedorId || ''}">
                  <input type="hidden" name="productos[${rowKey}][trm_oc]" id="trm_oc-${rowKey}" value="">
@@ -923,8 +803,7 @@
                 ${precioCurrency && precioCurrency.toUpperCase() !== 'COP' ? '<div class="text-xs text-gray-500 precio-cop-span"></div>' : ''}
              </td>
              <td class="p-3 text-center whitespace-nowrap" id="iva-${rowKey}">${iva}%</td>
-             <td class="p-3 text-center" id="entregado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? `${totalConfirmadoPorProducto[productoId]}` : '0' )}</td>
-             <td class="p-3 text-center" id="stock-disponible-${rowKey}">${stockDisponible}</td>
+<td class="p-3 text-center" id="entregado-stock-${rowKey}">${( (totalConfirmadoPorProducto[productoId] || 0) > 0 ? `${totalConfirmadoPorProducto[productoId]}` : '0' )}</td>
              <td class="p-3">
                  <div class="max-h-40 overflow-y-auto">
                      <div class="space-y-2 text-sm pr-1">
@@ -1108,12 +987,6 @@
     }
 
     function quitarProducto(rowId, rowKey, ocpId = null) {
-        // No permitir quitar si ya se confirmó sacar de stock
-        const cont = document.getElementById(`sacar-stock-container-${rowKey}`);
-        if (cont?.dataset.confirmed === '1') {
-            Swal.fire({icon:'info', title:'No permitido', text:'No puede quitar el producto porque ya se confirmó la salida de stock.'});
-            return;
-        }
         const row = document.getElementById(rowId);
         const selector = document.getElementById('producto-selector');
         if (row) {
@@ -1122,7 +995,6 @@
             const unidad = inputHidden?.dataset?.unidad || '';
             const nombre = inputHidden?.dataset?.nombre || '';
             const cantidad = inputHidden?.dataset?.cantidad || 0;
-            const stock = inputHidden?.dataset?.stock || 0;
             const iva = inputHidden?.dataset?.iva || 0;
             const price = inputHidden?.dataset?.price || 0;
             const esDistribuido = !!ocpId;
@@ -1138,7 +1010,6 @@
             opt.dataset.unidad = unidad;
             opt.dataset.nombre = nombre;
             opt.dataset.cantidad = cantidad;
-            opt.dataset.stock = stock;
             opt.dataset.iva = iva;
             opt.dataset.price = price;
             if (esDistribuido) {
@@ -1157,15 +1028,6 @@
      }
 
     function confirmarAnulacion(button) {
-        // Bloquear anulación si hay stock reservado sin entregar
-        if (window.hayReservadoSinEntrega) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Acción no permitida',
-                text: 'No puede anular mientras existan productos sacados de stock sin entregar. Realice primero la entrega parcial de stock.'
-            });
-            return;
-        }
         Swal.fire({
             title: '¿Estás seguro?',
             text: "Esta acción anulará la orden de compra.",
@@ -1219,12 +1081,11 @@
                     const productoNombre = opt.dataset.nombre || '';
                     const unidad = opt.dataset.unidad || '';
                     const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
-                    const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
                     const ocpId = opt.dataset.ocpId || null;
                     try {
                         // remove option so it no longer appears
                         try { opt.remove(); } catch(e) {}
-                        agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, opt.dataset.providers || '', priceCop);
+                        agregarProductoFinal(rowKey, productoId, productoNombre, provId, cantidadOriginal, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, opt.dataset.providers || '', priceCop);
                     } catch(e) { console.error('auto add single prov failed', e); }
                 } else {
                     // Múltiples proveedores: abrir modal y cancelar envío
@@ -1349,10 +1210,6 @@
             }
             btnZip.addEventListener('click', async function(e){
                 e.preventDefault();
-                if (window.haySalidasPendientes) {
-                    Swal.fire({ icon:'warning', title:'Acción bloqueada', text:'Existen salidas de stock pendientes de confirmar. Confirme las cantidades recibidas antes de descargar.' });
-                    return;
-                }
                 if ((this.dataset?.hay || '0') !== '1') {
                     Swal.fire({ icon:'info', title:'Sin datos', text:'No hay órdenes para descargar.' });
                     return;
@@ -1640,7 +1497,6 @@
             const productoNombre = opt.dataset.nombre || '';
             const unidad = opt.dataset.unidad || '';
             const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
-            const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
             const ocpId = opt.dataset.ocpId || null;
             const rowKey = `${productoId}-${ocpId||'0'}`;
             const providersJson = opt.dataset.providers || '';
@@ -1650,7 +1506,7 @@
 
             // Close modal and add the product row directly with provider info
             if (typeof hideProvidersModal === 'function') hideProvidersModal();
-            agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
+            agregarProductoFinal(rowKey, productoId, productoNombre, provId, cantidadOriginal, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
         });
     });
 
@@ -1693,38 +1549,7 @@
         }
     });
 
-    // Modal Restaurar stock
-    (function(){
-        const modal = document.getElementById('modal-restaurar-stock');
-        const btnOpen = document.getElementById('btn-restaurar-stock');
-        const btnClose = document.getElementById('rs-close');
-        const btnCancel = document.getElementById('rs-cancel');
-        const tbody = document.getElementById('rs-tbody');
-        const tbodySalidas = document.getElementById('rs-tbody-salidas');
-        function open(){ if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); } }
-        function close(){ if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }
-        btnOpen?.addEventListener('click', open);
-        btnClose?.addEventListener('click', close);
-        btnCancel?.addEventListener('click', close);
-        modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
 
-        function bindRestore(container){
-            container?.addEventListener('click', async function(e){
-                const btn = e.target.closest('.rs-restore-btn');
-                if (!btn) return;
-                const row = btn.closest('tr');
-                const inp = row?.querySelector('.rs-cant-input');
-                const ocpId = inp?.dataset?.ocpId;
-                const cant = parseInt(inp?.value || '0', 10);
-                if (!ocpId || cant < 1) return;
-                try {
-                    const confirm = await Swal.fire({ title:'Confirmar', text:`Restaurar ${cant} unidad(es) al inventario?`, icon:'question', showCancelButton:true, confirmButtonText:'Sí, restaurar', cancelButtonText:'Cancelar' });
-                    if (!confirm.isConfirmed) return;
-                    const resp = await fetch(`{{ route('recepciones.restaurarStock') }}`, {
-                        method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ocp_id: ocpId, cantidad: cant })
-                    });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al restaurar');
                     // Marcar visualmente como restaurado para evitar múltiples veces
@@ -1743,53 +1568,7 @@
         bindRestore(tbodySalidas);
     })();
 
-    // Funciones para mostrar/ocultar modal de carga al sacar productos de stock
-    function showStockLoader(message = 'Creando orden de compra') {
-        const modal = document.getElementById('modal-loading-stock');
-        if (!modal) return;
-        const txt = modal.querySelector('.loader-text');
-        if (txt) txt.textContent = message;
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function hideStockLoader() {
-        const modal = document.getElementById('modal-loading-stock');
-        if (!modal) return;
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-    }
-
-    // Mostrar modal de carga cuando se envía el formulario principal (sacar productos de stock)
-    ordenForm.addEventListener('submit', function(e){
-        // Si no fue prevenido por validaciones, mostrar loader (tiempo breve antes de la navegación)
-        // La validación anterior previene el submit cuando hay errores; si llegamos aquí, mostrar loader
-        if (!e.defaultPrevented) {
-            try {
-                Swal.fire({
-                    title: 'Creando orden de compra...',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-            } catch(_) { /* ignore if Swal unavailable */ }
-            showStockLoader('Creando orden de compra');
-        }
-    });
-
-    // Integrar loader en el flujo de recepciones (botones .rc-save)
-    document.querySelectorAll('.rc-save').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            // Mostrar loader inmediatamente
-            showStockLoader('Guardando recepciones y actualizando stock...');
-            // Dejar que el handler existente realice la lógica; hideStockLoader() se llamará en catch si hay error
-            // Nota: el handler re-carga la página en caso de éxito, por lo que no es necesario ocultar el loader en ese caso.
-            // Si ocurre un error, el catch del handler ya muestra mensajes; además ocultamos el loader allí.
-        }, { once: true });
-    });
+    
 
     // Si el servidor creó la orden y devolvió el hash en sesión, descargarlo automáticamente
     @if(session('created_hash'))
@@ -2301,7 +2080,6 @@
             const productoNombre = opt.dataset.nombre || '';
             const unidad = opt.dataset.unidad || '';
             const cantidadOriginal = parseInt(opt.dataset.cantidad || '1', 10);
-            const stockDisponible = parseInt(opt.dataset.stock || '0', 10);
             const ocpId = opt.dataset.ocpId || null;
             const rowKey = `${productoId}-${ocpId||'0'}`;
             const providersJson = opt.dataset.providers || '';
@@ -2311,7 +2089,7 @@
 
             // Close modal and add the product row directly with provider info
             if (typeof hideProvidersModal === 'function') hideProvidersModal();
-            agregarProductoFinal(rowKey, productoId, productoNombre, provId, unidad, cantidadOriginal, stockDisponible, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
+            agregarProductoFinal(rowKey, productoId, productoNombre, provId, cantidadOriginal, sel, ocpId, opt.dataset.distribuido === '1', parseFloat(opt.dataset.iva || '0'), Number(price||0), currency, providersJson, priceCop);
         } finally {
             setTimeout(()=>{ window.__provSelectBusy = false; }, 500);
         }

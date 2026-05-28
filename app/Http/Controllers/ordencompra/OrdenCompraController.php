@@ -227,6 +227,7 @@ class OrdenCompraController extends Controller
         $validator = Validator::make($request->all(), [
             'proveedor_id' => 'nullable|exists:proveedores,id',
             'observaciones' => 'nullable|string',
+            'ubicacion' => 'nullable|string|max:255',
             'requisicion_id' => 'required|exists:requisicion,id',
             'date_oc' => 'nullable|date|after_or_equal:today',
             'productos' => 'required|array|min:1',
@@ -238,7 +239,7 @@ class OrdenCompraController extends Controller
             'productos.*.centros.*' => 'nullable|integer|min:0',
             'productos.*.iva' => 'nullable|numeric',
             'productos.*.apply_iva' => 'nullable|boolean',
-            'productos.*.stock_e' => 'nullable|integer|min:0',
+            
             'productos.*.trm_oc' => 'nullable',
             'productos.*.price' => 'nullable|numeric',
             'productos.*.currency' => 'nullable|string',
@@ -277,6 +278,7 @@ class OrdenCompraController extends Controller
                 $orden = new OrdenCompra([
                     'requisicion_id' => $request->requisicion_id,
                     'observaciones' => $request->observaciones,
+                    'ubicacion' => $request->input('ubicacion') ?: null,
                     'date_oc' => $request->input('date_oc') ?: null,
                     'order_oc' => $numeroOrden,
                 ]);
@@ -356,7 +358,6 @@ class OrdenCompraController extends Controller
                     $productoId = (int) $productoData['id'];
                     $cantidadIngresada = (int) ($productoData['cantidad'] ?? 0);
                     $ocpId = $productoData['ocp_id'] ?? null;
-                    $stockE = isset($productoData['stock_e']) && $productoData['stock_e'] !== '' ? (int) $productoData['stock_e'] : null;
 
                     // Asegurar pxp_id en pivot producto_requisicion
                     try {
@@ -574,7 +575,6 @@ class OrdenCompraController extends Controller
                         'requisicion_id' => $request->requisicion_id,
                         'proveedor_id' => (int) $provId,
                         'total' => $cantidadIngresada,
-                        'stock_e' => $stockE,
                         'apply_iva' => $applyFrac,
                         'trm_oc' => $trmOcValue,
                         'trm_factura' => $trmOcValue,
@@ -613,11 +613,7 @@ class OrdenCompraController extends Controller
                     } catch (\Throwable $e) { /* noop */
                     }
 
-                    if ($stockE !== null && $stockE > 0) {
-                        $producto = Producto::lockForUpdate()->findOrFail($productoId);
-                        $producto->stock_produc = max(0, (int) $producto->stock_produc - $stockE);
-                        $producto->save();
-                    }
+                    
 
                     // Distribución por centros (recrear)
                     OrdenCompraCentroProducto::where('orden_compra_id', $orden->id)
@@ -685,6 +681,34 @@ class OrdenCompraController extends Controller
                 } catch (\Throwable $e) {
                     Log::warning('No se pudo despachar OrdenCompraCreadaJob: '.$e->getMessage());
                 }
+            }
+
+            // Si, tras crear las órdenes, no quedan líneas pendientes para la requisición,
+            // registrar estatus 'Orden de compra generada' (id 5) en el historial de la requisición.
+            try {
+                $reqId = (int) $request->requisicion_id;
+                $pending = \App\Models\OrdenCompraProducto::where('requisicion_id', $reqId)->whereNull('orden_compras_id')->count();
+                if ($pending === 0) {
+                    // Desactivar estatus activo actual
+                    try {
+                        \App\Models\Estatus_Requisicion::where('requisicion_id', $reqId)->where('estatus', 1)->update(['estatus' => 0]);
+                    } catch (\Throwable $e) { /* noop */ }
+
+                    // Crear nuevo estatus 'Orden de compra generada' (id = 5)
+                    try {
+                        \App\Models\Estatus_Requisicion::create([
+                            'requisicion_id' => $reqId,
+                            'estatus_id' => 5,
+                            'estatus' => 1,
+                            'date_update' => now(),
+                            'comentario' => 'Orden(es) de compra generada(s) automáticamente',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    } catch (\Throwable $e) { /* noop */ }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo evaluar/persistir estatus requisicion tras crear OC: '.$e->getMessage());
             }
 
             DB::commit();
@@ -1033,11 +1057,15 @@ class OrdenCompraController extends Controller
             $distribucionOrden[$dist->producto_id][$dist->centro_id] = $dist->amount;
         }
 
+        // Obtener todos los productos para hacer editable el campo PRODUCTO
+        $productos = Producto::whereNull('deleted_at')->orderBy('name_produc')->get();
+
         return view('ordenes_compra.edit', [
             'ordenCompra' => $ordenCompra,
             'requisicion' => $requisicion,
             'centros' => $centros,
             'distribucion' => $distribucionOrden,
+            'productos' => $productos,
         ]);
     }
 
@@ -1092,8 +1120,12 @@ class OrdenCompraController extends Controller
             ]);
 
             foreach ($request->productos as $productoId => $productoData) {
+                // Detectar si el producto fue cambiado
+                $productoIdOriginal = (int)($productoData['id'] ?? $productoId);
+                $productoIdNuevo = (int)($productoData['producto_id'] ?? $productoIdOriginal);
+                
                 $ordenProducto = OrdenCompraProducto::where('orden_compras_id', $id)
-                    ->where('producto_id', $productoId)
+                    ->where('producto_id', $productoIdOriginal)
                     ->first();
 
                 if ($ordenProducto) {
@@ -1103,27 +1135,37 @@ class OrdenCompraController extends Controller
                         if (isset($productoData['iva']) && is_numeric($productoData['iva'])) {
                             $rate = (float) $productoData['iva'];
                         } else {
-                            $prodTmp = Producto::find($productoId);
+                            $prodTmp = Producto::find($productoIdNuevo);
                             $rate = ($prodTmp && isset($prodTmp->iva) && is_numeric($prodTmp->iva)) ? (float) $prodTmp->iva : 0;
                         }
                         $applyFrac = ($rate > 0) ? (($rate > 1) ? ($rate / 100.0) : $rate) : null;
                     }
-                    $ordenProducto->update([
+                    
+                    // Si el producto cambió, actualizar el producto_id
+                    $updateData = [
                         'total' => $productoData['cantidad'] ?? 0,
                         'apply_iva' => $applyFrac,
-                    ]);
+                    ];
+                    
+                    if ($productoIdNuevo !== $productoIdOriginal) {
+                        $updateData['producto_id'] = $productoIdNuevo;
+                    }
+                    
+                    $ordenProducto->update($updateData);
                 }
 
+                // Manejar centros usando el producto original para delete (que coincida con registros existentes)
                 OrdenCompraCentroProducto::where('orden_compra_id', $id)
-                    ->where('producto_id', $productoId)
+                    ->where('producto_id', $productoIdOriginal)
                     ->delete();
 
+                // Crear nuevos registros de centros usando el producto nuevo
                 if (! empty($productoData['centros'])) {
                     foreach ($productoData['centros'] as $centroId => $cantidad) {
                         if ((int) $cantidad > 0) {
                             OrdenCompraCentroProducto::create([
                                 'orden_compra_id' => $id,
-                                'producto_id' => $productoId,
+                                'producto_id' => $productoIdNuevo,
                                 'centro_id' => $centroId,
                                 'amount' => (int) $cantidad,
                             ]);
@@ -1387,6 +1429,128 @@ class OrdenCompraController extends Controller
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Cierra automáticamente una orden de compra cuando todos los productos han sido recibidos.
+     */
+    private function cerrarOrdenCompraSiCompleta(int $ordenCompraId): void
+    {
+        try {
+            // Verificar si ya está cerrada (estatus activo = Terminado id 3)
+            $currentStatus = DB::table('orden_compra_estatus')
+                ->where('orden_compra_id', $ordenCompraId)
+                ->where('activo', 1)
+                ->value('estatus_id');
+
+            if ($currentStatus == 3) {
+                return; // Ya está terminada
+            }
+
+            // Cerrar: desactivar estatus actual y crear estatus Terminado (id 3)
+            DB::table('orden_compra_estatus')
+                ->where('orden_compra_id', $ordenCompraId)
+                ->where('activo', 1)
+                ->update(['activo' => 0, 'updated_at' => now()]);
+
+            $terminado = DB::table('estatus_orden_compra')->where('id', 3)->first()
+                ?? DB::table('estatus_orden_compra')->first();
+
+            DB::table('orden_compra_estatus')->insert([
+                'estatus_id' => $terminado->id ?? 3,
+                'orden_compra_id' => $ordenCompraId,
+                'recepcion_id' => null,
+                'activo' => 1,
+                'date_update' => now(),
+                'user_id' => session('user.id') ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('cerrarOrdenCompraSiCompleta: error al cerrar OC ' . $ordenCompraId . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cancela un producto específico de una orden de compra.
+     * Solo permite cancelar si no hay productos recibidos o si al cancelar no faltarían productos.
+     */
+    public function cancelarProducto(Request $request, $id)
+    {
+        $request->validate([
+            'producto_id' => 'required|integer|exists:ordencompra_producto,id',
+        ]);
+
+        try {
+            $productoId = (int) $request->producto_id;
+            $linea = OrdenCompraProducto::where('id', $productoId)
+                ->where('orden_compras_id', $id)
+                ->firstOrFail();
+
+            $cantidadOriginal = (int) $linea->total;
+
+            $recibidoEste = (int) DB::table('recepcion')
+                ->where('orden_compra_id', $id)
+                ->where('producto_id', $linea->producto_id)
+                ->whereNull('deleted_at')
+                ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+
+            if ($recibidoEste > 0 && ($recibidoEste < $cantidadOriginal)) {
+                return response()->json([
+                    'message' => 'No se puede cancelar. Ya hay ' . $recibidoEste . ' unidades recibidas de este producto.'
+                ], 422);
+            }
+
+            $totOrdered = (int) DB::table('ordencompra_producto')
+                ->where('orden_compras_id', $id)
+                ->whereNull('deleted_at')
+                ->where('id', '<>', $productoId)
+                ->sum('total');
+
+            $totReceived = (int) DB::table('recepcion')
+                ->where('orden_compra_id', $id)
+                ->whereNull('deleted_at')
+                ->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+
+            $recibidoTotal = $totReceived - $recibidoEste;
+            $orderedSinEste = $totOrdered;
+
+            DB::beginTransaction();
+
+            $linea->delete();
+
+            DB::table('orden_compra_estatus')
+                ->where('orden_compra_id', $id)
+                ->where('activo', 1)
+                ->update(['activo' => 0, 'updated_at' => now()]);
+
+            $cancelado = DB::table('estatus_orden_compra')->where('id', 4)->first()
+                ?? DB::table('estatus_orden_compra')->where('status_name', 'Anulada')->first()
+                ?? DB::table('estatus_orden_compra')->first();
+
+            DB::table('orden_compra_estatus')->insert([
+                'estatus_id' => $cancelado->id ?? 4,
+                'orden_compra_id' => $id,
+                'recepcion_id' => null,
+                'activo' => 1,
+                'date_update' => now(),
+                'user_id' => session('user.id') ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($recibidoTotal >= $orderedSinEste) {
+                $this->cerrarOrdenCompraSiCompleta($id);
+            }
+
+            DB::commit();
+
+            return response()->json(['ok' => true, 'message' => 'Producto cancelado']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error cancelarProducto OC: ' . $e->getMessage());
+            return response()->json(['message' => 'Error al cancelar producto'], 500);
         }
     }
 
@@ -1957,6 +2121,11 @@ class OrdenCompraController extends Controller
                         $allComplete = false;
                         break;
                     }
+
+                    // Si la OC está completa, cerrarla automáticamente (estatus Terminado id 3)
+                    if ($totOrdered > 0 && $totReceived >= $totOrdered) {
+                        $this->cerrarOrdenCompraSiCompleta($ocId);
+                    }
                 }
 
                 // Forzar estatus 7 independientemente de si está completa o parcial
@@ -2249,6 +2418,7 @@ class OrdenCompraController extends Controller
             'orden_compra_id' => 'required|integer|exists:orden_compras,id',
             'items' => 'required|array|min:1',
             'items.*.ocp_id' => 'required|integer|exists:ordencompra_producto,id',
+            'items.*.proveedor_id' => 'required|integer|exists:proveedores,id',
             'items.*.precio_factura' => ['required', 'numeric', 'min:0', 'regex:/^\d+(?:\.\d{1,2})?$/'],
             'items.*.trm_factura' => ['nullable', 'numeric', 'min:0', 'regex:/^\d+(?:\.\d{1,2})?$/'],
         ], [
@@ -2282,9 +2452,11 @@ class OrdenCompraController extends Controller
                 $pf = round((float) $it['precio_factura'], 2);
                 $trm = (array_key_exists('trm_factura', $it) && $it['trm_factura'] !== null && $it['trm_factura'] !== '')
                     ? round((float) $it['trm_factura'], 2) : null;
+                $proveedor_id = (int) $it['proveedor_id'];
 
                 // Permitir actualizar siempre
                 $line->precio_factura = $pf;
+                $line->proveedor_id = $proveedor_id;
                 if ($trm !== null) {
                     $line->trm_factura = $trm;
                 } elseif ($line->trm_factura === null) { /* no-op */
@@ -2313,6 +2485,15 @@ class OrdenCompraController extends Controller
                             'updated_at' => now(),
                         ]);
                     }
+                    DB::table('logs')->insert([
+                        'table_name' => 'ordencompra_producto',
+                        'ordencompra_producto_id' => (int) $line->id,
+                        'user_name' => $userName,
+                        'field_name' => 'proveedor_id',
+                        'new_value' => (string) $proveedor_id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                 } catch (\Throwable $e) { /* noop logging */
                 }
 
