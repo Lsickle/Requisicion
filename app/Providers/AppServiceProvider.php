@@ -38,9 +38,12 @@ class AppServiceProvider extends ServiceProvider
             OrdenCompra::observe(OrdenCompraObserver::class);
         }
 
-        // En producción/entornos con HTTPS, forzar esquema https para todas las URLs generadas
+        // Forzar esquema https cuando la URL de la app use https
+        // o cuando se establezca la variable FORCE_HTTPS=true en el entorno.
         try {
-            if (config('app.env') === 'production') {
+            $appUrl = config('app.url') ?? env('APP_URL');
+            $force = env('FORCE_HTTPS', false);
+            if ((is_string($appUrl) && str_starts_with($appUrl, 'https')) || $force) {
                 URL::forceScheme('https');
             }
         } catch (\Throwable $e) {
