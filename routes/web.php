@@ -346,6 +346,14 @@ Route::middleware([AuthSession::class])->group(function () {
             ->name('exportar')
             ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
 
+        Route::get('/plantilla', [\App\Http\Controllers\InventarioController::class, 'descargarPlantilla'])
+            ->name('plantilla')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
+        Route::post('/importar', [\App\Http\Controllers\InventarioController::class, 'importarInventario'])
+            ->name('importar')
+            ->middleware([AuthSession::class, CheckPermission::class . ':ver inventario|inventario solicitante']);
+
         Route::put('/editar', [\App\Http\Controllers\InventarioController::class, 'editar'])
             ->name('editar')
             ->middleware([AuthSession::class]);

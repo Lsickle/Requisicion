@@ -669,4 +669,79 @@ class InventarioController extends Controller
 
         return Excel::download(new InventarioExport($inventario, $movimientos, $nombre), 'inventario_' . $nombre . '_' . date('Ymd_His') . '.xlsx');
     }
+
+    public function descargarPlantilla(Request $request)
+    {
+        $subcentroId = $request->get('subcentro_id');
+        
+        if (!$subcentroId) {
+            return response()->json(['message' => 'Operación no especificada'], 400);
+        }
+
+        $subcentro = Subcentro::find($subcentroId);
+        if (!$subcentro) {
+            return response()->json(['message' => 'Operación no encontrada'], 404);
+        }
+
+        // Verificar permisos
+        $misSubcentroIds = $this->getMisSubcentroIds();
+        if (!in_array($subcentroId, $misSubcentroIds) && !$this->puedeVerTodas()) {
+            return response()->json(['message' => 'No tienes permiso para esta operación'], 403);
+        }
+
+        $nombreBodega = $subcentro->name_subcentro;
+        return Excel::download(
+            new \App\Exports\InventarioPlantillaExport($nombreBodega),
+            'plantilla_inventario_' . $nombreBodega . '_' . date('Ymd_His') . '.xlsx'
+        );
+    }
+
+    public function importarInventario(Request $request): JsonResponse
+    {
+        $request->validate([
+            'subcentro_id' => 'required|integer|exists:subcentros,id',
+            'archivo' => 'required|file|mimes:xlsx,xls,csv|max:5120', // 5MB máximo
+        ]);
+
+        $subcentroId = $request->get('subcentro_id');
+        $misSubcentroIds = $this->getMisSubcentroIds();
+
+        // Verificar permisos
+        if (!in_array($subcentroId, $misSubcentroIds) && !$this->puedeVerTodas()) {
+            return response()->json(['message' => 'No tienes permiso para esta operación'], 403);
+        }
+
+        try {
+            $archivo = $request->file('archivo');
+            $import = new \App\Imports\InventarioImport($subcentroId);
+            Excel::import($import, $archivo);
+
+            $mensaje = "Importación completada: {$import->exitosos} producto(s) importado(s)";
+            $datos = [
+                'exitosos' => $import->exitosos,
+                'errores' => $import->errores,
+            ];
+
+            if (!empty($import->errores)) {
+                $mensaje .= " con " . count($import->errores) . " error(es)";
+                return response()->json([
+                    'success' => true,
+                    'message' => $mensaje,
+                    'data' => $datos,
+                ], 207); // 207 Multi-Status
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $mensaje,
+                'data' => $datos,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error importando inventario: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error al importar: ' . substr($e->getMessage(), 0, 150),
+            ], 500);
+        }
+    }
 }

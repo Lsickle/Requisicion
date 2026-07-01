@@ -51,6 +51,12 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
                 <a href="{{ route('inventario.exportar', ['subcentro' => $subcentroActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
                     <i class="fas fa-file-excel mr-1"></i> Exportar Excel
                 </a>
+                <a href="{{ route('inventario.plantilla', ['subcentro_id' => $subcentroActual->id]) }}" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg">
+                    <i class="fas fa-download mr-1"></i> Descargar Plantilla
+                </a>
+                <button onclick="abrirModalImportar({{ $subcentroActual->id }})" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg">
+                    <i class="fas fa-upload mr-1"></i> Importar Inventario
+                </button>
                 @elseif($bodegaActual)
                 <a href="{{ route('inventario.exportar', ['bodega' => $bodegaActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
                     <i class="fas fa-file-excel mr-1"></i> Exportar Excel
@@ -560,6 +566,170 @@ async function eliminarProducto(inventarioId, productoNombre) {
     } catch (err) {
         console.error('Error:', err);
         Swal.fire({ icon: 'error', title: 'Error', text: 'Error de conexión: ' + err.message });
+    }
+}
+
+// Modal de Importar Inventario
+function abrirModalImportar(subcentroId) {
+    var modal = document.getElementById('modal-importar') || crearModalImportar();
+    document.getElementById('importar-subcentro-id').value = subcentroId;
+    modal.classList.remove('hidden');
+}
+
+function cerrarModalImportar() {
+    var modal = document.getElementById('modal-importar');
+    if (modal) modal.classList.add('hidden');
+}
+
+function crearModalImportar() {
+    var html = `
+    <div id="modal-importar" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div class="bg-purple-600 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Importar Inventario</h3>
+                <button onclick="cerrarModalImportar()" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="form-importar" class="p-6 space-y-4">
+                <input type="hidden" id="importar-subcentro-id" value="">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Cargar archivo Excel (.xlsx, .xls, .csv)
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Descarga la plantilla primero para conocer el formato correcto
+                    </p>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 transition-colors" id="drop-zone">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2 block"></i>
+                        <p class="text-sm font-medium text-gray-700 mb-1">Arrastra el archivo aquí</p>
+                        <p class="text-xs text-gray-500">o haz clic para seleccionar</p>
+                        <input type="file" id="archivo-importar" accept=".xlsx,.xls,.csv" class="hidden" onchange="mostrarNombreArchivo()">
+                    </div>
+                    <p id="archivo-nombre" class="text-sm text-gray-600 mt-2"></p>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="cerrarModalImportar()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="btn-importar" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg">
+                        <i class="fas fa-spinner fa-spin hidden" id="btn-importar-loading"></i>
+                        <span id="btn-importar-text">Importar</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', html);
+    var modal = document.getElementById('modal-importar');
+    
+    // Configurar drag and drop
+    var dropZone = document.getElementById('drop-zone');
+    var inputFile = document.getElementById('archivo-importar');
+    
+    dropZone.addEventListener('click', () => inputFile.click());
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('border-purple-400', 'bg-purple-50'), false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('border-purple-400', 'bg-purple-50'), false);
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        var dt = e.dataTransfer;
+        var files = dt.files;
+        inputFile.files = files;
+        mostrarNombreArchivo();
+    }, false);
+    
+    // Manejar submit del formulario
+    document.getElementById('form-importar').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        var archivo = document.getElementById('archivo-importar').files[0];
+        var subcentroId = document.getElementById('importar-subcentro-id').value;
+        
+        if (!archivo) {
+            Swal.fire({ icon: 'warning', title: 'Advertencia', text: 'Por favor selecciona un archivo' });
+            return;
+        }
+        
+        var formData = new FormData();
+        formData.append('archivo', archivo);
+        formData.append('subcentro_id', subcentroId);
+        
+        document.getElementById('btn-importar-loading').classList.remove('hidden');
+        document.getElementById('btn-importar-text').classList.add('opacity-50');
+        document.getElementById('btn-importar').disabled = true;
+        
+        try {
+            var res = await fetch('{{ route("inventario.importar") }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: formData
+            });
+            
+            var data = await res.json();
+            
+            if (data.success) {
+                var mensaje = data.message;
+                if (data.data && data.data.errores && data.data.errores.length > 0) {
+                    mensaje += '\\n\\nErrores encontrados:';
+                    data.data.errores.slice(0, 5).forEach(e => {
+                        mensaje += '\\n• Fila ' + e.fila + ': ' + e.error;
+                    });
+                    if (data.data.errores.length > 5) {
+                        mensaje += '\\n... y ' + (data.data.errores.length - 5) + ' errores más';
+                    }
+                }
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Importación Completada',
+                    text: mensaje,
+                    willClose: () => {
+                        cerrarModalImportar();
+                        window.location.reload();
+                    }
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Error de conexión: ' + err.message });
+        } finally {
+            document.getElementById('btn-importar-loading').classList.add('hidden');
+            document.getElementById('btn-importar-text').classList.remove('opacity-50');
+            document.getElementById('btn-importar').disabled = false;
+        }
+    });
+    
+    return modal;
+}
+
+function mostrarNombreArchivo() {
+    var archivo = document.getElementById('archivo-importar').files[0];
+    var nombreEl = document.getElementById('archivo-nombre');
+    if (archivo) {
+        nombreEl.textContent = '✓ ' + archivo.name + ' (' + Math.round(archivo.size / 1024) + ' KB)';
+        nombreEl.classList.remove('text-gray-600');
+        nombreEl.classList.add('text-green-600', 'font-medium');
     }
 }
 </script>
