@@ -19,6 +19,11 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
 .modal-overlay { background-color: rgba(0,0,0,0.4); }
 .subcentro-card { cursor: pointer; transition: all .2s; }
 .subcentro-card:hover { transform: translateY(-2px); }
+
+/* Fix: ensure green button shows background even if global CSS missing */
+.bg-green-600 { background-color: #16a34a !important; }
+.bg-green-700 { background-color: #15803d !important; }
+.btn-green { color: #ffffff !important; }
 </style>
 
 @section('content')
@@ -31,7 +36,9 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
                 <i class="fas fa-warehouse text-blue-600"></i>
                 Inventario de Bodega
             </h1>
-            @if(isset($subcentroActual) && $subcentroActual)
+            @if($mostrarResumen)
+                <p class="text-blue-600 font-semibold mt-1">Vista General - Todas las Bodegas</p>
+            @elseif(isset($subcentroActual) && $subcentroActual)
                 <p class="text-emerald-600 font-semibold mt-1">{{ $subcentroActual->name_subcentro }}</p>
                 <p class="text-gray-500 text-sm">{{ $subcentroActual->centro->name_centro ?? '' }}</p>
             @elseif(isset($bodegaActual) && $bodegaActual)
@@ -39,14 +46,16 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
             @endif
         </div>
         <div class="flex items-center gap-3">
-            @if($subcentroActual)
-            <a href="{{ route('inventario.exportar', ['subcentro' => $subcentroActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
-                <i class="fas fa-file-excel mr-1"></i> Exportar Excel
-            </a>
-            @elseif($bodegaActual)
-            <a href="{{ route('inventario.exportar', ['bodega' => $bodegaActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
-                <i class="fas fa-file-excel mr-1"></i> Exportar Excel
-            </a>
+            @if(!$mostrarResumen)
+                @if($subcentroActual)
+                <a href="{{ route('inventario.exportar', ['subcentro' => $subcentroActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
+                    <i class="fas fa-file-excel mr-1"></i> Exportar Excel
+                </a>
+                @elseif($bodegaActual)
+                <a href="{{ route('inventario.exportar', ['bodega' => $bodegaActual->id]) }}" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
+                    <i class="fas fa-file-excel mr-1"></i> Exportar Excel
+                </a>
+                @endif
             @endif
             <a href="{{ route('inventario.historial') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg">
                 <i class="fas fa-history mr-1"></i> Historial
@@ -54,23 +63,101 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
         </div>
     </div>
 
+    @if($mostrarResumen)
+    <!-- VISTA RESUMEN DE BODEGAS PARA ADMINS -->
+    <div class="space-y-6">
+        @forelse($todasLasBodegas as $bodega)
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <!-- Header de Bodega -->
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-building text-2xl"></i>
+                        <div>
+                            <h2 class="text-lg font-bold">{{ $bodega['nombre'] }}</h2>
+                            <p class="text-blue-100 text-sm">Total: {{ $bodega['totalUnidades'] }} unidades en {{ $bodega['totalProductos'] }} productos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operaciones de la Bodega -->
+            <div class="p-6">
+                @if(count($bodega['operaciones']) > 0)
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    @foreach($bodega['operaciones'] as $operacion)
+                    <a href="{{ route('inventario.index', ['subcentro' => $operacion['id']]) }}" 
+                       class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <h3 class="text-base font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+                                    {{ $operacion['nombre'] }}
+                                </h3>
+                            </div>
+                            <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 transition-colors"></i>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 text-sm">Productos:</span>
+                                <span class="inline-block px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
+                                    {{ $operacion['cantidadProductos'] }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600 text-sm">Unidades:</span>
+                                <span class="inline-block px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-800">
+                                    {{ $operacion['cantidadUnidades'] }}
+                                </span>
+                            </div>
+                        </div>
+                    </a>
+                    @endforeach
+                </div>
+                @else
+                <div class="text-center py-8 text-gray-400">
+                    <i class="fas fa-inbox text-3xl mb-2 block"></i>
+                    <p>No hay operaciones en esta bodega</p>
+                </div>
+                @endif
+            </div>
+        </div>
+        @empty
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
+            <i class="fas fa-exclamation-circle text-3xl text-yellow-600 mb-2 block"></i>
+            <p class="text-yellow-700 font-medium">No hay bodegas disponibles</p>
+        </div>
+        @endforelse
+    </div>
+    @else
+    <!-- VISTA DETALLADA DE OPERACIÓN -->
     @if($tieneMultipleSubcentros || $isVerTodas)
     <div class="bg-white rounded-lg shadow p-4 mb-6">
         <div class="flex items-center gap-4">
             <label class="font-medium text-gray-600">Seleccionar Operación:</label>
-            <select onchange="if(this.value) window.location.href='{{ route('inventario.index') }}?subcentro='+this.value" class="flex-1 max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring focus:ring-blue-300/40">
-                @if(!$subcentroSeleccionado && !$isVerTodas)
-                <option value="">-- Selecciona una operación --</option>
+            <div class="flex items-center gap-2 flex-1">
+                <select onchange="if(this.value) window.location.href='{{ route('inventario.index') }}?subcentro='+this.value" class="flex-1 max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring focus:ring-blue-300/40">
+                    @if($isVerTodas)
+                    <option value="">-- Ver todas las bodegas --</option>
+                    @else
+                    <option value="">-- Selecciona una operación --</option>
+                    @endif
+                    @foreach($todosLosSubcentros as $sc)
+                    <option value="{{ $sc['id'] }}" @if($subcentroSeleccionado == $sc['id']) selected @endif>
+                        {{ $sc['nombre'] }} ({{ $sc['bodega_nombre'] ?? 'Sin bodega' }})
+                    </option>
+                    @endforeach
+                </select>
+                @if($isVerTodas && $subcentroSeleccionado)
+                <a href="{{ route('inventario.index') }}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm">
+                    <i class="fas fa-times mr-1"></i> Limpiar
+                </a>
                 @endif
-                @foreach($todosLosSubcentros as $sc)
-                <option value="{{ $sc['id'] }}" @if($subcentroSeleccionado == $sc['id']) selected @endif>
-                    {{ $sc['nombre'] }} ({{ $sc['bodega_nombre'] ?? 'Sin bodega' }})
-                </option>
-                @endforeach
-            </select>
+            </div>
         </div>
     </div>
     @endif
+
 
     @if(!$isVerTodas && !$subcentroActual && !$bodegaActual)
     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center text-yellow-700 mb-6">
@@ -143,6 +230,7 @@ $tieneMultipleSubcentros = isset($todosLosSubcentros) && count($todosLosSubcentr
             </table>
         </div>
     </div>
+    @endif
     @endif
 </div>
 

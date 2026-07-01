@@ -111,10 +111,10 @@
       let hay = false;
       dropdown.querySelectorAll('div').forEach(op => {
         const txt = (op.textContent||'').toLowerCase();
-        if (txt.includes(filtro)) { op.style.display = 'block'; hay = true; }
-        else { op.style.display = 'none'; }
+        if (txt.includes(filtro)) { op.classList.remove('hidden'); hay = true; }
+        else { op.classList.add('hidden'); }
       });
-      dropdown.style.display = hay ? 'block' : 'none';
+      if (hay) dropdown.classList.remove('hidden'); else dropdown.classList.add('hidden');
     }
 
     function filtrarProductosPorCategoria(){
@@ -127,13 +127,13 @@
         const txt = (item.textContent||'').toLowerCase();
         const matchesCat = !categoriaSeleccionada || cat === categoriaSeleccionada;
         const matchesText = txt.includes(texto);
-        if (matchesCat && matchesText) { item.style.display = 'block'; hay = true; }
-        else { item.style.display = 'none'; }
+        if (matchesCat && matchesText) { item.classList.remove('hidden'); hay = true; }
+        else { item.classList.add('hidden'); }
       });
       if (document.activeElement === productoSelect) {
-        productosListDiv.style.display = hay ? 'block' : 'none';
+        if (hay) productosListDiv.classList.remove('hidden'); else productosListDiv.classList.add('hidden');
       } else {
-        productosListDiv.style.display = 'none';
+        productosListDiv.classList.add('hidden');
       }
     }
 
@@ -152,7 +152,7 @@
         if (unidadMedidaSpan) unidadMedidaSpan.textContent = input.dataset.unidad ? ('Unidad: ' + input.dataset.unidad) : 'Unidad: -';
       }
       if (inputId === 'categoriaFilter') filtrarProductosPorCategoria();
-      if (element.parentElement) element.parentElement.style.display = 'none';
+      if (element.parentElement) element.parentElement.classList.add('hidden');
       input.focus();
     };
 
@@ -162,7 +162,7 @@
       const nombre = element.getAttribute('data-nombre') || element.textContent.trim();
       if (centroSelect) centroSelect.value = id;
       if (centroFilter) centroFilter.value = nombre;
-      if (centrosDropdown) centrosDropdown.style.display = 'none';
+      if (centrosDropdown) centrosDropdown.classList.add('hidden');
       centroFilter && centroFilter.focus();
     };
 
@@ -177,28 +177,28 @@
 
     // Mostrar dropdowns al enfocar / escribir
     categoriaFilter && categoriaFilter.addEventListener('focus', function(){ filtrarDropdown(this, 'categoriasList'); });
-    categoriaFilter && categoriaFilter.addEventListener('input', function(){ categoriasListDiv && (categoriasListDiv.style.display = 'block'); filtrarDropdown(this, 'categoriasList'); filtrarProductosPorCategoria(); });
-    categoriaFilter && categoriaFilter.addEventListener('keydown', function(evt){ if (evt.key==='Backspace'||evt.key==='Delete'){ categoriasListDiv && (categoriasListDiv.style.display='block'); setTimeout(()=> filtrarDropdown(this, 'categoriasList'),0); filtrarProductosPorCategoria(); }});
-    categoriaFilter && categoriaFilter.addEventListener('keyup', function(){ if ((this.value||'').trim()===''){ categoriasListDiv && (categoriasListDiv.style.display='block'); filtrarDropdown(this,'categoriasList'); filtrarProductosPorCategoria(); }});
+    categoriaFilter && categoriaFilter.addEventListener('input', function(){ categoriasListDiv && (categoriasListDiv.classList.remove('hidden')); filtrarDropdown(this, 'categoriasList'); filtrarProductosPorCategoria(); });
+    categoriaFilter && categoriaFilter.addEventListener('keydown', function(evt){ if (evt.key==='Backspace'||evt.key==='Delete'){ categoriasListDiv && (categoriasListDiv.classList.remove('hidden')); setTimeout(()=> filtrarDropdown(this, 'categoriasList'),0); filtrarProductosPorCategoria(); }});
+    categoriaFilter && categoriaFilter.addEventListener('keyup', function(){ if ((this.value||'').trim()===''){ categoriasListDiv && (categoriasListDiv.classList.remove('hidden')); filtrarDropdown(this,'categoriasList'); filtrarProductosPorCategoria(); }});
 
     productoSelect && productoSelect.addEventListener('focus', function(){ filtrarDropdown(this, 'productosList'); filtrarProductosPorCategoria(); });
-    productoSelect && productoSelect.addEventListener('input', function(){ productosListDiv && (productosListDiv.style.display = 'block'); filtrarProductosPorCategoria(); });
-    productoSelect && productoSelect.addEventListener('keyup', function(){ if ((this.value||'').trim()===''){ productosListDiv && (productosListDiv.style.display='block'); filtrarProductosPorCategoria(); }});
+    productoSelect && productoSelect.addEventListener('input', function(){ productosListDiv && (productosListDiv.classList.remove('hidden')); filtrarProductosPorCategoria(); });
+    productoSelect && productoSelect.addEventListener('keyup', function(){ if ((this.value||'').trim()===''){ productosListDiv && (productosListDiv.classList.remove('hidden')); filtrarProductosPorCategoria(); }});
 
-    centroFilter && centroFilter.addEventListener('focus', function(){ centrosDropdown && (centrosDropdown.style.display='block'); });
+    centroFilter && centroFilter.addEventListener('focus', function(){ centrosDropdown && (centrosDropdown.classList.remove('hidden')); });
     centroFilter && centroFilter.addEventListener('input', function(){
       const filtro = (this.value||'').toLowerCase();
       let any=false; if (!centrosDropdown) return;
-      centrosDropdown.querySelectorAll('div').forEach(div=>{ const txt=(div.textContent||'').toLowerCase(); if (txt.includes(filtro)){div.style.display='block'; any=true;} else {div.style.display='none';} });
-      centrosDropdown.style.display = any ? 'block' : 'none';
+      centrosDropdown.querySelectorAll('div').forEach(div=>{ const txt=(div.textContent||'').toLowerCase(); if (txt.includes(filtro)){div.classList.remove('hidden'); any=true;} else {div.classList.add('hidden');} });
+      if (any) centrosDropdown.classList.remove('hidden'); else centrosDropdown.classList.add('hidden');
     });
     centroFilter && centroFilter.addEventListener('keydown', function(evt){ if (evt.key==='Backspace'||evt.key==='Delete'){ setTimeout(()=> centroFilter.dispatchEvent(new Event('input')),0); }});
 
     // Click fuera para cerrar dropdowns
     document.addEventListener('click', function(e){
-      if (categoriasListDiv && !categoriasListDiv.contains(e.target) && !categoriaFilter.contains(e.target)) categoriasListDiv.style.display = 'none';
-      if (productosListDiv && !productosListDiv.contains(e.target) && !productoSelect.contains(e.target)) productosListDiv.style.display = 'none';
-      if (centrosDropdown && !centrosDropdown.contains(e.target) && !centroFilter.contains(e.target)) centrosDropdown.style.display = 'none';
+      if (categoriasListDiv && !categoriasListDiv.contains(e.target) && !categoriaFilter.contains(e.target)) categoriasListDiv.classList.add('hidden');
+      if (productosListDiv && !productosListDiv.contains(e.target) && !productoSelect.contains(e.target)) productosListDiv.classList.add('hidden');
+      if (centrosDropdown && !centrosDropdown.contains(e.target) && !centroFilter.contains(e.target)) centrosDropdown.classList.add('hidden');
       if (operacionesDropdown && !operacionesDropdown.contains(e.target) && !operacionFilter.contains(e.target)) operacionesDropdown.classList.add('hidden');
     });
 
@@ -213,7 +213,7 @@
       const filtro = (operacionFilter.value||'').toLowerCase();
       let any=false;
       operacionesDropdown.querySelectorAll('div[data-value]').forEach(div=>{
-        const t=(div.textContent||'').toLowerCase(); if (!filtro || t.includes(filtro)){ div.style.display='block'; any=true; } else { div.style.display='none'; }
+        const t=(div.textContent||'').toLowerCase(); if (!filtro || t.includes(filtro)){ div.classList.remove('hidden'); any=true; } else { div.classList.add('hidden'); }
       });
       if (!any) operacionesDropdown.classList.add('hidden'); else operacionesDropdown.classList.remove('hidden');
     }
@@ -265,7 +265,7 @@
     function resetModalDistribucion(){
       if (centroSelect) centroSelect.value='';
       if (cantidadCentroInput) cantidadCentroInput.value='';
-      if (centrosDropdown) centrosDropdown.style.display='none';
+      if (centrosDropdown) centrosDropdown.classList.add('hidden');
       if (centroFilter) centroFilter.value='';
       productoActual = null; cantidadTotal = 0; cantidadAsignada = 0; unidadMedida = ''; editIndex = null;
     }

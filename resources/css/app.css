@@ -92,7 +92,17 @@ main.p-6 {
 .bg-blue-600 { background-color: #2563eb; }
 .bg-blue-700 { background-color: #1d4ed8; }
 .bg-blue-900 { background-color: #1e3a8a; }
+.bg-green-600 { background-color: #16a34a; }
+.bg-green-700 { background-color: #15803d; }
 .bg-blue-950 { background-color: #172554; }
+.bg-teal-600 { background-color: #059669; }
+.bg-teal-700 { background-color: #047857; }
+.bg-purple-600 { background-color: #7c3aed; }
+.bg-purple-700 { background-color: #6d28d9; }
+.bg-yellow-600 { background-color: #ca8a04; }
+.bg-yellow-700 { background-color: #a16207; }
+.bg-indigo-600 { background-color: #4f46e5; }
+.bg-indigo-700 { background-color: #4338ca; }
 .bg-slate-100 { background-color: #f1f5f9; }
 .bg-slate-200 { background-color: #e2e8f0; }
 .bg-slate-700 { background-color: #334155; }

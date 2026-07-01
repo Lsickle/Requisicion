@@ -39,7 +39,10 @@ class TransferenciaController extends Controller
     public function index(): View
     {
         $misBodegas = $this->getMisBodegas();
-        $centros = Centro::orderBy('name_centro')->get();
+        $subcentros = \App\Models\Subcentro::with('centro')
+            ->whereNull('deleted_at')
+            ->orderBy('name_subcentro')
+            ->get();
         $productos = Producto::orderBy('name_produc')->get();
         $isAdmin = PermissionHelper::hasAnyRole(['admin', 'compras']);
 
@@ -47,14 +50,14 @@ class TransferenciaController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        return view('inventario.transferencia', compact('centros', 'productos', 'transferencias', 'misBodegas', 'isAdmin'));
+        return view('inventario.transferencia', compact('subcentros', 'productos', 'transferencias', 'misBodegas', 'isAdmin'));
     }
 
     public function getInventario(Request $request): JsonResponse
     {
-        $bodegaId = $request->get('bodega_id');
+        $subcentroId = $request->get('subcentro_id');
         
-        $inventario = InventarioBodega::where('bodega_id', $bodegaId)
+        $inventario = InventarioBodega::where('subcentro_id', $subcentroId)
             ->where('cantidad', '>', 0)
             ->with('producto')
             ->get()
@@ -72,8 +75,8 @@ class TransferenciaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'bodega_origen_id' => 'required|integer|exists:centro,id',
-            'bodega_destino_id' => 'required|integer|exists:centro,id',
+            'subcentro_origen_id' => 'required|integer|exists:subcentros,id',
+            'subcentro_destino_id' => 'required|integer|exists:subcentros,id',
             'producto_id' => 'required|integer|exists:productos,id',
             'cantidad' => 'required|integer|min:1',
             'nombre_origen' => 'required|string|max:255',
@@ -84,8 +87,8 @@ class TransferenciaController extends Controller
             'firma_destino' => 'required|string',
         ]);
 
-        // Verificar stock en bodega origen
-        $inventarioOrigen = InventarioBodega::where('bodega_id', $data['bodega_origen_id'])
+        // Verificar stock en operación origen
+        $inventarioOrigen = InventarioBodega::where('subcentro_id', $data['subcentro_origen_id'])
             ->where('producto_id', $data['producto_id'])
             ->first();
 
@@ -98,13 +101,13 @@ class TransferenciaController extends Controller
         try {
             DB::beginTransaction();
 
-            // Descontar de bodega origen
+            // Descontar de operación origen
             $inventarioOrigen->cantidad -= $data['cantidad'];
             $inventarioOrigen->save();
 
-            // Agregar a bodega destino (crear si no existe)
+            // Agregar a operación destino (crear si no existe)
             $inventarioDestino = InventarioBodega::firstOrNew([
-                'bodega_id' => $data['bodega_destino_id'],
+                'subcentro_id' => $data['subcentro_destino_id'],
                 'producto_id' => $data['producto_id'],
             ]);
             $inventarioDestino->cantidad = ($inventarioDestino->cantidad ?? 0) + $data['cantidad'];
@@ -112,8 +115,8 @@ class TransferenciaController extends Controller
 
             // Crear registro de transferencia
             $transferencia = Transferencia::create([
-                'bodega_origen_id' => $data['bodega_origen_id'],
-                'bodega_destino_id' => $data['bodega_destino_id'],
+                'bodega_origen_id' => $data['subcentro_origen_id'],
+                'bodega_destino_id' => $data['subcentro_destino_id'],
                 'producto_id' => $data['producto_id'],
                 'cantidad' => $data['cantidad'],
                 'observaciones' => $request->get('observaciones'),

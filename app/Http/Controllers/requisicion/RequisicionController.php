@@ -167,7 +167,7 @@ class RequisicionController extends Controller
 
         // Preparar HTML de operaciones para dropdown (sin lógica en la vista)
         $operacionesLista = collect($centros ?? [])
-            ->pluck('centro_nombre')
+            ->pluck('name_centro')
             ->filter(fn ($v) => ! empty($v))
             ->unique()
             ->sort()
@@ -371,7 +371,7 @@ class RequisicionController extends Controller
 
         // HTML de operaciones (estilos ámbar para especial)
         $operacionesLista = collect($centros ?? [])
-            ->pluck('centro_nombre')
+            ->pluck('name_centro')
             ->filter(fn ($v) => ! empty($v))
             ->unique()
             ->sort()
@@ -930,16 +930,32 @@ class RequisicionController extends Controller
      */
     public function listaAprobadas()
     {
+        // Mostrar requisiciones disponibles para generar órdenes de compra
+        // (Se removió la restricción de 'aprobadas' para permitir crear OCs directamente)
+        // Cargar todas las requisiciones con sus relaciones y filtrar en memoria
+        // para permitir que las requisiciones sean usadas para crear OCs desde su creación.
         $requisiciones = Requisicion::with([
             'productos',
             'ultimoEstatus.estatusRelation',
             'estatusHistorial.estatusRelation',
         ])
-            ->whereHas('ultimoEstatus', function ($query) {
-                $query->whereIn('estatus_id', [4, 5, 7, 8, 12]);
-            })
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->filter(function ($r) {
+                // Excluir solo requisiciones canceladas (6) o finalizadas (10).
+                $ultimoId = optional($r->ultimoEstatus)->estatus_id ?? null;
+                if (is_null($ultimoId)) return true; // incluir si no tiene estatus aún
+                return ! in_array($ultimoId, [6, 10], true);
+            })
+            ->values();
+
+        Log::info('listaAprobadas: requisiciones cargadas', ['count' => $requisiciones->count(), 'ids' => $requisiciones->pluck('id')->values()->all()]);
+        // Logear últimos estatus por requisición para depuración
+        foreach ($requisiciones as $rq) {
+            $ult = optional($rq->ultimoEstatus)->estatus_id ?? null;
+            $ultName = optional($rq->ultimoEstatus->estatusRelation)->status_name ?? null;
+            Log::info('listaAprobadas: req status', ['id' => $rq->id, 'ultimo' => $ult, 'name' => $ultName]);
+        }
 
         return view('ordenes_compra.lista', compact('requisiciones'));
     }

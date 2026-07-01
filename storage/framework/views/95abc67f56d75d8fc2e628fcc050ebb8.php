@@ -1,11 +1,28 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', 'Requisiciones Aprobadas para Orden de Compra'); ?>
 
-@section('title', 'Requisiciones Aprobadas para Orden de Compra')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="flex pt-20">
     <!-- Sidebar -->
-    <x-sidebar />
+    <?php if (isset($component)) { $__componentOriginal2880b66d47486b4bfeaf519598a469d6 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal2880b66d47486b4bfeaf519598a469d6 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.sidebar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('sidebar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $attributes = $__attributesOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $component = $__componentOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__componentOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
 
     <!-- Contenido principal -->
     <div class="flex-1 px-4 md:px-8 pb-10">
@@ -19,7 +36,7 @@
                     </div>
                     <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Requisiciones Aprobadas para Orden de Compra</h1>
                 </div>
-                <a href="{{ route('requisiciones.menu') }}" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white shadow-sm transition">← Volver</a>
+                <a href="<?php echo e(route('requisiciones.menu')); ?>" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white shadow-sm transition">← Volver</a>
             </div>
 
             <style>
@@ -41,7 +58,7 @@
             </div>
 
             <!-- Mostrar solo requisiciones con estatus permitidos y EXCLUIR explícitamente estatus 10 -->
-            @php
+            <?php
                 // Incluir también requisiciones recién creadas / en revisión para poder generar OC
                 // IDs: 1=Requisición creada, 2=Revisado por compras, 3=Aprobado Gerencia Operaciones
                 $permitidos = [1,2,3,4,5,7,8,12];
@@ -51,7 +68,7 @@
                     $ultimoId = $ultimo->estatus_id ?? null;
                     return $ultimoId !== 10 && in_array($ultimoId, $permitidos, true);
                 })->values();
-            @endphp
+            ?>
 
             <!-- Contenedor scrollable -->
             <div class="flex-1 overflow-y-auto thin-scrollbar">
@@ -70,8 +87,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($requisicionesFiltradas as $req)
-                            @php
+                            <?php $__empty_1 = true; $__currentLoopData = $requisicionesFiltradas; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $req): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <?php
                                 // Calcular si ya está completa: entregas confirmadas + recepciones confirmadas vs requeridos
                                 $reqPorProducto = DB::table('centro_producto')
                                     ->where('requisicion_id', $req->id)
@@ -109,61 +126,61 @@
                                     ->whereNull('ocp.orden_compras_id')
                                     ->count();
                                 $totalSelectCount = $sinDistribuirCount + $pendientesOcpCount;
-                            @endphp
+                            ?>
                             <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
-                                <td class="px-4 py-2">{{ $req->id }}</td>
-                                <td class="px-4 py-2">{{ $req->operacion_user }}</td>
+                                <td class="px-4 py-2"><?php echo e($req->id); ?></td>
+                                <td class="px-4 py-2"><?php echo e($req->operacion_user); ?></td>
                                 <td class="px-4 py-2">
-                                    <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
+                                    <span class="status-badge <?php echo e($req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800')); ?>"><?php echo e(ucfirst($req->prioridad_requisicion)); ?></span>
                                 </td>
-                                <td class="px-4 py-2">{{ $req->name_user }}</td>
+                                <td class="px-4 py-2"><?php echo e($req->name_user); ?></td>
                                 <td class="px-4 py-2">
-                                    @php $tipo = strtolower((string)($req->type ?? '')); @endphp
-                                    <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                                    <?php $tipo = strtolower((string)($req->type ?? '')); ?>
+                                    <span class="status-badge <?php echo e($tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800'); ?>"><?php echo e($req->type ?? '-'); ?></span>
                                 </td>
                                 <td class="px-4 py-2">
-                                    @if($totalSelectCount > 0)
-                                        <span class="status-badge bg-amber-100 text-amber-800" title="Faltan líneas por OC">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
-                                    @else
+                                    <?php if($totalSelectCount > 0): ?>
+                                        <span class="status-badge bg-amber-100 text-amber-800" title="Faltan líneas por OC">Falta por orden de compra <?php echo e($totalSelectCount); ?> producto<?php echo e($totalSelectCount === 1 ? '' : 's'); ?></span>
+                                    <?php else: ?>
                                         <span class="status-badge bg-green-100 text-green-800">Órdenes de compra creadas</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
                                 <td class="px-4 py-2 text-center">
-                                    <button onclick="toggleModal('modal-{{ $req->id }}')"
+                                    <button onclick="toggleModal('modal-<?php echo e($req->id); ?>')"
                                         class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition">Ver</button>
                                 </td>
                             </tr>
-                            @empty
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <tr>
                                 <td colspan="7" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
                             </tr>
-                            @endforelse
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
 
                 <!-- Vista móvil como tarjetas -->
                 <div id="listaMobile" class="md:hidden space-y-4">
-                    @forelse($requisicionesFiltradas as $req)
+                    <?php $__empty_1 = true; $__currentLoopData = $requisicionesFiltradas; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $req): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <div class="bg-white rounded-xl shadow-sm ring-1 ring-slate-100 p-4 req-card">
                         <div class="flex items-center justify-between mb-2">
-                            <h2 class="font-bold text-lg">#{{ $req->id }}</h2>
-                            @php $tipo = strtolower((string)($req->type ?? '')); @endphp
-                            <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                            <h2 class="font-bold text-lg">#<?php echo e($req->id); ?></h2>
+                            <?php $tipo = strtolower((string)($req->type ?? '')); ?>
+                            <span class="status-badge <?php echo e($tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800'); ?>"><?php echo e($req->type ?? '-'); ?></span>
                         </div>
-                        <p class="text-sm text-gray-600 mb-1">Centro: {{ $req->operacion_user }}</p>
+                        <p class="text-sm text-gray-600 mb-1">Centro: <?php echo e($req->operacion_user); ?></p>
                         <div class="flex items-center gap-2 mb-2">
-                            <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
+                            <span class="status-badge <?php echo e($req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800')); ?>"><?php echo e(ucfirst($req->prioridad_requisicion)); ?></span>
                         </div>
-                        <p class="text-sm text-gray-600">Solicitante: {{ $req->name_user }}</p>
+                        <p class="text-sm text-gray-600">Solicitante: <?php echo e($req->name_user); ?></p>
                         <div class="mt-3">
-                            <button onclick="toggleModal('modal-{{ $req->id }}')"
+                            <button onclick="toggleModal('modal-<?php echo e($req->id); ?>')"
                                 class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm shadow-sm">Ver Detalles</button>
                         </div>
                     </div>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <p class="text-center text-gray-500">No hay requisiciones aprobadas para orden de compra</p>
-                    @endforelse
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -186,39 +203,40 @@
 </div>
 
 <!-- Modales para cada requisición -->
-@foreach($requisicionesFiltradas as $req)
-<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+<?php $__currentLoopData = $requisicionesFiltradas; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $req): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+<div id="modal-<?php echo e($req->id); ?>" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div class="flex-1 overflow-y-auto p-6 relative thin-scrollbar">
-            <button onclick="toggleModal('modal-{{ $req->id }}')"
+            <button onclick="toggleModal('modal-<?php echo e($req->id); ?>')"
                 class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
 
-            <h2 class="text-2xl font-bold mb-4">Requisición #{{ $req->id }}</h2>
+            <h2 class="text-2xl font-bold mb-4">Requisición #<?php echo e($req->id); ?></h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div class="bg-gray-50 p-4 rounded-lg">
                     <h3 class="font-semibold text-gray-700 mb-2">Información del Solicitante</h3>
-                    <p><strong>Nombre:</strong> {{ $req->name_user }}</p>
-                    <p><strong>Email:</strong> {{ $req->email_user }}</p>
-                    <p><strong>Operación:</strong> {{ $req->operacion_user }}</p>
+                    <p><strong>Nombre:</strong> <?php echo e($req->name_user); ?></p>
+                    <p><strong>Email:</strong> <?php echo e($req->email_user); ?></p>
+                    <p><strong>Operación:</strong> <?php echo e($req->operacion_user); ?></p>
                 </div>
                 <div class="bg-gray-50 p-4 rounded-lg">
                     <h3 class="font-semibold text-gray-700 mb-2">Detalles de la Requisición</h3>
                     <p><strong>Prioridad:</strong> 
                         <span class="px-2 py-1 rounded-full text-xs font-semibold 
-                            {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
+                            <?php echo e($req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
                                ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
-                               'bg-green-100 text-green-800') }}">
-                            {{ ucfirst($req->prioridad_requisicion) }}
+                               'bg-green-100 text-green-800')); ?>">
+                            <?php echo e(ucfirst($req->prioridad_requisicion)); ?>
+
                         </span>
                     </p>
-                    <p><strong>Recobrable:</strong> {{ $req->Recobrable }}</p>
+                    <p><strong>Recobrable:</strong> <?php echo e($req->Recobrable); ?></p>
                 </div>
             </div>
 
             <div class="mb-4">
-                <p><strong>Detalle:</strong> {{ $req->detail_requisicion }}</p>
-                <p><strong>Justificación:</strong> {{ $req->justify_requisicion }}</p>
+                <p><strong>Detalle:</strong> <?php echo e($req->detail_requisicion); ?></p>
+                <p><strong>Justificación:</strong> <?php echo e($req->justify_requisicion); ?></p>
             </div>
 
             <h3 class="text-xl font-semibold mt-6 mb-3">Productos</h3>
@@ -234,8 +252,8 @@
 
                     </thead>
                     <tbody>
-                        @foreach($req->productos as $prod)
-                        @php
+                        <?php $__currentLoopData = $req->productos; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prod): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                         $distribucion = DB::table('centro_producto')
                             ->where('requisicion_id', $req->id)
                             ->where('producto_id', $prod->id)
@@ -251,36 +269,37 @@
                             ->where('producto_id', $prod->id)
                             ->whereNull('deleted_at')
                             ->sum(DB::raw('GREATEST(cantidad - COALESCE(cantidad_recibido,0), 0)'));
-                        @endphp
+                        ?>
 
                         <tr>
-                            <td class="px-3 py-2 border min-w-0">{{ $prod->name_produc }}</td>
+                            <td class="px-3 py-2 border min-w-0"><?php echo e($prod->name_produc); ?></td>
                             <td class="px-3 py-2 border text-center font-semibold w-20">
-                                {{ $prod->pivot->pr_amount }}
-                                @if($totalConfirmado>0)
-                                    <span class="block text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>
-                                @endif
-                                @if($pendienteConfirmacion>0)
-                                    <span class="block text-xs text-amber-700 font-semibold">En espera de confirmación de recepción por {{ $pendienteConfirmacion }}</span>
-                                @endif
+                                <?php echo e($prod->pivot->pr_amount); ?>
+
+                                <?php if($totalConfirmado>0): ?>
+                                    <span class="block text-xs text-gray-500">(<?php echo e($totalConfirmado); ?> recibido)</span>
+                                <?php endif; ?>
+                                <?php if($pendienteConfirmacion>0): ?>
+                                    <span class="block text-xs text-amber-700 font-semibold">En espera de confirmación de recepción por <?php echo e($pendienteConfirmacion); ?></span>
+                                <?php endif; ?>
                             </td>
-                            <td class="px-3 py-2 border text-center">{{ $prod->unit_produc ?? '-' }}</td>
+                            <td class="px-3 py-2 border text-center"><?php echo e($prod->unit_produc ?? '-'); ?></td>
                             <td class="px-3 py-2 border align-top">
-                                @if($distribucion->count() > 0)
+                                <?php if($distribucion->count() > 0): ?>
                                 <div class="max-h-24 overflow-y-auto p-1 flex flex-col gap-2">
-                                    @foreach($distribucion as $centro)
+                                    <?php $__currentLoopData = $distribucion; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $centro): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <div class="w-full bg-gray-50 px-3 py-2 rounded text-sm flex items-center justify-between">
-                                        <span class="break-words">{{ $centro->name_centro }}</span>
-                                        <span class="ml-3 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                        <span class="break-words"><?php echo e($centro->name_centro); ?></span>
+                                        <span class="ml-3 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold"><?php echo e($centro->amount); ?></span>
                                     </div>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                                @else
+                                <?php else: ?>
                                 <span class="text-gray-500 text-sm">No hay distribución registrada</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
                         </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                 </table>
             </div>
@@ -288,8 +307,8 @@
 
         <!-- Botón Crear Orden de Compra (DENTRO del modal) - CORREGIDO -->
         <div class="flex justify-end gap-2 p-4 border-t bg-gray-50">
-            <form action="{{ route('ordenes_compra.create') }}" method="GET">
-                <input type="hidden" name="requisicion_id" value="{{ $req->id }}">
+            <form action="<?php echo e(route('ordenes_compra.create')); ?>" method="GET">
+                <input type="hidden" name="requisicion_id" value="<?php echo e($req->id); ?>">
                 <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition flex items-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
@@ -298,7 +317,7 @@
                 </button>
             </form>
         </div>
-        @php
+        <?php
             $prodsData = ($req->productos ?? collect())->map(function($p){
                 return [
                     'id' => $p->id,
@@ -333,17 +352,17 @@
                 ->pluck('producto_id')
                 ->unique()
                 ->values();
-        @endphp
-        <script type="application/json" id="req-products-{{ $req->id }}">{!! $prodsData->toJson() !!}</script>
-        <script type="application/json" id="req-products-ocp-{{ $req->id }}">{!! $lineasDistribuidasJson->toJson() !!}</script>
-        <script type="application/json" id="req-products-out-{{ $req->id }}">{!! $salidasIds->toJson() !!}</script>
+        ?>
+        <script type="application/json" id="req-products-<?php echo e($req->id); ?>"><?php echo $prodsData->toJson(); ?></script>
+        <script type="application/json" id="req-products-ocp-<?php echo e($req->id); ?>"><?php echo $lineasDistribuidasJson->toJson(); ?></script>
+        <script type="application/json" id="req-products-out-<?php echo e($req->id); ?>"><?php echo $salidasIds->toJson(); ?></script>
     </div>
 </div>
-@endforeach
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('scripts')
+<?php $__env->startSection('scripts'); ?>
 <script>
     function toggleModal(id){
         const modal = document.getElementById(id);
@@ -462,9 +481,9 @@
 
     async function completarReq(id){
         try{
-            const resp = await fetch(`{{ route('recepciones.completarSiListo') }}`, {
+            const resp = await fetch(`<?php echo e(route('recepciones.completarSiListo')); ?>`, {
                 method:'POST',
-                headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                headers:{ 'X-CSRF-TOKEN':'<?php echo e(csrf_token()); ?>', 'Accept':'application/json', 'Content-Type':'application/json' },
                 body: JSON.stringify({ requisicion_id: id })
             });
             const data = await resp.json();
@@ -632,9 +651,9 @@
                 const body = { requisicion_id: requisicionId, producto_id: productoId, cantidad };
                 if (ocpId) body.ocp_id = ocpId;
 
-                const resp = await fetch(`{{ route('recepciones.storeSalidaStockEnEntrega') }}`, {
+                const resp = await fetch(`<?php echo e(route('recepciones.storeSalidaStockEnEntrega')); ?>`, {
                     method:'POST',
-                    headers:{ 'X-CSRF-TOKEN':'{{ csrf_token() }}', 'Accept':'application/json', 'Content-Type':'application/json' },
+                    headers:{ 'X-CSRF-TOKEN':'<?php echo e(csrf_token()); ?>', 'Accept':'application/json', 'Content-Type':'application/json' },
                     body: JSON.stringify(body)
                 });
                 const data = await resp.json();
@@ -660,4 +679,5 @@
         });
     });
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\Requisicion\resources\views/ordenes_compra/lista.blade.php ENDPATH**/ ?>

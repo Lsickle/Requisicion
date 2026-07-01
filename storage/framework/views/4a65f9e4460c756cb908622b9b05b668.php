@@ -1,8 +1,6 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', 'Crear Orden de Compra'); ?>
 
-@section('title', 'Crear Orden de Compra')
-
-@section('content')
+<?php $__env->startSection('content'); ?>
 <div class="flex pt-20">
     <style>
         /* Contenedor: permite scroll horizontal y vertical local sin afectar al body */
@@ -99,7 +97,26 @@
         .precio-cop-span{font-size:.6rem;font-weight:500;color:#475569;display:block;margin-top:2px;}
     </style>
     <!-- Sidebar -->
-    <x-sidebar />
+    <?php if (isset($component)) { $__componentOriginal2880b66d47486b4bfeaf519598a469d6 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal2880b66d47486b4bfeaf519598a469d6 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.sidebar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('sidebar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $attributes = $__attributesOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $component = $__componentOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__componentOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
 
     <!-- Contenido principal -->
     <div class="flex-1 px-4 md:px-8 pb-10 oc-create-scope">
@@ -111,51 +128,52 @@
                     <div class="h-12 w-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner"><i class="fas fa-file-signature text-xl"></i></div>
                     <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Crear Orden de Compra</h1>
                 </div>
-                <a href="{{ route('ordenes_compra.lista') }}" class="btn-base bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 text-sm">Volver</a>
+                <a href="<?php echo e(route('ordenes_compra.lista')); ?>" class="btn-base bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 text-sm">Volver</a>
             </div>
 
             <!-- Mensaje éxito -->
-            @if(session('success'))
+            <?php if(session('success')): ?>
             <script>
                 Swal.fire({
                     icon: 'success',
                     title: 'Éxito',
-                    text: '{{ session('success') }}',
+                    text: '<?php echo e(session('success')); ?>',
                     confirmButtonText: 'Aceptar'
                 });
             </script>
-            @endif
+            <?php endif; ?>
 
             <!-- ================= Datos de la Requisición ================= -->
-            @if($requisicion)
+            <?php if($requisicion): ?>
             <div class="mb-8 border rounded-lg bg-gray-50 p-6 shadow-sm">
-                <h2 class="text-xl font-medium text-gray-700 mb-4">Requisición #{{ $requisicion->id }}</h2>
+                <h2 class="text-xl font-medium text-gray-700 mb-4">Requisición #<?php echo e($requisicion->id); ?></h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div class="p-4 rounded-lg border bg-white">
                         <h3 class="font-medium text-gray-700 mb-2">Solicitante</h3>
-                        <p><strong>Nombre:</strong> {{ $requisicion->name_user }}</p>
-                        <p><strong>Email:</strong> {{ $requisicion->email_user }}</p>
-                        <p><strong>Operación:</strong> {{ $requisicion->operacion_user }}</p>
+                        <p><strong>Nombre:</strong> <?php echo e($requisicion->name_user); ?></p>
+                        <p><strong>Email:</strong> <?php echo e($requisicion->email_user); ?></p>
+                        <p><strong>Operación:</strong> <?php echo e($requisicion->operacion_user); ?></p>
                     </div>
                     <div class="p-4 rounded-lg border bg-white">
                         <h3 class="font-medium text-gray-700 mb-2">Información General</h3>
                         <p>
                             <strong>Prioridad:</strong>
                             <span class="px-2 py-1 rounded-full text-xs font-medium
-                                {{ $requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-700' :
+                                <?php echo e($requisicion->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-700' :
                                    ($requisicion->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-700' :
-                                   'bg-green-100 text-green-700') }}">
-                                {{ ucfirst($requisicion->prioridad_requisicion) }}
+                                   'bg-green-100 text-green-700')); ?>">
+                                <?php echo e(ucfirst($requisicion->prioridad_requisicion)); ?>
+
                             </span>
                         </p>
-                        <p><strong>Recobrable:</strong> {{ $requisicion->Recobrable }}</p>
+                        <p><strong>Recobrable:</strong> <?php echo e($requisicion->Recobrable); ?></p>
                     </div>
                 </div>
 
                 <div class="mb-4 text-sm text-gray-700">
-                    <p><strong>Detalle:</strong> {{ $requisicion->detail_requisicion }}</p>
-                    <p><strong>Justificación:</strong> {{ $requisicion->justify_requisicion }}</p>
+                    <p><strong>Detalle:</strong> <?php echo e($requisicion->detail_requisicion); ?></p>
+                    <p><strong>Justificación:</strong> <?php echo e($requisicion->justify_requisicion); ?></p>
                 </div>
 
                 <!-- Distribución -->
@@ -174,9 +192,9 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                 @php $grandTotal = 0; @endphp
-                                @foreach($requisicion->productos as $prod)
-                                @php
+                                 <?php $grandTotal = 0; ?>
+                                <?php $__currentLoopData = $requisicion->productos; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prod): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php
                                 $distribucion = DB::table('centro_producto')
                                 ->where('requisicion_id', $requisicion->id)
                                 ->where('producto_id', $prod->id)
@@ -187,8 +205,8 @@
                                 // Ignorar tabla `recepcion` aquí: considerar solo entregas
                                 $confirmadoStock = 0;
                                 $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
-                                @endphp
-                                @php
+                                ?>
+                                <?php
                                     // Obtener precio desde productoxproveedor (nuevo esquema)
                                     try {
                                         $pp = DB::table('productoxproveedor')
@@ -201,35 +219,35 @@
                                     }
                                  $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
                                  $grandTotal += $precioTotal;
-                                @endphp
+                                ?>
                                 <tr class="border-t">
-                                    <td class="px-4 py-2">{{ $prod->name_produc }}</td>
-                                    <td class="px-3 py-2 text-center">{{ $prod->unit_produc ?? '-' }}</td>
-                                    <td class="px-3 py-2 text-center font-medium w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
-                                    <td class="px-3 py-2 text-center">${{ number_format($precioUnit,2) }}</td>
-                                    <td class="px-3 py-2 text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
+                                    <td class="px-4 py-2"><?php echo e($prod->name_produc); ?></td>
+                                    <td class="px-3 py-2 text-center"><?php echo e($prod->unit_produc ?? '-'); ?></td>
+                                    <td class="px-3 py-2 text-center font-medium w-20"><?php echo e($prod->pivot->pr_amount); ?> <?php if($totalConfirmado>0): ?><span class="text-xs text-gray-500">(<?php echo e($totalConfirmado); ?> recibido)</span><?php endif; ?></td>
+                                    <td class="px-3 py-2 text-center">$<?php echo e(number_format($precioUnit,2)); ?></td>
+                                    <td class="px-3 py-2 text-center font-semibold">$<?php echo e(number_format($precioTotal,2)); ?></td>
                                     <td class="px-4 py-2">
-                                         @if($distribucion->count() > 0)
+                                         <?php if($distribucion->count() > 0): ?>
                                          <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
-                                             @foreach($distribucion as $centro)
+                                             <?php $__currentLoopData = $distribucion; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $centro): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                              <div class="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
-                                                 <span class="truncate mr-2">{{ $centro->name_centro }}</span>
-                                                 <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">{{ $centro->amount }}</span>
+                                                 <span class="truncate mr-2"><?php echo e($centro->name_centro); ?></span>
+                                                 <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium"><?php echo e($centro->amount); ?></span>
                                              </div>
-                                             @endforeach
+                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                          </div>
-                                         @else
+                                         <?php else: ?>
                                          <span class="text-gray-500 text-sm">No hay distribución registrada</span>
-                                         @endif
+                                         <?php endif; ?>
                                      </td>
                                  </tr>
-                                 @endforeach
+                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 <tr class="border-t bg-gray-50">
                                     <td class="px-4 py-3 font-semibold">Total general</td>
                                     <td></td>
                                     <td></td>
                                     <td></td>
-                                    <td class="px-3 py-3 font-semibold">${{ number_format($grandTotal,2) }}</td>
+                                    <td class="px-3 py-3 font-semibold">$<?php echo e(number_format($grandTotal,2)); ?></td>
                                     <td></td>
                                 </tr>
                              </tbody>
@@ -237,32 +255,33 @@
                      </div>
                 </div>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- Mensajes de error -->
-            @if($errors->any())
+            <?php if($errors->any()): ?>
             <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
                 <ul class="list-disc ml-5 text-sm">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
+                    <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <li><?php echo e($error); ?></li>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </ul>
             </div>
-            @endif
-            @if(session('error'))
+            <?php endif; ?>
+            <?php if(session('error')): ?>
             <div class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
-                {{ session('error') }}
+                <?php echo e(session('error')); ?>
+
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- Formulario para Crear Orden -->
-            @if($requisicion)
+            <?php if($requisicion): ?>
             <div class="border p-6 mb-6 rounded-lg shadow bg-gray-50">
                 <h2 class="text-xl font-medium text-gray-700 mb-4">Nueva Orden de Compra</h2>
 
-                <form id="orden-form" action="{{ route('ordenes_compra.store') }}" method="POST" class="space-y-6">
-                    @csrf
-                    <input type="hidden" name="requisicion_id" value="{{ $requisicion->id }}">
+                <form id="orden-form" action="<?php echo e(route('ordenes_compra.store')); ?>" method="POST" class="space-y-6">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="requisicion_id" value="<?php echo e($requisicion->id); ?>">
 
                     <!-- Ubicación -->
                     <div>
@@ -286,10 +305,10 @@
                             <select id="producto-selector"
                                 class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400">
                                 <option value="">Seleccione un producto</option>
-                                @if($productosDisponibles->count())
+                                <?php if($productosDisponibles->count()): ?>
                                 <optgroup label="Productos sin distribuir">
-                                @foreach($productosDisponibles as $producto)
-                                @php
+                                <?php $__currentLoopData = $productosDisponibles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $producto): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php
                                     // obtener lista de proveedores para este producto desde productoxproveedor
                                     try {
                                         $ppList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
@@ -325,27 +344,27 @@
                                     } catch (\Throwable $e) {
                                         $ppList = collect();
                                     }
-                                @endphp
-                                <option value="{{ $producto->id }}"
-                                     data-cantidad="{{ $producto->pivot->pr_amount ?? 1 }}"
-                                     data-nombre="{{ $producto->name_produc }}"
-                                     data-unidad="{{ $producto->unit_produc }}"
-                                     data-proveedor="{{ $producto->proveedor_id ?? '' }}"
-                                     data-iva="{{ $producto->iva ?? 0 }}"
-                                     data-price="{{ ($ppList->first()->price_produc ?? 0) }}"
-                                     data-price-currency="{{ ($ppList->first()->moneda ?? 'COP') }}"
-                                     data-providers='@json($ppList)'>
-                                      {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{
-                                      $producto->pivot->pr_amount ?? 1 }}
+                                ?>
+                                <option value="<?php echo e($producto->id); ?>"
+                                     data-cantidad="<?php echo e($producto->pivot->pr_amount ?? 1); ?>"
+                                     data-nombre="<?php echo e($producto->name_produc); ?>"
+                                     data-unidad="<?php echo e($producto->unit_produc); ?>"
+                                     data-proveedor="<?php echo e($producto->proveedor_id ?? ''); ?>"
+                                     data-iva="<?php echo e($producto->iva ?? 0); ?>"
+                                     data-price="<?php echo e(($ppList->first()->price_produc ?? 0)); ?>"
+                                     data-price-currency="<?php echo e(($ppList->first()->moneda ?? 'COP')); ?>"
+                                     data-providers='<?php echo json_encode($ppList, 15, 512) ?>'>
+                                      <?php echo e($producto->name_produc); ?> (<?php echo e($producto->unit_produc); ?>) - Cantidad: <?php echo e($producto->pivot->pr_amount ?? 1); ?>
+
                                  </option>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </optgroup>
-                                @endif
-                                @if(isset($lineasDistribuidas) && $lineasDistribuidas->count())
+                                <?php endif; ?>
+                                <?php if(isset($lineasDistribuidas) && $lineasDistribuidas->count()): ?>
                                 <optgroup label="Líneas distribuidas pendientes">
-                                    @foreach($lineasDistribuidas as $ld)
-                                        @php $ldPrice = $ld->price_produc ?? 0; @endphp
-                                        @php
+                                    <?php $__currentLoopData = $lineasDistribuidas; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $ld): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <?php $ldPrice = $ld->price_produc ?? 0; ?>
+                                        <?php
                                             try {
                                                 $ppList = \Illuminate\Support\Facades\DB::table('productoxproveedor as pxp')
                                                     ->join('proveedores as prov','pxp.proveedor_id','=','prov.id')
@@ -355,22 +374,23 @@
                                                     ->orderBy('prov.prov_name')
                                                     ->get();
                                             } catch (\Throwable $e) { $ppList = collect(); }
-                                        @endphp
-                                        <option value="{{ $ld->producto_id }}"
+                                        ?>
+                                        <option value="<?php echo e($ld->producto_id); ?>"
                                             data-distribuido="1"
-                                            data-ocp-id="{{ $ld->ocp_id }}"
-                                            data-nombre="{{ $ld->name_produc }}"
-                                            data-unidad="{{ $ld->unit_produc }}"
-                                            data-cantidad="{{ $ld->cantidad }}"
-                                            data-iva="{{ $ld->iva ?? 0 }}"
-                                            data-price="{{ ($ppList->first()->price_produc ?? $ldPrice) }}"
-                                            data-price-currency="{{ ($ppList->first()->moneda ?? ($ld->moneda ?? 'COP')) }}"
-                                            data-providers='@json($ppList)'>
-                                             {{ $ld->name_produc }} ({{ $ld->unit_produc }}) - Cantidad: {{ $ld->cantidad }}
+                                            data-ocp-id="<?php echo e($ld->ocp_id); ?>"
+                                            data-nombre="<?php echo e($ld->name_produc); ?>"
+                                            data-unidad="<?php echo e($ld->unit_produc); ?>"
+                                            data-cantidad="<?php echo e($ld->cantidad); ?>"
+                                            data-iva="<?php echo e($ld->iva ?? 0); ?>"
+                                            data-price="<?php echo e(($ppList->first()->price_produc ?? $ldPrice)); ?>"
+                                            data-price-currency="<?php echo e(($ppList->first()->moneda ?? ($ld->moneda ?? 'COP'))); ?>"
+                                            data-providers='<?php echo json_encode($ppList, 15, 512) ?>'>
+                                             <?php echo e($ld->name_produc); ?> (<?php echo e($ld->unit_produc); ?>) - Cantidad: <?php echo e($ld->cantidad); ?>
+
                                          </option>
-                                     @endforeach
+                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                  </optgroup>
-                                 @endif
+                                 <?php endif; ?>
                             </select>
                             <button type="button" id="btn-add-product" onclick="if(window.openProvidersModal){ window.openProvidersModal(); } else if(window.quickAddProduct){ window.quickAddProduct(); } else { Swal.fire({icon:'info', title:'Seleccione', text:'Seleccione un producto primero.'}); }"
                                 class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
@@ -471,11 +491,12 @@
                                     <label class="block text-sm font-medium text-gray-600 mb-1">Producto a distribuir</label>
                                     <select id="dist-producto-id" class="w-full border rounded-lg p-2">
                                         <option value="">Seleccione un producto</option>
-                                        @foreach($productosDisponibles as $producto)
-                                        <option value="{{ $producto->id }}" data-max="{{ $producto->pivot->pr_amount ?? 1 }}" data-nombre="{{ $producto->name_produc }}" data-unidad="{{ $producto->unit_produc }}">
-                                            {{ $producto->name_produc }} ({{ $producto->unit_produc }}) - Cantidad: {{ $producto->pivot->pr_amount ?? 1 }}
+                                        <?php $__currentLoopData = $productosDisponibles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $producto): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($producto->id); ?>" data-max="<?php echo e($producto->pivot->pr_amount ?? 1); ?>" data-nombre="<?php echo e($producto->name_produc); ?>" data-unidad="<?php echo e($producto->unit_produc); ?>">
+                                            <?php echo e($producto->name_produc); ?> (<?php echo e($producto->unit_produc); ?>) - Cantidad: <?php echo e($producto->pivot->pr_amount ?? 1); ?>
+
                                         </option>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                     <small class="text-gray-500">Cantidad total a distribuir: <span id="dist-max">0</span> <span id="dist-unidad"></span></small>
                                 </div>
@@ -515,8 +536,8 @@
                                 <button type="button" id="btn-cerrar-undo" class="text-gray-600 hover:text-gray-800">✕</button>
                             </div>
                             <div class="p-6 space-y-4 grow overflow-y-auto">
-                                @if(($lineasDistribuidas ?? collect())->count() > 0)
-                                @php
+                                <?php if(($lineasDistribuidas ?? collect())->count() > 0): ?>
+                                <?php
                                     $agrupadas = ($lineasDistribuidas ?? collect())
                                         ->groupBy('producto_id')
                                         ->map(function($g){
@@ -528,7 +549,7 @@
                                                 'ocp_ids' => $g->pluck('ocp_id')->filter()->values()->all(),
                                             ];
                                         })->values();
-                                @endphp
+                                ?>
                                 <table class="w-full border text-sm rounded bg-white">
                                     <thead class="bg-gray-100">
                                         <tr>
@@ -539,21 +560,21 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($agrupadas as $grp)
+                                        <?php $__currentLoopData = $agrupadas; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $grp): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <tr class="border-t">
                                             <td class="p-2 text-center">
-                                                <input type="checkbox" class="chk-undo-item" value="{{ $grp->producto_id }}" data-ocp-ids="{{ implode(',', $grp->ocp_ids) }}">
+                                                <input type="checkbox" class="chk-undo-item" value="<?php echo e($grp->producto_id); ?>" data-ocp-ids="<?php echo e(implode(',', $grp->ocp_ids)); ?>">
                                             </td>
-                                            <td class="p-2">{{ $grp->name_produc }}</td>
-                                            <td class="p-2">{{ count($grp->proveedores) > 1 ? 'Varios' : ($grp->proveedores[0] ?? 'Proveedor') }}</td>
-                                            <td class="p-2 text-center">{{ $grp->cantidad_total }}</td>
+                                            <td class="p-2"><?php echo e($grp->name_produc); ?></td>
+                                            <td class="p-2"><?php echo e(count($grp->proveedores) > 1 ? 'Varios' : ($grp->proveedores[0] ?? 'Proveedor')); ?></td>
+                                            <td class="p-2 text-center"><?php echo e($grp->cantidad_total); ?></td>
                                         </tr>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </tbody>
                                 </table>
-                                @else
+                                <?php else: ?>
                                 <div class="text-gray-600 text-sm">No hay líneas distribuidas pendientes.</div>
-                                @endif
+                                <?php endif; ?>
                             </div>
                             <div class="flex justify-end gap-3 px-6 py-4 border-t">
                                 <button type="button" id="btn-cancelar-undo" class="px-4 py-2 border rounded">Cancelar</button>
@@ -587,90 +608,91 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach(($ordenes ?? collect()) as $orden)
+                        <?php $__currentLoopData = ($ordenes ?? collect()); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $orden): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <tr class="border-t">
-                            <td class="p-3">{{ $loop->iteration }}</td>
-                            <td class="p-3">{{ $orden->order_oc ?? 'N/A' }}</td>
+                            <td class="p-3"><?php echo e($loop->iteration); ?></td>
+                            <td class="p-3"><?php echo e($orden->order_oc ?? 'N/A'); ?></td>
                             <td class="p-3">
-                                @php $prov = optional($orden->ordencompraProductos->first())->proveedor; @endphp
-                                {{ $prov ? $prov->prov_name : 'Proveedor no disponible' }}
+                                <?php $prov = optional($orden->ordencompraProductos->first())->proveedor; ?>
+                                <?php echo e($prov ? $prov->prov_name : 'Proveedor no disponible'); ?>
+
                             </td>
                             <td class="p-3">
-                                @foreach($orden->ordencompraProductos as $p)
-                                    @if($p->producto)
-                                        {{ $p->producto->name_produc }} ({{ $p->total }} {{ $p->producto->unit_produc }})<br>
-                                    @else
-                                        Producto eliminado ({{ $p->total }})<br>
-                                    @endif
-                                @endforeach
+                                <?php $__currentLoopData = $orden->ordencompraProductos; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $p): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php if($p->producto): ?>
+                                        <?php echo e($p->producto->name_produc); ?> (<?php echo e($p->total); ?> <?php echo e($p->producto->unit_produc); ?>)<br>
+                                    <?php else: ?>
+                                        Producto eliminado (<?php echo e($p->total); ?>)<br>
+                                    <?php endif; ?>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </td>
-                            <td class="p-3">{{ $orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha' }}</td>
+                            <td class="p-3"><?php echo e($orden->created_at ? $orden->created_at->format('d/m/Y') : 'Sin fecha'); ?></td>
                             <td class="p-3">
-                                @php 
+                                <?php 
                                     $hasDate = !is_null($orden->date_oc);
                                     $hasObs  = !is_null($orden->observaciones);
-                                @endphp
-                                @if($hasDate || $hasObs)
+                                ?>
+                                <?php if($hasDate || $hasObs): ?>
                                     <div class="space-y-1">
                                         <div>
                                             <span class="text-gray-600 text-xs">Fecha:</span>
-                                            <span class="font-medium">{{ $hasDate ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : 'Sin fecha' }}</span>
+                                            <span class="font-medium"><?php echo e($hasDate ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : 'Sin fecha'); ?></span>
                                         </div>
                                         <div>
                                             <span class="text-gray-600 text-xs">F. Estimada:</span>
-                                            <span class="font-medium">{{ $orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : 'Sin fecha' }}</span>
+                                            <span class="font-medium"><?php echo e($orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : 'Sin fecha'); ?></span>
                                         </div>
                                         <div>
                                             <span class="text-gray-600 text-xs">Observación:</span>
-                                            <span class="font-medium">{{ $hasObs ? $orden->observaciones : 'Sin observación' }}</span>
+                                            <span class="font-medium"><?php echo e($hasObs ? $orden->observaciones : 'Sin observación'); ?></span>
                                         </div>
                                     </div>
-                                @else
-                                    <form action="{{ route('ordenes_compra.updateBasicos', $orden->id) }}" method="POST" class="oc-basicos-form flex flex-col gap-2">
-                                        @csrf
+                                <?php else: ?>
+                                    <form action="<?php echo e(route('ordenes_compra.updateBasicos', $orden->id)); ?>" method="POST" class="oc-basicos-form flex flex-col gap-2">
+                                        <?php echo csrf_field(); ?>
                                         <div class="flex flex-wrap gap-2 items-center">
-                                            <input type="date" name="date_oc" min="{{ now()->format('Y-m-d') }}"
-                                                   value="{{ $orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : '' }}"
+                                            <input type="date" name="date_oc" min="<?php echo e(now()->format('Y-m-d')); ?>"
+                                                   value="<?php echo e($orden->date_oc ? \Carbon\Carbon::parse($orden->date_oc)->format('Y-m-d') : ''); ?>"
                                                    class="border rounded p-1 text-sm" required>
                                             <input type="date" name="fecha_estimada_recepcion"
-                                                   value="{{ $orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : '' }}"
+                                                   value="<?php echo e($orden->fecha_estimada_recepcion ? \Carbon\Carbon::parse($orden->fecha_estimada_recepcion)->format('Y-m-d') : ''); ?>"
                                                    class="border rounded p-1 text-sm" required>
                                             <input type="text" name="observaciones" placeholder="Observación"
-                                                   value="{{ old('observaciones', $orden->observaciones) }}"
+                                                   value="<?php echo e(old('observaciones', $orden->observaciones)); ?>"
                                                    class="border rounded p-1 text-sm flex-1 min-w-[150px]">
                                         </div>
                                         <button type="submit" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm self-start">Guardar</button>
                                     </form>
-                                @endif
+                                <?php endif; ?>
                             </td>
                             <td class="p-3 text-center">
-                                <form action="{{ route('ordenes_compra.anular', $orden->id) }}" method="POST" class="inline">
-                                    @csrf
+                                <form action="<?php echo e(route('ordenes_compra.anular', $orden->id)); ?>" method="POST" class="inline">
+                                    <?php echo csrf_field(); ?>
                                     <button type="button" onclick="confirmarAnulacion(this)" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm">Anular</button>
                                 </form>
                             </td>
                         </tr>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </tbody>
                 </table>
 
                 <!-- Botón descargar PDF/ZIP -->
                 <div class="mt-6 text-right" id="zip-container">
-                    @php
+                    <?php
                         $estatusActual = DB::table('estatus_requisicion')
                             ->where('requisicion_id', $requisicion->id)
                             ->whereNull('deleted_at')
                             ->where('estatus', 1)
                             ->value('estatus_id');
                         $hayOrdenes = ($ordenes ?? collect())->count() > 0;
-                    @endphp
-                    <a href="{{ route('ordenes_compra.download', $requisicion->id) }}" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="{{ $hayOrdenes ? 1 : 0 }}">
+                    ?>
+                    <a href="<?php echo e(route('ordenes_compra.download', $requisicion->id)); ?>" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow" id="btn-download-zip" data-hay="<?php echo e($hayOrdenes ? 1 : 0); ?>">
                         Descargar PDF/ZIP
                     </a>
                 </div>
             </div>
-            {{-- cierre del bloque @if($requisicion) del formulario y órdenes --}}
-            @endif
+            
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -693,9 +715,9 @@
 
     // Cargar datos en DOMContentLoaded
     document.addEventListener('DOMContentLoaded', function() {
-        centros = @json($centros);
-        proveedoresMap = @json($proveedores->pluck('prov_name','id'));
-        totalConfirmadoPorProducto = @json($totalConfirmadoPorProducto ?? []);
+        centros = <?php echo json_encode($centros, 15, 512) ?>;
+        proveedoresMap = <?php echo json_encode($proveedores->pluck('prov_name', 'id'), 512) ?>;
+        totalConfirmadoPorProducto = <?php echo json_encode($totalConfirmadoPorProducto ?? [], 15, 512) ?>;
     });
 
     function agregarProducto() {
@@ -831,7 +853,7 @@
                      id="cantidad-total-${rowKey}" 
                      onchange="onCantidadTotalChange('${rowKey}')" required>
              </td>
-             <td class="p-3 text-center">{{ $prod->unit_produc ?? '-' }}</td>
+             <td class="p-3 text-center"><?php echo e($prod->unit_produc ?? '-'); ?></td>
              <td class="p-3 text-center" id="moneda-${rowKey}">${precioCurrency}</td>
              <td class="p-3 text-right whitespace-nowrap" id="precio-${rowKey}">
                 <div>${formattedOriginal}</div>
@@ -1339,9 +1361,9 @@
                 // Nota: permitir descarga aunque falten observaciones (sin alerta)
                 try {
                     showStockLoader('Generando hashes y preparando descarga...');
-                    const resp = await fetch(`{{ route('ordenes_compra.ensure_hashes', $requisicion->id) }}`, {
+                    const resp = await fetch(`<?php echo e(route('ordenes_compra.ensure_hashes', $requisicion->id)); ?>`, {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        headers: { 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json', 'Content-Type': 'application/json' },
                         body: JSON.stringify({})
                     });
                     const data = await resp.json();
@@ -1485,10 +1507,10 @@
             }
 
             try {
-                const resp = await fetch(`{{ route('ordenes_compra.distribuirProveedores') }}`, {
+                const resp = await fetch(`<?php echo e(route('ordenes_compra.distribuirProveedores')); ?>`, {
                     method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ producto_id: prodId, requisicion_id: {{ $requisicion->id }}, distribucion: distribucionData, comentario: null })
+                    headers: { 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ producto_id: prodId, requisicion_id: <?php echo e($requisicion->id); ?>, distribucion: distribucionData, comentario: null })
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar la distribución');
@@ -1557,10 +1579,10 @@
 
             if (confirm.isConfirmed) {
                 try {
-                    const resp = await fetch(`{{ route('ordenes_compra.undoDistribucion') }}`, {
+                    const resp = await fetch(`<?php echo e(route('ordenes_compra.undoDistribucion')); ?>`, {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ requisicion_id: {{ $requisicion->id }}, ocp_ids: idsSeleccionados, comentario: null })
+                        headers: { 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ requisicion_id: <?php echo e($requisicion->id); ?>, ocp_ids: idsSeleccionados, comentario: null })
                     });
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.message || 'Error al deshacer distribución');
@@ -1678,11 +1700,11 @@
     
 
     // Si el servidor creó la orden y devolvió el hash en sesión, descargarlo automáticamente
-    @if(session('created_hash'))
+    <?php if(session('created_hash')): ?>
     (function(){
         try {
-            const hash = {!! json_encode(session('created_hash')) !!};
-            const orderId = {!! json_encode(session('created_order_id') ?? '') !!};
+            const hash = <?php echo json_encode(session('created_hash')); ?>;
+            const orderId = <?php echo json_encode(session('created_order_id') ?? ''); ?>;
             const filename = orderId ? `orden_${orderId}_validation_hash.txt` : 'validation_hash.txt';
             const content = `Validation Hash: ${hash}\nOrder ID: ${orderId || 'N/A'}\nGenerated: ${new Date().toISOString()}`;
             const blob = new Blob([content], { type: 'text/plain' });
@@ -1699,14 +1721,14 @@
             console.error('Error descargando hash:', e);
         }
     })();
-    @endif
+    <?php endif; ?>
 
     // CACHE + helper para obtener tasa de cambio en tiempo real usando open.er-api.com (sin API key)
     const exchangeCache = {};
     const exchangeBaseCache = {}; // cache completo por base (rates map)
 
     // Seed TRM desde servidor: objeto con filas recientes de la tabla `trm`
-    const serverTrmRows = @json($trmLatest ?? []);
+    const serverTrmRows = <?php echo json_encode($trmLatest ?? [], 15, 512) ?>;
     // trmMap: moneda => price (units per 1 USD)
     const trmMap = {};
     try { (serverTrmRows || []).forEach(r => { if (r && r.moneda) trmMap[String(r.moneda).toUpperCase()] = Number(r.price); }); } catch(e) { /* noop */ }
@@ -1958,4 +1980,5 @@
         if (typeof window.handleSelectProv === 'function') return window.handleSelectProv();
      });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\Requisicion\resources\views/ordenes_compra/create.blade.php ENDPATH**/ ?>

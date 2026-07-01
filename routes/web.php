@@ -44,16 +44,7 @@ Route::get('/estadisticas-requisiciones', [EstatusRequisicionController::class, 
 // Rutas protegidas
 Route::middleware([AuthSession::class])->group(function () {
 
-    //  RUTAS DE APROBACIÓN DE REQUISICIONES 
-    // Panel de aprobación de requisiciones
-    Route::get('/requisiciones/aprobacion', [EstatusRequisicionController::class, 'index'])
-        ->name('requisiciones.aprobacion')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
-
-    // Actualizar estatus
-    Route::post('/requisiciones/{requisicionId}/estatus', [EstatusRequisicionController::class, 'updateStatus'])
-        ->name('requisiciones.estatus.update')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
+    // (Aprobaciones removidas) -- routes para revisión/aprobación eliminadas intencionalmente.
 
     // Obtener detalles
     Route::get('/requisiciones/{id}/detalles', [EstatusRequisicionController::class, 'getRequisicionDetails'])
@@ -327,14 +318,7 @@ Route::middleware([AuthSession::class])->group(function () {
     Route::get('/centros/bodegas/get-subcentros', [\App\Http\Controllers\centros\BodegaController::class, 'getSubcentros'])->name('centros.bodegas.getSubcentros');
     Route::get('/centros/bodegas/usuarios', [\App\Http\Controllers\centros\BodegaController::class, 'getUsuariosBodega'])->name('centros.bodegas.usuarios');
 
-    // Rutas para gestión de aprobadores por centro (vista y store) — delegadas a controller
-    Route::get('/requisiciones/gestor-aprobadores', [AprobadoresController::class, 'index'])
-        ->name('requisiciones.aprobadores.gestor')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
-
-    Route::post('/requisiciones/aprobadores', [AprobadoresController::class, 'store'])
-        ->name('requisiciones.aprobadores.store')
-        ->middleware(CheckPermission::class . ':aprobar requisicion');
+    // (Aprobadores removidos) -- gestión de aprobadores eliminada.
 
     // Rutas para Módulo de Inventarios
     Route::prefix('inventario')->name('inventario.')->group(function () {

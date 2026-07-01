@@ -26,7 +26,7 @@
 
                     <p style="margin:16px 0 0 0;">Revisar la requisición en el sistema:</p>
                     <p style="margin:8px 0 0 0;">
-                        <a href="{{ route('requisiciones.aprobacion') }}" style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">Ver Requisición</a>
+                        <a href="{{ route('requisiciones.show', $requisicion->id) }}" style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">Ver Requisición</a>
                     </p>
                 </div>
             </td>

@@ -31,9 +31,9 @@
 
                     <p style="margin:16px 0 0 0;">Accede con los siguientes enlaces:</p>
                     <p style="margin:8px 0 0 0;">
-                        <a href="{{ $panelUrl ?? url('/requisiciones/aprobacion') }}" 
+                        <a href="{{ route('requisiciones.show', $requisicion->id) }}" 
                            style="display:inline-block; background:#1e40af; color:#ffffff; text-decoration:none; padding:10px 16px; border-radius:6px; font-weight:bold;">
-                            Ir al panel
+                            Ver requisición
                         </a>
                     </p>
 

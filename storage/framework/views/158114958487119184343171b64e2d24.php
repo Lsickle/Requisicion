@@ -4,7 +4,7 @@
         class="bg-slate-200 text-blue-900 border-b border-slate-300 px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
         <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
-            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics"
+            <img src="<?php echo e(asset('images/VigiaLogoC.png')); ?>" alt="Vigía Plus Logistics"
                 class="mx-auto h-9 w-auto object-contain rounded-lg drop-shadow">
         </div>
     </nav>
@@ -16,150 +16,150 @@
 
         <!-- Opciones -->
         <ul class="list-none p-0 m-0 flex-1 overflow-y-auto text-sm pr-1 pb-8 divide-y divide-blue-900/30">
-            @php
+            <?php
             $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
             $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
             $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
             $isAdmin = count(array_filter($roles, fn($r) => strpos($r, 'admin') !== false)) > 0;
-            @endphp
+            ?>
 
             <li>
-                <a href="{{ route('requisiciones.menu') }}"
+                <a href="<?php echo e(route('requisiciones.menu')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Menú</a>
             </li>
 
-            @if($hasPermission('crear requisicion'))
+            <?php if($hasPermission('crear requisicion')): ?>
             <li>
-                <a href="{{ route('requisiciones.create') }}"
+                <a href="<?php echo e(route('requisiciones.create')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
                     Requisición</a>
             </li>
-            @endif
+            <?php endif; ?>
             
-            @if($hasPermission('Especial'))
+            <?php if($hasPermission('Especial')): ?>
             <li>
-                <a href="{{ route('requisiciones.especial') }}"
+                <a href="<?php echo e(route('requisiciones.especial')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
                     Requisición Especial</a>
             </li>
-            @endif
+            <?php endif; ?>
 
             <!-- Link a panel de aprobaciones removido (workflow eliminado) -->
 
-            @if($hasPermission('ver requisicion'))
+            <?php if($hasPermission('ver requisicion')): ?>
             <li>
-                <a href="{{ route('requisiciones.historial') }}"
+                <a href="<?php echo e(route('requisiciones.historial')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
                     de mis Requisiciones</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('solicitar producto'))
+            <?php if($hasPermission('solicitar producto')): ?>
             <li>
-                <a href="{{ route('productos.nuevoproducto')}}"
+                <a href="<?php echo e(route('productos.nuevoproducto')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Solicitar
                     nuevo producto</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('crear oc'))
+            <?php if($hasPermission('crear oc')): ?>
             <li>
-                <a href="{{ route('ordenes_compra.lista') }}"
+                <a href="<?php echo e(route('ordenes_compra.lista')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Generar
                     Orden de Compra</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver oc'))
+            <?php if($hasPermission('ver oc')): ?>
             <li>
-                <a href="{{ route('ordenes_compra.historial') }}"
+                <a href="<?php echo e(route('ordenes_compra.historial')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
                     de Órdenes de Compra</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver oc') || $hasPermission('crear requisicion'))
+            <?php if($hasPermission('ver oc') || $hasPermission('crear requisicion')): ?>
             <li>
-                <a href="{{ route('recepciones.create') }}"
+                <a href="<?php echo e(route('recepciones.create')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Recepción
                     de Órdenes de Compra</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('total requisiciones'))
+            <?php if($hasPermission('total requisiciones')): ?>
             <li>
-                <a href="{{ route('requisiciones.todas') }}"
+                <a href="<?php echo e(route('requisiciones.todas')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Todas las
                     requisiciones</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('verificar pdf'))
+            <?php if($hasPermission('verificar pdf')): ?>
             <li>
-                <a href="{{ route('ordenes.verify_upload') }}"
+                <a href="<?php echo e(route('ordenes.verify_upload')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Verificar
                     PDF de OC</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver producto'))
+            <?php if($hasPermission('ver producto')): ?>
             <li>
-                <a href="{{ route('productos.gestor')}}"
+                <a href="<?php echo e(route('productos.gestor')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">gestión de productos</a>
             </li>
-            @endif
+            <?php endif; ?>
 
             <li>
-                <a href="{{ route('productos.lista') }}"
+                <a href="<?php echo e(route('productos.lista')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Lista de productos</a>
             </li>
             
-            @if($hasPermission('Centros') || $isAdmin)
+            <?php if($hasPermission('Centros') || $isAdmin): ?>
             <li>
-                <a href="{{ route('centros.index') }}"
+                <a href="<?php echo e(route('centros.index')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Gestión de Centros</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('Subcentros') || $isAdmin)
+            <?php if($hasPermission('Subcentros') || $isAdmin): ?>
             <li>
-                <a href="{{ route('centros.user_subcentros.index') }}"
+                <a href="<?php echo e(route('centros.user_subcentros.index')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Asignar Subcentros</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin)
+            <?php if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin): ?>
             <li>
-                <a href="{{ route('inventario.index') }}"
+                <a href="<?php echo e(route('inventario.index')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Inventario de Bodega</a>
             </li>
             <li>
-                <a href="{{ route('inventario.transferencia.index') }}"
+                <a href="<?php echo e(route('inventario.transferencia.index')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Transferencia</a>
             </li>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('inventario solicitante') || $hasPermission('ver inventario') || $isAdmin)
+            <?php if($hasPermission('inventario solicitante') || $hasPermission('ver inventario') || $isAdmin): ?>
             <li>
-                <a href="{{ route('salida_stock.index') }}"
+                <a href="<?php echo e(route('salida_stock.index')); ?>"
                     class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Salida de Stock</a>
             </li>
-            @endif
+            <?php endif; ?>
         </ul>
 
         <!-- Información del usuario (fijo abajo) -->
         <div class="mt-auto px-4 py-6 md:py-7 border-t border-blue-800 bg-blue-900/90 backdrop-blur text-sm">
-            @if(Session::has('user'))
+            <?php if(Session::has('user')): ?>
             <div>
-                <p class="font-semibold text-white truncate">{{ Session::get('user')['name'] ?? 'Usuario' }}</p>
-                <p class="text-blue-200 text-xs truncate">{{ Session::get('user')['email'] ?? '' }}</p>
+                <p class="font-semibold text-white truncate"><?php echo e(Session::get('user')['name'] ?? 'Usuario'); ?></p>
+                <p class="text-blue-200 text-xs truncate"><?php echo e(Session::get('user')['email'] ?? ''); ?></p>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- Botón de Cerrar Sesión -->
             <div class="mt-4">
                 <form id="logoutForm" action="/logout" method="POST">
-                    @csrf
+                    <?php echo csrf_field(); ?>
                     <button type="button" id="logoutBtn"
                         class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white font-semibold text-sm no-underline hover:no-underline">
                         Cerrar sesión
@@ -213,7 +213,7 @@
                 fetch('/logout', {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>',
                         'Accept': 'application/json'
                     },
                     credentials: 'same-origin'
@@ -266,4 +266,4 @@
 /* divisores (tailwind divide-y) y cualquier hr dentro del sidebar */
 #sidebar hr { border-color: rgba(255,255,255,0.18) !important; }
 #sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.18) !important; }
-</style>
+</style><?php /**PATH C:\laragon\www\Requisicion\resources\views/components/sidebar.blade.php ENDPATH**/ ?>

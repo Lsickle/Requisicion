@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('title', 'Menu')
+<?php $__env->startSection('title', 'Menu'); ?>
 
 <!-- Tailwind CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
@@ -26,19 +24,38 @@
     .menu-card a:focus-visible { box-shadow:0 0 0 3px rgba(99,102,241,.4); }
 </style>
 
-@section('content')
-    <x-sidebar/>
+<?php $__env->startSection('content'); ?>
+    <?php if (isset($component)) { $__componentOriginal2880b66d47486b4bfeaf519598a469d6 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal2880b66d47486b4bfeaf519598a469d6 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.sidebar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('sidebar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $attributes = $__attributesOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $component = $__componentOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__componentOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
 
     <div class="container mx-auto px-4 py-8">
         <div class="mt-11 grid gap-6 menu-grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] justify-center place-items-center max-w-7xl mx-auto">
-            @php
+            <?php
                 $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
                 $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
                 $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
                 $isAdmin = count(array_filter($roles, fn($r) => strpos($r, 'admin') !== false)) > 0;
-            @endphp
+            ?>
 
-            @if($hasPermission('crear requisicion'))
+            <?php if($hasPermission('crear requisicion')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-blue-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -47,11 +64,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Crear Requisiciones</h3>
                     <p class="text-gray-600 mb-4">Genera nuevas solicitudes de materiales o servicios</p>
                 </div>
-                <a href="{{ route('requisiciones.create') }}" class="text-center inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg">Crear Nueva</a>
+                <a href="<?php echo e(route('requisiciones.create')); ?>" class="text-center inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg">Crear Nueva</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('Especial'))
+            <?php if($hasPermission('Especial')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-fuchsia-600 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-fuchsia-100 rounded-full flex items-center justify-center mb-4 relative">
@@ -60,13 +77,13 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Requisición Especial</h3>
                     <p class="text-gray-600 mb-4">Crear solicitud exclusiva para servicios o alquiler</p>
                 </div>
-                <a href="{{ route('requisiciones.especial') }}" class="text-center inline-block bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-medium py-2 px-6 rounded-lg">Crear Especial</a>
+                <a href="<?php echo e(route('requisiciones.especial')); ?>" class="text-center inline-block bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-medium py-2 px-6 rounded-lg">Crear Especial</a>
             </div>
-            @endif
+            <?php endif; ?>
 
             <!-- Aprobación: removido del menú (workflow eliminado) -->
 
-            @if($hasPermission('solicitar producto'))
+            <?php if($hasPermission('solicitar producto')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-purple-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
@@ -75,11 +92,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Solicitar Nuevo Producto</h3>
                     <p class="text-gray-600 mb-4">Solicita la adición de nuevos productos al catálogo</p>
                 </div>
-                <a href="{{ route('productos.nuevoproducto') }}" class="text-center inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg">Solicitar</a>
+                <a href="<?php echo e(route('productos.nuevoproducto')); ?>" class="text-center inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg">Solicitar</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver requisicion'))
+            <?php if($hasPermission('ver requisicion')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-green-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -88,11 +105,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Requisiciones</h3>
                     <p class="text-gray-600 mb-4">Consulta y gestiona todas las solicitudes existentes</p>
                 </div>
-                <a href="{{ route('requisiciones.historial') }}" class="text-center inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg">Ver Listado</a>
+                <a href="<?php echo e(route('requisiciones.historial')); ?>" class="text-center inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg">Ver Listado</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('total requisiciones'))
+            <?php if($hasPermission('total requisiciones')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-sky-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mb-4">
@@ -101,11 +118,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Todas las Requisiciones</h3>
                     <p class="text-gray-600 mb-4">Visualiza todas las requisiciones del sistema</p>
                 </div>
-                <a href="{{ route('requisiciones.todas') }}" class="text-center inline-block bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 px-6 rounded-lg">Ver Todas</a>
+                <a href="<?php echo e(route('requisiciones.todas')); ?>" class="text-center inline-block bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 px-6 rounded-lg">Ver Todas</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('crear oc'))
+            <?php if($hasPermission('crear oc')): ?>
             <div class="menu-card w-full max-w-sm min-h-[300px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-yellow-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
@@ -114,11 +131,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Generar Orden de Compra</h3>
                     <p class="text-gray-600 mb-4">Crea nuevas órdenes de compra</p>
                 </div>
-                <a href="{{ route('ordenes_compra.lista') }}" class="text-center inline-block bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg">Crear OC</a>
+                <a href="<?php echo e(route('ordenes_compra.lista')); ?>" class="text-center inline-block bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg">Crear OC</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver oc'))
+            <?php if($hasPermission('ver oc')): ?>
             <div class="menu-card w-full max-w-sm min-h-[300px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-orange-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
@@ -127,7 +144,7 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Historial de Órdenes de Compra</h3>
                     <p class="text-gray-600 mb-4">Consulta todas las órdenes de compra generadas</p>
                 </div>
-                <a href="{{ route('ordenes_compra.historial') }}" class="text-center inline-block bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-6 rounded-lg">Ver Listado</a>
+                <a href="<?php echo e(route('ordenes_compra.historial')); ?>" class="text-center inline-block bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-6 rounded-lg">Ver Listado</a>
             </div>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
@@ -137,11 +154,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Verificar PDF de OC</h3>
                     <p class="text-gray-600 mb-4">Sube un PDF para verificar su hash frente al almacenado</p>
                 </div>
-                <a href="{{ route('ordenes.verify_upload') }}" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Verificar PDF</a>
+                <a href="<?php echo e(route('ordenes.verify_upload')); ?>" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Verificar PDF</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver producto'))
+            <?php if($hasPermission('ver producto')): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mb-4">
@@ -150,9 +167,9 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Ver Productos</h3>
                     <p class="text-gray-600 mb-4">Consulta todos los productos disponibles</p>
                 </div>
-                <a href="{{ route('productos.gestor')}}" class="text-center inline-block bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-6 rounded-lg">Ver Productos</a>
+                <a href="<?php echo e(route('productos.gestor')); ?>" class="text-center inline-block bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-6 rounded-lg">Ver Productos</a>
             </div>
-            @endif
+            <?php endif; ?>
 
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-teal-400 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
@@ -162,10 +179,10 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Lista de Productos</h3>
                     <p class="text-gray-600 mb-4">Visualiza la lista completa de productos disponibles en el sistema</p>
                 </div>
-                <a href="{{ route('productos.lista') }}" class="text-center inline-block bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-6 rounded-lg">Ver Lista</a>
+                <a href="<?php echo e(route('productos.lista')); ?>" class="text-center inline-block bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-6 rounded-lg">Ver Lista</a>
             </div>
 
-            @if($hasPermission('Centros') || $isAdmin)
+            <?php if($hasPermission('Centros') || $isAdmin): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-indigo-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
@@ -174,11 +191,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Gestión de Centros</h3>
                     <p class="text-gray-600 mb-4">Administra centros y subcentros de costo</p>
                 </div>
-                <a href="{{ route('centros.index') }}" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Ir a Gestión</a>
+                <a href="<?php echo e(route('centros.index')); ?>" class="text-center inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Ir a Gestión</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('Subcentros') || $isAdmin)
+            <?php if($hasPermission('Subcentros') || $isAdmin): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-rose-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4">
@@ -189,9 +206,9 @@
                 </div>
                 <a href="/centros/user_subcentros" class="text-center inline-block bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 px-6 rounded-lg">Ir a Subcentros</a>
             </div>
-            @endif
+            <?php endif; ?>
 
-            @if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin)
+            <?php if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin): ?>
             <div class="menu-card w-full max-w-sm min-h-[315px] rounded-xl shadow-lg transition-all duration-300 p-6 border border-gray-200 hover:shadow-2xl hover:scale-105 hover:border-emerald-500 flex flex-col justify-between">
                 <div class="flex flex-col items-center text-center w-full">
                     <div class="menu-icon w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
@@ -200,10 +217,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">Inventario de Bodega</h3>
                     <p class="text-gray-600 mb-4">Consulta y gestiona el inventario de tu bodega</p>
                 </div>
-                <a href="{{ route('inventario.index') }}" class="text-center inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg">Ver Inventario</a>
+                <a href="<?php echo e(route('inventario.index')); ?>" class="text-center inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg">Ver Inventario</a>
             </div>
-            @endif
+            <?php endif; ?>
 
         </div>
         </div>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\Requisicion\resources\views/requisiciones/menu.blade.php ENDPATH**/ ?>

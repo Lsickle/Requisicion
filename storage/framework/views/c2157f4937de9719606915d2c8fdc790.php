@@ -1,14 +1,12 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', 'Transferencia de Inventario'); ?>
 
-@section('title', 'Transferencia de Inventario')
-
-@php
+<?php
 $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
 $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
 $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
 $isVerTodas = count(array_filter($roles, fn($r) => in_array($r, ['compras', 'admin'], true))) > 0;
 $userName = session('user.name') ?? session('user_email') ?? '';
-@endphp
+?>
 
 <style>
 .modal-overlay { background-color: rgba(0,0,0,0.5); }
@@ -74,8 +72,27 @@ $userName = session('user.name') ?? session('user_email') ?? '';
 }
 </style>
 
-@section('content')
-<x-sidebar />
+<?php $__env->startSection('content'); ?>
+<?php if (isset($component)) { $__componentOriginal2880b66d47486b4bfeaf519598a469d6 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal2880b66d47486b4bfeaf519598a469d6 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.sidebar','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('sidebar'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $attributes = $__attributesOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__attributesOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal2880b66d47486b4bfeaf519598a469d6)): ?>
+<?php $component = $__componentOriginal2880b66d47486b4bfeaf519598a469d6; ?>
+<?php unset($__componentOriginal2880b66d47486b4bfeaf519598a469d6); ?>
+<?php endif; ?>
 
 <div class="container mx-auto px-4 py-8 max-w-6xl">
     <div class="flex items-center justify-between mb-6">
@@ -106,41 +123,43 @@ $userName = session('user.name') ?? session('user_email') ?? '';
                 </tr>
             </thead>
             <tbody>
-                @forelse($transferencias as $t)
+                <?php $__empty_1 = true; $__currentLoopData = $transferencias; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $t): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                 <tr class="border-b">
-                    <td class="px-4 py-3">{{ $t->created_at->format('d/m/Y H:i') }}</td>
-                    <td class="px-4 py-3">{{ $t->bodegaOrigen->name_centro ?? 'N/A' }}</td>
-                    <td class="px-4 py-3">{{ $t->bodegaDestino->name_centro ?? 'N/A' }}</td>
-                    <td class="px-4 py-3">{{ $t->producto->name_produc ?? 'N/A' }}</td>
-                    <td class="px-4 py-3 text-center font-bold">{{ $t->cantidad }}</td>
+                    <td class="px-4 py-3"><?php echo e($t->created_at->format('d/m/Y H:i')); ?></td>
+                    <td class="px-4 py-3"><?php echo e($t->bodegaOrigen->name_centro ?? 'N/A'); ?></td>
+                    <td class="px-4 py-3"><?php echo e($t->bodegaDestino->name_centro ?? 'N/A'); ?></td>
+                    <td class="px-4 py-3"><?php echo e($t->producto->name_produc ?? 'N/A'); ?></td>
+                    <td class="px-4 py-3 text-center font-bold"><?php echo e($t->cantidad); ?></td>
                     <td class="px-4 py-3 text-center">
                         <span class="px-2 py-1 rounded-full text-xs font-bold 
-                            @if($t->estado == 'aprobado') bg-green-100 text-green-800
-                            @elseif($t->estado == 'pendiente') bg-yellow-100 text-yellow-800
-                            @else bg-red-100 text-red-800 @endif">
-                            {{ $t->estado }}
+                            <?php if($t->estado == 'aprobado'): ?> bg-green-100 text-green-800
+                            <?php elseif($t->estado == 'pendiente'): ?> bg-yellow-100 text-yellow-800
+                            <?php else: ?> bg-red-100 text-red-800 <?php endif; ?>">
+                            <?php echo e($t->estado); ?>
+
                         </span>
                     </td>
                     <td class="px-4 py-3 text-center">
-                        <button onclick="verPdf({{ $t->id }})" class="text-blue-600 hover:text-blue-800">
+                        <button onclick="verPdf(<?php echo e($t->id); ?>)" class="text-blue-600 hover:text-blue-800">
                             <i class="fas fa-file-pdf text-xl"></i>
                         </button>
                     </td>
                 </tr>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                 <tr>
                     <td colspan="7" class="px-4 py-8 text-center text-gray-400">
                         No hay transferencias registradas.
                     </td>
                 </tr>
-                @endforelse
+                <?php endif; ?>
             </tbody>
         </table>
-        @if($transferencias->hasPages())
+        <?php if($transferencias->hasPages()): ?>
         <div class="px-4 py-3 border-t">
-            {!! $transferencias->links() !!}
+            <?php echo $transferencias->links(); ?>
+
         </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
 
@@ -162,9 +181,9 @@ $userName = session('user.name') ?? session('user_email') ?? '';
                             <label class="block text-sm font-medium text-gray-600">Operación origen *</label>
                             <select id="bodega_origen" class="w-full border rounded px-3 py-2" onchange="cargarInventarioOrigen()">
                                 <option value="">-- Seleccionar operación --</option>
-                                @foreach($subcentros as $sc)
-                                <option value="{{ $sc->id }}" data-bodega="{{ $sc->centro->name_centro ?? 'N/A' }}">{{ $sc->name_subcentro }} ({{ $sc->centro->name_centro ?? 'N/A' }})</option>
-                                @endforeach
+                                <?php $__currentLoopData = $subcentros; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($sc->id); ?>" data-bodega="<?php echo e($sc->centro->name_centro ?? 'N/A'); ?>"><?php echo e($sc->name_subcentro); ?> (<?php echo e($sc->centro->name_centro ?? 'N/A'); ?>)</option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
                         </div>
                         <div>
@@ -180,7 +199,7 @@ $userName = session('user.name') ?? session('user_email') ?? '';
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600">Nombre completo *</label>
-                            <input type="text" id="nombre_origen" value="{{ $userName }}" class="w-full border rounded px-3 py-2">
+                            <input type="text" id="nombre_origen" value="<?php echo e($userName); ?>" class="w-full border rounded px-3 py-2">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600">Cedula *</label>
@@ -211,9 +230,9 @@ $userName = session('user.name') ?? session('user_email') ?? '';
                             <label class="block text-sm font-medium text-gray-600">Operación destino *</label>
                             <select id="bodega_destino" class="w-full border rounded px-3 py-2" onchange="cargarInventarioDestino()">
                                 <option value="">-- Seleccionar operación --</option>
-                                @foreach($subcentros as $sc)
-                                <option value="{{ $sc->id }}" data-bodega="{{ $sc->centro->name_centro ?? 'N/A' }}">{{ $sc->name_subcentro }} ({{ $sc->centro->name_centro ?? 'N/A' }})</option>
-                                @endforeach
+                                <?php $__currentLoopData = $subcentros; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sc): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($sc->id); ?>" data-bodega="<?php echo e($sc->centro->name_centro ?? 'N/A'); ?>"><?php echo e($sc->name_subcentro); ?> (<?php echo e($sc->centro->name_centro ?? 'N/A'); ?>)</option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </select>
                         </div>
                         <div>
@@ -279,7 +298,7 @@ $userName = session('user.name') ?? session('user_email') ?? '';
 </div>
 
 <script>
-var productosData = @json($productos->map(fn($p) => ['id' => $p->id, 'nombre' => $p->name_produc, 'sku' => $p->sku]));
+var productosData = <?php echo json_encode($productos->map(fn($p) => ['id' => $p->id, 'nombre' => $p->name_produc, 'sku' => $p->sku])) ?>;
 
 function abrirModal() {
     document.getElementById('modal-transferencia').classList.remove('hidden');
@@ -601,4 +620,5 @@ function cerrarPdf() {
     document.getElementById('modal-pdf').classList.add('hidden');
 }
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\Requisicion\resources\views/inventario/transferencia.blade.php ENDPATH**/ ?>

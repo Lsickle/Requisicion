@@ -157,14 +157,14 @@ provienen del controlador.
 
         <!-- Filtro de categoría y Cantidad (movido arriba) -->
         <div class="grid grid-cols-3 gap-4 items-end mb-4">
-            <div class="relative">
+            <div>
                 <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-                <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2"
-                    placeholder="Escribe o selecciona una categoría">
-                <div id="categoriasList"
-                    class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
-                    {!! $categoriasOptionsHtml !!}
-                </div>
+                <select id="categoriaFilter" class="w-full border rounded-lg p-2">
+                    <option value="">-- Todas las categorías --</option>
+                    @foreach($categoriasListaFiltrada as $cat)
+                        <option value="{{ $cat }}">{{ $cat }}</option>
+                    @endforeach
+                </select>
             </div>
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>

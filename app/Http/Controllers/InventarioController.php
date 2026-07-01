@@ -108,6 +108,55 @@ class InventarioController extends Controller
         return !empty($misSubcentroIds);
     }
 
+    private function obtenerTodasLasBodegasConOperaciones(): array
+    {
+        $centros = Centro::whereNull('deleted_at')
+            ->with('subcentros')
+            ->orderBy('name_centro')
+            ->get();
+
+        $resultado = [];
+        foreach ($centros as $centro) {
+            $subcentros = $centro->subcentros()
+                ->whereNull('deleted_at')
+                ->orderBy('name_subcentro')
+                ->get();
+
+            $operaciones = [];
+            $totalProductosEnBodega = 0;
+            $totalUnidadesEnBodega = 0;
+
+            foreach ($subcentros as $subcentro) {
+                $inventarioSubcentro = InventarioBodega::where('subcentro_id', $subcentro->id)
+                    ->where('cantidad', '>', 0)
+                    ->get();
+
+                $cantidadProductos = $inventarioSubcentro->count();
+                $cantidadUnidades = $inventarioSubcentro->sum('cantidad');
+
+                $operaciones[] = [
+                    'id' => $subcentro->id,
+                    'nombre' => $subcentro->name_subcentro,
+                    'cantidadProductos' => $cantidadProductos,
+                    'cantidadUnidades' => $cantidadUnidades,
+                ];
+
+                $totalProductosEnBodega += $cantidadProductos;
+                $totalUnidadesEnBodega += $cantidadUnidades;
+            }
+
+            $resultado[] = [
+                'id' => $centro->id,
+                'nombre' => $centro->name_centro,
+                'operaciones' => $operaciones,
+                'totalProductos' => $totalProductosEnBodega,
+                'totalUnidades' => $totalUnidadesEnBodega,
+            ];
+        }
+
+        return $resultado;
+    }
+
     public function index(Request $request): View
     {
         $verTodas = $this->puedeVerTodas();
@@ -123,6 +172,8 @@ class InventarioController extends Controller
         $miSubcentro = null;
         $bodegaActual = null;
         $subcentroActual = null;
+        $todasLasBodegas = [];
+        $mostrarResumen = false;
 
         if ($verTodas) {
             $todosLosSubcentros = Subcentro::with('centro')
@@ -136,8 +187,13 @@ class InventarioController extends Controller
                     'bodega_id' => $sc->centro_id,
                     'bodega_nombre' => $sc->centro->name_centro ?? null,
                 ]);
-                
-            if ($subcentroSeleccionado) {
+
+            // Si no hay selección específica, mostrar resumen de todas las bodegas
+            if (!$subcentroSeleccionado && !$bodegaSeleccionada) {
+                $mostrarResumen = true;
+                $todasLasBodegas = $this->obtenerTodasLasBodegasConOperaciones();
+                $inventario = collect();
+            } elseif ($subcentroSeleccionado) {
                 $subcentro = Subcentro::with('centro')->find($subcentroSeleccionado);
                 if ($subcentro) {
                     $inventario = InventarioBodega::where('subcentro_id', $subcentroSeleccionado)
@@ -156,18 +212,6 @@ class InventarioController extends Controller
                 $bodegaActual = Centro::find($bodegaSeleccionada);
             } else {
                 $inventario = collect();
-                if ($todosLosSubcentros->isNotEmpty()) {
-                    $primerSubcentroId = $todosLosSubcentros->first()['id'];
-                    $subcentro = Subcentro::with('centro')->find($primerSubcentroId);
-                    if ($subcentro) {
-                        $inventario = InventarioBodega::where('subcentro_id', $primerSubcentroId)
-                            ->with('producto')
-                            ->orderBy('cantidad', 'desc')
-                            ->get();
-                        $subcentroActual = $subcentro;
-                        $bodegaActual = $subcentro->centro;
-                    }
-                }
             }
         } elseif (!empty($misSubcentroIds)) {
             if ($subcentroSeleccionado && in_array($subcentroSeleccionado, $misSubcentroIds)) {
@@ -234,6 +278,8 @@ class InventarioController extends Controller
             'subcentroActual' => $subcentroActual,
             'todosLosSubcentros' => $todosLosSubcentros,
             'productosMap' => $productosMap,
+            'todasLasBodegas' => $todasLasBodegas,
+            'mostrarResumen' => $mostrarResumen,
         ]);
     }
 
