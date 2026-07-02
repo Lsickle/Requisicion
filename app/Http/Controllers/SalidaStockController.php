@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Entrega;
 use App\Models\Producto;
+use App\Models\InventarioBodega;
 use App\Models\Requisicion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,9 +20,20 @@ class SalidaStockController extends Controller
         $productos = collect();
         
         if ($userSubcentroId) {
-            $productos = Producto::where('stock_produc', '>', 0)
-                ->orderBy('name_produc')
-                ->get();
+            // Obtener productos según inventario del subcentro del usuario
+            $productos = InventarioBodega::where('subcentro_id', $userSubcentroId)
+                ->where('cantidad', '>', 0)
+                ->with('producto')
+                ->get()
+                ->map(function($inv) {
+                    return (object)[
+                        'id' => $inv->producto->id,
+                        'name_produc' => $inv->producto->name_produc,
+                        'stock_produc' => $inv->cantidad,
+                        'unit_produc' => $inv->producto->unit_produc,
+                        'categoria_produc' => $inv->producto->categoria_produc ?? null,
+                    ];
+                });
         }
         
         return view('salida_stock.index', compact('productos'));
@@ -35,13 +47,31 @@ class SalidaStockController extends Controller
             return response()->json([]);
         }
         
-        $productos = Producto::where('stock_produc', '>', 0)
-            ->where(function($q) use ($query) {
+        $userSubcentroId = session('user.subcentro_id');
+
+        if (!$userSubcentroId) {
+            return response()->json([]);
+        }
+
+        // Buscar en el inventario del subcentro del usuario
+        $productos = InventarioBodega::where('subcentro_id', $userSubcentroId)
+            ->where('cantidad', '>', 0)
+            ->whereHas('producto', function($q) use ($query) {
                 $q->where('name_produc', 'like', "%{$query}%")
                   ->orWhere('categoria_produc', 'like', "%{$query}%");
             })
+            ->with('producto')
             ->limit(20)
-            ->get(['id', 'name_produc', 'stock_produc', 'unit_produc', 'categoria_produc']);
+            ->get()
+            ->map(function($inv) {
+                return [
+                    'id' => $inv->producto->id,
+                    'name_produc' => $inv->producto->name_produc,
+                    'stock_produc' => $inv->cantidad,
+                    'unit_produc' => $inv->producto->unit_produc,
+                    'categoria_produc' => $inv->producto->categoria_produc ?? null,
+                ];
+            })->values();
         
         return response()->json($productos);
     }

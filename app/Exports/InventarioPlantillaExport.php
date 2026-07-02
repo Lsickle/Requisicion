@@ -11,7 +11,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class InventarioPlantillaExport implements FromArray, WithHeadings, WithColumnWidths, WithStyles
+class InventarioPlantillaExport implements FromArray, WithColumnWidths, WithStyles
 {
     private $operacionNombre;
 
@@ -24,21 +24,18 @@ class InventarioPlantillaExport implements FromArray, WithHeadings, WithColumnWi
     {
         return [
             // Fila de instrucciones
-            ['INSTRUCCIONES: Completar los campos obligatorios marcados con *'],
+            ['INSTRUCCIONES: Completa los campos obligatorios marcados con * - Ejemplos abajo'],
             [],
-            // Encabezados
+            // Encabezados (fila de referencia para el usuario)
+            ['Producto *', 'SKU', 'Unidad', 'Cantidad *'],
+            // Filas de ejemplo para guiar al usuario
+            ['LECHE 875g - Marca Ejemplo', 'URI620', 'Unidad', 10],
+            ['AZUCAR BLANCA 1kg', 'RGV657', 'Kg', 5],
+            // Fila vacía para que el usuario empiece a llenar
+            ['', '', '', ''],
         ];
     }
-
-    public function headings(): array
-    {
-        return [
-            'Producto *',
-            'SKU',
-            'Unidad',
-            'Cantidad *',
-        ];
-    }
+    
 
     public function columnWidths(): array
     {
