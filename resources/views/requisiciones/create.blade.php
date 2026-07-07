@@ -1,205 +1,196 @@
 @extends('layouts.app')
 
 @section('title', 'Crear Requisición')
+{{--
+Vista: Crear Requisición
+- Datos de prellenado ($prefillData), catálogo filtrado ($productosFiltrados) y categorías ($categoriasListaFiltrada)
+provienen del controlador.
+--}}
 @section('content')
 <x-sidebar />
-<div class="max-w-5xl mx-auto p-6 mt-20">
-    <div class="bg-white shadow-xl rounded-2xl p-6">
-        <div class="flex justify-center items-center gap-8 py-4 mb-8">
-            <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics" class="h-16 w-auto">
-            <h1 class="text-3xl font-bold text-gray-700">Crear Requisición</h1>
-        </div>
+<div class="min-h-screen">
+    <div class="max-w-5xl mx-auto p-6 mt-20">
+        <div class="bg-white/95 shadow-2xl rounded-2xl p-6 border-2 border-indigo-300 ring-1 ring-indigo-200">
+            {{-- Encabezado visual de la tarjeta (logo y título) --}}
+            <div class="flex justify-center items-center gap-6 py-4 mb-6">
+                <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics" class="h-14 w-auto">
+                <div class="flex flex-col">
+                    <h1 class="text-3xl font-extrabold text-gray-700 tracking-tight">Crear Requisición</h1>
+                </div>
+            </div>
 
-        @if (session('success'))
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Listo!',
-                    text: '{{ session('success') }}',
-                    confirmButtonText: 'OK'
-                });
+            {{-- Alertas emergentes vía SweetAlert para success y errors (renderizadas al cargar) --}}
+            @if (session('success'))
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({ icon: 'success', title: '¡Listo!', text: '{{ session('success') }}', confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
-        </script>
-        @endif
+            </script>
+            @endif
 
-        @if ($errors->any())
-        <script>
-            window.addEventListener('DOMContentLoaded', () => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    html: `{!! implode('<br>', $errors->all()) !!}`,
-                    confirmButtonText: 'OK'
-                });
+            @if ($errors->any())
+            <script>
+                window.addEventListener('DOMContentLoaded', () => {
+                Swal.fire({ icon: 'error', title: 'Error', html: `{!! implode('<br>', $errors->all()) !!}`, confirmButtonText: 'OK', confirmButtonColor: '#4f46e5' });
             });
-        </script>
-        @endif
+            </script>
+            @endif
 
-        <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
-            @csrf
+            {{-- Formulario principal: datos de cabecera y tabla de productos con distribución --}}
+            {{-- El botón "+ Añadir Producto" abre el primer modal para seleccionar y configurar el producto --}}
+            <form id="requisicionForm" action="{{ route('requisiciones.store') }}" method="POST" class="space-y-6">
+                @csrf
 
-            <!-- Campo Operación con búsqueda -->
-            <div>
-                <label class="block text-gray-600 font-semibold mb-1">Centro de costo</label>
-                <div class="relative">
-                    <input type="text" id="operacionFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona la operación" autocomplete="off" value="{{ old('operacion_user') }}">
-                    <input type="hidden" name="operacion_user" id="operacionSelect" value="{{ old('operacion_user') }}" required>
-                    <div id="operacionesDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
-                        @php $operacionesLista = [
-                            'Calidad',
-                            'Cedi Frio',
-                            'Cedi Frio - Mantenimiento',
-                            'Cedi Frio Agrofrut',
-                            'Cedi Frio Calypso',
-                            'Cedi Frio Food Box',
-                            'Cedi Frio Ibazan',
-                            'Cedi Frio Kikes',
-                            'Cedi Frio La Fazenda',
-                            'Cedi Frio Todos Comemos',
-                            'Compras',
-                            'Cumbria',
-                            'Financiera',
-                            'HSEQ',
-                            'Huawei',
-                            'Inventarios',
-                            'Kw',
-                            'Macmillan',
-                            'Mary Kay',
-                            'Mattel',
-                            'Mejoramiento Contínuo',
-                            'Naos',
-                            'Oriflame',
-                            'Ortopedicos Futuro',
-                            'Seguridad',
-                            'Sony',
-                            'Talento Humano',
-                            'Tecnología',
-                            'Tranportes Vigia',
-                            'Transportes',
-                        ]; @endphp
-                        @foreach($operacionesLista as $op)
-                        <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-value="{{ $op }}" onclick="seleccionarOperacion(event,this)">{{ $op }}</div>
-                        @endforeach
+                <!-- Campo Operación con búsqueda -->
+                <div>
+                    
+                    <label class="block text-gray-700 font-semibold mb-1">Proceso Solicitante</label>
+                    <div class="relative">
+                        <input type="text" id="operacionFilter"
+                            class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
+                            placeholder="Escribe o selecciona la operación" autocomplete="off"
+                            value="{{ old('operacion_user') }}">
+                        <input type="hidden" name="operacion_user" id="operacionSelect"
+                            value="{{ old('operacion_user') }}" required>
+                        <div id="operacionesDropdown"
+                            class="absolute left-0 w-full bg-white border border-indigo-300 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto z-50 hidden p-1 text-sm">
+                            {!! $operacionesOptionsHtml !!}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Recobrable</label>
-                    <select name="Recobrable" class="w-full border rounded-lg p-2" required>
-                        <option value="">-- Selecciona --</option>
-                        <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>Recobrable
-                        </option>
-                        <option value="No recobrable" {{ old('Recobrable')=='No recobrable' ? 'selected' : '' }}>No
-                            recobrable</option>
-                    </select>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-1">Recobrable</label>
+                        <select name="Recobrable"
+                            class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
+                            required>
+                            <option value="">-- Selecciona --</option>
+                            <option value="Recobrable" {{ old('Recobrable')=='Recobrable' ? 'selected' : '' }}>
+                                Recobrable
+                            </option>
+                            <option value="No recobrable" {{ old('Recobrable')=='No recobrable' ? 'selected' : '' }}>No
+                                recobrable</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-1">Prioridad</label>
+                        <select name="prioridad_requisicion"
+                            class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
+                            required>
+                            <option value="">-- Selecciona --</option>
+                            <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja
+                            </option>
+                            <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media
+                            </option>
+                            <option value="alta" {{ old('prioridad_requisicion')=='alta' ? 'selected' : '' }}>Alta
+                            </option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Prioridad</label>
-                    <select name="prioridad_requisicion" class="w-full border rounded-lg p-2" required>
-                        <option value="">-- Selecciona --</option>
-                        <option value="baja" {{ old('prioridad_requisicion')=='baja' ? 'selected' : '' }}>Baja</option>
-                        <option value="media" {{ old('prioridad_requisicion')=='media' ? 'selected' : '' }}>Media
-                        </option>
-                        <option value="alta" {{ old('prioridad_requisicion')=='alta' ? 'selected' : '' }}>Alta</option>
-                    </select>
+
+                <div class="mt-4">
+                    <label class="block text-gray-700 font-semibold mb-1">Fecha estimada de recepción</label>
+                    <input type="date" name="fecha_estimada_recepcion" value="{{ old('fecha_estimada_recepcion') }}"
+                        class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400">
                 </div>
-            </div>
 
-            <div>
-                <label class="block text-gray-600 font-semibold mb-1">Justificación</label>
-                <textarea name="justify_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('justify_requisicion') }}</textarea>
-            </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1">Justificación</label>
+                    <textarea name="justify_requisicion" rows="3"
+                        class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
+                        required>{{ old('justify_requisicion') }}</textarea>
+                </div>
 
-            <div>
-                <label class="block text-gray-600 font-semibold mb-1">Detalles Adicionales</label>
-                <textarea name="detail_requisicion" rows="3" class="w-full border rounded-lg p-2"
-                    required>{{ old('detail_requisicion') }}</textarea>
-            </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1">Detalles Adicionales</label>
+                    <textarea name="detail_requisicion" rows="3"
+                        class="w-full border border-indigo-300 rounded-lg p-2 focus:ring-indigo-300/60 focus:border-indigo-400"
+                        required>{{ old('detail_requisicion') }}</textarea>
+                </div>
 
-            <hr class="my-4">
+                <hr class="my-4 border-indigo-200">
 
-            <div class="flex justify-between items-center">
-                <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
-                <button type="button" id="abrirModalBtn"
-                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700">
-                    + Añadir Producto
-                </button>
-            </div>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-gray-700">Productos agregados</h3>
+                    <button type="button" id="abrirModalBtn"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-300">
+                        + Añadir Producto
+                    </button>
+                </div>
 
-            <div class="overflow-x-auto">
-                <table id="productosTable" class="w-full border border-gray-200 rounded-lg overflow-hidden mt-3">
-                    <thead class="bg-gray-100 text-gray-600 text-left">
-                        <tr>
-                            <th class="p-3">Producto</th>
-                            <th class="p-3">Cantidad Total</th>
-                            <th class="p-3">Distribución por Centros</th>
-                            <th class="p-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+                <div class="overflow-x-auto">
+                    <table id="productosTable" class="w-full border border-indigo-200 rounded-lg overflow-hidden mt-3">
+                        <thead class="bg-indigo-50 text-indigo-800 text-left">
+                            <tr>
+                                <th class="p-3">Producto</th>
+                                <th class="p-3">Cantidad Total</th>
+                                <th class="p-3">Distribución por Centros</th>
+                                <th class="p-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
 
-            <div class="flex justify-end">
-                <button type="submit" id="submitBtn"
-                    class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
-                    Guardar Requisición
-                </button>
-            </div>
-        </form>
+                <div class="flex justify-end">
+                    <button type="submit" id="submitBtn"
+                        class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700 focus:ring-2 focus:ring-green-300">
+                        Guardar Requisición
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
+{{-- Modal 1: Selección de Producto
+- Busca y filtra por categoría y nombre de producto (excluye servicio/alquiler).
+- Permite definir la cantidad total a distribuir y ver la unidad del producto. --}}
 <!-- Modal 1: Selección de Producto -->
-<div id="modalProducto" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
+<div id="modalProducto" class="fixed inset-0 flex hidden items-start sm:items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-700">Seleccionar Producto</h2>
             <button id="cerrarModalBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
         </div>
 
-        <!-- Selección de producto (mayor ancho) -->
-        <div class="mb-4 relative">
-            <label class="block text-gray-600 font-semibold mb-1">Producto</label>
-            <input type="text" id="productoSelect" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un producto">
-            <div id="productosList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                @foreach ($productos as $p)
-                <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded whitespace-normal break-words"
-                    onclick="seleccionarOpcion(event, this, 'productoSelect')" data-id="{{ $p->id }}"
-                    data-nombre="{{ $p->name_produc }}" data-proveedor="{{ $p->proveedor_id ?? '' }}"
-                    data-categoria="{{ $p->categoria_produc }}" data-unidad="{{ $p->unit_produc }}">
-                    {{ $p->name_produc }} ({{ $p->unit_produc }})
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        <!-- Filtro de categoría y Cantidad -->
+        <!-- Filtro de categoría y Cantidad (movido arriba) -->
         <div class="grid grid-cols-3 gap-4 items-end mb-4">
-            <div class="relative">
+            <div>
                 <label class="block text-gray-600 font-semibold mb-1">Filtrar por Categoría</label>
-                <input type="text" id="categoriaFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona una categoría">
-                <div id="categoriasList" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-50 hidden p-1">
-                    @php
-                    $categoriasUnicas = $productos->pluck('categoria_produc')->unique()->sort();
-                    @endphp
-                    @foreach ($categoriasUnicas as $categoria)
-                    <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" onclick="seleccionarOpcion(event, this, 'categoriaFilter')">
-                        {{ $categoria }}
-                    </div>
+                <select id="categoriaFilter" class="w-full border rounded-lg p-2">
+                    <option value="">-- Todas las categorías --</option>
+                    @foreach($categoriasListaFiltrada as $cat)
+                        <option value="{{ $cat }}">{{ $cat }}</option>
                     @endforeach
-                </div>
+                </select>
             </div>
             <div>
                 <label class="block text-gray-600 font-semibold mb-1">Cantidad Total</label>
-                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1" placeholder="Ej: 100">
+                <input type="number" id="cantidadTotalInput" class="w-full border rounded-lg p-2" min="1"
+                    placeholder="Ej: 100">
+            </div>
+            <div>
+                <label class="block text-gray-600 font-semibold mb-1">Tipo</label>
+                <select id="tipoItemSelect" class="w-full border rounded-lg p-2" aria-label="Tipo de ítem">
+                    <option value="producto">Producto</option>
+                    <option value="servicio">Servicio / Alquiler</option>
+                </select>
             </div>
             <div class="flex items-center">
                 <span id="unidadMedida" class="text-gray-600 font-semibold">Unidad: -</span>
+            </div>
+        </div>
+
+        <!-- Selección de producto (movido abajo, sin cambios de IDs) -->
+        <div class="mb-4 relative">
+            <label class="block text-gray-600 font-semibold mb-1">Producto</label>
+            <input type="text" id="productoSelect" class="w-full border rounded-lg p-2"
+                placeholder="Escribe o selecciona un producto">
+            <div id="productosList"
+                class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
+                {!! $productosOptionsHtml !!}
             </div>
         </div>
 
@@ -212,9 +203,16 @@
     </div>
 </div>
 
+{{-- Modal 2: Distribución por Centros de Costo
+- Reparte la cantidad del producto entre subcentros asignados al usuario.
+- Muestra total asignado vs disponible y lista de asignaciones. --}}
 <!-- Modal 2: Distribución por Centros de Costo -->
+@php
+    // lista de subcentros para el modal (solo activos por simplicidad)
+    $modalSubcentros = \App\Models\Subcentro::orderBy('name_subcentro')->get();
+@endphp
 <div id="modalDistribucion" class="fixed inset-0 flex hidden items-center justify-center bg-black bg-opacity-50 z-50">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-700">Distribuir Producto</h2>
             <button id="cerrarModalDistribucionBtn" class="text-gray-500 hover:text-gray-700">&times;</button>
@@ -226,46 +224,65 @@
                     id="productoSeleccionadoUnidad"></span></p>
         </div>
 
+        <!-- Campo de observación para servicios (solo visible si es servicio) -->
+        <div id="observacionServicioSection" class="mb-4 hidden">
+            <label class="block text-gray-600 font-semibold mb-1">
+                Descripción del servicio <span class="text-red-500">*</span>
+            </label>
+            <textarea id="observacionServicio" rows="3"
+                class="w-full border border-red-300 rounded-lg p-2 focus:ring-red-300/60 focus:border-red-400"
+                placeholder="Describa los detalles del servicio..."></textarea>
+            <p class="text-xs text-red-500 mt-1">Este campo es obligatorio para servicios/alquiler</p>
+        </div>
+
+        <!-- Campo de Plan de Ejecución para servicios -->
+        <div id="planEjecucionSection" class="mb-4 hidden">
+            <label class="block text-gray-600 font-semibold mb-1">
+                Plan de Ejecución <span class="text-red-500">*</span>
+            </label>
+            <textarea id="planEjecucion" rows="4"
+                class="w-full border border-red-300 rounded-lg p-2 focus:ring-red-300/60 focus:border-red-400"
+                placeholder="Describa el plan de ejecución del servicio (actividades, fechas, responsables, etc.)..."></textarea>
+            <p class="text-xs text-red-500 mt-1">Este campo es obligatorio para servicios/alquiler</p>
+        </div>
+
         <!-- Distribución por centros -->
         <div id="centrosSection" class="mt-4">
-            <h4 class="text-lg font-semibold text-gray-700 mb-2">Distribución por Centros de Costo</h4>
-            <p class="text-sm text-gray-500 mb-4">Distribuya la cantidad total entre los centros de costo</p>
+            <h4 class="text-lg font-semibold text-gray-700 mb-2">Cantidad</h4>
+            <p class="text-sm text-gray-500 mb-4">Ingrese la cantidad para este producto</p>
 
-            <div class="grid grid-cols-3 gap-4 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                 <div>
-                    <label class="block text-gray-600 font-semibold mb-1">Subcentros</label>
-                    <div class="relative">
-                        <input type="text" id="centroFilter" class="w-full border rounded-lg p-2" placeholder="Escribe o selecciona un centro" autocomplete="off">
-                        <input type="hidden" id="centroSelect" name="centroSelectHidden" value="">
-                        <div id="centrosDropdown" class="absolute left-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto z-50 hidden p-1">
-                            @foreach ($centros as $c)
-                            <div class="p-2 hover:bg-indigo-100 cursor-pointer rounded" data-id="{{ $c->id }}" data-nombre="{{ $c->name_centro }}" onclick="seleccionarCentro(event, this)">
-                                {{ $c->name_centro }}
-                            </div>
-                            @endforeach
-                        </div>
-                    </div>
+                    <label class="block text-gray-600 font-semibold mb-1">Unidad</label>
+                    <select id="unidadModalSelect" class="w-full border rounded-lg p-2">
+                        <option value="">-- Unidad --</option>
+                        <option value="UND">UND</option>
+                        <option value="KG">KG</option>
+                        <option value="GLN">GLN</option>
+                        <option value="MT">MT</option>
+                        <option value="PQT">PQT</option>
+                        <option value="CJ">CJ</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-600 font-semibold mb-1">Subcentro</label>
+                    <select id="subcentroModalSelect" class="w-full border rounded-lg p-2">
+                        <option value="">-- Selecciona subcentro (opcional) --</option>
+                        @foreach($modalSubcentros as $ms)
+                            <option value="{{ $ms->id }}">{{ $ms->name_subcentro }}@if(optional($ms->centro)) ({{ optional($ms->centro)->name_centro }})@endif</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div>
                     <label class="block text-gray-600 font-semibold mb-1">Cantidad</label>
                     <input type="number" id="cantidadCentroInput" class="w-full border rounded-lg p-2" min="1"
                         placeholder="Ej: 50">
                 </div>
-                <div>
-                    <button type="button" id="agregarCentroBtn"
-                        class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                        Agregar
-                    </button>
-                </div>
             </div>
 
             <div class="mt-4 text-sm font-semibold text-gray-600">
-                Total asignado: <span id="totalAsignado">0</span> de <span id="cantidadDisponible">0</span> <span
-                    id="unidadDisponible"></span>
+                Cantidad seleccionada: <span id="totalAsignado">0</span> <span id="unidadDisponible"></span>
             </div>
-
-            <ul id="centrosList" class="divide-y divide-gray-200 mt-3 border rounded-lg p-2 max-h-40 overflow-y-auto">
-            </ul>
 
             <div class="flex justify-between mt-6">
                 <button type="button" id="volverModalBtn"
@@ -292,601 +309,21 @@
 
 @section('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-    const $ = s => document.querySelector(s);
-    const $$ = s => document.querySelectorAll(s);
-
-    // Modales
-    const modalProducto = $('#modalProducto');
-    const modalDistribucion = $('#modalDistribucion');
-    const cargandoAlert = $('#cargandoAlert');
-    
-    // Botones
-    const abrirBtn = $('#abrirModalBtn');
-    const cerrarBtn = $('#cerrarModalBtn');
-    const cerrarDistribucionBtn = $('#cerrarModalDistribucionBtn');
-    const siguienteBtn = $('#siguienteModalBtn');
-    const volverBtn = $('#volverModalBtn');
-    const agregarCentroBtn = $('#agregarCentroBtn');
-    const guardarProductoBtn = $('#guardarProductoBtn');
-    const submitBtn = $('#submitBtn');
-    
-    // Elementos de formulario
-    const productoSelect = $('#productoSelect');
-    const cantidadTotalInput = $('#cantidadTotalInput');
-    const centroSelect = $('#centroSelect');
-    const cantidadCentroInput = $('#cantidadCentroInput');
-    const centrosList = $('#centrosList');
-    const productosTable = $('#productosTable tbody');
-    const requisicionForm = $('#requisicionForm');
-    const totalAsignadoSpan = $('#totalAsignado');
-    const cantidadDisponibleSpan = $('#cantidadDisponible');
-    const unidadDisponibleSpan = $('#unidadDisponible');
-    const categoriaFilter = $('#categoriaFilter');
-    const productoSeleccionadoNombre = $('#productoSeleccionadoNombre');
-    const productoSeleccionadoCantidad = $('#productoSeleccionadoCantidad');
-    const productoSeleccionadoUnidad = $('#productoSeleccionadoUnidad');
-    const unidadMedidaSpan = $('#unidadMedida');
-
-    // Elementos adicionales para centros
-    const centroFilter = $('#centroFilter');
-    const centrosDropdown = $('#centrosDropdown');
-
-    let productos = [];
-    let productoActual = null;
-    let cantidadTotal = 0;
-    let cantidadAsignada = 0;
-    let unidadMedida = '';
-
-    // ====== Datos iniciales de Laravel ======
-    const categorias = @json($productos->pluck('categoria_produc')->unique()->sort()->values());
-    const productosData = [
-        @foreach($productos as $p)
-        {
-            id: {{ json_encode($p->id) }},
-            nombre: {!! json_encode($p->name_produc) !!},
-            unidad: {!! json_encode($p->unit_produc) !!},
-            proveedor: {!! json_encode($p->proveedor_id) !!},
-            categoria: {!! json_encode($p->categoria_produc) !!}
-        },
-        @endforeach
-    ];
-
-    // ====== Función para rellenar datalist limitado ======
-    function renderDatalist(input, datalist, items, formatFn) {
-        const value = input.value.toLowerCase();
-        datalist.innerHTML = "";
-        let filtered = items.filter(item => formatFn(item).toLowerCase().includes(value));
-        filtered = filtered.slice(0, 15);
-        filtered.forEach(item => {
-            const option = document.createElement("option");
-            option.value = formatFn(item);
-            datalist.appendChild(option);
-        });
-    }
-
-    // Nota: usamos dropdowns personalizados; no usar los atributos datalist/renderDatalist aquí.
-    // Los listeners para input/focus se gestionan más abajo para los dropdowns personalizados.
-
-    // Mostrar/filtrar opciones (implementación consolidada)
-    const categoriasListDiv = document.getElementById('categoriasList');
-    const productosListDiv = document.getElementById('productosList');
-
-    // Re-attach option handlers to allow multiple selections and prevent dropdown from disappearing permanently
-    function attachOptionHandlers() {
-        if (categoriasListDiv) {
-            categoriasListDiv.querySelectorAll('div').forEach(div => {
-                // remove previous to avoid duplicates
-                if (div._handler) div.removeEventListener('mousedown', div._handler);
-                const handler = function(e) {
-                    e.preventDefault();
-                    // use global seleccionarOpcion (pass event so it can stop propagation)
-                    window.seleccionarOpcion && window.seleccionarOpcion(e, div, 'categoriaFilter');
-                };
-                div._handler = handler;
-                div.addEventListener('mousedown', handler);
-            });
-        }
-        if (productosListDiv) {
-            productosListDiv.querySelectorAll('div').forEach(div => {
-                if (div._handlerProd) div.removeEventListener('mousedown', div._handlerProd);
-                const handler = function(e) {
-                    e.preventDefault();
-                    window.seleccionarOpcion && window.seleccionarOpcion(e, div, 'productoSelect');
-                };
-                div._handlerProd = handler;
-                div.addEventListener('mousedown', handler);
-            });
-        }
-        // centros
-        if (typeof centrosDropdown !== 'undefined' && centrosDropdown) {
-            centrosDropdown.querySelectorAll('div').forEach(div => {
-                if (div._handlerCentro) div.removeEventListener('mousedown', div._handlerCentro);
-                const handler = function(e) {
-                    e.preventDefault();
-                    window.seleccionarCentro && window.seleccionarCentro(e, div);
-                };
-                div._handlerCentro = handler;
-                div.addEventListener('mousedown', handler);
-            });
-        }
-    }
-
-    // Attach once on load
-    attachOptionHandlers();
-
-    function filtrarDropdown(input, listId) {
-        const dropdown = document.getElementById(listId);
-        const filtro = (input.value || '').toLowerCase();
-        let hayCoincidencias = false;
-
-        dropdown.querySelectorAll('div').forEach(opcion => {
-            const txt = (opcion.textContent || '').toLowerCase();
-            if (txt.includes(filtro)) {
-                opcion.style.display = 'block';
-                hayCoincidencias = true;
-            } else {
-                opcion.style.display = 'none';
-            }
-        });
-
-        dropdown.style.display = hayCoincidencias ? 'block' : 'none';
-    }
-
-    // Mostrar dropdown al enfocar
-    categoriaFilter.addEventListener('focus', function() {
-        filtrarDropdown(this, 'categoriasList');
-    });
-    productoSelect.addEventListener('focus', function() {
-        filtrarDropdown(this, 'productosList');
-        // Si hay categoría escrita, aplicar filtro de categoría también
-        filtrarProductosPorCategoria();
-    });
-    centroFilter.addEventListener('focus', () => {
-        centrosDropdown.style.display = 'block';
-    });
-
-    // Filtrar productos teniendo en cuenta categoría y texto
-    function filtrarProductosPorCategoria() {
-        const categoriaSeleccionada = (categoriaFilter.value || '').trim();
-        const texto = (productoSelect.value || '').toLowerCase();
-        let hay = false;
-
-        productosListDiv.querySelectorAll('div').forEach(item => {
-            const cat = (item.getAttribute('data-categoria') || '').toString();
-            const txt = (item.textContent || '').toLowerCase();
-            const matchesCat = !categoriaSeleccionada || cat === categoriaSeleccionada;
-            const matchesText = txt.includes(texto);
-            if (matchesCat && matchesText) {
-                item.style.display = 'block';
-                hay = true;
-            } else {
-                item.style.display = 'none';
-            }
-        });
-
-        // Mostrar el dropdown de productos solo si el input de producto tiene el foco
-        if (document.activeElement === productoSelect) {
-            productosListDiv.style.display = hay ? 'block' : 'none';
-        } else {
-            productosListDiv.style.display = 'none';
-        }
-    }
-
-    // Filtrar centros
-    if (centroFilter) {
-        centroFilter.addEventListener('focus', () => {
-            centrosDropdown.style.display = 'block';
-        });
-        centroFilter.addEventListener('input', function() {
-            const filtro = (this.value || '').toLowerCase();
-            let any = false;
-            centrosDropdown.querySelectorAll('div').forEach(div => {
-                const txt = (div.textContent || '').toLowerCase();
-                if (txt.includes(filtro)) {
-                    div.style.display = 'block'; any = true;
-                } else {
-                    div.style.display = 'none';
-                }
-            });
-            centrosDropdown.style.display = any ? 'block' : 'none';
-        });
-        centroFilter.addEventListener('keydown', function(evt) {
-            if (evt.key === 'Backspace' || evt.key === 'Delete') {
-                setTimeout(() => centroFilter.dispatchEvent(new Event('input')), 0);
-            }
-        });
-    }
-
-    // Seleccionar una opción (actualiza datos para producto)
-    // Exponer función global para onclick inline
-    window.seleccionarOpcion = function(e, element, inputId) {
-        // evitar que el click burste el handler de documento
-        if (e && e.preventDefault) e.preventDefault();
-        if (e && e.stopPropagation) e.stopPropagation();
-        const input = document.getElementById(inputId);
-        input.value = element.textContent.trim();
-         // Si es producto, guardar metadatos
-         if (inputId === 'productoSelect') {
-             input.dataset.id = element.getAttribute('data-id') || '';
-             input.dataset.nombre = element.getAttribute('data-nombre') || '';
-             input.dataset.proveedor = element.getAttribute('data-proveedor') || '';
-             input.dataset.categoria = element.getAttribute('data-categoria') || '';
-             input.dataset.unidad = element.getAttribute('data-unidad') || '';
-             unidadMedidaSpan.textContent = input.dataset.unidad ? 'Unidad: ' + input.dataset.unidad : 'Unidad: -';
-         }
-         // Si es categoría, aplicar filtro en productos
-         if (inputId === 'categoriaFilter') {
-             filtrarProductosPorCategoria();
-         }
-        // ocultar dropdown del input seleccionado (categoria o producto)
-        if (element && element.parentElement) element.parentElement.style.display = 'none';
-         // mantener foco para permitir borrar/editar inmediatamente
-         input.focus();
-     }
-
-    // Seleccionar centro
-    window.seleccionarCentro = function(e, element) {
-        if (e && e.preventDefault) e.preventDefault();
-        if (e && e.stopPropagation) e.stopPropagation();
-        const id = element.getAttribute('data-id');
-        const nombre = element.getAttribute('data-nombre') || element.textContent.trim();
-        $('#centroSelect').value = id;
-        $('#centroFilter').value = nombre;
-        centrosDropdown.style.display = 'none';
-        $('#centroFilter').focus();
-    }
-
-    // Actualizar filtros en input events
-    categoriaFilter.addEventListener('input', function() {
-        // asegurar que el dropdown de categorías se muestre al escribir o borrar
-        categoriasListDiv.style.display = 'block';
-        filtrarDropdown(this, 'categoriasList');
-        // actualizar listado oculto de productos, pero no mostrar el dropdown de productos
-        filtrarProductosPorCategoria();
-    });
-    // Mostrar dropdown también al presionar Backspace/Delete para permitir re-aparecer
-    categoriaFilter.addEventListener('keydown', function(evt) {
-        if (evt.key === 'Backspace' || evt.key === 'Delete') {
-            categoriasListDiv.style.display = 'block';
-            // pequeño retardo para que el input.value ya refleje el cambio
-            setTimeout(() => filtrarDropdown(this, 'categoriasList'), 0);
-            filtrarProductosPorCategoria();
-        }
-    });
-    categoriaFilter.addEventListener('keyup', function() {
-        if ((this.value || '').trim() === '') {
-            categoriasListDiv.style.display = 'block';
-            filtrarDropdown(this, 'categoriasList');
-            filtrarProductosPorCategoria();
-        }
-    });
-    productoSelect.addEventListener('input', function() {
-        productosListDiv.style.display = 'block';
-        filtrarProductosPorCategoria();
-    });
-    productoSelect.addEventListener('keyup', function() {
-        if ((this.value || '').trim() === '') {
-            productosListDiv.style.display = 'block';
-            filtrarProductosPorCategoria();
-        }
-    });
-
-    // Ocultar al hacer click fuera
-    document.addEventListener('click', function(e) {
-        // categorías
-        if (!categoriasListDiv.contains(e.target) && !categoriaFilter.contains(e.target)) {
-            categoriasListDiv.style.display = 'none';
-        }
-        // productos
-        if (!productosListDiv.contains(e.target) && !productoSelect.contains(e.target)) {
-            productosListDiv.style.display = 'none';
-        }
-        // centros
-        if (!centrosDropdown.contains(e.target) && !centroFilter.contains(e.target)) {
-            centrosDropdown.style.display = 'none';
-        }
-        // operaciones
-        const operacionesDropdown = document.getElementById('operacionesDropdown');
-        if (operacionesDropdown && !operacionesDropdown.contains(e.target) && !operacionFilter.contains(e.target)) {
-            operacionesDropdown.classList.add('hidden');
-        }
-    });
-
-    // Event listeners para abrir/cerrar modales
-    abrirBtn.addEventListener('click', () => {
-        modalProducto.classList.remove('hidden');
-        resetModalProducto();
-        // reattach handlers in case markup refreshed
-        attachOptionHandlers();
-    });
-    
-    cerrarBtn.addEventListener('click', () => {
-        modalProducto.classList.add('hidden');
-        resetModalProducto();
-    });
-    
-    cerrarDistribucionBtn.addEventListener('click', () => {
-        modalDistribucion.classList.add('hidden');
-        resetModalDistribucion();
-    });
-    
-    siguienteBtn.addEventListener('click', () => {
-        const productoTexto = productoSelect.value;
-        const prodSeleccionado = productosData.find(p => `${p.nombre} (${p.unidad})` === productoTexto);
-        cantidadTotal = parseInt(cantidadTotalInput.value);
-        if (!prodSeleccionado) {
-            mostrarError('Debes seleccionar un producto.');
-            return;
-        }
-        if (!cantidadTotal || cantidadTotal < 1) {
-            mostrarError('Debes ingresar una cantidad válida.');
-            return;
-        }
-        if (productos.some(p => p.id === prodSeleccionado.id)) {
-            mostrarError('Este producto ya fue agregado.');
-            return;
-        }
-        // Configurar producto actual
-        productoActual = {
-            id: prodSeleccionado.id,
-            nombre: prodSeleccionado.nombre,
-            proveedorId: prodSeleccionado.proveedor || null,
-            cantidadTotal,
-            unidad: prodSeleccionado.unidad,
-            centros: []
-        };
-        cantidadAsignada = 0;
-        unidadMedida = prodSeleccionado.unidad;
-        // Actualizar información en modal de distribución
-        productoSeleccionadoNombre.textContent = prodSeleccionado.nombre;
-        productoSeleccionadoCantidad.textContent = cantidadTotal;
-        productoSeleccionadoUnidad.textContent = prodSeleccionado.unidad;
-        cantidadDisponibleSpan.textContent = cantidadTotal;
-        unidadDisponibleSpan.textContent = prodSeleccionado.unidad;
-        totalAsignadoSpan.textContent = cantidadAsignada;
-        centrosList.innerHTML = '';
-        // Cambiar de modal
-        modalProducto.classList.add('hidden');
-        modalDistribucion.classList.remove('hidden');
-        // asegurar handlers para el dropdown de centros
-        attachOptionHandlers();
-    });
-    
-    volverBtn.addEventListener('click', () => {
-        modalDistribucion.classList.add('hidden');
-        modalProducto.classList.remove('hidden');
-        resetModalDistribucion();
-    });
-
-    function mostrarError(mensaje) {
-        Swal.fire({ 
-            icon: 'error', 
-            title: 'Error', 
-            text: mensaje, 
-            confirmButtonText: 'Entendido' 
-        });
-    }
-    
-    function mostrarCarga() {
-        cargandoAlert.classList.remove('hidden');
-    }
-    
-    function ocultarCarga() {
-        cargandoAlert.classList.add('hidden');
-    }
-
-    function resetModalProducto() {
-        productoSelect.value = '';
-        cantidadTotalInput.value = '';
-        categoriaFilter.value = '';
-        unidadMedidaSpan.textContent = 'Unidad: -';
-        
-        // Mostrar todos los productos nuevamente
-        const opcionesProductos = productoSelect.querySelectorAll('option');
-        opcionesProductos.forEach(opcion => {
-            opcion.style.display = '';
-        });
-    }
-    
-    function resetModalDistribucion() {
-        centroSelect.value = '';
-        cantidadCentroInput.value = '';
-        if (typeof centrosDropdown !== 'undefined' && centrosDropdown) {
-            centrosDropdown.style.display = 'none';
-        }
-        if (typeof centroFilter !== 'undefined' && centroFilter) {
-            centroFilter.value = '';
-        }
-        productoActual = null;
-        cantidadTotal = 0;
-        cantidadAsignada = 0;
-        unidadMedida = '';
-    }
-
-    function actualizarResumen() {
-        totalAsignadoSpan.textContent = cantidadAsignada;
-    }
-
-    function actualizarTabla() {
-        productosTable.innerHTML = "";
-        productos.forEach((prod, i) => {
-            let centrosHTML = "";
-            prod.centros.forEach((centro, j) => {
-                centrosHTML += `
-                    <span class="inline-block bg-gray-200 px-2 py-1 rounded-full text-xs mr-1 mb-1">
-                        ${centro.nombre} <b>(${centro.cantidad} ${prod.unidad})</b>
-                    </span>
-                    <input type="hidden" name="productos[${i}][centros][${j}][id]" value="${centro.id}">
-                    <input type="hidden" name="productos[${i}][centros][${j}][cantidad]" value="${centro.cantidad}">
-                `;
-            });
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="p-3">
-                    ${prod.nombre} (${prod.unidad})
-                    <input type="hidden" name="productos[${i}][id]" value="${prod.id}">
-                    ${prod.proveedorId ? `<input type="hidden" name="productos[${i}][proveedor_id]" value="${prod.proveedorId}">` : ''}
-                    <input type="hidden" name="productos[${i}][unidad]" value="${prod.unidad}">
-                </td>
-                <td class="p-3">
-                    ${prod.cantidadTotal} ${prod.unidad}
-                    <input type="hidden" name="productos[${i}][requisicion_amount]" value="${prod.cantidadTotal}">
-                </td>
-                <td class="p-3">${centrosHTML}</td>
-                <td class="p-3 text-right">
-                    <button type="button" onclick="eliminarProducto(${i})" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm">
-                        Eliminar
-                    </button>
-                </td>
-            `;
-            productosTable.appendChild(tr);
-        });
-    }
-
-    window.eliminarProducto = function(index) {
-        productos.splice(index, 1);
-        actualizarTabla();
-    };
-
-    agregarCentroBtn.addEventListener('click', () => {
-        if (!productoActual) return;
-        const centroIdVal = $('#centroSelect').value;
-        const centroNombre = $('#centroFilter').value;
-        const cantidadCentro = parseInt(cantidadCentroInput.value);
-        const cantidadRestante = cantidadTotal - cantidadAsignada;
-
-        if (!centroIdVal) {
-            mostrarError('Debes seleccionar un centro de costo.');
-            return;
-        }
-        if (!cantidadCentro || cantidadCentro < 1) {
-            mostrarError('Debes ingresar una cantidad válida.');
-            return;
-        }
-        if (cantidadCentro > cantidadRestante) {
-            mostrarError(`No puedes asignar más de ${cantidadRestante} ${unidadMedida}.`);
-            return;
-        }
-
-        const idx = productoActual.centros.findIndex(c => c.id === centroIdVal);
-        if (idx >= 0) {
-            productoActual.centros[idx].cantidad += cantidadCentro;
-        } else {
-            productoActual.centros.push({ id: centroIdVal, nombre: centroNombre, cantidad: cantidadCentro });
-        }
-
-        cantidadAsignada += cantidadCentro;
-        centrosList.innerHTML = '';
-        productoActual.centros.forEach(c => {
-            const li = document.createElement('li');
-            li.className = 'py-2 px-3 flex justify-between items-center';
-            li.innerHTML = `
-                <span>${c.nombre}</span>
-                <span class="font-semibold">${c.cantidad} ${unidadMedida}</span>
-            `;
-            centrosList.appendChild(li);
-        });
-
-        actualizarResumen();
-        cantidadCentroInput.value = '';
-        $('#centroSelect').value = '';
-        $('#centroFilter').value = '';
-    });
-
-    guardarProductoBtn.addEventListener('click', () => {
-        if (!productoActual || productoActual.centros.length === 0) {
-            mostrarError('Debes añadir al menos un centro de costo.');
-            return;
-        }
-        
-        if (cantidadAsignada !== cantidadTotal) {
-            mostrarError(`Debes distribuir toda la cantidad (${cantidadTotal - cantidadAsignada} ${unidadMedida} restantes).`);
-            return;
-        }
-        
-        productos.push(productoActual);
-        actualizarTabla();
-        
-        // Cerrar modal y resetear
-        modalDistribucion.classList.add('hidden');
-        resetModalDistribucion();
-        resetModalProducto();
-    });
-
-    requisicionForm.addEventListener('submit', function(e) {
-        if (productos.length === 0) {
-            e.preventDefault();
-            mostrarError('Debes agregar al menos un producto.');
-            return;
-        }
-        
-        // Mostrar alerta de carga
-        mostrarCarga();
-        
-        // El formulario se enviará normalmente después de esto
-    });
-
-    // Campo Operación: selección y búsqueda
-    const operacionFilter = document.getElementById('operacionFilter');
-    const operacionesDropdown = document.getElementById('operacionesDropdown');
-    const operacionSelectHidden = document.getElementById('operacionSelect');
-
-    // Mostrar dropdown al enfocar
-    if (operacionFilter) {
-        operacionFilter.addEventListener('focus', () => {
-            filtrarOperaciones();
-            operacionesDropdown.classList.remove('hidden');
-        });
-        operacionFilter.addEventListener('input', () => filtrarOperaciones());
-        operacionFilter.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' || e.key === 'Delete') {
-                setTimeout(filtrarOperaciones,0);
-            }
-        });
-    }
-
-    window.seleccionarOperacion = function(e, el){
-        if (e) { e.preventDefault(); e.stopPropagation(); }
-        const val = el.getAttribute('data-value');
-        operacionFilter.value = val;
-        operacionSelectHidden.value = val;
-        operacionesDropdown.classList.add('hidden');
-        operacionFilter.focus();
-    };
-
-    function filtrarOperaciones(){
-        const filtro = (operacionFilter.value || '').toLowerCase();
-        let any = false;
-        operacionesDropdown.querySelectorAll('div[data-value]').forEach(div => {
-            const t = (div.textContent||'').toLowerCase();
-            if (!filtro || t.includes(filtro)) { div.style.display='block'; any = true; } else { div.style.display='none'; }
-        });
-        if (!any) { operacionesDropdown.classList.add('hidden'); } else { operacionesDropdown.classList.remove('hidden'); }
-    }
-
-    // Cerrar al hacer click fuera
-    document.addEventListener('click', (e)=>{
-        if (operacionesDropdown && !operacionesDropdown.contains(e.target) && !operacionFilter.contains(e.target)) {
-            operacionesDropdown.classList.add('hidden');
-        }
-    });
-
-    // Validar antes de enviar
-    requisicionForm.addEventListener('submit', function(ev){
-        if (!operacionSelectHidden.value) {
-            ev.preventDefault();
-            Swal.fire({icon:'error', title:'Operación requerida', text:'Debe seleccionar una operación.'});
-            operacionFilter.focus();
-            return;
-        }
-    }, {capture:true});
-
-    // Si había old() valor pero input vacío, sincronizar
-    if (operacionSelectHidden.value && !operacionFilter.value) {
-        operacionFilter.value = operacionSelectHidden.value;
-    }
-});
+    // Exponer datos globales para el script externo (filtrados sin Servicio/Servicios)
+    window.PREFILL_DATA = {!! json_encode($prefillData) !!};
+    window.CATEGORIAS = @json($categoriasListaFiltrada);
+    window.PRODUCTOS_DATA = {!! json_encode($productosFiltrados->map(function($p){
+        return [
+            'id' => $p->id,
+            'sku' => $p->sku ?? '',
+            'nombre' => $p->name_produc,
+            'unidad' => $p->unit_produc,
+            'proveedor' => $p->proveedor_id,
+            'categoria' => $p->categoria_produc,
+            'display' => '(' . ($p->sku ?? $p->id) . ') ' . $p->name_produc . ' (' . $p->unit_produc . ')'
+        ];
+    })->values()) !!};
+    window.IS_REREQUEST = !!(window.PREFILL_DATA && Array.isArray(window.PREFILL_DATA.productos) && window.PREFILL_DATA.productos.length);
 </script>
+<script src="{{ asset('js/requisiciones/create.js') }}"></script>
 @endsection

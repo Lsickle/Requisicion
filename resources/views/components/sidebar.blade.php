@@ -4,8 +4,8 @@
         class="bg-slate-200 text-blue-900 border-b border-slate-300 px-4 py-2 flex justify-between items-center fixed w-full top-0 left-0 z-50 shadow-md h-14">
         <button class="text-blue-900 text-xl" onclick="toggleSidebar()">☰</button>
         <div>
-            <img src="{{ asset('images/VigiaLogoC.svg') }}" alt="Vigía Plus Logistics"
-                class="mx-auto h-9 w-auto object-contain">
+            <img src="{{ asset('images/VigiaLogoC.png') }}" alt="Vigía Plus Logistics"
+                class="mx-auto h-9 w-auto object-contain rounded-lg drop-shadow">
         </div>
     </nav>
 
@@ -18,7 +18,9 @@
         <ul class="list-none p-0 m-0 flex-1 overflow-y-auto text-sm pr-1 pb-8 divide-y divide-blue-900/30">
             @php
             $permissions = array_map(fn($p) => mb_strtolower($p, 'UTF-8'), Session::get('user_permissions', []));
+            $roles = array_map(fn($r) => mb_strtolower($r, 'UTF-8'), Session::get('user_roles', []));
             $hasPermission = fn($perm) => in_array(mb_strtolower($perm, 'UTF-8'), $permissions, true);
+            $isAdmin = count(array_filter($roles, fn($r) => strpos($r, 'admin') !== false)) > 0;
             @endphp
 
             <li>
@@ -33,14 +35,16 @@
                     Requisición</a>
             </li>
             @endif
-
-            @if($hasPermission('aprobar requisicion'))
+            
+            @if($hasPermission('Especial'))
             <li>
-                <a href="{{ route('requisiciones.aprobacion') }}"
-                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Requisiciones
-                    por aprobar</a>
+                <a href="{{ route('requisiciones.especial') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Crear
+                    Requisición Especial</a>
             </li>
             @endif
+
+            <!-- Link a panel de aprobaciones removido (workflow eliminado) -->
 
             @if($hasPermission('ver requisicion'))
             <li>
@@ -74,19 +78,19 @@
             </li>
             @endif
 
-            @if($hasPermission('transferir titularidad'))
+            @if($hasPermission('ver oc') || $hasPermission('crear requisicion'))
             <li>
-                <a href="{{ route('requisiciones.transferir') }}"
-                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Transferir
-                    titularidad</a>
+                <a href="{{ route('recepciones.create') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Recepción
+                    de Órdenes de Compra</a>
             </li>
             @endif
 
             @if($hasPermission('total requisiciones'))
             <li>
                 <a href="{{ route('requisiciones.todas') }}"
-                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
-                    de requisiciones</a>
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Todas las
+                    requisiciones</a>
             </li>
             @endif
 
@@ -101,11 +105,46 @@
             @if($hasPermission('ver producto'))
             <li>
                 <a href="{{ route('productos.gestor')}}"
-                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Historial
-                    de productos</a>
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">gestión de productos</a>
             </li>
             @endif
 
+            <li>
+                <a href="{{ route('productos.lista') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Lista de productos</a>
+            </li>
+            
+            @if($hasPermission('Centros') || $isAdmin)
+            <li>
+                <a href="{{ route('centros.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Gestión de Centros</a>
+            </li>
+            @endif
+
+            @if($hasPermission('Subcentros') || $isAdmin)
+            <li>
+                <a href="{{ route('centros.user_subcentros.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Asignar Subcentros</a>
+            </li>
+            @endif
+
+            @if($hasPermission('ver inventario') || $hasPermission('inventario solicitante') || $isAdmin)
+            <li>
+                <a href="{{ route('inventario.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Inventario de Bodega</a>
+            </li>
+            <li>
+                <a href="{{ route('inventario.transferencia.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Transferencia</a>
+            </li>
+            @endif
+
+            @if($hasPermission('inventario solicitante') || $hasPermission('ver inventario') || $isAdmin)
+            <li>
+                <a href="{{ route('salida_stock.index') }}"
+                    class="block px-6 py-2.5 rounded-md no-underline hover:no-underline hover:bg-blue-900/60 hover:text-orange-300 transition">Salida de Stock</a>
+            </li>
+            @endif
         </ul>
 
         <!-- Información del usuario (fijo abajo) -->
@@ -161,7 +200,16 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Logout seguro con fetch (ruta relativa evita http://)
+                // Mostrar alerta de carga mientras se cierra la sesión
+                Swal.fire({
+                    title: 'Cerrando sesión...',
+                    html: 'Por favor, espere',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
                 fetch('/logout', {
                     method: 'POST',
                     headers: {
@@ -210,4 +258,12 @@
 #sidebar ul::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(180deg, #2563eb 0%, #3b82f6 100%); /* azul 600 -> 500 */
 }
+
+/* FIX: asegurar texto blanco y divisores neutros dentro del sidebar en todas las vistas */
+#sidebar { color: #ffffff; }
+#sidebar a { color: #ffffff !important; text-decoration: none; }
+#sidebar a:hover { color: #fdba74 !important; }
+/* divisores (tailwind divide-y) y cualquier hr dentro del sidebar */
+#sidebar hr { border-color: rgba(255,255,255,0.18) !important; }
+#sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.18) !important; }
 </style>

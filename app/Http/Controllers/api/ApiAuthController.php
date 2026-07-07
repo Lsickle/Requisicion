@@ -10,10 +10,27 @@ use App\Helpers\PermissionHelper;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Client\ConnectionException;
 
+/**
+ * ApiAuthController
+ *
+ * Controlador para autenticación contra el servicio externo VPL_CORE.
+ * - login: valida credenciales, llama al endpoint externo, guarda token y datos de usuario en sesión,
+ *   extrae roles y permisos y redirige según permisos disponibles.
+ * - logout: borra la sesión local y notifica al servicio externo para invalidar el token.
+ */
 class ApiAuthController extends Controller
 {
     /**
      * Login contra el API externo
+     *
+     * Valida los campos del request (email/password), realiza la petición POST al endpoint
+     * de autenticación externo y maneja resultados:
+     *  - guarda token y datos de usuario en sesión
+     *  - extrae roles y permisos con PermissionHelper
+     *  - normaliza permisos y decide si redirigir a la vista de requisiciones
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function login(Request $request)
     {
@@ -54,12 +71,40 @@ class ApiAuthController extends Controller
                 'user.name'   => $userData['name'] ?? ($userData['email'] ?? 'Usuario'),
                 'user.email'  => $userData['email'] ?? null,
                 'user.operaciones' => $userData['operaciones'] ?? 'Operación no definida',
+                'login_time' => time(), // Agregar tiempo de login
             ]);
+            
+            // Guardar sesión inmediatamente
+            $request->session()->save();
 
             // Extraer roles y permisos usando helper
             $permissionData = PermissionHelper::extractRolesAndPermissionsFromUserData($userData);
-            Session::put('user_roles', $permissionData['roles']);
-            Session::put('user_permissions', $permissionData['permissions']);
+            $roles = $permissionData['roles'];
+            $permissions = $permissionData['permissions'];
+
+            // Agregar permiso ver inventario a admins y area de compras
+            $rolesLower = array_map(fn($r) => mb_strtolower(trim($r, 'UTF-8')), $roles);
+            if (in_array('admin', $rolesLower) || in_array('compras', $rolesLower)) {
+                $permissions[] = 'ver inventario';
+            }
+
+            // Agregar permiso inventario solicitante a solicitantes
+            if (in_array('solicitante', $rolesLower)) {
+                $permissions[] = 'inventario solicitante';
+            }
+
+            // Agregar ver inventario a todos los solicitantes
+            if (in_array('solicitante', $rolesLower)) {
+                $permissions[] = 'ver inventario';
+            }
+
+            // Agregar ver inventario a quienes tienen crear requisicion
+            if (in_array('crear requisicion', array_map(fn($p) => mb_strtolower(trim($p, 'UTF-8')), $permissions))) {
+                $permissions[] = 'ver inventario';
+            }
+
+            Session::put('user_roles', $roles);
+            Session::put('user_permissions', $permissions);
 
             // Normalizar (minúsculas y sin espacios extremos) para comparación robusta
             $normalize = function($txt){
@@ -82,6 +127,7 @@ class ApiAuthController extends Controller
                 'Aprobar requisicion',
                 'Total requisiciones',
                 'requisicionesxorden',
+                'ver inventario',
             ];
 
             $validNormalized = array_map($normalize, $validPermissions);
@@ -116,6 +162,12 @@ class ApiAuthController extends Controller
 
     /**
      * Logout (elimina la sesión)
+     *
+     * Borra todas las claves de sesión relacionadas con la autenticación y, si existe
+     * un token, notifica al servicio externo para invalidarlo.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function logout(Request $request)
     {
@@ -130,12 +182,18 @@ class ApiAuthController extends Controller
             'user.name',
             'user.email',
             'user.operaciones',
+            'login_time',
+            'last_activity',
         ]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         if ($token) {
-            Http::withoutVerifying()->withToken($token)->post(env('VPL_CORE') . '/api/auth/logout');
+            try {
+                Http::withoutVerifying()->withToken($token)->post(env('VPL_CORE') . '/api/auth/logout');
+            } catch (\Exception $e) {
+                // Ignorar errores de logout en el API externo
+            }
         }
 
         return redirect()->route('index')->with('logout_success', 'Has cerrado sesión correctamente.');

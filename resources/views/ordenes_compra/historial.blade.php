@@ -1,24 +1,34 @@
 @extends('layouts.app')
 
 @section('title', 'Historial de Órdenes de Compra')
-
+<link rel="icon" type="image/png" href="{{ asset('images/favicon1.png') }}">
 @section('content')
 <x-sidebar />
 
-<div class="max-w-7xl mx-auto p-6 mt-20 bg-gray-100 rounded-lg shadow-md">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800">Historial de Órdenes de Compra</h1>
+<div class="max-w-7xl mx-auto p-6 mt-20 bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 oc-scope">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <div class="h-11 w-11 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                <i class="fas fa-file-signature"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">Historial de Órdenes de Compra</h1>
+        </div>
+    </div>
 
     <div class="mb-6 flex justify-between items-center">
-        <input type="text" id="busqueda" placeholder="Buscar orden..."
-            class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+        <div class="relative w-full md:w-1/3">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+            <input type="text" id="busqueda" placeholder="Buscar orden..."
+                class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none">
+        </div>
     </div>
 
     @if($ordenes->isEmpty())
     <p class="text-gray-500 text-center py-6">No hay órdenes de compra registradas.</p>
     @else
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto thin-scrollbar">
         <table id="tablaOC" class="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
-            <thead class="bg-blue-50 text-gray-700 uppercase text-sm font-semibold">
+            <thead class="bg-indigo-50 text-indigo-900 uppercase text-sm font-semibold sticky top-0 z-10">
                 <tr>
                     <th class="p-3 text-left w-24" style="width:100px;">Requisición</th>
                     <th class="p-3 text-left">Orden</th>
@@ -35,10 +45,24 @@
             <tbody class="text-gray-700">
                 @foreach($ordenes as $oc)
                 @php
-                    // calcular total de la OC sumando price_produc * cantidad por línea
+                    // calcular total de la OC sumando price * cantidad por línea
                     $ocTotal = 0;
                     foreach($oc->ordencompraProductos as $ln) {
-                        $price = optional($ln->producto)->price_produc ?? 0;
+                        // Priorizar precio en COP guardado en la línea (trm_oc). Si no existe, intentar obtener price_produc desde productoxproveedor para el proveedor de la línea
+                        $price = 0;
+                        try {
+                            if (!empty($ln->trm_oc)) {
+                                $price = (float)$ln->trm_oc;
+                            }
+                            if (empty($price) || $price === 0) {
+                                $pxp = DB::table('productoxproveedor')
+                                    ->where('producto_id', $ln->producto_id)
+                                    ->when(!empty($ln->proveedor_id), function($q) use($ln){ $q->where('proveedor_id', $ln->proveedor_id); })
+                                    ->orderBy('id')
+                                    ->first();
+                                $price = (float)($pxp->price_produc ?? 0);
+                            }
+                        } catch (\Throwable $e) { $price = 0; }
                         $qty = (int)($ln->total ?? 0);
                         $ocTotal += $price * $qty;
                     }
@@ -57,9 +81,9 @@
                         ->value('estatus_id');
 
                     if ($activeEstatusId) {
-                        // Forzar etiqueta 'Completada' para estatus id 3
+                        // Mapear id 3 como 'Terminada' y no como 'Completada' para permitir crear nueva OC si hay pendientes
                         if ((int)$activeEstatusId === 3) {
-                            $estatusDisplay = 'Completada';
+                            $estatusDisplay = 'Terminada';
                             $isTerminada = true;
                         } elseif ((int)$activeEstatusId === 1) {
                             $estatusDisplay = 'Creada';
@@ -85,14 +109,76 @@
                     $estatusDisplay = '—';
                     $isTerminada = false;
                 }
+
+                // Calcular primer producto con cantidad pendiente (para prellenar nueva OC)
+                $pendingProductId = null;
+                $pendingQty = 0;
+                try {
+                    foreach ($oc->ordencompraProductos as $ln) {
+                        $ordered = (int) ($ln->total ?? 0);
+                        $received = (int) DB::table('recepcion')->where('orden_compra_id', $oc->id)->where('producto_id', $ln->producto_id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
+                        $pend = max(0, $ordered - $received);
+                        if ($pend > 0) { $pendingProductId = $ln->producto_id; $pendingQty = $pend; break; }
+                    }
+                } catch (\Throwable $e) { /* noop */ }
+
+                // Determinar si mostrar el botón de crear nueva OC (cuando esté terminada/anulada/cancelada o soft-deleted y haya cantidades pendientes)
+                $estatusLower = strtolower(trim((string)($estatusDisplay ?? '')));
+                
+                // Comprobar si la requisición asociada ya está completa; si está completa, no permitir crear nueva OC
+                try {
+                    $requisicionCompleta = false;
+                    // obtener requerimiento por producto (centros) o fallback a producto_requisicion
+                    $reqPorProducto = DB::table('centro_producto')
+                        ->where('requisicion_id', $requisicionId)
+                        ->select('producto_id', DB::raw('SUM(amount) as req'))
+                        ->groupBy('producto_id')
+                        ->pluck('req', 'producto_id');
+
+                    if ($reqPorProducto->isEmpty()) {
+                        $reqPorProducto = DB::table('producto_requisicion')
+                            ->where('id_requisicion', $requisicionId)
+                            ->select('id_producto as producto_id', DB::raw('SUM(pr_amount) as req'))
+                            ->groupBy('id_producto')
+                            ->pluck('req', 'producto_id');
+                    }
+
+                    if (!$reqPorProducto->isEmpty()) {
+                        $recEnt = DB::table('entrega')
+                            ->where('requisicion_id', $requisicionId)
+                            ->whereNull('deleted_at')
+                            ->select('producto_id', DB::raw('SUM(COALESCE(cantidad_recibido,0)) as rec'))
+                            ->groupBy('producto_id')
+                            ->pluck('rec', 'producto_id');
+
+                        $recStock = DB::table('recepcion as r')
+                            ->join('orden_compras as oc','oc.id','=','r.orden_compra_id')
+                            ->where('oc.requisicion_id', $requisicionId)
+                            ->whereNull('r.deleted_at')
+                            ->select('r.producto_id', DB::raw('SUM(COALESCE(r.cantidad_recibido,0)) as rec'))
+                            ->groupBy('r.producto_id')
+                            ->pluck('rec', 'producto_id');
+
+                        $allComplete = true;
+                        foreach ($reqPorProducto as $pid => $req) {
+                            $recibido = (int)($recEnt[$pid] ?? 0) + (int)($recStock[$pid] ?? 0);
+                            if ($recibido < (int)$req) { $allComplete = false; break; }
+                        }
+                        $requisicionCompleta = $allComplete;
+                    }
+                } catch (\Throwable $e) {
+                    $requisicionCompleta = false;
+                }
+
+                $showCreate = ((($oc->deleted_at !== null) || in_array($estatusLower, ['terminada','anulada','cancelada','completada'])) && !$requisicionCompleta && ($pendingQty > 0));
                 @endphp
-                <tr class="border-b hover:bg-gray-50 transition">
+                <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                     <td class="p-3 whitespace-nowrap text-sm" style="width:100px;">#{{ $oc->requisicion->id ?? '-' }}</td>
                     <td class="p-3">{{ $oc->order_oc ?? ('OC-' . $oc->id) }}</td>
                     <td class="p-3">{{ optional($oc->created_at)->format('d/m/Y H:i') }}</td>
                     <td class="p-3">{{ $proveedor->prov_name ?? '—' }}</td>
-                    <td class="p-3">{{ $oc->methods_oc ?? '—' }}</td>
-                    <td class="p-3">{{ $oc->plazo_oc ?? '—' }}</td>
+                    <td class="p-3">{{ optional($proveedor)->methods_oc ?? $oc->methods_oc ?? '—' }}</td>
+                    <td class="p-3">{{ optional($proveedor)->plazo_oc ?? $oc->plazo_oc ?? '—' }}</td>
                     <td class="p-3 text-right font-semibold">{{ number_format($ocTotal, 2) }}</td>
                     @php
                         // clase por defecto
@@ -100,7 +186,7 @@
                         $badgeClass = 'bg-gray-100 text-gray-800';
                         if ($estatusLower === 'completada' || $estatusLower === 'completado') {
                             $badgeClass = 'bg-green-100 text-green-700';
-                        } elseif (strpos($estatusLower, 'recib') !== false) {
+                        } elseif (strpos($estatusLower, 'recib' !== false)) {
                             // cualquier etiqueta que contenga 'recib' -> Recibido (amarillo)
                             $badgeClass = 'bg-amber-100 text-amber-700';
                         } elseif ($estatusLower === 'pendiente') {
@@ -110,9 +196,7 @@
                         }
                     @endphp
                     <td class="p-3">
-                        <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">
-                            {!! implode('<br>', array_map('e', preg_split('/\s+/', $estatusDisplay))) !!}
-                        </span>
+                        <span class="inline-flex flex-col items-center justify-center px-3 py-1 rounded-full text-xs font-semibold {{ $badgeClass }}">{!! implode('<br>', array_map('e', preg_split('/\s+/', $estatusDisplay))) !!}</span>
                     </td>
                     <td class="p-3 text-center">
                         <div class="flex justify-center gap-2 items-center">
@@ -125,11 +209,25 @@
                             </button>
                             @endif
                             @if(!($isTerminada ?? false))
-                            <button type="button" data-oc-id="{{ $oc->id }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
+                            <a href="{{ route('ordenes_compra.edit', $oc->id) }}" title="Editar OC" class="bg-orange-500 hover:bg-orange-600 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" aria-label="Editar OC">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            @endif
+                            @if(!($isTerminada ?? false))
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-terminar-url="{{ route('ordenes_compra.terminar', ['id' => $oc->id], false) }}" class="btn-terminar-oc bg-red-600 hover:bg-red-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Terminar OC" aria-label="Terminar OC">
                                 <i class="fas fa-flag-checkered"></i>
                             </button>
                             @endif
-                            <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
+                            {{-- Nuevo botón: editar precios factura/TRM (una sola vez) --}}
+                            <button type="button" data-oc-id="{{ $oc->id }}" data-precios-url="/ordenes_compra/actualizar-precios-factura" class="btn-open-precios-factura bg-cyan-600 hover:bg-cyan-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Editar precios de factura" aria-label="Editar precios de factura">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </button>
+                            @if($showCreate)
+                                <a href="{{ route('ordenes_compra.create', ['requisicion_id' => $requisicionId, 'producto_id' => $pendingProductId, 'cantidad' => $pendingQty]) }}" title="Crear nueva OC" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" aria-label="Crear nueva OC">
+                                    <i class="fas fa-plus"></i>
+                                </a>
+                            @endif
+                            <button type="button" class="btn-download-oc-pdf bg-green-600 hover:bg-green-700 text-white rounded p-2 w-9 h-9 flex items-center justify-center shadow" title="Descargar PDF" aria-label="Descargar PDF" data-href="{{ route('ordenes_compra.download', $requisicionId, false) }}">
                                 <i class="fas fa-file-pdf"></i>
                             </button>
                         </div>
@@ -155,20 +253,19 @@
         <div class="flex flex-wrap gap-1" id="paginationControlsOC"></div>
     </div>
 
-    <!-- Modales fuera de la tabla para evitar problemas de layout -->
+    <!-- Modales: recibir + precios factura -->
     @foreach($ordenes as $oc)
         @php $requisicionId = $oc->requisicion->id ?? ($oc->requisicion_id ?? null); @endphp
 
-        <!-- El modal anterior que listaba únicamente filas desde 'recepcion' fue eliminado porque ocultaba la posibilidad de crear recepciones para líneas de la OC. Se conserva el modal que muestra las líneas de la OC y permite anotar cantidades a recibir. -->
-
+        <!-- Modal recibir productos -->
         <div id="modal-recibir-oc-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}" data-requisicion-id="{{ $requisicionId }}">
             <div class="absolute inset-0 bg-black/50" data-close="1"></div>
-            <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+            <div class="relative bg-white w-full max-w-3xl rounded-lg shadow-lg overflow-hidden flex flex-col rc-modal">
                 <div class="flex justify-between items-center px-6 py-4 border-b">
                     <h3 class="text-lg font-semibold">Recibir productos de la OC {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
                     <button type="button" class="text-gray-600 hover:text-gray-800 rc-close" data-oc-id="{{ $oc->id }}">✕</button>
                 </div>
-                <div class="p-6">
+                <div class="p-6 overflow-y-auto max-h-[70vh] thin-scrollbar">
                     @php
                         // Subconsulta para sumar las cantidades recibidas por producto en esta OC
                         $recSum = DB::table('recepcion')
@@ -183,15 +280,19 @@
                             ->leftJoinSub($recSum, 'r', function($j){
                                 $j->on('r.producto_id','=','ocp.producto_id');
                             })
+                            // intentar obtener precio desde productoxproveedor asociado a la línea (pxp)
+                            ->leftJoin('productoxproveedor as pxp', function($join){
+                                $join->on('pxp.producto_id','=','p.id')->on('pxp.proveedor_id','=','ocp.proveedor_id');
+                            })
                             ->select(
                                 'p.id as producto_id',
                                 'p.name_produc',
-                                'p.price_produc as price_produc',
+                                DB::raw('COALESCE(pxp.price_produc, 0) as price_produc'),
                                 'p.unit_produc as unit_produc',
                                 'ocp.total as cantidad_total',
                                 'r.recepcion_id as recepcion_id',
-                                DB::raw('COALESCE(r.recibido,0) as recibido')
-                            )
+                                DB::raw('COALESCE(r.recibido,0) as recibido'
+                            ))
                             ->where('ocp.orden_compras_id', $oc->id)
                             ->whereNull('ocp.deleted_at')
                             ->orderBy('p.name_produc','asc')
@@ -199,52 +300,116 @@
                     @endphp
                     @if(($recRows ?? collect())->count())
                     @php $grandRecTotal = 0; @endphp
+                    <div class="overflow-x-auto rc-table-wrapper thin-scrollbar">
+                        <table class="w-full text-sm border rounded overflow-hidden bg-white rc-table">
+                            <thead class="bg-indigo-50">
+                                <tr>
+                                    <th class="p-2 text-left whitespace-nowrap col-prod">Producto</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Cant. OC</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Unidad</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Precio U.</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Total</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Recibido</th>
+                                    <th class="p-2 text-center whitespace-nowrap">Pendiente</th>
+                                    <th class="p-2 text-center whitespace-nowrap">A recibir</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($recRows as $r)
+                                @php
+                                    $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
+                                    $price = (float)($r->price_produc ?? 0);
+                                    $lineTotal = $price * (int)$r->cantidad_total;
+                                    $grandRecTotal += $lineTotal;
+                                @endphp
+                                <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
+                                    <td class="p-2 align-top col-prod" title="{{ $r->name_produc }}"><span class="truncate block">{{ $r->name_produc }}</span></td>
+                                    <td class="p-2 text-center align-top">{{ (int)$r->cantidad_total }}</td>
+                                    <td class="p-2 text-center align-top">{{ $r->unit_produc ?? '—' }}</td>
+                                    <td class="p-2 text-center align-top">{{ number_format($price, 2) }}</td>
+                                    <td class="p-2 text-center align-top">{{ number_format($lineTotal, 2) }}</td>
+                                    <td class="p-2 text-center align-top">{{ (int)$r->recibido }}</td>
+                                    <td class="p-2 text-center align-top">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
+                                    <td class="p-2 text-center align-top">
+                                        <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-gray-50 font-semibold border-t">
+                                    <td colspan="4" class="p-2 text-right">Total general</td>
+                                    <td class="p-2 text-center">{{ number_format($grandRecTotal, 2) }}</td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-4">
+                        <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
+                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}" data-confirm-url="{{ route('recepciones.confirmar', [], false) }}">Guardar recepción</button>
+                    </div>
+                    @else
+                        <div class="text-gray-600">Esta orden no tiene líneas.</div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal precios factura/TRM (una sola vez) -->
+        <div id="modal-precios-factura-{{ $oc->id }}" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4" data-oc-id="{{ $oc->id }}">
+            <div class="absolute inset-0 bg-black/50" data-close="1"></div>
+            <div class="relative bg-white w-full max-w-4xl rounded-lg shadow-lg overflow-hidden flex flex-col">
+                <div class="flex justify-between items-center px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold">Editar precios de factura - {{ $oc->order_oc ?? ('OC-'.$oc->id) }}</h3>
+                    <button type="button" class="text-gray-600 hover:text-gray-800 pf-close" data-oc-id="{{ $oc->id }}">✕</button>
+                </div>
+                <div class="p-6 thin-scrollbar overflow-y-auto max-h-[75vh]">
+                    @php $lines = $oc->ordencompraProductos; @endphp
+                    @if(($lines ?? collect())->count())
                     <table class="w-full text-sm border rounded overflow-hidden bg-white">
-                        <thead class="bg-gray-100">
+                        <thead class="bg-indigo-50">
                             <tr>
                                 <th class="p-2 text-left">Producto</th>
-                                <th class="p-2 text-center">Cant. OC</th>
-                                <th class="p-2 text-center">Unidad</th>
-                                <th class="p-2 text-center">Precio U.</th>
-                                <th class="p-2 text-center">Total</th>
-                                <th class="p-2 text-center">Recibido</th>
-                                <th class="p-2 text-center">Pendiente</th>
-                                <th class="p-2 text-center">A recibir</th>
+                                <th class="p-2 text-left">Proveedor</th>
+                                <th class="p-2 text-center">Cant.</th>
+                                <th class="p-2 text-center">Precio factura</th>
+                                <th class="p-2 text-center">TRM factura</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($recRows as $r)
-                            @php
-                                $pend = max(0, (int)$r->cantidad_total - (int)$r->recibido);
-                                $price = (float)($r->price_produc ?? 0);
-                                $lineTotal = $price * (int)$r->cantidad_total;
-                                $grandRecTotal += $lineTotal;
-                            @endphp
-                            <tr class="border-t rc-row" data-rec-id="{{ $r->recepcion_id ?? '' }}" data-producto-id="{{ $r->producto_id }}" data-total="{{ (int)$r->cantidad_total }}" data-current="{{ (int)$r->recibido }}">
-                                <td class="p-2">{{ $r->name_produc }}</td>
-                                <td class="p-2 text-center">{{ (int)$r->cantidad_total }}</td>
-                                <td class="p-2 text-center">{{ $r->unit_produc ?? '—' }}</td>
-                                <td class="p-2 text-center">{{ number_format($price, 2) }}</td>
-                                <td class="p-2 text-center">{{ number_format($lineTotal, 2) }}</td>
-                                <td class="p-2 text-center">{{ (int)$r->recibido }}</td>
-                                <td class="p-2 text-center">{{ $pend }} @if($pend === 0) <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Recepción completada</span> @endif</td>
-                                <td class="p-2 text-center">
-                                    <input type="number" min="0" max="{{ $pend }}" value="{{ $pend }}" class="w-24 border rounded p-1 text-center rcx-input" {{ $pend === 0 ? 'disabled' : '' }}>
-                                </td>
-                            </tr>
+                            @foreach($lines as $ln)
+                                @php
+                                    $cant = (int)($ln->total ?? 0);
+                                    $pFac  = $ln->precio_factura;
+                                    $trm   = $ln->trm_factura;
+                                @endphp
+                                <tr class="border-t pf-row" data-ocp-id="{{ $ln->id }}" data-proveedor-id="{{ $ln->proveedor_id }}">
+                                    <td class="p-2">{{ optional($ln->producto)->name_produc ?? ('#'.$ln->producto_id) }}</td>
+                                    <td class="p-2">
+                                        <select class="pf-proveedor border rounded p-1 w-full text-sm" data-ocp-id="{{ $ln->id }}">
+                                            @php $allProveedores = \App\Models\Proveedor::all(); @endphp
+                                            @foreach($allProveedores as $prov)
+                                                <option value="{{ $prov->id }}" {{ $ln->proveedor_id == $prov->id ? 'selected' : '' }}>
+                                                    {{ $prov->prov_name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </td>
+                                    <td class="p-2 text-center">{{ $cant }}</td>
+                                    <td class="p-2 text-center">
+                                        <input type="number" step="0.01" min="0" class="pf-price border rounded p-1 w-28 text-right" value="{{ !is_null($pFac) ? number_format((float)$pFac, 2, '.', '') : '' }}" placeholder="0.00">
+                                    </td>
+                                    <td class="p-2 text-center">
+                                        <input type="number" step="0.01" min="0" class="pf-trm border rounded p-1 w-28 text-right" value="{{ !is_null($trm) ? number_format((float)$trm, 2, '.', '') : '' }}" placeholder="1.00">
+                                    </td>
+                                </tr>
                             @endforeach
                         </tbody>
-                        <tfoot>
-                            <tr class="bg-gray-50 font-semibold border-t">
-                                <td colspan="4" class="p-2 text-right">Total general</td>
-                                <td class="p-2 text-center">{{ number_format($grandRecTotal, 2) }}</td>
-                                <td colspan="3"></td>
-                            </tr>
-                        </tfoot>
                     </table>
                     <div class="flex justify-end gap-3 mt-4">
-                        <button type="button" class="px-4 py-2 border rounded rc-cancel" data-oc-id="{{ $oc->id }}">Cancelar</button>
-                        <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded rc-save" data-oc-id="{{ $oc->id }}">Guardar recepción</button>
+                        <button type="button" class="px-4 py-2 border rounded pf-close" data-oc-id="{{ $oc->id }}">Cancelar</button>
+                        <button type="button" class="px-4 py-2 bg-cyan-600 text-white rounded pf-save" data-oc-id="{{ $oc->id }}">Guardar</button>
                     </div>
                     @else
                         <div class="text-gray-600">Esta orden no tiene líneas.</div>
@@ -263,7 +428,7 @@
                 <button onclick="toggleModal('modal-{{ $oc->id }}')"
                     class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl z-10"
                     aria-label="Cerrar modal">&times;</button>
-                <div class="overflow-y-auto p-8" style="max-height:calc(85vh - 92px);">
+                <div class="overflow-y-auto p-8 thin-scrollbar" style="max-height:calc(85vh - 92px);">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">Orden {{ $oc->order_oc ?? ('OC-' . $oc->id) }}</h2>
 
                     <section class="mb-8">
@@ -273,8 +438,9 @@
                             <div><span class="font-medium">Fecha de creación:</span> {{ optional($oc->created_at)->format('d/m/Y H:i') }}</div>
                             <div><span class="font-medium">Requisición:</span> #{{ $oc->requisicion->id ?? '-' }}</div>
                             <div><span class="font-medium">Proveedor:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->prov_name ?? '—' }}</div>
-                            <div><span class="font-medium">Método de pago:</span> {{ $oc->methods_oc ?? '—' }}</div>
-                            <div><span class="font-medium">Plazo de pago:</span> {{ $oc->plazo_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Método de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->methods_oc ?? $oc->methods_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Plazo de pago:</span> {{ optional(optional($oc->ordencompraProductos->first())->proveedor)->plazo_oc ?? $oc->plazo_oc ?? '—' }}</div>
+                            <div><span class="font-medium">Fecha Estimada Recepción:</span> {{ $oc->fecha_estimada_recepcion ? \Carbon\Carbon::parse($oc->fecha_estimada_recepcion)->format('d/m/Y') : '—' }}</div>
                             @if(!empty($oc->observaciones))
                             <div class="md:col-span-2"><span class="font-medium">Observaciones:</span> {{ $oc->observaciones }}</div>
                             @endif
@@ -285,16 +451,9 @@
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Productos</h3>
                         <div class="border rounded-lg overflow-hidden">
                             <div>
-                                @php
-                                    // calcular total general de la orden (suma de price_produc * cantidad)
-                                    $grandTotal = 0;
-                                    foreach($oc->ordencompraProductos as $__ln) {
-                                        $up = $__ln->producto->price_produc ?? 0;
-                                        $grandTotal += $up * (int)$__ln->total;
-                                    }
-                                @endphp
+                                @php $grandTotal = 0; @endphp
                                  <table class="w-full text-sm bg-white">
-                                     <thead class="bg-gray-100 text-gray-700 sticky top-0 z-10">
+                                     <thead class="bg-indigo-50 text-indigo-900 sticky top-0 z-10">
                                          <tr class="border-b">
                                              <th class="p-3 text-left">Producto</th>
                                              <th class="p-3 text-center">Cant.</th>
@@ -308,15 +467,32 @@
                                          @foreach($oc->ordencompraProductos as $linea)
                                          @if($linea->producto)
                                          @php
-                                             $unitPrice = $linea->producto->price_produc ?? 0;
+                                             // Precio unitario en COP por línea: preferir precio_factura, luego precio_original; si no, fallback a pxp
+                                             $unitPrice = null;
+                                             if (!is_null($linea->precio_factura)) {
+                                                 $unitPrice = (float) $linea->precio_factura;
+                                             } elseif (!is_null($linea->precio_original)) {
+                                                 $unitPrice = (float) $linea->precio_original;
+                                             } else {
+                                                 try {
+                                                     $provId = optional(optional($oc->ordencompraProductos->first())->proveedor)->id ?? null;
+                                                     $pxp = DB::table('productoxproveedor')
+                                                         ->where('producto_id', $linea->producto_id)
+                                                         ->when($provId, function($q) use($provId){ $q->where('proveedor_id', $provId); })
+                                                         ->orderBy('id')
+                                                         ->first();
+                                                     $unitPrice = (float)($pxp->price_produc ?? 0);
+                                                 } catch (\Throwable $e) { $unitPrice = 0; }
+                                             }
                                              $unitName = $linea->producto->unit_produc ?? '—';
-                                             $lineTotal = $unitPrice * (int)$linea->total;
+                                             $lineTotal = ((float)$unitPrice) * (int)$linea->total;
+                                             $grandTotal += $lineTotal;
                                          @endphp
                                          <tr class="border-b">
                                              <td class="p-3 font-medium text-gray-800 align-top">{{ $linea->producto->name_produc }}</td>
                                              <td class="p-3 text-center align-top">{{ (int)$linea->total }}</td>
                                              <td class="p-3 text-center align-top">{{ $unitName }}</td>
-                                             <td class="p-3 text-center align-top">{{ number_format($unitPrice, 2) }}</td>
+                                             <td class="p-3 text-center align-top">{{ number_format((float)$unitPrice, 2) }}</td>
                                              <td class="p-3 text-center align-top">{{ number_format($lineTotal, 2) }}</td>
                                              <td class="p-3 align-top">
                                                  @php
@@ -355,12 +531,6 @@
                     <button type="button" class="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition flex items-center gap-1 btn-open-estatus-oc" data-oc-id="{{ $oc->id }}">
                         <i class="fas fa-info-circle"></i> Ver Estatus
                     </button>
-                    <button type="button" class="bg-yellow-500 text-white px-5 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center gap-1 btn-open-recibir-from-view" data-oc-id="{{ $oc->id }}">
-                        <i class="fas fa-box"></i> Recibir productos
-                    </button>
-                    <button type="button" class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-1 btn-download-oc-pdf" data-href="{{ route('ordenes_compra.download', $requisicionId) }}">
-                        <i class="fas fa-file-pdf"></i> Descargar PDF
-                    </button>
                 </div>
                 <!-- Modal Estatus para esta OC -->
                 @php
@@ -375,7 +545,7 @@
                 <div id="modal-estatus-oc-{{ $oc->id }}" class="fixed inset-0 z-[10000] hidden items-center justify-center p-4">
                     <div class="absolute inset-0 bg-black/50" data-close="1"></div>
                     <div class="relative w-full max-w-3xl">
-                        <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative">
+                        <div class="bg-white rounded-2xl shadow-2xl max-h-[85vh] overflow-y-auto p-6 relative thin-scrollbar">
                             <button onclick="toggleModal('modal-estatus-oc-{{ $oc->id }}')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">✕</button>
 
                             @php
@@ -565,8 +735,9 @@
                                                             <td class="p-2">{{ $rec->reception_user ?? '—' }}</td>
                                                         </tr>
                                                     </tbody>
-                                                </div>
-                                            </details>
+                                                </table>
+                                            </div>
+                                        </details>
                                     @endforeach
                                 @endif
 
@@ -672,189 +843,352 @@
         container.appendChild(btnNext);
     }
 
-    document.addEventListener('DOMContentLoaded', function(){
-        document.querySelectorAll('#tablaOC tbody tr').forEach(r => r.dataset.match = '1');
-        const sel = document.getElementById('pageSizeSelectOC');
-        if (sel) {
-            ocPageSize = parseInt(sel.value, 10) || 10;
-            sel.addEventListener('change', (e) => {
-                ocPageSize = parseInt(e.target.value, 10) || 10;
-                ocShowPage(1);
+    // Inicialización robusta: ejecutar ahora o al DOMContentLoaded
+    (function(){
+        const init = function(){
+            // Helpers para formatear/sanitizar 2 decimales (usados por .pf-save)
+            const twoDec = (val) => {
+                if (val === null || val === undefined) return '';
+                const num = parseFloat((''+val).replace(',', '.'));
+                if (isNaN(num) || num < 0) return '';
+                return (Math.round(num * 100) / 100).toFixed(2);
+            };
+            const sanitizeTarget = (t) => {
+                if (!t) return;
+                const v = (t.value || '').toString();
+                if (v === '') return;
+                const m = v.replace(',', '.').match(/^\d*(?:\.\d{0,2})?/);
+                t.value = m ? m[0] : '';
+            };
+
+            document.querySelectorAll('#tablaOC tbody tr').forEach(r => r.dataset.match = '1');
+            const sel = document.getElementById('pageSizeSelectOC');
+            if (sel) {
+                ocPageSize = parseInt(sel.value, 10) || 10;
+                sel.addEventListener('change', (e) => {
+                    ocPageSize = parseInt(e.target.value, 10) || 10;
+                    ocShowPage(1);
+                });
+            }
+            ocShowPage(1);
+
+            // Input sanitization delegated (recepción)
+            document.addEventListener('input', function(e){
+                if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
+                    const max = parseInt(e.target.max || '0', 10);
+                    let v = parseInt(e.target.value || '0', 10);
+                    if (isNaN(v) || v < 0) v = 0;
+                    if (v > max) v = max;
+                    e.target.value = v;
+                }
+                // Sanitizar inputs de precios/trm a 2 decimales en tiempo real
+                if (e.target && (e.target.classList?.contains('pf-price') || e.target.classList?.contains('pf-trm'))){
+                    sanitizeTarget(e.target);
+                }
             });
-        }
-        ocShowPage(1);
+            document.addEventListener('change', function(e){
+                if (e.target && (e.target.classList?.contains('pf-price') || e.target.classList?.contains('pf-trm'))){
+                    e.target.value = twoDec(e.target.value);
+                }
+            });
 
-        // Input sanitization delegated
-        document.addEventListener('input', function(e){
-            if (e.target && e.target.classList && e.target.classList.contains('rcx-input')){
-                const max = parseInt(e.target.max || '0', 10);
-                let v = parseInt(e.target.value || '0', 10);
-                if (isNaN(v) || v < 0) v = 0;
-                if (v > max) v = max;
-                e.target.value = v;
-            }
-        });
-
-        // Delegated click handler for modal actions, rc-save and terminar
-        document.addEventListener('click', async function(e){
-            // Descargar PDF/ZIP navegando en la misma pestaña
-            const dlBtn = e.target.closest('.btn-download-oc-pdf');
-            if (dlBtn) {
-                const href = dlBtn.dataset.href;
-                if (href) {
-                    try {
-                        Swal.fire({ title: 'Preparando descarga', text: 'Espere un momento...', allowOutsideClick: false, timer: 600, didOpen: () => Swal.showLoading() })
-                            .then(() => { window.location.href = href; });
-                    } catch (_) {
-                        window.location.href = href;
+            // Delegated click handler para abrir/cerrar modales y acciones
+            document.addEventListener('click', async function(e){
+                // Descargar PDF/ZIP navegando en la misma pestaña
+                const dlBtn = e.target.closest('.btn-download-oc-pdf');
+                if (dlBtn) {
+                    const href = dlBtn.dataset.href;
+                    if (href) {
+                        try {
+                            if (window.Swal) {
+                                Swal.fire({ title: 'Preparando descarga', text: 'Espere un momento...', allowOutsideClick: false, timer: 600, didOpen: () => Swal.showLoading() })
+                                    .then(() => { window.location.href = href; });
+                            } else {
+                                window.location.href = href;
+                            }
+                        } catch (_) {
+                            window.location.href = href;
+                        }
                     }
+                    return;
                 }
-                return;
-            }
 
-            // open recibir modal
-            const btnRec = e.target.closest('.btn-open-recibir');
-            if (btnRec) {
-                const ocId = btnRec.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (modal) {
-                    if (modal.parentNode !== document.body) document.body.appendChild(modal);
-                    modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden';
-                }
-                return;
-            }
-            // open ver modal
-            const btnVer = e.target.closest('.btn-open-ver');
-            if (btnVer) {
-                const ocId = btnVer.dataset.ocId;
-                const modal = document.getElementById(`modal-${ocId}`);
-                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // open estatus modal
-            const btnEstatus = e.target.closest('.btn-open-estatus-oc');
-            if (btnEstatus) {
-                const ocId = btnEstatus.dataset.ocId;
-                const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
-                if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // open recibir from view
-            const btnRecFromView = e.target.closest('.btn-open-recibir-from-view');
-            if (btnRecFromView) {
-                const ocId = btnRecFromView.dataset.ocId;
-                const vModal = document.getElementById(`modal-${ocId}`);
-                if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
-                const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                if (rModal) { if (rModal.parentNode !== document.body) document.body.appendChild(rModal); rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
-                return;
-            }
-            // close recibir modal via buttons
-            const btnClose = e.target.closest('.rc-close, .rc-cancel');
-            if (btnClose) {
-                const ocId = btnClose.dataset.ocId;
-                if (ocId) {
+                // open recibir modal
+                const btnRec = e.target.closest('.btn-open-recibir');
+                if (btnRec) {
+                    const ocId = btnRec.dataset.ocId;
                     const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    if (modal) {
+                        if (modal.parentNode !== document.body) document.body.appendChild(modal);
+                        modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden';
+                    }
+                    return;
+                }
+                // open ver modal
+                const btnVer = e.target.closest('.btn-open-ver');
+                if (btnVer) {
+                    const ocId = btnVer.dataset.ocId;
+                    const modal = document.getElementById(`modal-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // open estatus modal
+                const btnEstatus = e.target.closest('.btn-open-estatus-oc');
+                if (btnEstatus) {
+                    const ocId = btnEstatus.dataset.ocId;
+                    const modal = document.getElementById(`modal-estatus-oc-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // open recibir from view
+                const btnRecFromView = e.target.closest('.btn-open-recibir-from-view');
+                if (btnRecFromView) {
+                    const ocId = btnRecFromView.dataset.ocId;
+                    const vModal = document.getElementById(`modal-${ocId}`);
+                    if (vModal) { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }
+                    const rModal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    if (rModal) { if (rModal.parentNode !== document.body) document.body.appendChild(rModal); rModal.classList.remove('hidden'); rModal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+                // close recibir modal via buttons
+                const btnClose = e.target.closest('.rc-close, .rc-cancel');
+                if (btnClose) {
+                    const ocId = btnClose.dataset.ocId;
+                    if (ocId) {
+                        const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow = ''; }
+                    }
+                    return;
+                }
+                // backdrop close for any modal with data-close="1"
+                if (e.target && e.target.dataset && e.target.dataset.close === '1') {
+                    const parent = e.target.closest('[id^="modal-"]');
+                    if (parent) { parent.classList.add('hidden'); parent.classList.remove('flex'); document.body.style.overflow = ''; }
+                    return;
+                }
+
+                // rc-save: guardar recepciones
+                const btnSave = e.target.closest('.rc-save');
+                if (btnSave) {
+                    const ocId = btnSave.dataset.ocId;
+                    const endpoint = btnSave.dataset.confirmUrl || `{{ route('recepciones.confirmar') }}`;
+                    const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
+                    const rows = Array.from(modal.querySelectorAll('.rc-row'));
+                    if (rows.length === 0) {
+                        if (window.Swal) await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
+                        return;
+                    }
+                    const items = rows.map(tr => {
+                        const recId = tr.dataset.recId || null;
+                        const prodId = parseInt(tr.dataset.productoId, 10);
+                        const total = parseInt(tr.dataset.total || '0', 10);
+                        const current = parseInt(tr.dataset.current || '0', 10);
+                        const inp = tr.querySelector('.rcx-input');
+                        if (!inp || inp.disabled) return null;
+                        const max = parseInt(inp.max || '0', 10);
+                        let inc = parseInt(inp.value || '0', 10);
+                        if (isNaN(inc) || inc < 0) inc = 0;
+                        if (inc > max) inc = max;
+                        const nuevoAcumulado = Math.min(total, current + inc);
+                        return { recId, prodId, total, current, inc, nuevoAcumulado };
+                    }).filter(Boolean).filter(it => it.inc > 0);
+                    if (items.length === 0) {
+                        if (window.Swal) await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
+                        return;
+                    }
+                    if (window.Swal){
+                        const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                        if (!confirm.isConfirmed) return;
+                        Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
+                        const payload = { items: items.map(it => ({
+                            recepcion_id: it.recId || undefined,
+                            orden_compra_id: it.recId ? undefined : ocId,
+                            producto_id: it.prodId,
+                            cantidad: it.total,
+                            cantidad_recibido: it.nuevoAcumulado,
+                            reception_user: receptionUser
+                        })) };
+
+                        const resp = await fetch(endpoint, {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
+                        if (window.Swal){ Swal.close(); await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'}); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({icon:'error', title:'Error', text: err.message || 'Ocurrió un error al guardar.'}); }
+                    }
+                    return;
+                }
+
+                // Terminar OC
+                const btnTerm = e.target.closest('.btn-terminar-oc');
+                if (btnTerm) {
+                    const ocId = btnTerm.dataset.ocId;
+                    const endpoint = btnTerm.dataset.terminarUrl || `{{ url('/ordenes_compra/terminar') }}/${ocId}`;
+                    if (window.Swal){
+                        const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
+                        if (!confirmed.isConfirmed) return;
+                        Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const resp = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
+                    return;
+                }
+
+                // Finalizar requisición (proceso separado)
+                const btnFinReq = e.target.closest('.btn-finalizar-requisicion');
+                if (btnFinReq) {
+                    const reqId = btnFinReq.dataset.requisicionId;
+                    const endpoint = btnFinReq.dataset.finalizarUrl || `{{ url('/requisiciones') }}/${reqId}/finalizar`;
+                    if (window.Swal){
+                        const confirmed = await Swal.fire({ title: 'Finalizar requisición', text: 'Esto marcará la requisición como completada (estatus 10). ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, finalizar', cancelButtonText: 'Cancelar' });
+                        if (!confirmed.isConfirmed) return;
+                        Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const resp = await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
+                        const data = await resp.json().catch(()=>({}));
+                        if (!resp.ok) throw new Error(data.message || 'Error al finalizar la requisición');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'success', title: 'Requisición finalizada', text: data.message || 'Proceso completado.' }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
+                    return;
+                }
+
+                // Crear OC desde línea pendiente
+                const btnCreateFromPending = e.target.closest('.btn-create-from-pending');
+                if (btnCreateFromPending) {
+                    const ocId = btnCreateFromPending.dataset.oc;
+                    const productId = btnCreateFromPending.dataset.product;
+                    const pendingQty = btnCreateFromPending.dataset.pending;
+                    const selectEl = document.getElementById(`prov-select-${ocId}-${productId}`);
+                    const proveedorId = selectEl ? selectEl.value : null;
+                    if (!proveedorId) {
+                        if (window.Swal) return Swal.fire({ icon:'warning', title:'Proveedor requerido', text:'Seleccione un proveedor para continuar.' });
+                        return;
+                    }
+                    const baseUrl = btnCreateFromPending.dataset.base;
+                    const createUrl = `${baseUrl}?producto_id=${productId}&cantidad=${pendingQty}&proveedor_id=${proveedorId}`;
+                    window.location.href = createUrl;
+                    return;
+                }
+
+                // Abrir modal precios factura
+                const btnPf = e.target.closest('.btn-open-precios-factura');
+                if (btnPf) {
+                    const ocId = btnPf.dataset.ocId;
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
+                    if (modal) { if (modal.parentNode !== document.body) document.body.appendChild(modal); modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.style.overflow = 'hidden'; }
+                    return;
+                }
+
+                // Cerrar modal precios
+                const btnPfClose = e.target.closest('.pf-close');
+                if (btnPfClose) {
+                    const ocId = btnPfClose.dataset.ocId;
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
                     if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.style.overflow = ''; }
-                }
-                return;
-            }
-            // backdrop close for any modal with data-close="1"
-            if (e.target && e.target.dataset && e.target.dataset.close === '1') {
-                const parent = e.target.closest('[id^="modal-"]');
-                if (parent) { parent.classList.add('hidden'); parent.classList.remove('flex'); document.body.style.overflow = ''; }
-                return;
-            }
-
-            // rc-save: guardar recepciones
-            const btnSave = e.target.closest('.rc-save');
-            if (btnSave) {
-                const ocId = btnSave.dataset.ocId;
-                const modal = document.getElementById(`modal-recibir-oc-${ocId}`);
-                const rows = Array.from(modal.querySelectorAll('.rc-row'));
-                if (rows.length === 0) {
-                    await Swal.fire({icon:'info', title:'Sin registros', text:'No hay filas para guardar.'});
                     return;
                 }
-                const items = rows.map(tr => {
-                    const recId = tr.dataset.recId || null;
-                    const prodId = parseInt(tr.dataset.productoId, 10);
-                    const total = parseInt(tr.dataset.total || '0', 10);
-                    const current = parseInt(tr.dataset.current || '0', 10);
-                    const inp = tr.querySelector('.rcx-input');
-                    if (!inp || inp.disabled) return null;
-                    const max = parseInt(inp.max || '0', 10);
-                    let inc = parseInt(inp.value || '0', 10);
-                    if (isNaN(inc) || inc < 0) inc = 0;
-                    if (inc > max) inc = max;
-                    const nuevoAcumulado = Math.min(total, current + inc);
-                    return { recId, prodId, total, current, inc, nuevoAcumulado };
-                }).filter(Boolean).filter(it => it.inc > 0);
-                if (items.length === 0) {
-                    await Swal.fire({icon:'info', title:'Sin cantidades', text:'No hay cantidades a recibir.'});
+
+                // Guardar precios factura (una sola vez)
+                const btnPfSave = e.target.closest('.pf-save');
+                if (btnPfSave) {
+                    const ocId = parseInt(btnPfSave.dataset.ocId, 10);
+                    const modal = document.getElementById(`modal-precios-factura-${ocId}`);
+                    const rows = Array.from(modal.querySelectorAll('.pf-row'));
+                    const items = rows.map(tr => {
+                        const ocpId = parseInt(tr.dataset.ocpId, 10);
+                        const proveedor_id = parseInt(tr.querySelector('.pf-proveedor').value, 10);
+                        const priceEl = tr.querySelector('.pf-price');
+                        const trmEl = tr.querySelector('.pf-trm');
+                        const precio = parseFloat(twoDec(priceEl?.value || ''));
+                        const trmTxt = trmEl?.value === '' ? null : twoDec(trmEl.value);
+                        const trm = trmTxt === null ? null : parseFloat(trmTxt);
+                        if (isNaN(precio) || precio < 0) return null;
+                        if (trm !== null && (isNaN(trm) || trm < 0)) return null;
+                        return { ocp_id: ocpId, proveedor_id: proveedor_id, precio_factura: precio, trm_factura: trm };
+                    }).filter(Boolean);
+
+                    if (items.length === 0) {
+                        if (window.Swal) await Swal.fire({ icon:'info', title:'Sin cambios', text:'No hay líneas con datos válidos.' });
+                        return;
+                    }
+
+                    if (window.Swal){
+                        const confirm = await Swal.fire({ title: 'Confirmar', text: 'Se guardarán los precios de factura y TRM.', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
+                        if (!confirm.isConfirmed) return;
+                        Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    }
+                    try {
+                        const endpoint = document.querySelector(`.btn-open-precios-factura[data-oc-id='${ocId}']`)?.dataset?.preciosUrl || '/ordenes_compra/actualizar-precios-factura';
+                        const resp = await fetch(endpoint, {
+                            method: 'POST', credentials: 'same-origin',
+                            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orden_compra_id: ocId, items })
+                        });
+                        const data = await resp.json().catch(()=>({}));
+                        if (!resp.ok) throw new Error(data.message || 'Error al actualizar precios');
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon:'success', title:'Actualizado', text:`Líneas actualizadas: ${data.updated}.` }); }
+                        location.reload();
+                    } catch (err) {
+                        if (window.Swal){ Swal.close(); await Swal.fire({ icon:'error', title:'Error', text: err.message || 'Ocurrió un error' }); }
+                    }
                     return;
                 }
-                const confirm = await Swal.fire({ title: 'Confirmar recepción', text: 'Se registrarán las cantidades recibidas seleccionadas. ¿Desea continuar?', icon: 'question', showCancelButton: true, confirmButtonText: 'Sí, guardar', cancelButtonText: 'Cancelar' });
-                if (!confirm.isConfirmed) return;
-                Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    const receptionUser = {!! json_encode(session('user.name') ?? session('user.email') ?? session('user.id') ?? '') !!};
-                    const payload = { items: items.map(it => ({
-                        recepcion_id: it.recId || undefined,
-                        orden_compra_id: it.recId ? undefined : ocId,
-                        producto_id: it.prodId,
-                        cantidad: it.total,
-                        cantidad_recibido: it.nuevoAcumulado,
-                        reception_user: receptionUser
-                    })) };
-
-                    const resp = await fetch("{{ route('recepciones.confirmar') }}", {
-                        method: 'POST', credentials: 'same-origin',
-                        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al guardar recepciones');
-                    Swal.close();
-                    await Swal.fire({icon:'success', title:'¡Recibido!', text:'Recepciones registradas y stock actualizado.'});
-                    location.reload();
-                } catch (err) {
-                    Swal.close();
-                    await Swal.fire({icon:'error', title:'Error', text: err.message || 'Ocurrió un error al guardar.'});
-                }
-                return;
-            }
-
-            // Terminar OC
-            const btnTerm = e.target.closest('.btn-terminar-oc');
-            if (btnTerm) {
-                const ocId = btnTerm.dataset.ocId;
-                const confirmed = await Swal.fire({ title: 'Terminar orden', text: 'Al terminar la orden no se podrán registrar más recepciones. ¿Desea continuar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, terminar', cancelButtonText: 'Cancelar' });
-                if (!confirmed.isConfirmed) return;
-                Swal.fire({ title: 'Procesando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                try {
-                    const resp = await fetch("{{ url('/ordenes_compra/terminar') }}/"+ocId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' } });
-                    const data = await resp.json();
-                    if (!resp.ok) throw new Error(data.message || 'Error al terminar la orden');
-                    Swal.close();
-                    await Swal.fire({ icon: 'success', title: 'Orden terminada', text: 'La orden ha sido marcada como terminada.' });
-                    location.reload();
-                } catch (err) {
-                    Swal.close();
-                    await Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Ocurrió un error' });
-                }
-                return;
-            }
-        });
-    });
+            });
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
 </script>
-@endsection
 
 <style>
         /* Flecha rotatoria para summaries */
         .details-summary-arrow{ transition: transform .18s ease; }
         details[open] .details-summary-arrow{ transform: rotate(180deg); }
-    </style>
+        /* Scope local */
+        .oc-scope { color: #111827; }
+        .oc-scope hr { color: #e5e7eb; border-color: #e5e7eb; }
+        .oc-scope a { color: inherit; }
+        #sidebar { color: #ffffff !important; }
+        #sidebar a { color: #ffffff !important; }
+        #sidebar a:hover { color: #fdba74 !important; }
+        #sidebar hr { border-color: rgba(30,58,138,0.3) !important; }
+        #sidebar .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: rgba(30,58,138,0.3) !important; }
+        .rc-table-wrapper{overflow-x:auto;}
+        .rc-table{table-layout:fixed;}
+        .rc-modal{max-height:90vh;}
+        .rc-modal input.rcx-input{min-width:70px;}
+        /* Columna producto más estrecha con elipsis */
+        .rc-table .col-prod{max-width:160px;width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        @media (max-width: 640px){ .rc-table .col-prod{max-width:120px;width:120px;} }
+        /* Scrollbar fino y badge */
+        .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+        .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+        .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+</style>
 <script>
 // Inyectar span de info de paginación de OC si falta
 document.addEventListener('DOMContentLoaded', () => {

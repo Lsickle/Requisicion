@@ -5,27 +5,36 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Log;
 
 class AuthSession
 {
-    /**
-     * Handle an incoming request.
-     */
     public function handle(Request $request, Closure $next)
     {
-        // DEBUG: Verificar que el middleware se está ejecutando
-        Log::info('AuthSession middleware ejecutándose para: ' . $request->path());
-        Log::info('Session tiene api_token: ' . (Session::has('api_token') ? 'Sí' : 'No'));
-        Log::info('Session tiene user: ' . (Session::has('user') ? 'Sí' : 'No'));
-
-        // Verifica si hay sesión de usuario y token
-        if (!Session::has('api_token') || !Session::has('user')) {
-            Log::warning('Usuario no autenticado intentando acceder a: ' . $request->path());
-            return redirect('/')->with('error', 'Por favor inicia sesión');
+        $path = $request->path();
+        
+        // Rutas públicas sin verificación
+        if (in_array($path, ['/', 'index', 'login', 'auth/api-login', 'logout', 'api/'])) {
+            return $next($request);
         }
-
-        Log::info('Usuario autenticado, permitiendo acceso a: ' . $request->path());
-        return $next($request);
+        
+        // Verificar si existe sesión de API (puede estar en cualquier formato válido)
+        $hasApiToken = Session::has('api_token') && !empty(Session::get('api_token'));
+        $hasUser = Session::has('user') && !empty(Session::get('user'));
+        
+        // Si hay sesión válida, renovarla y continuar
+        if ($hasApiToken && $hasUser) {
+            Session::put('last_activity', time());
+            Session::save();
+            return $next($request);
+        }
+        
+        // Si no hay sesión válida, dependiendo del tipo de request
+        if ($request->expectsJson() || $request->is('api/*') || $request->ajax()) {
+            return response()->json([
+                'message' => 'Sesión expirada. Por favor inicia sesión nuevamente.'
+            ], 401);
+        }
+        
+        return redirect('/');
     }
 }

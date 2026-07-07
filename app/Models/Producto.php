@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,18 +15,16 @@ class Producto extends Model
     protected $table = 'productos';
 
     protected $fillable = [
-        'proveedor_id', 
+        'sku',
         'categoria_produc',
         'name_produc',
         'stock_produc',
         'description_produc',
-        'price_produc',
         'iva',
         'unit_produc'
     ];
 
     protected $casts = [
-        'price_produc' => 'decimal:2',
         'iva' => 'decimal:2',
     ];
 
@@ -36,13 +33,6 @@ class Producto extends Model
         static::addGlobalScope('orderById', function (Builder $builder) {
             $builder->orderBy('id', 'asc');
         });
-    }
-
-    // Relación con proveedor
-    public function proveedor()
-    {
-        // Usamos la clave correcta
-        return $this->belongsTo(Proveedor::class, 'proveedor_id');
     }
 
     // Relación con órdenes de compra
@@ -76,11 +66,25 @@ class Producto extends Model
             ->withTimestamps();
     }
 
-    // En Producto.php, reemplazar el método centrosRequisicion() con:
+    // Centros por requisición (pivot incluye requisicion_id)
     public function centrosRequisicion()
     {
         return $this->belongsToMany(Centro::class, 'centro_producto')
             ->withPivot('amount', 'requisicion_id')
+            ->withTimestamps();
+    }
+
+    // Relación hacia productoxproveedor (1:n)
+    public function productoxproveedor()
+    {
+        return $this->hasMany(Productoxproveedor::class, 'producto_id');
+    }
+
+    // Relación con requisiciones (tabla pivot producto_requisicion)
+    public function requisiciones()
+    {
+        return $this->belongsToMany(Requisicion::class, 'producto_requisicion', 'id_producto', 'id_requisicion')
+            ->withPivot('pr_amount', 'id_productoxproveedor')
             ->withTimestamps();
     }
 }

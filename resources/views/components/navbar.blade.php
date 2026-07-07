@@ -4,7 +4,7 @@
          
         <!-- Título -->
         <h1 class="text-sm sm:text-base md:text-lg font-semibold uppercase tracking-widest text-center flex-1">
-            Requisición App
+            VPL-COMPRAS
         </h1>
 
     </nav>

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Centro extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'centro';
 
@@ -37,5 +38,10 @@ class Centro extends Model
     {
         return $this->belongsToMany(Requisicion::class)
             ->withPivot('rc_amount');
+    }
+
+    public function subcentros()
+    {
+        return $this->hasMany(Subcentro::class, 'centro_id');
     }
 }

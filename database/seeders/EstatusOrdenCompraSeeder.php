@@ -15,7 +15,8 @@ class EstatusOrdenCompraSeeder extends Seeder
         $names = [
             'Orden de compra creada',
             'Recibido',
-            'Orden de compra terminada'
+            'Orden de compra terminada',
+            'Anulada',
         ];
 
         foreach ($names as $name) {

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Requisicion extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'requisicion';
 
@@ -20,17 +21,23 @@ class Requisicion extends Model
         'Recobrable'
     ];
 
+    protected $casts = [
+        'fecha_estimada_recepcion' => 'date',
+    ];
+
     public function productos()
     {
         return $this->belongsToMany(Producto::class, 'producto_requisicion', 'id_requisicion', 'id_producto')
-            ->withPivot('pr_amount')
+            ->withPivot('pr_amount', 'id_productoxproveedor')
             ->withTimestamps();
     }
 
     public function centros()
     {
-        return $this->belongsToMany(Centro::class)
-            ->withPivot('rc_amount');
+        // Relación usando la tabla centro_producto que contiene amount y requisicion_id
+        return $this->belongsToMany(Centro::class, 'centro_producto', 'requisicion_id', 'centro_id')
+            ->withPivot('amount', 'producto_id')
+            ->withTimestamps();
     }
 
     // 🔹 Relación para obtener el estatus actual

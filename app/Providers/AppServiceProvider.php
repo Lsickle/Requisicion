@@ -10,6 +10,7 @@ use App\Models\Estatus_Requisicion;
 use App\Observers\EstatusRequisicionObserver;
 use App\Models\OrdenCompra;
 use App\Observers\OrdenCompraObserver;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,6 +36,18 @@ class AppServiceProvider extends ServiceProvider
         // Registrar observer para OrdenCompra
         if (class_exists(OrdenCompra::class) && class_exists(OrdenCompraObserver::class)) {
             OrdenCompra::observe(OrdenCompraObserver::class);
+        }
+
+        // Forzar esquema https cuando la URL de la app use https
+        // o cuando se establezca la variable FORCE_HTTPS=true en el entorno.
+        try {
+            $appUrl = config('app.url') ?? env('APP_URL');
+            $force = env('FORCE_HTTPS', false);
+            if ((is_string($appUrl) && str_starts_with($appUrl, 'https')) || $force) {
+                URL::forceScheme('https');
+            }
+        } catch (\Throwable $e) {
+            // noop
         }
     }
 

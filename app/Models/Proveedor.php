@@ -20,13 +20,16 @@ class Proveedor extends Model
         'prov_name_c',
         'prov_phone',
         'prov_adress',
-        'prov_city'
+        'prov_city',
+        'methods_oc',
+        'plazo_oc',
+        'prov_email',
     ];
 
-    // Relación con productos (1 a muchos)
-    public function productos()
+    // Relación con productoxproveedor (1 a muchos)
+    public function productoxproveedor()
     {
-        return $this->hasMany(Producto::class);
+        return $this->hasMany(Productoxproveedor::class, 'proveedor_id');
     }
 
     // Relación con órdenes de compra (1 a muchos)

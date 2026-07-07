@@ -258,22 +258,46 @@
         let allowSubmit = false;
         if (submitBtn) {
             submitBtn.addEventListener('click', function(){ allowSubmit = true; });
-        }
-        if (form) {
-            // Bloquear Enter para evitar submit accidental (excepto en textarea)
-            form.addEventListener('keydown', function(e){
-                if (e.key === 'Enter' && e.target && e.target.tagName && e.target.tagName.toLowerCase() !== 'textarea') {
-                    e.preventDefault();
-                }
+            // Mostrar modal de carga al hacer clic en Guardar
+            submitBtn.addEventListener('click', function(){
+                try {
+                    const loader = document.getElementById('cargandoAlert');
+                    if (loader) {
+                        loader.classList.remove('hidden');
+                        loader.classList.add('flex');
+                        document.body.style.overflow = 'hidden';
+                    }
+                } catch (e) { /* noop */ }
             });
+         }
+         if (form) {
+             // Bloquear Enter para evitar submit accidental (excepto en textarea)
+             form.addEventListener('keydown', function(e){
+                 if (e.key === 'Enter' && e.target && e.target.tagName && e.target.tagName.toLowerCase() !== 'textarea') {
+                     e.preventDefault();
+                 }
+             });
+             form.addEventListener('submit', function(e){
+                 if (!allowSubmit) {
+                     e.preventDefault();
+                 }
+             });
+            // Mostrar loader también en el submit (por si se dispara sin click directo)
             form.addEventListener('submit', function(e){
-                if (!allowSubmit) {
-                    e.preventDefault();
+                if (allowSubmit) {
+                    try {
+                        const loader = document.getElementById('cargandoAlert');
+                        if (loader) {
+                            loader.classList.remove('hidden');
+                            loader.classList.add('flex');
+                            document.body.style.overflow = 'hidden';
+                        }
+                    } catch (err) { /* noop */ }
                 }
             });
-        }
-    });
-</script>
+         }
+     });
+ </script>
 <script>
     // Datos iniciales para el script externo (productos de la requisición)
     window.__REQ_EDIT_DATA = {!! json_encode($requisicion->productos->map(function($producto){

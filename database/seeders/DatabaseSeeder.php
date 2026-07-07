@@ -9,20 +9,31 @@ class DatabaseSeeder extends Seeder
     public function run()
 {
     $this->call([
-        ProveedorSeeder::class,
+        // Base
         CentroSeeder::class,
-        ClienteSeeder::class,
+        //SubcentroSeeder::class,
+        //ClienteSeeder::class,
         EstatusSeeder::class,
-        ProductoSeeder::class,
-        NuevoProductoSeeder::class, 
-        RequisicionSeeder::class,
-        Estatus_RequisicionSeeder::class,
-        CentroProductoSeeder::class,
-        OrdenCompraSeeder::class,
-        OrdenCompraProductoSeeder::class,
-        EstatusTableSeeder::class,
+        //NuevoProductoSeeder::class,
+
+        // Requisiciones + relaciones
+        //RequisicionSeeder::class,
+        //Estatus_RequisicionSeeder::class,
+        //CentroProductoSeeder::class,
+
+        // Estatus de OC (catálogo)
         EstatusOrdenCompraSeeder::class,
-        EstatusTableSeeder::class,
+
+        // Orden de compra + pivotes y estatus
+        //OrdenCompraSeeder::class,
+        //OrdenCompraProductoSeeder::class,
+        //OrdenCompraCentroProductoSeeder::class,
+        //OrdenCompraEstatusSeeder::class,
+
+        // Llamadas a seeders existentes
+        //ProveedoresSeeder::class,
+        //ProductosSeeder::class,
+        //ProductoxProveedorSeeder::class,
     ]);
 }
 }

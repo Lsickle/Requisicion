@@ -9,23 +9,42 @@
 
     <!-- Contenido principal -->
     <div class="flex-1 px-4 md:px-8 pb-10">
-        <div class="max-w-7xl mx-auto bg-gray-50 rounded-xl shadow-lg p-6 flex flex-col min-h-[80vh]">
+        <div class="max-w-7xl mx-auto bg-white/95 rounded-2xl shadow-2xl border border-slate-200 ring-1 ring-slate-100 p-6 flex flex-col min-h-[80vh]">
 
-            <!-- Encabezado: Título a la izquierda, Volver a la derecha -->
+            <!-- Encabezado -->
             <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-gray-800">Requisiciones Aprobadas para Orden de Compra</h1>
-                <a href="{{ route('requisiciones.menu') }}" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow transition">← Volver</a>
+                <div class="flex items-center gap-3">
+                    <div class="h-11 w-11 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-inner">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Requisiciones Aprobadas para Orden de Compra</h1>
+                </div>
+                <a href="{{ route('requisiciones.menu') }}" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white shadow-sm transition">← Volver</a>
             </div>
+
+            <style>
+                .thin-scrollbar { scrollbar-width: thin; scrollbar-color: #94a3b8 #e2e8f0; }
+                .thin-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+                .thin-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+                .status-badge { display:inline-block; padding:0.25rem 0.6rem; border-radius:9999px; font-size:.7rem; font-weight:700; line-height:1; white-space:normal; text-wrap:balance; }
+            </style>
 
             <!-- Barra de búsqueda -->
             <div class="mb-4">
-                <input type="text" id="busquedaLista" placeholder="Buscar requisición..."
-                    class="border px-4 py-2 rounded-lg w-full md:w-1/3 shadow-sm focus:ring focus:ring-blue-300 focus:outline-none">
+                <div class="relative w-full md:w-1/3">
+                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fas fa-search"></i></span>
+                    <input type="text" id="busquedaLista" placeholder="Buscar requisición..."
+                        class="pl-10 border border-indigo-300 rounded-xl w-full py-2.5 text-sm shadow-sm focus:border-indigo-400 focus:ring focus:ring-indigo-300/40 focus:outline-none">
+                </div>
             </div>
 
             <!-- Mostrar solo requisiciones con estatus permitidos y EXCLUIR explícitamente estatus 10 -->
             @php
-                $permitidos = [4,5,7,8,12];
+                // Incluir también requisiciones recién creadas / en revisión para poder generar OC
+                // IDs: 1=Requisición creada, 2=Revisado por compras, 3=Aprobado Gerencia Operaciones
+                $permitidos = [1,2,3,4,5,7,8,12];
                 $requisicionesFiltradas = ($requisiciones ?? collect())->filter(function($r) use ($permitidos) {
                     $hist = $r->estatusHistorial ?? collect();
                     $ultimo = $hist->sortByDesc('created_at')->first();
@@ -35,16 +54,18 @@
             @endphp
 
             <!-- Contenedor scrollable -->
-            <div class="flex-1 overflow-y-auto">
+            <div class="flex-1 overflow-y-auto thin-scrollbar">
                 <!-- Tabla en escritorio -->
-                <div class="bg-white rounded-lg shadow overflow-x-auto hidden md:block">
+                <div class="bg-white rounded-xl shadow-sm ring-1 ring-slate-100 overflow-x-auto block">
                     <table id="tablaRequisicionesLista" class="min-w-full table-auto border-collapse">
-                        <thead class="bg-gray-200 text-gray-700 text-sm uppercase tracking-wide">
+                        <thead class="bg-indigo-50 text-indigo-900 text-xs font-semibold uppercase tracking-wide sticky top-0 z-10">
                             <tr>
                                 <th class="px-4 py-2 text-left">#</th>
-                                <th class="px-4 py-2 text-left">Detalle</th>
+                                <th class="px-4 py-2 text-left">Centro de Costo</th>
                                 <th class="px-4 py-2 text-left">Prioridad</th>
                                 <th class="px-4 py-2 text-left">Solicitante</th>
+                                <th class="px-4 py-2 text-left">Tipo</th>
+                                <th class="px-4 py-2 text-left">Estatus</th>
                                 <th class="px-4 py-2 text-center">Acciones</th>
                             </tr>
                         </thead>
@@ -73,29 +94,48 @@
                                     if ($got < (int)$need) { $isComplete = false; break; }
                                 }
                                 $estatusActivo = optional(($req->estatusHistorial ?? collect())->sortByDesc('created_at')->first())->estatus_id;
+                                // Cálculo de pendientes para OC (equivalente al selector del create):
+                                $productosIdsReq = ($req->productos ?? collect())->pluck('id')->unique()->values();
+                                $prodConOcp = DB::table('ordencompra_producto as ocp')
+                                    ->whereNull('ocp.deleted_at')
+                                    ->where('ocp.requisicion_id', $req->id)
+                                    ->pluck('ocp.producto_id')
+                                    ->unique()
+                                    ->values();
+                                $sinDistribuirCount = $productosIdsReq->diff($prodConOcp)->count();
+                                $pendientesOcpCount = DB::table('ordencompra_producto as ocp')
+                                    ->whereNull('ocp.deleted_at')
+                                    ->where('ocp.requisicion_id', $req->id)
+                                    ->whereNull('ocp.orden_compras_id')
+                                    ->count();
+                                $totalSelectCount = $sinDistribuirCount + $pendientesOcpCount;
                             @endphp
-                            <tr class="border-b hover:bg-gray-50">
+                            <tr class="border-b odd:bg-white even:bg-slate-50 hover:bg-indigo-50/40 transition">
                                 <td class="px-4 py-2">{{ $req->id }}</td>
-                                <td class="px-4 py-2">{{ $req->detail_requisicion }}</td>
+                                <td class="px-4 py-2">{{ $req->operacion_user }}</td>
                                 <td class="px-4 py-2">
-                                    <span class="px-2 py-1 rounded-full text-xs font-semibold 
-                                        {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
-                                           ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
-                                           'bg-green-100 text-green-800') }}">
-                                        {{ ucfirst($req->prioridad_requisicion) }}
-                                    </span>
+                                    <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
                                 </td>
                                 <td class="px-4 py-2">{{ $req->name_user }}</td>
+                                <td class="px-4 py-2">
+                                    @php $tipo = strtolower((string)($req->type ?? '')); @endphp
+                                    <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                                </td>
+                                <td class="px-4 py-2">
+                                    @if($totalSelectCount > 0)
+                                        <span class="status-badge bg-amber-100 text-amber-800" title="Faltan líneas por OC">Falta por orden de compra {{ $totalSelectCount }} producto{{ $totalSelectCount === 1 ? '' : 's' }}</span>
+                                    @else
+                                        <span class="status-badge bg-green-100 text-green-800">Órdenes de compra creadas</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-2 text-center">
                                     <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                        class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">
-                                        Ver
-                                    </button>
+                                        class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition">Ver</button>
                                 </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
+                                <td colspan="7" class="text-center py-4 text-gray-500">No hay requisiciones aprobadas para orden de compra</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -105,25 +145,20 @@
                 <!-- Vista móvil como tarjetas -->
                 <div id="listaMobile" class="md:hidden space-y-4">
                     @forelse($requisicionesFiltradas as $req)
-                    <div class="bg-white rounded-lg shadow p-4 req-card">
-                        <h2 class="font-bold text-lg mb-2">#{{ $req->id }} - {{ $req->detail_requisicion }}</h2>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div>
-                                <p class="text-sm text-gray-600">Prioridad:</p>
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold 
-                                    {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : 
-                                       ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 
-                                       'bg-green-100 text-green-800') }}">
-                                    {{ ucfirst($req->prioridad_requisicion) }}
-                                </span>
-                            </div>
+                    <div class="bg-white rounded-xl shadow-sm ring-1 ring-slate-100 p-4 req-card">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="font-bold text-lg">#{{ $req->id }}</h2>
+                            @php $tipo = strtolower((string)($req->type ?? '')); @endphp
+                            <span class="status-badge {{ $tipo === 'especial' ? 'bg-fuchsia-100 text-fuchsia-800' : 'bg-blue-100 text-blue-800' }}">{{ $req->type ?? '-' }}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-1">Centro: {{ $req->operacion_user }}</p>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="status-badge {{ $req->prioridad_requisicion == 'alta' ? 'bg-red-100 text-red-800' : ($req->prioridad_requisicion == 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800') }}">{{ ucfirst($req->prioridad_requisicion) }}</span>
                         </div>
                         <p class="text-sm text-gray-600">Solicitante: {{ $req->name_user }}</p>
                         <div class="mt-3">
                             <button onclick="toggleModal('modal-{{ $req->id }}')"
-                                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition text-sm">
-                                Ver Detalles
-                            </button>
+                                class="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition text-sm shadow-sm">Ver Detalles</button>
                         </div>
                     </div>
                     @empty
@@ -152,9 +187,9 @@
 
 <!-- Modales para cada requisición -->
 @foreach($requisicionesFiltradas as $req)
-<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+<div id="modal-{{ $req->id }}" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div class="flex-1 overflow-y-auto p-6 relative">
+        <div class="flex-1 overflow-y-auto p-6 relative thin-scrollbar">
             <button onclick="toggleModal('modal-{{ $req->id }}')"
                 class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 font-bold text-2xl">&times;</button>
 
@@ -191,16 +226,14 @@
                 <table class="min-w-full border border-gray-200 text-sm table-fixed">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="px-4 py-2 text-left" style="width:20%">Producto</th>
-                            <th class="px-4 py-2 text-center" style="width:60px">Total</th>
-                            <th class="px-4 py-2 text-center" style="width:90px">Unidad</th>
-                            <th class="px-4 py-2 text-center" style="width:110px">Precio unitario</th>
-                            <th class="px-4 py-2 text-center" style="width:120px">Precio total</th>
-                            <th class="px-4 py-2 text-left" style="width:30%">Distribución por Centros</th>
+                            <th class="px-4 py-2 text-left" style="width:30%">Producto</th>
+                            <th class="px-4 py-2 text-center" style="width:80px">Total</th>
+                            <th class="px-4 py-2 text-center" style="width:100px">Unidad</th>
+                            <th class="px-4 py-2 text-left" style="width:40%">Distribución por Centros</th>
                         </tr>
+
                     </thead>
                     <tbody>
-                        @php $grandTotal = 0; @endphp
                         @foreach($req->productos as $prod)
                         @php
                         $distribucion = DB::table('centro_producto')
@@ -210,27 +243,35 @@
                             ->select('centro.name_centro', 'centro_producto.amount')
                             ->get();
                         $confirmadoEntrega = (int) DB::table('entrega')->where('requisicion_id', $req->id)->where('producto_id', $prod->id)->whereNull('deleted_at')->sum(DB::raw('COALESCE(cantidad_recibido,0)'));
-                        // Ignorar tabla recepcion aquí; solo considerar entregas
                         $confirmadoStock = 0;
                         $totalConfirmado = $confirmadoEntrega + $confirmadoStock;
-                        $precioUnit = (float) ($prod->price_produc ?? 0);
-                        $precioTotal = $precioUnit * (int)($prod->pivot->pr_amount ?? 0);
-                        $grandTotal += $precioTotal;
+                        // Cantidad pendiente por confirmar en entregas (salida de stock)
+                        $pendienteConfirmacion = (int) DB::table('entrega')
+                            ->where('requisicion_id', $req->id)
+                            ->where('producto_id', $prod->id)
+                            ->whereNull('deleted_at')
+                            ->sum(DB::raw('GREATEST(cantidad - COALESCE(cantidad_recibido,0), 0)'));
                         @endphp
 
                         <tr>
                             <td class="px-3 py-2 border min-w-0">{{ $prod->name_produc }}</td>
-                            <td class="px-3 py-2 border text-center font-semibold w-20">{{ $prod->pivot->pr_amount }} @if($totalConfirmado>0)<span class="text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>@endif</td>
+                            <td class="px-3 py-2 border text-center font-semibold w-20">
+                                {{ $prod->pivot->pr_amount }}
+                                @if($totalConfirmado>0)
+                                    <span class="block text-xs text-gray-500">({{ $totalConfirmado }} recibido)</span>
+                                @endif
+                                @if($pendienteConfirmacion>0)
+                                    <span class="block text-xs text-amber-700 font-semibold">En espera de confirmación de recepción por {{ $pendienteConfirmacion }}</span>
+                                @endif
+                            </td>
                             <td class="px-3 py-2 border text-center">{{ $prod->unit_produc ?? '-' }}</td>
-                            <td class="px-3 py-2 border text-center">${{ number_format($precioUnit,2) }}</td>
-                            <td class="px-3 py-2 border text-center font-semibold">${{ number_format($precioTotal,2) }}</td>
                             <td class="px-3 py-2 border align-top">
                                 @if($distribucion->count() > 0)
-                                <div class="max-h-36 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
+                                <div class="max-h-24 overflow-y-auto p-1 flex flex-col gap-2">
                                     @foreach($distribucion as $centro)
-                                    <div class="flex items-center bg-gray-50 px-3 py-2 rounded text-sm">
-                                        <span class="flex-1 mr-3 break-words">{{ $centro->name_centro }}</span>
-                                        <span class="flex-none bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
+                                    <div class="w-full bg-gray-50 px-3 py-2 rounded text-sm flex items-center justify-between">
+                                        <span class="break-words">{{ $centro->name_centro }}</span>
+                                        <span class="ml-3 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{{ $centro->amount }}</span>
                                     </div>
                                     @endforeach
                                 </div>
@@ -240,14 +281,6 @@
                             </td>
                         </tr>
                         @endforeach
-                        <tr class="border-t bg-gray-50">
-                            <td class="px-4 py-3 font-semibold">Total general</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td class="px-3 py-3 font-semibold">${{ number_format($grandTotal,2) }}</td>
-                            <td></td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -264,9 +297,6 @@
                     Crear Orden de Compra
                 </button>
             </form>
-            <button type="button" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition" data-btn-sacar-stock data-requisicion-id="{{ $req->id }}">
-                Sacar productos de stock
-            </button>
         </div>
         @php
             $prodsData = ($req->productos ?? collect())->map(function($p){
@@ -311,48 +341,6 @@
 </div>
 @endforeach
 
-<!-- Modal global para sacar de stock (inicialmente oculto) -->
-<div id="modal-sacar-stock-global" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div class="px-5 py-3 border-b flex justify-between items-center">
-            <h3 class="font-semibold">Sacar productos de stock</h3>
-            <button type="button" class="text-gray-600 hover:text-gray-800" id="ss-close">✕</button>
-        </div>
-        <div class="p-5 space-y-3">
-            <input type="hidden" id="ss-requisicion-id" value="">
-            <div>
-                <label class="block text-sm text-gray-600 mb-1">Producto</label>
-                <select id="ss-producto" class="w-full border rounded p-2">
-                    <option value="">Seleccione producto</option>
-                </select>
-                <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                        <div class="text-[10px] tracking-wide text-blue-700 uppercase">Stock actual</div>
-                        <div class="text-2xl font-bold text-blue-900"><span id="ss-stock">0</span></div>
-                    </div>
-                    <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                        <div class="text-[10px] tracking-wide text-amber-700 uppercase">Solicitado</div>
-                        <div class="text-2xl font-bold text-amber-900"><span id="ss-req">0</span></div>
-                    </div>
-                    <div class="p-3 rounded-lg bg-gray-50 border border-gray-200 hidden sm:block">
-                        <div class="text-[10px] tracking-wide text-gray-600 uppercase">Unidad</div>
-                        <div class="text-xl font-semibold text-gray-800"><span id="ss-unit">—</span></div>
-                    </div>
-                </div>
-            </div>
-            <div>
-                <label class="block text-sm text-gray-600 mb-1">Cantidad a sacar</label>
-                <input type="number" id="ss-cantidad" class="w-full border rounded p-2" min="1" placeholder="Ingrese cantidad">
-                <div class="mt-1 text-xs text-gray-500">Máximo permitido: <span id="ss-max">0</span></div>
-            </div>
-        </div>
-        <div class="px-5 py-3 border-t flex justify-end gap-2">
-            <button type="button" class="px-4 py-2 border rounded" id="ss-cancel">Cancelar</button>
-            <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded" id="ss-save">Guardar</button>
-        </div>
-    </div>
-</div>
-
 @endsection
 
 @section('scripts')
@@ -368,13 +356,6 @@
         }
     }
     document.addEventListener('click', function(event) {
-        // Cerrar solo overlays/modales específicos (evitar afectar nav/sidebars u otros elementos 'fixed')
-        const el = event.target;
-        if (el && el.id && (el.id.startsWith('modal-') || el.id === 'modal-sacar-stock-global')) {
-            el.classList.add('hidden');
-            el.classList.remove('flex');
-            document.body.style.overflow = 'auto';
-        }
     });
     // Paginación cliente para lista
     let listaCurrentPage = 1;
@@ -436,6 +417,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function(){
+        console.log('[DEBUG lista] window.innerWidth=', window.innerWidth, 'devicePixelRatio=', window.devicePixelRatio);
         // Inicializar matching y pageSize
         document.querySelectorAll('#tablaRequisicionesLista tbody tr, #listaMobile .req-card').forEach(el => el.dataset.match = '1');
 
@@ -465,6 +447,17 @@
 
         // Inicial show
         listaShowPage(1);
+        // Debug: contar filas y tarjetas visibles/ocultas
+        try {
+            const allDesktop = Array.from(document.querySelectorAll('#tablaRequisicionesLista tbody tr'));
+            const matchedDesktop = allDesktop.filter(r => (r.dataset.match ?? '1') !== '0');
+            const visibleDesktop = allDesktop.filter(r => r.style.display !== 'none');
+            const allMobile = Array.from(document.querySelectorAll('#listaMobile .req-card'));
+            const matchedMobile = allMobile.filter(c => (c.dataset.match ?? '1') !== '0');
+            const visibleMobile = allMobile.filter(c => c.style.display !== 'none');
+            console.log('[DEBUG lista] desktop total=', allDesktop.length, 'matched=', matchedDesktop.length, 'visible=', visibleDesktop.length);
+            console.log('[DEBUG lista] mobile total=', allMobile.length, 'matched=', matchedMobile.length, 'visible=', visibleMobile.length);
+        } catch (e) { console.error('Debug lista error', e); }
     });
 
     async function completarReq(id){
@@ -632,8 +625,12 @@
                 Swal.fire({icon:'warning', title:'Datos incompletos', text:'Seleccione producto y cantidad válida'}); return;
             }
             try {
+                // Mostrar loader y bloquear botón Guardar
+                try { Swal.fire({ title: 'Guardando', text: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); } catch(_) {}
+                btnSave.disabled = true;
+
                 const body = { requisicion_id: requisicionId, producto_id: productoId, cantidad };
-                if (ocpId) body.ocp_id = ocpId; // enviar ocp_id para que backend lo use si está implementado
+                if (ocpId) body.ocp_id = ocpId;
 
                 const resp = await fetch(`{{ route('recepciones.storeSalidaStockEnEntrega') }}`, {
                     method:'POST',
@@ -642,10 +639,16 @@
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.message || 'Error al guardar');
+
+                try { Swal.close(); } catch(_) {}
                 close();
-                Swal.fire({icon:'success', title:'Listo', text:'Salida de stock registrada.'}).then(()=> location.reload());
+                await Swal.fire({icon:'success', title:'Listo', text:'Salida de stock registrada.'});
+                location.reload();
             } catch(e){
+                try { Swal.close(); } catch(_) {}
                 Swal.fire({icon:'error', title:'Error', text:e.message});
+            } finally {
+                btnSave.disabled = false;
             }
         });
 
